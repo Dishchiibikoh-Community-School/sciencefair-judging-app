@@ -3,7 +3,7 @@
 -- Run this in the Supabase SQL editor for your project.
 -- ============================================================
 
--- ── TABLES ──────────────────────────────────────────────────
+-- -- TABLES ----------------------------------------------------------
 
 -- Registered judges (anonymous aliases, no real identity stored)
 CREATE TABLE judges (
@@ -53,7 +53,7 @@ CREATE TABLE share_links (
   token       TEXT        NOT NULL UNIQUE,
   expiry      TEXT        NOT NULL DEFAULT 'never',  -- '1h' | '24h' | '7d' | 'never'
   show_rubric BOOLEAN     NOT NULL DEFAULT TRUE,
-  title       TEXT        NOT NULL DEFAULT 'Science Fair 2025 — Final Results',
+  title       TEXT        NOT NULL DEFAULT 'Science Fair SY 2025-2026 - Final Results',
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   revoked_at  TIMESTAMPTZ                            -- NULL = active
 );
@@ -69,7 +69,7 @@ CREATE TABLE app_settings (
 INSERT INTO app_settings (key, value) VALUES ('locked', 'false');
 
 
--- ── ROW LEVEL SECURITY ──────────────────────────────────────
+-- -- ROW LEVEL SECURITY -----------------------------------------------
 -- NOTE: Full per-judge enforcement (judges can only write their OWN scores)
 -- requires Supabase Auth with JWTs. The policies below are appropriate for
 -- the current phase (invite-code auth, no Supabase Auth yet). When Supabase
@@ -114,7 +114,7 @@ CREATE POLICY "app_settings_select" ON app_settings FOR SELECT USING (true);
 CREATE POLICY "app_settings_update" ON app_settings FOR UPDATE USING (true);
 
 
--- ── REALTIME ────────────────────────────────────────────────
+-- -- REALTIME ----------------------------------------------------------
 -- Enable realtime publication for live dashboard updates.
 -- Run these after enabling the Realtime extension in your Supabase project.
 
@@ -126,7 +126,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE share_links;
 ALTER PUBLICATION supabase_realtime ADD TABLE app_settings;
 
 
--- ── INDEXES ─────────────────────────────────────────────────
+-- -- INDEXES -----------------------------------------------------------
 CREATE INDEX scores_judge_id_idx    ON scores (judge_id);
 CREATE INDEX scores_project_id_idx  ON scores (project_id);
 CREATE INDEX activity_log_time_idx  ON activity_log (created_at DESC);

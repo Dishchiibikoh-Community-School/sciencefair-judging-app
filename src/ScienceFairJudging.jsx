@@ -99,243 +99,262 @@ const SEED_IT = [
 // CSS
 // ─────────────────────────────────────────────
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Source+Sans+3:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
   *{box-sizing:border-box;margin:0;padding:0;}
   :root{
-    --bg:#07101f;--s1:#0d1b30;--s2:#132240;--bd:#1c2e4a;
-    --gold:#f0a500;--gold2:#a37010;
-    --text:#e2e8f5;--dim:#6b7fa3;
-    --blue:#3b82f6;--green:#22c55e;--red:#ef4444;--amber:#f59e0b;--purple:#a78bfa;
+    --bg:#ffffff;--s1:#f8fafc;--s2:#f1f5f9;--bd:#e2e8f0;
+    --navy:#1e3a5f;--navy-l:#2d5a8e;
+    --text:#1e293b;--dim:#64748b;
+    --green:#059669;--green-l:#d1fae5;--red:#dc2626;--red-l:#fee2e2;--amber:#d97706;--amber-l:#fef3c7;
+    --blue:#2563eb;--blue-l:#dbeafe;--purple:#7c3aed;--purple-l:#ede9fe;
     --r:12px;
-    --ff-d:'Playfair Display',Georgia,serif;
-    --ff-b:'DM Sans',sans-serif;
+    --ff-d:'Merriweather',Georgia,serif;
+    --ff-b:'Source Sans 3','Source Sans Pro',sans-serif;
     --ff-m:'DM Mono',monospace;
+    --shadow:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+    --shadow-md:0 4px 12px rgba(0,0,0,.07),0 2px 4px rgba(0,0,0,.04);
+    --shadow-lg:0 10px 30px rgba(0,0,0,.08),0 4px 8px rgba(0,0,0,.04);
   }
-  body{background:var(--bg);color:var(--text);font-family:var(--ff-b);}
+  body{background:var(--bg);color:var(--text);font-family:var(--ff-b);font-size:16px;line-height:1.6;}
   .app{min-height:100vh;}
   .center{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:1.5rem;}
-  .inner{width:100%;max-width:560px;}
+  .inner{width:100%;max-width:580px;}
 
   /* LANDING */
   .glow{position:fixed;top:-200px;left:50%;transform:translateX(-50%);width:700px;height:500px;
-    background:radial-gradient(ellipse at 50% 0%,#1e5eb820 0%,transparent 70%);pointer-events:none;}
-  .glow.purple{background:radial-gradient(ellipse at 50% 0%,#7c3aed15 0%,transparent 70%);}
+    background:radial-gradient(ellipse at 50% 0%,#1e3a5f10 0%,transparent 70%);pointer-events:none;}
+  .glow.purple{background:radial-gradient(ellipse at 50% 0%,#1e3a5f08 0%,transparent 70%);}
   .school-banner{display:flex;flex-direction:column;align-items:center;gap:.6rem;margin-bottom:2rem;}
-  .school-banner img{width:80px;height:80px;object-fit:contain;filter:drop-shadow(0 4px 16px #1e5eb840);}
+  .school-banner img{width:88px;height:88px;object-fit:contain;filter:drop-shadow(0 4px 12px rgba(30,58,95,.15));}
   .school-name{font-family:var(--ff-d);font-size:clamp(1rem,3.5vw,1.25rem);font-weight:700;
-    color:#fff;text-align:center;letter-spacing:.01em;line-height:1.25;}
-  .school-name span{color:#5b9ef0;}
-  .school-div{width:48px;height:2px;background:linear-gradient(90deg,transparent,#1e5eb8,transparent);margin:.2rem 0;}
-  .land-badge{font-family:var(--ff-m);font-size:.7rem;letter-spacing:.18em;color:#5b9ef0;
-    border:1px solid #1e5eb8;border-radius:100px;padding:.3rem 1rem;margin-bottom:2rem;display:inline-block;}
-  .land-h1{font-family:var(--ff-d);font-size:clamp(2.2rem,6vw,3.8rem);font-weight:700;text-align:center;
-    line-height:1.1;margin-bottom:.9rem;}
-  .land-h1 span{color:#5b9ef0;}
-  .land-p{color:var(--dim);text-align:center;max-width:400px;line-height:1.65;margin-bottom:3rem;}
+    color:var(--navy);text-align:center;letter-spacing:.01em;line-height:1.25;}
+  .school-name span{color:var(--navy-l);}
+  .school-div{width:48px;height:2px;background:linear-gradient(90deg,transparent,var(--navy),transparent);margin:.2rem 0;}
+  .land-badge{font-family:var(--ff-m);font-size:.75rem;letter-spacing:.15em;color:var(--navy);
+    border:1px solid var(--bd);border-radius:100px;padding:.35rem 1.1rem;margin-bottom:2rem;display:inline-block;
+    background:var(--s1);}
+  .land-h1{font-family:var(--ff-d);font-size:clamp(2rem,6vw,3.2rem);font-weight:900;text-align:center;
+    line-height:1.15;margin-bottom:.9rem;color:var(--navy);}
+  .land-h1 span{color:var(--green);}
+  .land-p{color:var(--dim);text-align:center;max-width:420px;line-height:1.7;margin-bottom:3rem;font-size:1.05rem;}
   .role-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;width:100%;max-width:500px;}
   .role-grid.three{grid-template-columns:1fr 1fr;}
   @media(max-width:440px){.role-grid{grid-template-columns:1fr;}}
-  .role-card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:1.75rem 1.5rem;
-    cursor:pointer;transition:all .2s;text-align:center;}
-  .role-card:hover{border-color:var(--gold2);background:var(--s2);transform:translateY(-2px);box-shadow:0 8px 32px #f0a50010;}
-  .role-card.adm:hover{border-color:var(--blue);}
+  .role-card{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:1.75rem 1.5rem;
+    cursor:pointer;transition:all .2s;text-align:center;box-shadow:var(--shadow);}
+  .role-card:hover{border-color:var(--navy);transform:translateY(-2px);box-shadow:var(--shadow-lg);}
+  .role-card.adm:hover{border-color:var(--navy);}
   .role-card.pub{grid-column:span 2;display:flex;align-items:center;gap:1.5rem;text-align:left;
-    background:linear-gradient(135deg,#1a1500 0%,#0d1b30 60%);border-color:var(--gold2);}
-  .role-card.pub:hover{border-color:var(--gold);box-shadow:0 8px 40px #f0a50018;}
+    background:linear-gradient(135deg,#f0fdf4 0%,#ffffff 60%);border-color:var(--green);}
+  .role-card.pub:hover{border-color:var(--green);box-shadow:var(--shadow-lg);}
   .role-card.pub .ico{font-size:3rem;flex-shrink:0;}
   .role-card .ico{font-size:2.4rem;margin-bottom:.65rem;}
-  .role-card h3{font-size:1.05rem;font-weight:600;margin-bottom:.25rem;}
-  .role-card p{font-size:.8rem;color:var(--dim);}
-  .pub-pill{display:inline-flex;align-items:center;gap:.35rem;background:#16391e;border:1px solid #22c55e40;
-    color:var(--green);font-size:.68rem;font-family:var(--ff-m);padding:.2rem .6rem;border-radius:100px;margin-bottom:.3rem;}
-  .demo-hint{margin-top:2rem;font-size:.72rem;color:var(--dim);text-align:center;}
-  .demo-hint strong{color:var(--gold);font-family:var(--ff-m);}
+  .role-card h3{font-size:1.1rem;font-weight:700;margin-bottom:.25rem;color:var(--navy);}
+  .role-card p{font-size:.9rem;color:var(--dim);}
+  .pub-pill{display:inline-flex;align-items:center;gap:.35rem;background:var(--green-l);border:1px solid #05966930;
+    color:var(--green);font-size:.75rem;font-family:var(--ff-m);padding:.25rem .7rem;border-radius:100px;margin-bottom:.3rem;}
+  .demo-hint{margin-top:2rem;font-size:.8rem;color:var(--dim);text-align:center;}
+  .demo-hint strong{color:var(--navy);font-family:var(--ff-m);}
 
   /* SHARED */
   .back{background:none;border:none;color:var(--dim);cursor:pointer;font-family:var(--ff-b);
-    font-size:.83rem;margin-bottom:1.5rem;padding:0;display:flex;align-items:center;gap:.3rem;}
+    font-size:.95rem;margin-bottom:1.5rem;padding:0;display:flex;align-items:center;gap:.3rem;}
   .back:hover{color:var(--text);}
-  .card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:1.5rem;margin-bottom:.85rem;}
-  .lbl{font-size:.72rem;font-family:var(--ff-m);letter-spacing:.1em;color:var(--dim);text-transform:uppercase;margin-bottom:.45rem;}
-  input[type=text],input[type=password]{width:100%;background:var(--bg);border:1px solid var(--bd);
-    border-radius:8px;padding:.8rem 1rem;color:var(--text);font-family:var(--ff-b);font-size:1rem;outline:none;transition:border-color .2s;}
-  input[type=text]:read-only{color:var(--gold);font-family:var(--ff-m);font-size:.84rem;letter-spacing:.03em;cursor:default;}
-  input:focus{border-color:var(--gold2);}
-  .err{color:var(--red);font-size:.82rem;margin-top:.4rem;}
-  textarea{width:100%;background:var(--bg);border:1px solid var(--bd);border-radius:8px;
-    padding:.75rem 1rem;color:var(--text);font-family:var(--ff-b);font-size:.9rem;
-    outline:none;resize:vertical;min-height:80px;transition:border-color .2s;}
-  textarea:focus{border-color:var(--gold2);}
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;background:var(--gold);
-    color:#07101f;border:none;border-radius:8px;padding:.85rem 1.5rem;font-family:var(--ff-b);
-    font-size:.95rem;font-weight:600;cursor:pointer;transition:all .2s;width:100%;}
-  .btn:hover{background:#ffc020;}
+  .card{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:1.5rem;
+    margin-bottom:.85rem;box-shadow:var(--shadow);}
+  .lbl{font-size:.8rem;font-family:var(--ff-m);letter-spacing:.08em;color:var(--dim);text-transform:uppercase;margin-bottom:.5rem;}
+  input[type=text],input[type=password]{width:100%;background:var(--bg);border:1.5px solid var(--bd);
+    border-radius:8px;padding:.85rem 1rem;color:var(--text);font-family:var(--ff-b);font-size:1.05rem;outline:none;transition:border-color .2s;}
+  input[type=text]:read-only{color:var(--navy);font-family:var(--ff-m);font-size:.9rem;letter-spacing:.03em;cursor:default;background:var(--s1);}
+  input:focus{border-color:var(--navy);}
+  .err{color:var(--red);font-size:.9rem;margin-top:.4rem;}
+  textarea{width:100%;background:var(--bg);border:1.5px solid var(--bd);border-radius:8px;
+    padding:.85rem 1rem;color:var(--text);font-family:var(--ff-b);font-size:1rem;
+    outline:none;resize:vertical;min-height:90px;transition:border-color .2s;}
+  textarea:focus{border-color:var(--navy);}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;background:var(--navy);
+    color:#fff;border:none;border-radius:8px;padding:.9rem 1.5rem;font-family:var(--ff-b);
+    font-size:1rem;font-weight:600;cursor:pointer;transition:all .2s;width:100%;box-shadow:var(--shadow);}
+  .btn:hover{background:var(--navy-l);box-shadow:var(--shadow-md);}
   .btn:disabled{opacity:.4;cursor:not-allowed;}
-  .btn.sec{background:var(--s2);color:var(--text);border:1px solid var(--bd);}
-  .btn.sec:hover{border-color:var(--dim);}
-  .btn.purple{background:#7c3aed;color:#fff;}
+  .btn.sec{background:var(--bg);color:var(--text);border:1.5px solid var(--bd);box-shadow:none;}
+  .btn.sec:hover{border-color:var(--dim);background:var(--s1);}
+  .btn.purple{background:var(--purple);color:#fff;}
   .btn.purple:hover{background:#6d28d9;}
   .btn.danger{background:var(--red);color:#fff;}
-  .btn.danger:hover{background:#dc2626;}
-  .btn.sm{width:auto;padding:.45rem .9rem;font-size:.82rem;}
+  .btn.danger:hover{background:#b91c1c;}
+  .btn.sm{width:auto;padding:.5rem 1rem;font-size:.9rem;}
   .btn-row{display:flex;gap:.6rem;flex-wrap:wrap;}
   .pbar{background:var(--bd);border-radius:100px;overflow:hidden;}
-  .pfill{background:linear-gradient(90deg,var(--gold),#ffc020);border-radius:100px;transition:width .5s ease;}
-  .badge{display:inline-block;font-size:.7rem;font-family:var(--ff-m);padding:.2rem .6rem;border-radius:100px;}
-  .bg{background:#16391e;color:var(--green);}
-  .ba{background:#382a0a;color:var(--amber);}
-  .br{background:#3a1010;color:var(--red);}
-  .bb{background:#102040;color:#60a5fa;}
-  .bp{background:#2d1b69;color:var(--purple);}
+  .pfill{background:linear-gradient(90deg,var(--green),#34d399);border-radius:100px;transition:width .5s ease;}
+  .badge{display:inline-block;font-size:.75rem;font-family:var(--ff-m);padding:.25rem .7rem;border-radius:100px;font-weight:500;}
+  .bg{background:var(--green-l);color:var(--green);}
+  .ba{background:var(--amber-l);color:var(--amber);}
+  .br{background:var(--red-l);color:var(--red);}
+  .bb{background:var(--blue-l);color:var(--blue);}
+  .bp{background:var(--purple-l);color:var(--purple);}
 
   /* TOGGLE */
   .toggle-wrap{display:flex;align-items:center;justify-content:space-between;padding:.65rem 0;}
-  .toggle{position:relative;width:44px;height:24px;flex-shrink:0;}
+  .toggle{position:relative;width:48px;height:26px;flex-shrink:0;}
   .toggle input{opacity:0;width:0;height:0;}
   .toggle-slider{position:absolute;inset:0;background:var(--bd);border-radius:100px;cursor:pointer;transition:.2s;}
-  .toggle-slider:before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;
-    background:#fff;border-radius:50%;transition:.2s;}
+  .toggle-slider:before{content:"";position:absolute;width:20px;height:20px;left:3px;top:3px;
+    background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.15);}
   .toggle input:checked + .toggle-slider{background:var(--green);}
-  .toggle input:checked + .toggle-slider:before{transform:translateX(20px);}
+  .toggle input:checked + .toggle-slider:before{transform:translateX(22px);}
 
   /* JUDGE */
   .jh-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;}
-  .alias-tag{font-family:var(--ff-m);font-size:.75rem;background:var(--s2);border:1px solid var(--bd);
-    color:var(--gold);padding:.3rem .85rem;border-radius:100px;}
+  .alias-tag{font-family:var(--ff-m);font-size:.82rem;background:var(--s1);border:1px solid var(--bd);
+    color:var(--navy);padding:.35rem .9rem;border-radius:100px;font-weight:500;}
   .proj-list{padding:.25rem;}
-  .proj-item{display:flex;align-items:center;gap:.9rem;padding:.9rem .75rem;border-radius:10px;
+  .proj-item{display:flex;align-items:center;gap:1rem;padding:1rem .85rem;border-radius:10px;
     cursor:pointer;transition:all .15s;border:1px solid transparent;}
-  .proj-item:hover{background:var(--s2);border-color:var(--bd);}
-  .proj-num{font-family:var(--ff-m);font-size:.72rem;color:var(--gold);min-width:34px;}
+  .proj-item:hover{background:var(--s1);border-color:var(--bd);}
+  .proj-num{font-family:var(--ff-m);font-size:.8rem;color:var(--navy);min-width:38px;font-weight:500;}
   .proj-info{flex:1;}
-  .proj-title{font-size:.9rem;font-weight:500;margin-bottom:.18rem;line-height:1.3;}
-  .proj-meta{font-size:.76rem;color:var(--dim);}
-  .proj-st{font-size:.72rem;font-family:var(--ff-m);padding:.18rem .55rem;border-radius:100px;white-space:nowrap;}
-  .st-done{background:#16391e;color:var(--green);}
+  .proj-title{font-size:1rem;font-weight:600;margin-bottom:.2rem;line-height:1.35;color:var(--text);}
+  .proj-meta{font-size:.85rem;color:var(--dim);}
+  .proj-st{font-size:.8rem;font-family:var(--ff-m);padding:.25rem .65rem;border-radius:100px;white-space:nowrap;}
+  .st-done{background:var(--green-l);color:var(--green);}
   .st-pend{background:var(--s2);color:var(--dim);}
-  .locked-banner{background:#3a1010;border:1px solid #7c2020;border-radius:10px;padding:.7rem 1rem;
-    text-align:center;font-size:.83rem;color:#fc9898;margin-bottom:1rem;}
-  .all-done{background:#16391e;border:1px solid #22c55e30;border-radius:var(--r);padding:1.5rem;text-align:center;}
+  .locked-banner{background:var(--red-l);border:1px solid #dc262630;border-radius:10px;padding:.8rem 1.1rem;
+    text-align:center;font-size:.95rem;color:var(--red);margin-bottom:1rem;font-weight:500;}
+  .all-done{background:var(--green-l);border:1px solid #05966920;border-radius:var(--r);padding:1.5rem;text-align:center;}
 
   /* SCORING */
-  .sc-header{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:1.25rem 1.5rem;margin-bottom:1rem;}
-  .sc-header h2{font-family:var(--ff-d);font-size:1.3rem;margin-bottom:.4rem;line-height:1.25;}
-  .rub-item{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:1.2rem 1.4rem;margin-bottom:.7rem;}
-  .rub-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.25rem;}
-  .rub-lbl{font-weight:600;font-size:.9rem;}
-  .rub-val{font-family:var(--ff-m);font-size:1rem;color:var(--gold);white-space:nowrap;}
-  .rub-desc{font-size:.78rem;color:var(--dim);margin-bottom:.75rem;}
-  input[type=range]{width:100%;height:4px;accent-color:var(--gold);cursor:pointer;}
-  .rub-minmax{display:flex;justify-content:space-between;font-size:.68rem;color:var(--dim);margin-top:.2rem;}
+  .sc-header{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:1.35rem 1.5rem;
+    margin-bottom:1rem;box-shadow:var(--shadow);}
+  .sc-header h2{font-family:var(--ff-d);font-size:1.35rem;margin-bottom:.4rem;line-height:1.25;color:var(--navy);}
+  .rub-item{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:1.3rem 1.5rem;
+    margin-bottom:.75rem;box-shadow:var(--shadow);}
+  .rub-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.3rem;}
+  .rub-lbl{font-weight:700;font-size:1rem;color:var(--text);}
+  .rub-val{font-family:var(--ff-m);font-size:1.1rem;color:var(--navy);white-space:nowrap;font-weight:500;}
+  .rub-desc{font-size:.88rem;color:var(--dim);margin-bottom:.85rem;line-height:1.5;}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:8px;background:var(--bd);
+    border-radius:100px;outline:none;cursor:pointer;transition:background .2s;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:28px;height:28px;
+    background:var(--navy);border-radius:50%;cursor:pointer;box-shadow:0 2px 6px rgba(30,58,95,.25);
+    border:3px solid #fff;transition:transform .15s;}
+  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15);}
+  input[type=range]::-webkit-slider-thumb:active{transform:scale(1.2);background:var(--navy-l);}
+  input[type=range]::-moz-range-thumb{width:28px;height:28px;background:var(--navy);border-radius:50%;
+    cursor:pointer;box-shadow:0 2px 6px rgba(30,58,95,.25);border:3px solid #fff;}
+  .rub-minmax{display:flex;justify-content:space-between;font-size:.8rem;color:var(--dim);margin-top:.35rem;}
   .sc-total{display:flex;align-items:center;justify-content:space-between;
-    background:var(--s2);border:1px solid var(--bd);border-radius:var(--r);padding:1rem 1.5rem;margin-bottom:.85rem;}
-  .sc-total-num{font-family:var(--ff-d);font-size:2.2rem;font-weight:700;color:var(--gold);}
+    background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:1.1rem 1.5rem;
+    margin-bottom:.85rem;box-shadow:var(--shadow);}
+  .sc-total-num{font-family:var(--ff-d);font-size:2.4rem;font-weight:900;color:var(--navy);}
 
   /* ADMIN */
-  .admin-wrap{display:grid;grid-template-columns:210px 1fr;min-height:100vh;}
+  .admin-wrap{display:grid;grid-template-columns:220px 1fr;min-height:100vh;}
   @media(max-width:740px){.admin-wrap{grid-template-columns:1fr;}}
-  .adm-side{background:var(--s1);border-right:1px solid var(--bd);padding:1.5rem 1rem;
-    position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:.2rem;overflow-y:auto;}
+  .adm-side{background:var(--navy);border-right:none;padding:1.5rem 1rem;
+    position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:.25rem;overflow-y:auto;}
   @media(max-width:740px){.adm-side{height:auto;position:static;flex-direction:row;flex-wrap:wrap;align-items:center;padding:1rem;gap:.4rem;}}
-  .adm-brand{font-family:var(--ff-d);font-size:1.1rem;color:var(--gold);margin-bottom:1.5rem;}
+  .adm-brand{font-family:var(--ff-d);font-size:1.15rem;color:#fff;margin-bottom:1.5rem;font-weight:700;}
   @media(max-width:740px){.adm-brand{margin:0;flex:1;}}
-  .nav-it{display:flex;align-items:center;gap:.55rem;padding:.6rem .9rem;border-radius:8px;
-    cursor:pointer;font-size:.86rem;color:var(--dim);transition:all .15s;border:1px solid transparent;}
-  .nav-it:hover{background:var(--s2);color:var(--text);}
-  .nav-it.act{background:var(--s2);color:var(--text);border-color:var(--bd);}
-  .adm-main{padding:2rem;overflow-y:auto;}
+  .nav-it{display:flex;align-items:center;gap:.6rem;padding:.65rem .9rem;border-radius:8px;
+    cursor:pointer;font-size:.92rem;color:rgba(255,255,255,.65);transition:all .15s;border:1px solid transparent;}
+  .nav-it:hover{background:rgba(255,255,255,.1);color:#fff;}
+  .nav-it.act{background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.1);}
+  .adm-main{padding:2rem;overflow-y:auto;background:var(--s1);}
   @media(max-width:480px){.adm-main{padding:1rem;}}
-  .adm-h1{font-family:var(--ff-d);font-size:1.6rem;margin-bottom:.25rem;}
-  .adm-sub{color:var(--dim);font-size:.83rem;margin-bottom:1.75rem;}
-  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.85rem;margin-bottom:1.75rem;}
-  .stat-card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:1.2rem;}
-  .stat-v{font-family:var(--ff-d);font-size:2rem;font-weight:700;line-height:1;margin-bottom:.2rem;}
-  .stat-l{font-size:.72rem;color:var(--dim);font-family:var(--ff-m);}
-  .sec-title{font-family:var(--ff-d);font-size:1.1rem;margin-bottom:1rem;}
+  .adm-h1{font-family:var(--ff-d);font-size:1.6rem;margin-bottom:.25rem;color:var(--navy);}
+  .adm-sub{color:var(--dim);font-size:.92rem;margin-bottom:1.75rem;}
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.85rem;margin-bottom:1.75rem;}
+  .stat-card{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:1.3rem;box-shadow:var(--shadow);}
+  .stat-v{font-family:var(--ff-d);font-size:2rem;font-weight:900;line-height:1;margin-bottom:.25rem;}
+  .stat-l{font-size:.78rem;color:var(--dim);font-family:var(--ff-m);}
+  .sec-title{font-family:var(--ff-d);font-size:1.15rem;margin-bottom:1rem;color:var(--navy);}
   .tbl-wrap{overflow-x:auto;}
-  table{width:100%;border-collapse:collapse;font-size:.84rem;}
-  th{font-family:var(--ff-m);font-size:.68rem;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;
-    padding:.5rem 1rem;border-bottom:1px solid var(--bd);text-align:left;white-space:nowrap;}
-  td{padding:.7rem 1rem;border-bottom:1px solid var(--bd);vertical-align:middle;}
+  table{width:100%;border-collapse:collapse;font-size:.95rem;}
+  th{font-family:var(--ff-m);font-size:.75rem;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;
+    padding:.6rem 1rem;border-bottom:2px solid var(--bd);text-align:left;white-space:nowrap;}
+  td{padding:.75rem 1rem;border-bottom:1px solid var(--bd);vertical-align:middle;}
   tr:last-child td{border-bottom:none;}
-  tr:hover td{background:var(--s2);}
-  .log-row{display:flex;align-items:flex-start;gap:.9rem;padding:.6rem 0;border-bottom:1px solid var(--bd);font-size:.84rem;}
-  .log-t{font-family:var(--ff-m);color:var(--dim);font-size:.73rem;white-space:nowrap;min-width:55px;}
-  .alert-box{display:flex;align-items:flex-start;gap:.75rem;background:#2a1505;border:1px solid #7c3a0a;
-    border-radius:10px;padding:1rem 1.2rem;margin-bottom:.7rem;}
-  .alert-ico{font-size:1.2rem;flex-shrink:0;margin-top:.1rem;}
-  .alert-msg strong{display:block;margin-bottom:.2rem;font-size:.84rem;}
-  .alert-msg span{font-size:.82rem;color:var(--dim);}
-  .sys-row{display:flex;align-items:center;justify-content:space-between;padding:.65rem 0;border-bottom:1px solid var(--bd);font-size:.85rem;}
+  tr:hover td{background:var(--s1);}
+  .log-row{display:flex;align-items:flex-start;gap:.9rem;padding:.7rem 0;border-bottom:1px solid var(--bd);font-size:.95rem;}
+  .log-t{font-family:var(--ff-m);color:var(--dim);font-size:.8rem;white-space:nowrap;min-width:60px;}
+  .alert-box{display:flex;align-items:flex-start;gap:.85rem;background:var(--amber-l);border:1px solid #d9770630;
+    border-radius:10px;padding:1.1rem 1.3rem;margin-bottom:.7rem;}
+  .alert-ico{font-size:1.3rem;flex-shrink:0;margin-top:.1rem;}
+  .alert-msg strong{display:block;margin-bottom:.25rem;font-size:.95rem;color:var(--text);}
+  .alert-msg span{font-size:.9rem;color:var(--dim);}
+  .sys-row{display:flex;align-items:center;justify-content:space-between;padding:.7rem 0;border-bottom:1px solid var(--bd);font-size:.95rem;}
   .sys-row:last-child{border:none;}
 
   /* SHARE */
-  .share-status{display:flex;align-items:center;gap:.65rem;padding:1rem 1.2rem;border-radius:10px;margin-bottom:1.2rem;}
-  .share-status.on{background:#0f2d1a;border:1px solid #22c55e40;color:var(--green);}
+  .share-status{display:flex;align-items:center;gap:.65rem;padding:1.1rem 1.3rem;border-radius:10px;margin-bottom:1.2rem;}
+  .share-status.on{background:var(--green-l);border:1px solid #05966930;color:var(--green);}
   .share-status.off{background:var(--s1);border:1px solid var(--bd);color:var(--dim);}
   .link-box{display:flex;gap:.5rem;align-items:stretch;}
   .link-box input{flex:1;}
-  .copy-btn{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:.7rem 1rem;
-    color:var(--text);cursor:pointer;font-size:.82rem;white-space:nowrap;transition:all .15s;font-family:var(--ff-b);}
-  .copy-btn:hover{border-color:var(--gold2);color:var(--gold);}
+  .copy-btn{background:var(--s1);border:1.5px solid var(--bd);border-radius:8px;padding:.75rem 1rem;
+    color:var(--text);cursor:pointer;font-size:.9rem;white-space:nowrap;transition:all .15s;font-family:var(--ff-b);}
+  .copy-btn:hover{border-color:var(--navy);color:var(--navy);}
   .copy-btn.copied{border-color:var(--green);color:var(--green);}
-  .token-pill{display:inline-flex;align-items:center;gap:.35rem;background:#2d1b69;border:1px solid #7c3aed40;
-    color:var(--purple);font-family:var(--ff-m);font-size:.78rem;padding:.3rem .8rem;border-radius:100px;}
+  .token-pill{display:inline-flex;align-items:center;gap:.35rem;background:var(--purple-l);border:1px solid #7c3aed30;
+    color:var(--purple);font-family:var(--ff-m);font-size:.82rem;padding:.35rem .85rem;border-radius:100px;}
   .expiry-row{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem;}
-  .expiry-opt{padding:.4rem .9rem;border-radius:8px;border:1px solid var(--bd);background:var(--s2);
-    color:var(--dim);font-size:.8rem;cursor:pointer;transition:all .15s;}
-  .expiry-opt:hover{border-color:var(--gold2);color:var(--text);}
-  .expiry-opt.sel{border-color:var(--gold);color:var(--gold);background:#1c2a00;}
-  .sec-notes div{font-size:.8rem;color:var(--dim);line-height:1.75;}
+  .expiry-opt{padding:.5rem 1rem;border-radius:8px;border:1.5px solid var(--bd);background:var(--bg);
+    color:var(--dim);font-size:.9rem;cursor:pointer;transition:all .15s;}
+  .expiry-opt:hover{border-color:var(--navy);color:var(--text);}
+  .expiry-opt.sel{border-color:var(--navy);color:var(--navy);background:#1e3a5f08;font-weight:600;}
+  .sec-notes div{font-size:.9rem;color:var(--dim);line-height:1.8;}
   .sec-notes strong{color:var(--text);}
 
   /* PUBLIC RESULTS */
-  .pub-wrap{min-height:100vh;padding:2rem 1rem 3rem;}
+  .pub-wrap{min-height:100vh;padding:2rem 1rem 3rem;background:linear-gradient(180deg,var(--s1) 0%,var(--bg) 30%);}
   .pub-inner{max-width:780px;margin:0 auto;}
-  .pub-hero{text-align:center;padding:2rem 1rem 1.5rem;position:relative;}
-  .pub-hero h1{font-family:var(--ff-d);font-size:clamp(1.8rem,5vw,3rem);margin-bottom:.5rem;line-height:1.15;}
-  .pub-hero p{color:var(--dim);font-size:.88rem;margin-top:.3rem;}
-  .live-chip{display:inline-flex;align-items:center;gap:.4rem;background:#16391e;border:1px solid #22c55e30;
-    color:var(--green);font-size:.7rem;font-family:var(--ff-m);padding:.3rem .85rem;border-radius:100px;margin-top:.75rem;}
-  .podium-wrap{display:flex;align-items:flex-end;justify-content:center;gap:.75rem;margin:1.5rem 0 2rem;flex-wrap:wrap;}
-  .podium-card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:1.25rem 1rem;text-align:center;
-    transition:transform .2s,box-shadow .2s;cursor:default;}
-  .podium-card:hover{transform:translateY(-4px);box-shadow:0 12px 40px #00000040;}
-  .podium-card.p1{border-color:var(--gold2);background:linear-gradient(160deg,#1a150080,#0d1b30);}
-  .podium-card.p2{border-color:#4a5568;}
-  .podium-card.p3{border-color:#7c3a0a;}
-  .p-medal{font-size:2.2rem;margin-bottom:.3rem;}
-  .p-score{font-family:var(--ff-d);font-size:2.2rem;font-weight:700;}
-  .p-title{font-size:.78rem;color:var(--dim);margin-top:.3rem;line-height:1.35;max-width:140px;margin-inline:auto;}
-  .p-cat{margin-top:.4rem;}
-  .p-revs{font-size:.7rem;color:var(--dim);margin-top:.2rem;}
-  .results-table{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;margin-bottom:1.5rem;}
-  .res-row{display:grid;grid-template-columns:46px 1fr auto;align-items:center;gap:1rem;padding:1rem 1.25rem;
+  .pub-hero{text-align:center;padding:2.5rem 1rem 1.5rem;position:relative;}
+  .pub-hero h1{font-family:var(--ff-d);font-size:clamp(1.8rem,5vw,2.8rem);margin-bottom:.5rem;line-height:1.2;color:var(--navy);}
+  .pub-hero p{color:var(--dim);font-size:.95rem;margin-top:.3rem;}
+  .live-chip{display:inline-flex;align-items:center;gap:.4rem;background:var(--green-l);border:1px solid #05966920;
+    color:var(--green);font-size:.78rem;font-family:var(--ff-m);padding:.35rem .9rem;border-radius:100px;margin-top:.75rem;}
+  .podium-wrap{display:flex;align-items:flex-end;justify-content:center;gap:.85rem;margin:2rem 0 2.5rem;flex-wrap:wrap;}
+  .podium-card{background:var(--bg);border:1px solid var(--bd);border-radius:16px;padding:1.5rem 1.25rem;text-align:center;
+    transition:transform .2s,box-shadow .2s;cursor:default;box-shadow:var(--shadow-md);}
+  .podium-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-lg);}
+  .podium-card.p1{border-color:#d97706;background:linear-gradient(160deg,#fffbeb,#ffffff);
+    box-shadow:0 8px 30px rgba(217,119,6,.12);}
+  .podium-card.p2{border-color:#94a3b8;background:linear-gradient(160deg,#f8fafc,#ffffff);}
+  .podium-card.p3{border-color:#b45309;background:linear-gradient(160deg,#fffbeb,#ffffff);}
+  .p-medal{font-size:2.5rem;margin-bottom:.4rem;}
+  .p-score{font-family:var(--ff-d);font-size:2.4rem;font-weight:900;}
+  .p-title{font-size:.85rem;color:var(--dim);margin-top:.4rem;line-height:1.4;max-width:150px;margin-inline:auto;}
+  .p-cat{margin-top:.5rem;}
+  .p-revs{font-size:.78rem;color:var(--dim);margin-top:.25rem;}
+  .results-table{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;
+    margin-bottom:1.5rem;box-shadow:var(--shadow);}
+  .res-row{display:grid;grid-template-columns:50px 1fr auto;align-items:center;gap:1rem;padding:1.1rem 1.35rem;
     border-bottom:1px solid var(--bd);transition:background .15s;}
   .res-row:last-child{border:none;}
-  .res-row:hover{background:var(--s2);}
-  .res-rank{font-family:var(--ff-m);font-size:.8rem;color:var(--dim);text-align:center;}
-  .res-title{font-size:.9rem;font-weight:500;margin-bottom:.15rem;line-height:1.3;}
-  .res-meta{font-size:.74rem;color:var(--dim);margin-bottom:.35rem;}
-  .rub-chips{display:flex;gap:.3rem;flex-wrap:wrap;}
-  .rub-chip{font-size:.67rem;font-family:var(--ff-m);background:var(--s2);border:1px solid var(--bd);
-    padding:.15rem .5rem;border-radius:100px;color:var(--dim);}
+  .res-row:hover{background:var(--s1);}
+  .res-rank{font-family:var(--ff-m);font-size:.88rem;color:var(--dim);text-align:center;font-weight:500;}
+  .res-title{font-size:1rem;font-weight:600;margin-bottom:.2rem;line-height:1.35;color:var(--text);}
+  .res-meta{font-size:.82rem;color:var(--dim);margin-bottom:.4rem;}
+  .rub-chips{display:flex;gap:.35rem;flex-wrap:wrap;}
+  .rub-chip{font-size:.72rem;font-family:var(--ff-m);background:var(--s2);border:1px solid var(--bd);
+    padding:.2rem .55rem;border-radius:100px;color:var(--dim);}
   .res-score{text-align:right;flex-shrink:0;}
-  .res-score-big{font-family:var(--ff-d);font-size:1.6rem;color:var(--gold);}
-  .res-score-sub{font-size:.7rem;color:var(--dim);}
-  .pub-footer{text-align:center;padding:1.5rem 1rem;font-size:.75rem;color:var(--dim);line-height:1.8;
+  .res-score-big{font-family:var(--ff-d);font-size:1.8rem;color:var(--navy);font-weight:900;}
+  .res-score-sub{font-size:.78rem;color:var(--dim);}
+  .pub-footer{text-align:center;padding:1.5rem 1rem;font-size:.82rem;color:var(--dim);line-height:1.8;
     border-top:1px solid var(--bd);margin-top:1rem;}
 
-  /* IT LOGS */
+  /* IT LOGS — STAYS DARK THEMED */
   .it-toolbar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:1.1rem;}
-  .lvl-btn{padding:.35rem .8rem;border-radius:8px;border:1px solid var(--bd);background:var(--s2);
-    font-family:var(--ff-m);font-size:.72rem;cursor:pointer;transition:all .15s;color:var(--dim);}
-  .lvl-btn:hover{border-color:var(--gold2);color:var(--text);}
-  .lvl-btn.f-ALL{border-color:var(--text);color:var(--text);}
-  .lvl-btn.f-ERROR{border-color:var(--red);color:var(--red);background:#3a1010;}
-  .lvl-btn.f-WARN{border-color:var(--amber);color:var(--amber);background:#382a0a;}
+  .lvl-btn{padding:.4rem .9rem;border-radius:8px;border:1px solid #1c2e4a;background:#0d1b30;
+    font-family:var(--ff-m);font-size:.78rem;cursor:pointer;transition:all .15s;color:#6b7fa3;}
+  .lvl-btn:hover{border-color:#a37010;color:#e2e8f5;}
+  .lvl-btn.f-ALL{border-color:#e2e8f5;color:#e2e8f5;}
+  .lvl-btn.f-ERROR{border-color:#ef4444;color:#ef4444;background:#3a1010;}
+  .lvl-btn.f-WARN{border-color:#f59e0b;color:#f59e0b;background:#382a0a;}
   .lvl-btn.f-INFO{border-color:#60a5fa;color:#60a5fa;background:#102040;}
-  .lvl-btn.f-DEBUG{border-color:var(--purple);color:var(--purple);background:#2d1b69;}
+  .lvl-btn.f-DEBUG{border-color:#a78bfa;color:#a78bfa;background:#2d1b69;}
   .it-term{background:#020c16;border:1px solid #0e2235;border-radius:var(--r);overflow:hidden;font-family:var(--ff-m);}
   .it-term-head{display:flex;align-items:center;justify-content:space-between;padding:.6rem 1rem;
     background:#040f1c;border-bottom:1px solid #0e2235;gap:.75rem;flex-wrap:wrap;}
@@ -343,77 +362,80 @@ const CSS = `
   .it-term-dots span{width:10px;height:10px;border-radius:50%;display:inline-block;}
   .it-body{max-height:520px;overflow-y:auto;padding:.5rem 0;}
   .it-row{display:grid;grid-template-columns:200px 54px 70px 1fr;gap:.5rem 1rem;
-    padding:.45rem 1rem;border-bottom:1px solid #0e2235;font-size:.76rem;align-items:start;cursor:pointer;transition:background .1s;}
+    padding:.5rem 1rem;border-bottom:1px solid #0e2235;font-size:.8rem;align-items:start;cursor:pointer;transition:background .1s;}
   .it-row:last-child{border:none;}
   .it-row:hover{background:#0a1a2a;}
   .it-row.expanded{background:#0a1a2a;}
-  .it-ts{color:#3a6080;white-space:nowrap;font-size:.69rem;}
+  .it-ts{color:#3a6080;white-space:nowrap;font-size:.74rem;}
   .it-lvl{font-weight:500;text-align:center;}
-  .it-lvl.ERROR{color:var(--red);}
-  .it-lvl.WARN{color:var(--amber);}
+  .it-lvl.ERROR{color:#ef4444;}
+  .it-lvl.WARN{color:#f59e0b;}
   .it-lvl.INFO{color:#60a5fa;}
-  .it-lvl.DEBUG{color:var(--purple);}
-  .it-mod{color:#3a8060;font-size:.7rem;}
+  .it-lvl.DEBUG{color:#a78bfa;}
+  .it-mod{color:#3a8060;font-size:.74rem;}
   .it-msg{color:#9ab8cc;}
   .it-msg strong{color:#cde;font-weight:500;}
   .it-payload{grid-column:1/-1;background:#030d18;border:1px solid #0e2235;border-radius:8px;
-    padding:.7rem 1rem;margin:.2rem 0 .3rem;font-size:.74rem;color:#7aa0b8;white-space:pre-wrap;
+    padding:.7rem 1rem;margin:.2rem 0 .3rem;font-size:.78rem;color:#7aa0b8;white-space:pre-wrap;
     word-break:break-all;line-height:1.65;}
-  .it-empty{text-align:center;padding:3rem 1rem;color:#3a6080;font-size:.82rem;}
+  .it-empty{text-align:center;padding:3rem 1rem;color:#3a6080;font-size:.88rem;}
   .copy-report-btn{display:flex;align-items:center;gap:.4rem;background:#0a1a2a;border:1px solid #0e2235;
-    border-radius:8px;padding:.45rem .9rem;color:#60a5fa;font-family:var(--ff-m);font-size:.75rem;
+    border-radius:8px;padding:.5rem 1rem;color:#60a5fa;font-family:var(--ff-m);font-size:.78rem;
     cursor:pointer;transition:all .15s;white-space:nowrap;}
   .copy-report-btn:hover{border-color:#3b82f6;background:#0d2035;}
-  .copy-report-btn.done{border-color:var(--green);color:var(--green);}
-  .it-count{font-family:var(--ff-m);font-size:.72rem;color:var(--dim);}
+  .copy-report-btn.done{border-color:#22c55e;color:#22c55e;}
+  .it-count{font-family:var(--ff-m);font-size:.78rem;color:#6b7fa3;}
   .snap-box{background:#020c16;border:1px solid #0e2235;border-radius:var(--r);padding:1.1rem 1.25rem;
-    margin-bottom:1rem;font-family:var(--ff-m);font-size:.75rem;color:#7aa0b8;white-space:pre-wrap;
+    margin-bottom:1rem;font-family:var(--ff-m);font-size:.78rem;color:#7aa0b8;white-space:pre-wrap;
     line-height:1.7;max-height:240px;overflow-y:auto;}
+  /* IT logs section dark wrapper */
+  .it-dark-wrap{background:#07101f;color:#e2e8f5;border-radius:var(--r);padding:2rem;margin:-2rem;min-height:calc(100vh - 4rem);}
+  @media(max-width:480px){.it-dark-wrap{padding:1rem;margin:-1rem;}}
 
   /* IT PIN GATE */
   .pin-gate{display:flex;flex-direction:column;align-items:center;justify-content:center;
     min-height:340px;text-align:center;padding:2rem;}
   .pin-gate .ico{font-size:3rem;margin-bottom:1rem;}
-  .pin-gate h2{font-family:var(--ff-d);font-size:1.5rem;margin-bottom:.35rem;}
-  .pin-gate p{color:var(--dim);font-size:.83rem;margin-bottom:1.75rem;max-width:320px;}
-  .pin-dots{display:flex;gap:.65rem;justify-content:center;margin-bottom:1.25rem;}
-  .pin-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--bd);
+  .pin-gate h2{font-family:var(--ff-d);font-size:1.5rem;margin-bottom:.4rem;color:var(--navy);}
+  .pin-gate p{color:var(--dim);font-size:.92rem;margin-bottom:1.75rem;max-width:340px;}
+  .pin-dots{display:flex;gap:.7rem;justify-content:center;margin-bottom:1.25rem;}
+  .pin-dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--bd);
     background:var(--bg);transition:all .2s;}
-  .pin-dot.filled{background:var(--gold);border-color:var(--gold);box-shadow:0 0 8px #f0a50060;}
-  .pin-input-wrap{position:relative;width:180px;}
+  .pin-dot.filled{background:var(--navy);border-color:var(--navy);box-shadow:0 0 8px rgba(30,58,95,.3);}
+  .pin-input-wrap{position:relative;width:200px;}
   .pin-input-wrap input[type=password]{
-    text-align:center;letter-spacing:.5em;font-family:var(--ff-m);font-size:1.3rem;
-    border-color:var(--bd);padding:.9rem 1rem;}
-  .pin-input-wrap input[type=password]:focus{border-color:var(--gold2);}
-  .pin-err{color:var(--red);font-size:.8rem;margin-top:.5rem;min-height:1.2em;}
+    text-align:center;letter-spacing:.5em;font-family:var(--ff-m);font-size:1.4rem;
+    border-color:var(--bd);padding:1rem 1rem;}
+  .pin-input-wrap input[type=password]:focus{border-color:var(--navy);}
+  .pin-err{color:var(--red);font-size:.88rem;margin-top:.5rem;min-height:1.2em;}
   .pin-shake{animation:shake .35s ease;}
   @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
-  .it-lock-badge{display:flex;align-items:center;gap:.4rem;font-family:var(--ff-m);font-size:.7rem;
-    color:var(--dim);background:var(--s2);border:1px solid var(--bd);padding:.25rem .7rem;border-radius:100px;cursor:pointer;}
-  .it-lock-badge:hover{border-color:var(--red);color:var(--red);}
+  .it-lock-badge{display:flex;align-items:center;gap:.4rem;font-family:var(--ff-m);font-size:.75rem;
+    color:#6b7fa3;background:#0d1b30;border:1px solid #1c2e4a;padding:.3rem .8rem;border-radius:100px;cursor:pointer;}
+  .it-lock-badge:hover{border-color:#ef4444;color:#ef4444;}
 
   /* RESET MODAL */
-  .modal-overlay{position:fixed;inset:0;background:#000000b0;backdrop-filter:blur(4px);
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);
     display:flex;align-items:center;justify-content:center;z-index:999;padding:1.5rem;}
-  .modal-box{background:var(--s1);border:1px solid #7c2020;border-radius:16px;
-    padding:2rem 1.75rem;width:100%;max-width:420px;text-align:center;
-    box-shadow:0 24px 80px #ef444430;}
+  .modal-box{background:var(--bg);border:1px solid #dc262640;border-radius:16px;
+    padding:2.25rem 2rem;width:100%;max-width:440px;text-align:center;
+    box-shadow:0 24px 80px rgba(220,38,38,.1);}
   .modal-box .ico{font-size:3rem;margin-bottom:.75rem;}
-  .modal-box h2{font-family:var(--ff-d);font-size:1.5rem;margin-bottom:.4rem;color:#fca5a5;}
-  .modal-box p{color:var(--dim);font-size:.84rem;line-height:1.6;margin-bottom:1.5rem;}
-  .modal-box .warn-list{background:#2a1010;border:1px solid #7c2020;border-radius:10px;
-    padding:.85rem 1rem;margin-bottom:1.5rem;text-align:left;}
-  .modal-box .warn-list div{font-size:.8rem;color:#fca5a5;line-height:1.75;display:flex;gap:.4rem;}
-  .modal-box .warn-list div::before{content:"✗";color:var(--red);flex-shrink:0;}
-  .modal-pin-label{font-family:var(--ff-m);font-size:.7rem;letter-spacing:.12em;color:var(--dim);
+  .modal-box h2{font-family:var(--ff-d);font-size:1.5rem;margin-bottom:.4rem;color:var(--red);}
+  .modal-box p{color:var(--dim);font-size:.92rem;line-height:1.6;margin-bottom:1.5rem;}
+  .modal-box .warn-list{background:var(--red-l);border:1px solid #dc262620;border-radius:10px;
+    padding:.9rem 1.1rem;margin-bottom:1.5rem;text-align:left;}
+  .modal-box .warn-list div{font-size:.88rem;color:var(--red);line-height:1.8;display:flex;gap:.4rem;}
+  .modal-box .warn-list div::before{content:"\\2717";color:var(--red);flex-shrink:0;}
+  .modal-pin-label{font-family:var(--ff-m);font-size:.78rem;letter-spacing:.1em;color:var(--dim);
     text-transform:uppercase;margin-bottom:.6rem;}
-  .modal-pin-dots{display:flex;gap:.6rem;justify-content:center;margin-bottom:.85rem;}
-  .modal-pin-dot{width:13px;height:13px;border-radius:50%;border:2px solid #7c2020;
+  .modal-pin-dots{display:flex;gap:.65rem;justify-content:center;margin-bottom:.85rem;}
+  .modal-pin-dot{width:14px;height:14px;border-radius:50%;border:2px solid #dc262640;
     background:var(--bg);transition:all .2s;}
-  .modal-pin-dot.filled{background:var(--red);border-color:var(--red);box-shadow:0 0 8px #ef444450;}
+  .modal-pin-dot.filled{background:var(--red);border-color:var(--red);box-shadow:0 0 8px rgba(220,38,38,.3);}
   .modal-btn-row{display:flex;gap:.65rem;margin-top:1rem;}
   .nav-it.reset{color:#fca5a5;border-color:transparent;}
-  .nav-it.reset:hover{background:#3a1010;border-color:#7c2020;color:var(--red);}
+  .nav-it.reset:hover{background:rgba(220,38,38,.15);border-color:rgba(220,38,38,.3);color:#fca5a5;}
 `;
 
 // ─────────────────────────────────────────────
@@ -465,7 +487,7 @@ export default function App() {
   const [shareExpiry,     setShareExpiry]     = useState("never");
   const [shareCreated,    setShareCreated]    = useState(null);
   const [shareShowRubric, setShareShowRubric] = useState(true);
-  const [shareTitle,      setShareTitle]      = useState("Science Fair 2025 — Final Results");
+  const [shareTitle,      setShareTitle]      = useState("Science Fair SY 2025-2026 — Final Results");
   const [copied,          setCopied]          = useState(false);
 
   // IT logs state
@@ -681,7 +703,7 @@ export default function App() {
     setShareToken("");
     setShareCreated(null);
     setShareExpiry("never");
-    setShareTitle("Science Fair 2025 — Final Results");
+    setShareTitle("Science Fair SY 2025-2026 — Final Results");
     setAdminTab("overview");
     setResetDone(true);
     setTimeout(() => { setShowReset(false); setResetDone(false); setResetPin(""); setResetPinErr(""); }, 1800);
@@ -805,8 +827,8 @@ export default function App() {
     <div className="app"><style>{CSS}</style>
       <div className="center">
         <div style={{ textAlign:"center", color:"var(--dim)" }}>
-          <div style={{ fontSize:"2rem", marginBottom:"1rem" }}>⏳</div>
-          <div style={{ fontFamily:"var(--ff-m)", fontSize:".8rem", letterSpacing:".1em" }}>Connecting…</div>
+          <div style={{ fontSize:"2.5rem", marginBottom:"1rem" }}>⏳</div>
+          <div style={{ fontFamily:"var(--ff-m)", fontSize:".9rem", letterSpacing:".1em" }}>Connecting…</div>
         </div>
       </div>
     </div>
@@ -822,7 +844,7 @@ export default function App() {
           <div className="school-name">Dishchiibikoh <span>Community School</span></div>
           <div className="school-div" />
         </div>
-        <div className="land-badge">🔬 Science Fair 2025 · Digital Judging</div>
+        <div className="land-badge">🔬 Science Fair SY 2025-2026 · Digital Judging</div>
         <h1 className="land-h1">Judging <span>Portal</span></h1>
         <p className="land-p">A secure, anonymous, and digital evaluation platform for fair and accurate scoring of student science projects.</p>
         <div className="role-grid">
@@ -858,8 +880,8 @@ export default function App() {
         <div className="card">
           <div style={{ textAlign:"center", marginBottom:"1.5rem" }}>
             <div style={{ fontSize:"2.5rem", marginBottom:".5rem" }}>🔐</div>
-            <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.5rem", marginBottom:".4rem" }}>Judge Registration</h2>
-            <p style={{ color:"var(--dim)", fontSize:".83rem" }}>You'll get an anonymous alias to keep evaluations unbiased.</p>
+            <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.5rem", marginBottom:".4rem", color:"var(--navy)" }}>Judge Registration</h2>
+            <p style={{ color:"var(--dim)", fontSize:".95rem" }}>You'll get an anonymous alias to keep evaluations unbiased.</p>
           </div>
           <div style={{ marginBottom:"1rem" }}>
             <div className="lbl">Invite Code</div>
@@ -888,8 +910,8 @@ export default function App() {
         <div className="center"><div className="inner">
           <div className="jh-top">
             <div>
-              <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.4rem", marginBottom:".15rem" }}>My Projects</h2>
-              <p style={{ color:"var(--dim)", fontSize:".8rem" }}>Score each project using the rubric</p>
+              <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.5rem", marginBottom:".15rem", color:"var(--navy)" }}>My Projects</h2>
+              <p style={{ color:"var(--dim)", fontSize:".9rem" }}>Score each project using the rubric</p>
             </div>
             <div className="alias-tag">👤 {judge.alias}</div>
           </div>
@@ -897,7 +919,7 @@ export default function App() {
           <div className="card" style={{ padding:"1.1rem 1.4rem" }}>
             <div style={{ display:"flex", justifyContent:"space-between", marginBottom:".45rem" }}>
               <span style={{ fontSize:".83rem" }}>Your Progress</span>
-              <span style={{ fontFamily:"var(--ff-m)", fontSize:".83rem", color:"var(--gold)" }}>{done}/{myProj.length} scored</span>
+              <span style={{ fontFamily:"var(--ff-m)", fontSize:".9rem", color:"var(--navy)" }}>{done}/{myProj.length} scored</span>
             </div>
             <div className="pbar" style={{ height:"7px" }}><div className="pfill" style={{ width:`${pct}%`, height:"7px" }} /></div>
           </div>
@@ -942,7 +964,7 @@ export default function App() {
           <div className="inner">
             <button className="back" onClick={() => setView("judge-home")}>← Back to my projects</button>
             <div className="sc-header">
-              <div style={{ fontFamily:"var(--ff-m)", fontSize:".7rem", color:"var(--gold)", marginBottom:".2rem" }}>PROJECT #{proj.num}</div>
+              <div style={{ fontFamily:"var(--ff-m)", fontSize:".78rem", color:"var(--navy)", marginBottom:".2rem" }}>PROJECT #{proj.num}</div>
               <h2>{proj.title}</h2>
               <div style={{ fontSize:".78rem", color:"var(--dim)", marginTop:".35rem" }}>{proj.cat} · Grade {proj.grade}</div>
             </div>
@@ -983,8 +1005,8 @@ export default function App() {
         <div className="card">
           <div style={{ textAlign:"center", marginBottom:"1.5rem" }}>
             <div style={{ fontSize:"2.5rem", marginBottom:".5rem" }}>🛡️</div>
-            <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.5rem", marginBottom:".4rem" }}>Admin Access</h2>
-            <p style={{ color:"var(--dim)", fontSize:".83rem" }}>Restricted to authorized science fair coordinators.</p>
+            <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.5rem", marginBottom:".4rem", color:"var(--navy)" }}>Admin Access</h2>
+            <p style={{ color:"var(--dim)", fontSize:".95rem" }}>Restricted to authorized science fair coordinators.</p>
           </div>
           <div style={{ marginBottom:"1rem" }}>
             <div className="lbl">Password</div>
@@ -1028,7 +1050,7 @@ export default function App() {
               </div>
             ))}
             <div style={{ flex:1 }} />
-            <div className="nav-it" style={{ color:locked?"var(--red)":"var(--green)" }}
+            <div className="nav-it" style={{ color:locked?"#fca5a5":"#86efac" }}
               onClick={handleToggleLock}>
               <span>{locked?"🔒":"🔓"}</span><span>{locked?"Unlock":"Lock"} Judging</span>
             </div>
@@ -1059,9 +1081,9 @@ export default function App() {
                       <div>Share link revoked</div>
                       <div>Judging lock reset to open</div>
                     </div>
-                    <div style={{background:"#0f2d1a",border:"1px solid #22c55e30",borderRadius:"10px",
-                      padding:".65rem 1rem",marginBottom:"1.5rem",textAlign:"left"}}>
-                      <div style={{fontSize:".8rem",color:"var(--green)",display:"flex",gap:".4rem"}}>
+                    <div style={{background:"var(--green-l)",border:"1px solid #05966920",borderRadius:"10px",
+                      padding:".7rem 1.1rem",marginBottom:"1.5rem",textAlign:"left"}}>
+                      <div style={{fontSize:".88rem",color:"var(--green)",display:"flex",gap:".4rem"}}>
                         <span>✓</span><span>Activity log is <strong>preserved</strong> for security &amp; review purposes</span>
                       </div>
                     </div>
@@ -1081,7 +1103,7 @@ export default function App() {
                         style={{
                           width:"160px", textAlign:"center", letterSpacing:".5em",
                           fontFamily:"var(--ff-m)", fontSize:"1.3rem",
-                          background:"var(--bg)", border:`1px solid ${resetPinErr?"var(--red)":"var(--bd)"}`,
+                          background:"var(--bg)", border:`1.5px solid ${resetPinErr?"var(--red)":"var(--bd)"}`,
                           borderRadius:"8px", padding:".8rem 1rem", color:"var(--text)", outline:"none"
                         }}
                         onChange={e => {
@@ -1117,10 +1139,10 @@ export default function App() {
             {/* OVERVIEW */}
             {adminTab==="overview" && <>
               <div className="adm-h1">Dashboard Overview</div>
-              <div className="adm-sub">Live judging progress · Science Fair 2025</div>
+              <div className="adm-sub">Live judging progress · Science Fair SY 2025-2026</div>
               {locked && <div className="locked-banner">🔒 Judging LOCKED — judges cannot submit scores</div>}
               <div className="stat-grid">
-                <div className="stat-card"><div className="stat-v" style={{color:"var(--gold)"}}>{judges.length}</div><div className="stat-l">Judges</div></div>
+                <div className="stat-card"><div className="stat-v" style={{color:"var(--navy)"}}>{judges.length}</div><div className="stat-l">Judges</div></div>
                 <div className="stat-card"><div className="stat-v" style={{color:"var(--blue)"}}>{PROJECTS.length}</div><div className="stat-l">Projects</div></div>
                 <div className="stat-card"><div className="stat-v" style={{color:"var(--green)"}}>{totalScored()}</div><div className="stat-l">Scores In</div></div>
                 <div className="stat-card">
@@ -1146,7 +1168,7 @@ export default function App() {
                           <td style={{fontFamily:"var(--ff-m)",color:"var(--dim)"}}>{i+1}</td>
                           <td style={{maxWidth:"200px"}}>{p.title}</td>
                           <td><span className="badge bb">{p.cat}</span></td>
-                          <td style={{fontFamily:"var(--ff-m)",color:p.avg?"var(--gold)":"var(--dim)"}}>{p.avg??("—")}</td>
+                          <td style={{fontFamily:"var(--ff-m)",color:p.avg?"var(--navy)":"var(--dim)"}}>{p.avg??("—")}</td>
                           <td>{p.revs}</td>
                         </tr>
                       ))}
@@ -1168,7 +1190,7 @@ export default function App() {
                       const {done,total,pct} = judgeComp(j);
                       return (
                         <tr key={j.id}>
-                          <td style={{fontFamily:"var(--ff-m)",color:"var(--gold)"}}>{j.alias}</td>
+                          <td style={{fontFamily:"var(--ff-m)",color:"var(--navy)"}}>{j.alias}</td>
                           <td style={{color:"var(--dim)",fontSize:".78rem"}}>{fmt(j.joinedAt)}</td>
                           <td>{total}</td>
                           <td>
@@ -1201,12 +1223,12 @@ export default function App() {
                   <div className="card" key={p.id} style={{marginBottom:".75rem"}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:"1rem",flexWrap:"wrap"}}>
                       <div>
-                        <div style={{fontFamily:"var(--ff-m)",fontSize:".7rem",color:"var(--gold)",marginBottom:".2rem"}}>#{p.num} · {p.cat}</div>
+                        <div style={{fontFamily:"var(--ff-m)",fontSize:".78rem",color:"var(--navy)",marginBottom:".2rem"}}>#{p.num} · {p.cat}</div>
                         <div style={{fontWeight:600,marginBottom:".2rem",lineHeight:1.3}}>{p.title}</div>
                         <div style={{fontSize:".76rem",color:"var(--dim)"}}>Grade {p.grade} · {hits.length} review{hits.length!==1?"s":""}</div>
                       </div>
                       <div style={{textAlign:"right",flexShrink:0}}>
-                        <div style={{fontFamily:"var(--ff-d)",fontSize:"2rem",color:avg?"var(--gold)":"var(--dim)"}}>{avg??"—"}</div>
+                        <div style={{fontFamily:"var(--ff-d)",fontSize:"2rem",color:avg?"var(--navy)":"var(--dim)"}}>{avg??"—"}</div>
                         <div style={{fontSize:".7rem",color:"var(--dim)"}}>avg / 100</div>
                       </div>
                     </div>
@@ -1317,7 +1339,7 @@ export default function App() {
 
                 <div style={{marginBottom:"1.2rem"}}>
                   <div className="lbl">Page Title (shown to public)</div>
-                  <input type="text" value={shareTitle} onChange={e => setShareTitle(e.target.value)} placeholder="Science Fair 2025 — Final Results" />
+                  <input type="text" value={shareTitle} onChange={e => setShareTitle(e.target.value)} placeholder="Science Fair SY 2025-2026 — Final Results" />
                 </div>
 
                 <div style={{marginBottom:"1.2rem"}}>
@@ -1332,7 +1354,7 @@ export default function App() {
                   <div style={{fontSize:".73rem",color:"var(--dim)",marginTop:".5rem"}}>After expiry, viewers see an "expired" message. You can always regenerate.</div>
                 </div>
 
-                <div style={{background:"var(--bg)",border:"1px solid var(--bd)",borderRadius:"10px",padding:"1rem",marginBottom:"1.2rem"}}>
+                <div style={{background:"var(--s1)",border:"1px solid var(--bd)",borderRadius:"10px",padding:"1rem",marginBottom:"1.2rem"}}>
                   <div className="toggle-wrap">
                     <div>
                       <div style={{fontSize:".88rem",fontWeight:500}}>Show rubric breakdown</div>
@@ -1356,8 +1378,8 @@ export default function App() {
               </div>
 
               {/* Security notes */}
-              <div className="card sec-notes" style={{background:"var(--bg)"}}>
-                <div style={{fontFamily:"var(--ff-d)",fontSize:".95rem",marginBottom:".75rem"}}>🔐 Security Notes</div>
+              <div className="card sec-notes" style={{background:"var(--s1)"}}>
+                <div style={{fontFamily:"var(--ff-d)",fontSize:"1rem",marginBottom:".75rem"}}>🔐 Security Notes</div>
                 <div>• Secured by a <strong>unique random token</strong> — unguessable without the URL.</div>
                 <div>• Shows <strong>project names and scores only</strong> — judge aliases are never exposed.</div>
                 <div>• <strong>Revoke anytime</strong> — the link stops working instantly.</div>
@@ -1412,11 +1434,11 @@ export default function App() {
               const filtered = itFilter==="ALL" ? itLogs : itLogs.filter(e=>e.level===itFilter);
               const errCount  = itLogs.filter(e=>e.level==="ERROR").length;
               const warnCount = itLogs.filter(e=>e.level==="WARN").length;
-              return <>
+              return <div className="it-dark-wrap">
                 <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:".75rem",marginBottom:".25rem"}}>
                   <div>
-                    <div className="adm-h1">IT Diagnostic Logs</div>
-                    <div className="adm-sub" style={{marginBottom:0}}>Structured event log for debugging — copy & paste directly into AI for analysis.</div>
+                    <div className="adm-h1" style={{color:"#e2e8f5"}}>IT Diagnostic Logs</div>
+                    <div className="adm-sub" style={{marginBottom:0,color:"#6b7fa3"}}>Structured event log for debugging — copy & paste directly into AI for analysis.</div>
                   </div>
                   <div className="it-lock-badge" onClick={() => { setItUnlocked(false); setItPin(""); setItPinErr(""); addItLog("INFO","AUTH","IT_ACCESS_LOCKED","IT diagnostic logs manually locked",{ timestamp:fmtISO(Date.now()) }); }}>
                     🔒 Lock IT Logs
@@ -1425,10 +1447,10 @@ export default function App() {
                 <div style={{marginBottom:"1.5rem"}} />
                 {/* Quick stats */}
                 <div className="stat-grid" style={{marginBottom:"1rem"}}>
-                  <div className="stat-card"><div className="stat-v" style={{color:"var(--text)",fontSize:"1.5rem"}}>{itLogs.length}</div><div className="stat-l">Total Events</div></div>
-                  <div className="stat-card"><div className="stat-v" style={{color:"var(--red)",fontSize:"1.5rem"}}>{errCount}</div><div className="stat-l">Errors</div></div>
-                  <div className="stat-card"><div className="stat-v" style={{color:"var(--amber)",fontSize:"1.5rem"}}>{warnCount}</div><div className="stat-l">Warnings</div></div>
-                  <div className="stat-card"><div className="stat-v" style={{color:"var(--green)",fontSize:"1.5rem"}}>{itLogs.filter(e=>e.level==="INFO").length}</div><div className="stat-l">Info</div></div>
+                  <div className="stat-card" style={{background:"#0d1b30",border:"1px solid #1c2e4a"}}><div className="stat-v" style={{color:"#e2e8f5",fontSize:"1.5rem"}}>{itLogs.length}</div><div className="stat-l" style={{color:"#6b7fa3"}}>Total Events</div></div>
+                  <div className="stat-card" style={{background:"#0d1b30",border:"1px solid #1c2e4a"}}><div className="stat-v" style={{color:"#ef4444",fontSize:"1.5rem"}}>{errCount}</div><div className="stat-l" style={{color:"#6b7fa3"}}>Errors</div></div>
+                  <div className="stat-card" style={{background:"#0d1b30",border:"1px solid #1c2e4a"}}><div className="stat-v" style={{color:"#f59e0b",fontSize:"1.5rem"}}>{warnCount}</div><div className="stat-l" style={{color:"#6b7fa3"}}>Warnings</div></div>
+                  <div className="stat-card" style={{background:"#0d1b30",border:"1px solid #1c2e4a"}}><div className="stat-v" style={{color:"#22c55e",fontSize:"1.5rem"}}>{itLogs.filter(e=>e.level==="INFO").length}</div><div className="stat-l" style={{color:"#6b7fa3"}}>Info</div></div>
                 </div>
 
                 {/* Toolbar */}
@@ -1485,11 +1507,11 @@ export default function App() {
                 </div>
 
                 {/* System snapshot */}
-                <div className="card" style={{marginTop:"1.25rem",background:"var(--bg)"}}>
+                <div style={{marginTop:"1.25rem",background:"#0d1b30",border:"1px solid #1c2e4a",borderRadius:"var(--r)",padding:"1.5rem"}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:".75rem",flexWrap:"wrap",gap:".5rem"}}>
                     <div>
-                      <div style={{fontFamily:"var(--ff-d)",fontSize:".95rem",marginBottom:".15rem"}}>📸 System Snapshot</div>
-                      <div style={{fontSize:".76rem",color:"var(--dim)"}}>Current live state — paste into AI to diagnose issues</div>
+                      <div style={{fontFamily:"var(--ff-d)",fontSize:"1rem",marginBottom:".15rem",color:"#e2e8f5"}}>📸 System Snapshot</div>
+                      <div style={{fontSize:".82rem",color:"#6b7fa3"}}>Current live state — paste into AI to diagnose issues</div>
                     </div>
                     <button className={`copy-report-btn ${snapCopied?"done":""}`} onClick={handleCopySnapshot}>
                       {snapCopied ? "✓ Copied!" : "📋 Copy Snapshot"}
@@ -1499,20 +1521,22 @@ export default function App() {
                 </div>
 
                 {/* How to use */}
-                <div className="card sec-notes" style={{background:"var(--bg)"}}>
-                  <div style={{fontFamily:"var(--ff-d)",fontSize:".95rem",marginBottom:".75rem"}}>💡 How to use with AI</div>
-                  <div>1. Filter by <strong>ERROR</strong> or <strong>WARN</strong> to isolate the issue.</div>
-                  <div>2. Click <strong>Copy Full Report</strong> — it includes the system state + all log entries.</div>
-                  <div>3. Paste into Claude or any AI with: <em style={{color:"var(--gold)"}}>"Here is my science fair app diagnostic report. What is causing the issue and how do I fix it?"</em></div>
-                  <div>4. For live state issues, use <strong>Copy Snapshot</strong> to share the current data state.</div>
+                <div style={{marginTop:"1rem",background:"#0d1b30",border:"1px solid #1c2e4a",borderRadius:"var(--r)",padding:"1.5rem"}}>
+                  <div style={{fontFamily:"var(--ff-d)",fontSize:"1rem",marginBottom:".75rem",color:"#e2e8f5"}}>💡 How to use with AI</div>
+                  <div style={{fontSize:".88rem",color:"#6b7fa3",lineHeight:"1.8"}}>
+                    <div>1. Filter by <strong style={{color:"#e2e8f5"}}>ERROR</strong> or <strong style={{color:"#e2e8f5"}}>WARN</strong> to isolate the issue.</div>
+                    <div>2. Click <strong style={{color:"#e2e8f5"}}>Copy Full Report</strong> — it includes the system state + all log entries.</div>
+                    <div>3. Paste into Claude or any AI with: <em style={{color:"#60a5fa"}}>"Here is my science fair app diagnostic report. What is causing the issue and how do I fix it?"</em></div>
+                    <div>4. For live state issues, use <strong style={{color:"#e2e8f5"}}>Copy Snapshot</strong> to share the current data state.</div>
+                  </div>
                 </div>
 
                 {/* Clear button */}
-                <button className="btn danger sm" style={{width:"auto",marginTop:".5rem"}}
+                <button className="btn danger sm" style={{width:"auto",marginTop:"1rem"}}
                   onClick={() => { setItLogs([]); addItLog("INFO","ADMIN","LOGS_CLEARED","IT logs cleared by admin",{ clearedAt:fmtISO(Date.now()), count: itLogs.length }); }}>
                   🗑 Clear All IT Logs
                 </button>
-              </>;
+              </div>;
             })()}
 
           </div>
@@ -1528,7 +1552,7 @@ export default function App() {
     const unscored = ranked.filter(p => !p.avg);
     const top3     = scored.slice(0, 3);
     const rest     = scored.slice(3);
-    const podCols  = ["var(--gold)","#94a3b8","#cd7c3e"];
+    const podCols  = ["var(--amber)","#64748b","#b45309"];
 
     return (
       <div className="app"><style>{CSS}</style>
@@ -1539,7 +1563,7 @@ export default function App() {
             {/* Hero */}
             <div className="pub-hero">
               <div style={{fontSize:"3.5rem",marginBottom:".5rem"}}>🏆</div>
-              <h1>{shareTitle || "Science Fair 2025 — Final Results"}</h1>
+              <h1>{shareTitle || "Science Fair SY 2025-2026 — Final Results"}</h1>
               <p>Final rankings · {judges.length} judges · {totalScored()} evaluations</p>
               <div className="live-chip">● RESULTS PUBLISHED · {shareCreated ? fmtFull(shareCreated) : "Today"}</div>
             </div>
@@ -1607,7 +1631,7 @@ export default function App() {
             </div>
 
             <div className="pub-footer">
-              <strong>{shareTitle || "Science Fair 2025"}</strong><br />
+              <strong>{shareTitle || "Science Fair SY 2025-2026"}</strong><br />
               Scores are final averages across all assigned judges.<br />
               All judge identities remain anonymous.
             </div>
