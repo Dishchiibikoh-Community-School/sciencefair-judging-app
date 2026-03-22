@@ -32,6 +32,9 @@ const PROJECTS = [
 
 const MEDALS = ["🥇","🥈","🥉"];
 
+const RECOMMENDATIONS = ["Recommend for Award","Strong Contender","Good Work","Needs Improvement"];
+const AWARD_OPTIONS   = ["1st Place","2nd Place","3rd Place","Honorable Mention","Best in Category","No Award","Pending"];
+
 function assignProjects(idx) {
   const out = [];
   for (let i = 0; i < 4; i++) out.push(PROJECTS[(idx * 3 + i) % PROJECTS.length].id);
@@ -436,6 +439,46 @@ const CSS = `
   .modal-btn-row{display:flex;gap:.65rem;margin-top:1rem;}
   .nav-it.reset{color:#fca5a5;border-color:transparent;}
   .nav-it.reset:hover{background:rgba(220,38,38,.15);border-color:rgba(220,38,38,.3);color:#fca5a5;}
+
+  /* DELIBERATION */
+  .delib-section{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:1.5rem;margin-top:1rem;}
+  .delib-proj{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:1.25rem;margin-bottom:.75rem;box-shadow:var(--shadow);}
+  .delib-proj-head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:.75rem;flex-wrap:wrap;}
+  .delib-rec-select{width:100%;background:var(--bg);border:1.5px solid var(--bd);border-radius:8px;
+    padding:.75rem 1rem;color:var(--text);font-family:var(--ff-b);font-size:.95rem;outline:none;cursor:pointer;}
+  .delib-rec-select:focus{border-color:var(--navy);}
+  .delib-flag-wrap{display:flex;align-items:center;gap:.6rem;margin-top:.75rem;padding:.6rem .8rem;
+    background:var(--s1);border:1px solid var(--bd);border-radius:8px;cursor:pointer;transition:background .15s;}
+  .delib-flag-wrap:hover{background:var(--s2);}
+  .delib-flag-wrap input[type=checkbox]{width:18px;height:18px;accent-color:var(--amber);cursor:pointer;}
+  .delib-submitted{display:flex;align-items:center;gap:.5rem;color:var(--green);font-size:.88rem;font-weight:500;
+    padding:.6rem .8rem;background:var(--green-l);border:1px solid #05966920;border-radius:8px;}
+  .delib-comment-card{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:1rem;margin-bottom:.6rem;}
+  .delib-comment-alias{font-family:var(--ff-m);font-size:.78rem;color:var(--navy);margin-bottom:.3rem;}
+  .delib-comment-text{font-size:.9rem;color:var(--text);line-height:1.6;margin-bottom:.4rem;}
+  .delib-comment-meta{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;}
+  .delib-rec-pill{display:inline-block;font-size:.72rem;font-family:var(--ff-m);padding:.2rem .6rem;border-radius:100px;}
+  .delib-rec-pill.award{background:var(--green-l);color:var(--green);}
+  .delib-rec-pill.strong{background:var(--blue-l);color:var(--blue);}
+  .delib-rec-pill.good{background:var(--amber-l);color:var(--amber);}
+  .delib-rec-pill.needs{background:var(--red-l);color:var(--red);}
+  .delib-flag-badge{display:inline-flex;align-items:center;gap:.25rem;font-size:.72rem;font-family:var(--ff-m);
+    background:var(--amber-l);border:1px solid #d9770630;color:var(--amber);padding:.2rem .6rem;border-radius:100px;}
+  .delib-discuss{display:inline-flex;align-items:center;gap:.3rem;font-size:.75rem;font-family:var(--ff-m);
+    background:var(--red-l);border:1px solid #dc262620;color:var(--red);padding:.3rem .7rem;border-radius:100px;}
+  .delib-phase-toggle{display:flex;align-items:center;gap:1rem;padding:1rem 1.3rem;
+    background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);margin-bottom:1rem;box-shadow:var(--shadow);}
+  .delib-finalized{background:var(--green-l);border:1px solid #05966920;border-radius:10px;
+    padding:.6rem 1rem;display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;}
+  .award-badge{display:inline-flex;align-items:center;gap:.35rem;font-family:var(--ff-m);font-size:.82rem;
+    padding:.35rem .85rem;border-radius:100px;font-weight:600;}
+  .award-badge.gold{background:var(--amber-l);color:var(--amber);border:1px solid #d9770630;}
+  .award-badge.silver{background:var(--s2);color:var(--dim);border:1px solid var(--bd);}
+  .award-badge.bronze{background:#fef3c7;color:#92400e;border:1px solid #92400e30;}
+  .award-badge.hm{background:var(--purple-l);color:var(--purple);border:1px solid #7c3aed30;}
+  .award-badge.best{background:var(--blue-l);color:var(--blue);border:1px solid #2563eb30;}
+  .award-badge.none{background:var(--s2);color:var(--dim);border:1px solid var(--bd);}
+  .award-badge.sm{font-size:.7rem;padding:.2rem .6rem;}
 `;
 
 // ─────────────────────────────────────────────
@@ -456,6 +499,25 @@ function scoresToMap(rows) {
       method: row.method, research: row.research, data: row.data,
       results: row.results, display: row.display, creativity: row.creativity,
       notes: row.notes || "", time: new Date(row.submitted_at).getTime(),
+    };
+    return acc;
+  }, {});
+}
+function delibNotesToMap(rows) {
+  return rows.reduce((acc, row) => {
+    acc[`${row.judge_id}_${row.project_id}`] = {
+      comment: row.comment || "", recommendation: row.recommendation || "Pending",
+      flagged: row.flagged || false, submittedAt: new Date(row.submitted_at).getTime(),
+    };
+    return acc;
+  }, {});
+}
+function finalDecisionsToMap(rows) {
+  return rows.reduce((acc, row) => {
+    acc[row.project_id] = {
+      award: row.award || "Pending", adminNotes: row.admin_notes || "",
+      finalized: row.finalized || false,
+      finalizedAt: row.finalized_at ? new Date(row.finalized_at).getTime() : null,
     };
     return acc;
   }, {});
@@ -506,6 +568,15 @@ export default function App() {
   const [resetPinErr,  setResetPinErr]  = useState("");
   const [resetDone,    setResetDone]    = useState(false);
 
+  // Deliberation state
+  const [deliberationNotes,  setDeliberationNotes]  = useState({});
+  const [finalDecisions,     setFinalDecisions]     = useState({});
+  const [deliberationOpen,   setDeliberationOpen]   = useState(false);
+  const [delibDraftComment,  setDelibDraftComment]  = useState("");
+  const [delibDraftRec,      setDelibDraftRec]      = useState("Pending");
+  const [delibDraftFlagged,  setDelibDraftFlagged]  = useState(false);
+  const [delibReportCopied,  setDelibReportCopied]  = useState(false);
+
   const EXPIRY_MS = { "1h":3600000, "24h":86400000, "7d":604800000, "never":Infinity };
   const EXPIRY_OPTS = [{ val:"1h",label:"1 Hour" },{ val:"24h",label:"24 Hours" },{ val:"7d",label:"7 Days" },{ val:"never",label:"Never" }];
 
@@ -540,14 +611,26 @@ export default function App() {
     }
   }
   async function loadSettings() {
-    const { data } = await supabase.from("app_settings").select("value").eq("key", "locked").single();
-    if (data) setLocked(data.value === "true");
+    const { data } = await supabase.from("app_settings").select("*");
+    if (data) {
+      const map = Object.fromEntries(data.map(r => [r.key, r.value]));
+      setLocked(map.locked === "true");
+      setDeliberationOpen(map.deliberation_open === "true");
+    }
+  }
+  async function loadDelibNotes() {
+    const { data } = await supabase.from("deliberation_notes").select("*");
+    if (data) setDeliberationNotes(delibNotesToMap(data));
+  }
+  async function loadFinalDecisions() {
+    const { data } = await supabase.from("final_decisions").select("*");
+    if (data) setFinalDecisions(finalDecisionsToMap(data));
   }
 
   // ── INITIAL LOAD + REALTIME SUBSCRIPTIONS ─────────────────
   useEffect(() => {
     async function init() {
-      await Promise.all([loadJudges(), loadScores(), loadLog(), loadItLogs(), loadShare(), loadSettings()]);
+      await Promise.all([loadJudges(), loadScores(), loadLog(), loadItLogs(), loadShare(), loadSettings(), loadDelibNotes(), loadFinalDecisions()]);
       setLoading(false);
     }
     init();
@@ -559,6 +642,8 @@ export default function App() {
       .on("postgres_changes", { event: "*", schema: "public", table: "it_logs" },      loadItLogs)
       .on("postgres_changes", { event: "*", schema: "public", table: "share_links" },  loadShare)
       .on("postgres_changes", { event: "*", schema: "public", table: "app_settings" }, loadSettings)
+      .on("postgres_changes", { event: "*", schema: "public", table: "deliberation_notes" }, loadDelibNotes)
+      .on("postgres_changes", { event: "*", schema: "public", table: "final_decisions" }, loadFinalDecisions)
       .subscribe();
 
     return () => supabase.removeChannel(channel);
@@ -639,6 +724,9 @@ export default function App() {
       `Judging Locked    : ${locked}`,
       `Results Link Live : ${isLinkLive()}`,
       shareToken ? `Share Token       : ${shareToken}` : `Share Token       : (none)`,
+      `Deliberation      : ${deliberationOpen ? "Open" : "Closed"}`,
+      `Delib Notes       : ${Object.keys(deliberationNotes).length}`,
+      `Decisions         : ${Object.values(finalDecisions).filter(d => d.finalized).length} finalized / ${PROJECTS.length} total`,
       "",
       "── IT LOG ENTRIES ────────────────────────────────────────────",
     ].join("\n");
@@ -668,6 +756,10 @@ export default function App() {
       `share_token  = "${shareToken||"none"}"`,
       `share_expiry = "${shareExpiry}"`,
       `anomalies    = ${JSON.stringify(getAnomalies())}`,
+      `delib_open   = ${deliberationOpen}`,
+      `delib_notes  = ${Object.keys(deliberationNotes).length}`,
+      `decisions    = ${Object.keys(finalDecisions).length}`,
+      `finalized    = ${Object.values(finalDecisions).filter(d => d.finalized).length}`,
     ].join("\n");
   }
 
@@ -687,13 +779,16 @@ export default function App() {
   }
 
   async function executeReset() {
-    addItLog("WARN","ADMIN","FULL_RESET","Admin performed a full data reset of the application",{ judgesCleared:judges.length, scoresCleared:Object.keys(scores).length, timestamp:fmtISO(Date.now()) });
+    addItLog("WARN","ADMIN","FULL_RESET","Admin performed a full data reset of the application",{ judgesCleared:judges.length, scoresCleared:Object.keys(scores).length, delibNotesCleared:Object.keys(deliberationNotes).length, decisionsCleared:Object.keys(finalDecisions).length, timestamp:fmtISO(Date.now()) });
     // Delete all transient data. activity_log is intentionally excluded (security audit trail).
     await Promise.all([
       supabase.from("scores").delete().not("id", "is", null),
       supabase.from("judges").delete().neq("id", ""),
       supabase.from("share_links").delete().not("id", "is", null),
       supabase.from("app_settings").update({ value: "false" }).eq("key", "locked"),
+      supabase.from("deliberation_notes").delete().not("id", "is", null),
+      supabase.from("final_decisions").delete().not("id", "is", null),
+      supabase.from("app_settings").update({ value: "false" }).eq("key", "deliberation_open"),
     ]);
     setJudges([]);
     setScores({});
@@ -704,6 +799,9 @@ export default function App() {
     setShareCreated(null);
     setShareExpiry("never");
     setShareTitle("Science Fair SY 2025-2026 — Final Results");
+    setDeliberationNotes({});
+    setFinalDecisions({});
+    setDeliberationOpen(false);
     setAdminTab("overview");
     setResetDone(true);
     setTimeout(() => { setShowReset(false); setResetDone(false); setResetPin(""); setResetPinErr(""); }, 1800);
@@ -768,6 +866,73 @@ export default function App() {
     return out;
   }
 
+  // Deliberation helpers
+  function getDelibNotesForProject(pid) {
+    return Object.entries(deliberationNotes)
+      .filter(([k]) => k.endsWith(`_${pid}`))
+      .map(([k, v]) => {
+        const judgeId = k.slice(0, k.lastIndexOf(`_${pid}`));
+        const j = judges.find(jj => jj.id === judgeId);
+        return { ...v, judgeAlias: j?.alias || "Unknown" };
+      });
+  }
+  function getRecBreakdown(pid) {
+    const notes = getDelibNotesForProject(pid);
+    const counts = {};
+    RECOMMENDATIONS.forEach(r => counts[r] = 0);
+    notes.forEach(n => { if (counts[n.recommendation] !== undefined) counts[n.recommendation]++; });
+    return counts;
+  }
+  function getFlagCount(pid) {
+    return getDelibNotesForProject(pid).filter(n => n.flagged).length;
+  }
+  function recPillClass(rec) {
+    return rec === "Recommend for Award" ? "award" : rec === "Strong Contender" ? "strong" : rec === "Good Work" ? "good" : "needs";
+  }
+  function awardBadgeClass(award) {
+    return award === "1st Place" ? "gold" : award === "2nd Place" ? "silver" : award === "3rd Place" ? "bronze"
+      : award === "Honorable Mention" ? "hm" : award === "Best in Category" ? "best" : "none";
+  }
+  function awardEmoji(award) {
+    return award === "1st Place" ? "🥇" : award === "2nd Place" ? "🥈" : award === "3rd Place" ? "🥉"
+      : award === "Honorable Mention" ? "🏅" : award === "Best in Category" ? "⭐" : "";
+  }
+  function buildDelibReport() {
+    const now = new Date().toISOString();
+    const ranked = rankedProjects();
+    const lines = [
+      "╔══════════════════════════════════════════════════════════════╗",
+      "║     SCIENCE FAIR APP — DELIBERATION SUMMARY REPORT          ║",
+      "╚══════════════════════════════════════════════════════════════╝",
+      `Generated: ${now}`,
+      "",
+      "── PROJECTS (RANKED BY SCORE) ─────────────────────────────────",
+      "",
+    ];
+    ranked.forEach((p, i) => {
+      const decision = finalDecisions[p.id];
+      const notes = getDelibNotesForProject(p.id);
+      const breakdown = getRecBreakdown(p.id);
+      const flags = getFlagCount(p.id);
+      lines.push(`#${i+1} — ${p.title} (${p.cat}, Grade ${p.grade})`);
+      lines.push(`  Avg Score: ${p.avg ?? "N/A"} / 100  |  Reviews: ${p.revs}`);
+      lines.push(`  Award Decision: ${decision?.award || "Pending"}${decision?.finalized ? " [FINALIZED]" : ""}`);
+      if (decision?.adminNotes) lines.push(`  Admin Notes: ${decision.adminNotes}`);
+      lines.push(`  Recommendations: ${RECOMMENDATIONS.map(r => `${r}: ${breakdown[r]}`).join(", ")}`);
+      lines.push(`  Flags for Discussion: ${flags}`);
+      if (notes.length > 0) {
+        lines.push("  Judge Comments:");
+        notes.forEach(n => {
+          lines.push(`    [${n.judgeAlias}] Rec: ${n.recommendation}${n.flagged ? " [FLAGGED]" : ""}`);
+          if (n.comment) lines.push(`      "${n.comment}"`);
+        });
+      }
+      lines.push("");
+    });
+    lines.push("── END OF REPORT ─────────────────────────────────────────────");
+    return lines.join("\n");
+  }
+
   // Actions
   async function handleRegister() {
     if (regCode.trim().toUpperCase() !== INVITE_CODE) {
@@ -818,6 +983,55 @@ export default function App() {
     addLog(`${judge.alias} submitted score for Project #${proj.num}`);
     addItLog("INFO","SCORE","SCORE_SUBMITTED","Judge submitted score for assigned project",{ judgeId:judge.id, alias:judge.alias, projectId:scoringPid, projectNum:proj.num, total, rubric:draftSc });
     setView("judge-home");
+  }
+
+  async function submitDelibNote(pid) {
+    const key = `${judge.id}_${pid}`;
+    const entry = { comment: delibDraftComment, recommendation: delibDraftRec, flagged: delibDraftFlagged, submittedAt: Date.now() };
+    setDeliberationNotes(p => ({ ...p, [key]: entry }));
+    await supabase.from("deliberation_notes").upsert({
+      judge_id: judge.id, project_id: pid,
+      comment: delibDraftComment, recommendation: delibDraftRec, flagged: delibDraftFlagged,
+    }, { onConflict: "judge_id,project_id" });
+    const proj = PROJECTS.find(p => p.id === pid);
+    addLog(`${judge.alias} submitted deliberation note for Project #${proj.num}`);
+    addItLog("INFO","JUDGE","DELIB_NOTE_SUBMITTED","Judge submitted deliberation note",
+      { judgeId:judge.id, alias:judge.alias, projectId:pid, projectNum:proj.num, recommendation:delibDraftRec, flagged:delibDraftFlagged });
+    setDelibDraftComment(""); setDelibDraftRec("Pending"); setDelibDraftFlagged(false);
+  }
+
+  async function handleToggleDeliberation() {
+    const next = !deliberationOpen;
+    await supabase.from("app_settings").upsert({ key: "deliberation_open", value: String(next) }, { onConflict: "key" });
+    setDeliberationOpen(next);
+    addLog(next ? "Admin opened deliberation phase" : "Admin closed deliberation phase");
+    addItLog(next?"INFO":"WARN","ADMIN", next?"DELIBERATION_OPENED":"DELIBERATION_CLOSED",
+      next?"Admin opened deliberation — judges can now submit notes":"Admin closed deliberation — note submission disabled",
+      { timestamp:fmtISO(Date.now()) });
+  }
+
+  async function saveFinalDecision(pid, award, adminNotes) {
+    const isFinalize = award !== "Pending";
+    const entry = { award, adminNotes, finalized: isFinalize, finalizedAt: isFinalize ? Date.now() : null };
+    setFinalDecisions(p => ({ ...p, [pid]: entry }));
+    await supabase.from("final_decisions").upsert({
+      project_id: pid, award, admin_notes: adminNotes,
+      finalized: isFinalize, finalized_at: isFinalize ? new Date().toISOString() : null,
+    }, { onConflict: "project_id" });
+    const proj = PROJECTS.find(p => p.id === pid);
+    addLog(`Admin ${isFinalize ? "finalized" : "updated"} decision for Project #${proj.num}: ${award}`);
+    addItLog("INFO","ADMIN", isFinalize?"DECISION_FINALIZED":"DECISION_UPDATED",
+      `Admin ${isFinalize?"finalized":"updated"} award decision for project`,
+      { projectId:pid, projectNum:proj.num, award, timestamp:fmtISO(Date.now()) });
+  }
+
+  async function reviseDecision(pid) {
+    setFinalDecisions(p => ({ ...p, [pid]: { ...p[pid], finalized: false, finalizedAt: null } }));
+    await supabase.from("final_decisions").update({ finalized: false, finalized_at: null }).eq("project_id", pid);
+    const proj = PROJECTS.find(p => p.id === pid);
+    addLog(`Admin reopened decision for Project #${proj.num} for revision`);
+    addItLog("INFO","ADMIN","DECISION_REVISED","Admin reopened award decision for revision",
+      { projectId:pid, projectNum:proj.num, timestamp:fmtISO(Date.now()) });
   }
 
   // ─── VIEWS ───
@@ -946,7 +1160,73 @@ export default function App() {
             <div className="all-done">
               <div style={{ fontSize:"2rem", marginBottom:".4rem" }}>🎉</div>
               <div style={{ fontWeight:600, marginBottom:".2rem" }}>All projects scored!</div>
-              <div style={{ fontSize:".82rem", color:"var(--dim)" }}>Thank you for your participation.</div>
+              <div style={{ fontSize:".82rem", color:"var(--dim)" }}>
+                {deliberationOpen ? "You may now submit deliberation notes below." : "Thank you for your participation."}
+              </div>
+            </div>
+          )}
+          {done === myProj.length && deliberationOpen && (
+            <div className="delib-section">
+              <div style={{fontFamily:"var(--ff-d)",fontSize:"1.25rem",color:"var(--navy)",marginBottom:".3rem"}}>
+                🤝 Deliberation
+              </div>
+              <p style={{fontSize:".88rem",color:"var(--dim)",marginBottom:"1rem",lineHeight:1.6}}>
+                Share your thoughts on each project to help the judging committee. Your comments are identified by your alias only.
+              </p>
+              {myProj.map(proj => {
+                const existing = deliberationNotes[`${judge.id}_${proj.id}`];
+                return (
+                  <div key={proj.id} className="delib-proj">
+                    <div className="delib-proj-head">
+                      <div>
+                        <div style={{fontFamily:"var(--ff-m)",fontSize:".78rem",color:"var(--navy)"}}>#{proj.num}</div>
+                        <div style={{fontWeight:600,fontSize:".95rem"}}>{proj.title}</div>
+                        <div style={{fontSize:".78rem",color:"var(--dim)"}}>{proj.cat} · Grade {proj.grade}</div>
+                      </div>
+                      <div style={{fontFamily:"var(--ff-m)",fontSize:".85rem",color:"var(--navy)"}}>
+                        {getTotal(scores[`${judge.id}_${proj.id}`])} pts
+                      </div>
+                    </div>
+                    {existing ? (
+                      <div className="delib-submitted">
+                        <span>✓ Note submitted</span>
+                        <span style={{fontSize:".75rem",color:"var(--dim)",marginLeft:".5rem"}}>
+                          {existing.recommendation}{existing.flagged ? " · Flagged" : ""}
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{marginBottom:".6rem"}}>
+                          <div className="lbl">Your deliberation comment</div>
+                          <textarea placeholder="Share your observations, strengths, and areas for improvement..."
+                            value={delibDraftComment} onChange={e => setDelibDraftComment(e.target.value)} />
+                        </div>
+                        <div style={{marginBottom:".6rem"}}>
+                          <div className="lbl">Recommendation</div>
+                          <select className="delib-rec-select" value={delibDraftRec}
+                            onChange={e => setDelibDraftRec(e.target.value)}>
+                            <option value="Pending" disabled>Select recommendation...</option>
+                            {RECOMMENDATIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                          </select>
+                        </div>
+                        <label className="delib-flag-wrap">
+                          <input type="checkbox" checked={delibDraftFlagged}
+                            onChange={e => setDelibDraftFlagged(e.target.checked)} />
+                          <div>
+                            <div style={{fontSize:".9rem",fontWeight:500}}>Flag for group discussion</div>
+                            <div style={{fontSize:".75rem",color:"var(--dim)"}}>Marks this project for special attention during deliberation</div>
+                          </div>
+                        </label>
+                        <button className="btn" style={{marginTop:".75rem"}}
+                          disabled={delibDraftRec === "Pending"}
+                          onClick={() => submitDelibNote(proj.id)}>
+                          Submit Deliberation Note
+                        </button>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
           <button className="btn sec" style={{ marginTop:".85rem" }} onClick={() => { setJudge(null); localStorage.removeItem("sf_judge_id"); setView("landing"); }}>Sign Out</button>
@@ -1032,6 +1312,7 @@ export default function App() {
       { id:"projects", ico:"🔬", label:"Projects"     },
       { id:"activity", ico:"📋", label:"Activity Log" },
       { id:"alerts",   ico:"⚠️", label:`Alerts${anomalies.length?` (${anomalies.length})`:""}`},
+      { id:"deliberation", ico:"🤝", label:"Deliberation" },
       { id:"share",    ico:"🔗", label:"Share Results" },
       { id:"itlogs",   ico:"🖥️", label:"IT Logs"      },
     ];
@@ -1078,6 +1359,8 @@ export default function App() {
                     <div className="warn-list">
                       <div>All registered judges removed</div>
                       <div>All submitted scores deleted</div>
+                      <div>All deliberation notes removed</div>
+                      <div>All final decisions cleared</div>
                       <div>Share link revoked</div>
                       <div>Judging lock reset to open</div>
                     </div>
@@ -1293,6 +1576,148 @@ export default function App() {
                 <div className="sys-row"><span style={{color:"var(--dim)"}}>Results Link</span><span className={`badge ${isLinkLive()?"bg":"br"}`}>{isLinkLive()?"Live":"Disabled"}</span></div>
                 <div className="sys-row"><span style={{color:"var(--dim)"}}>Score Records</span><span style={{fontFamily:"var(--ff-m)"}}>{totalScored()}</span></div>
               </div>
+            </>}
+
+            {/* DELIBERATION */}
+            {adminTab==="deliberation" && <>
+              <div className="adm-h1">Deliberation</div>
+              <div className="adm-sub">Review judge comments, manage decisions, and finalize awards</div>
+
+              {/* Phase toggle */}
+              <div className="delib-phase-toggle">
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:600,fontSize:".95rem"}}>
+                    {deliberationOpen ? "🟢 Deliberation is OPEN" : "⚫ Deliberation is CLOSED"}
+                  </div>
+                  <div style={{fontSize:".78rem",color:"var(--dim)"}}>
+                    {deliberationOpen
+                      ? "Judges who have completed scoring can submit deliberation notes."
+                      : "Open deliberation to allow judges to submit comments and recommendations."}
+                  </div>
+                </div>
+                <button className={`btn sm ${deliberationOpen ? "danger" : ""}`} style={{width:"auto"}}
+                  onClick={handleToggleDeliberation}>
+                  {deliberationOpen ? "Close Deliberation" : "Open Deliberation"}
+                </button>
+              </div>
+
+              {/* Export button */}
+              <div style={{marginBottom:"1rem"}}>
+                <button className={`btn sec sm`}
+                  onClick={() => {
+                    navigator.clipboard.writeText(buildDelibReport()).catch(()=>{});
+                    setDelibReportCopied(true);
+                    setTimeout(() => setDelibReportCopied(false), 2500);
+                  }}>
+                  {delibReportCopied ? "✓ Copied!" : "📋 Copy Deliberation Summary"}
+                </button>
+              </div>
+
+              {/* Per-project deliberation cards */}
+              {rankedProjects().map((p, i) => {
+                const notes = getDelibNotesForProject(p.id);
+                const breakdown = getRecBreakdown(p.id);
+                const flags = getFlagCount(p.id);
+                const decision = finalDecisions[p.id];
+
+                return (
+                  <div className="card" key={p.id} style={{marginBottom:".85rem"}}>
+                    {/* Project header */}
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:"1rem",flexWrap:"wrap",marginBottom:".75rem"}}>
+                      <div>
+                        <div style={{fontFamily:"var(--ff-m)",fontSize:".78rem",color:"var(--navy)",marginBottom:".2rem"}}>
+                          #{p.num} · Rank {i+1}
+                        </div>
+                        <div style={{fontWeight:600,marginBottom:".2rem",lineHeight:1.3}}>{p.title}</div>
+                        <div style={{fontSize:".76rem",color:"var(--dim)"}}>{p.cat} · Grade {p.grade}</div>
+                      </div>
+                      <div style={{textAlign:"right",flexShrink:0}}>
+                        <div style={{fontFamily:"var(--ff-d)",fontSize:"1.8rem",color:p.avg?"var(--navy)":"var(--dim)"}}>
+                          {p.avg ?? "—"}
+                        </div>
+                        <div style={{fontSize:".7rem",color:"var(--dim)"}}>avg / 100</div>
+                      </div>
+                    </div>
+
+                    {/* Badges row */}
+                    <div style={{display:"flex",gap:".4rem",flexWrap:"wrap",marginBottom:".75rem"}}>
+                      {Object.entries(breakdown).map(([rec, count]) => count > 0 && (
+                        <span key={rec} className={`delib-rec-pill ${recPillClass(rec)}`}>{rec}: {count}</span>
+                      ))}
+                      {flags > 0 && <span className="delib-discuss">🚩 Discussion needed ({flags})</span>}
+                      {notes.length === 0 && <span className="badge" style={{background:"var(--s2)",color:"var(--dim)"}}>No notes yet</span>}
+                    </div>
+
+                    {/* Judge comments */}
+                    {notes.length > 0 && (
+                      <div style={{borderTop:"1px solid var(--bd)",paddingTop:".75rem",marginBottom:".75rem"}}>
+                        <div className="sec-title" style={{fontSize:".9rem"}}>Judge Comments ({notes.length})</div>
+                        {notes.map((n, ni) => (
+                          <div key={ni} className="delib-comment-card">
+                            <div className="delib-comment-alias">👤 {n.judgeAlias}</div>
+                            {n.comment && <div className="delib-comment-text">"{n.comment}"</div>}
+                            <div className="delib-comment-meta">
+                              <span className={`delib-rec-pill ${recPillClass(n.recommendation)}`}>{n.recommendation}</span>
+                              {n.flagged && <span className="delib-flag-badge">🚩 Flagged</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Final Decision */}
+                    <div style={{borderTop:"1px solid var(--bd)",paddingTop:".75rem"}}>
+                      <div className="sec-title" style={{fontSize:".9rem"}}>Final Decision</div>
+                      {decision?.finalized ? (
+                        <div className="delib-finalized">
+                          <div style={{display:"flex",alignItems:"center",gap:".5rem",flexWrap:"wrap"}}>
+                            <span className={`award-badge ${awardBadgeClass(decision.award)}`}>
+                              {awardEmoji(decision.award)} {decision.award}
+                            </span>
+                            {decision.adminNotes && <span style={{fontSize:".78rem",color:"var(--dim)"}}>— {decision.adminNotes}</span>}
+                            <span style={{fontSize:".72rem",color:"var(--dim)"}}>
+                              Finalized {decision.finalizedAt ? fmtFull(decision.finalizedAt) : ""}
+                            </span>
+                          </div>
+                          <button className="btn sec sm" onClick={() => reviseDecision(p.id)}>✏️ Revise</button>
+                        </div>
+                      ) : (
+                        <div>
+                          <div style={{display:"flex",gap:".75rem",flexWrap:"wrap",marginBottom:".6rem"}}>
+                            <div style={{flex:1,minWidth:"180px"}}>
+                              <div className="lbl">Award</div>
+                              <select className="delib-rec-select"
+                                value={decision?.award || "Pending"}
+                                onChange={e => {
+                                  setFinalDecisions(prev => ({
+                                    ...prev, [p.id]: { ...prev[p.id], award: e.target.value, finalized: false, adminNotes: prev[p.id]?.adminNotes || "" }
+                                  }));
+                                }}>
+                                {AWARD_OPTIONS.map(a => <option key={a} value={a}>{a}</option>)}
+                              </select>
+                            </div>
+                            <div style={{flex:1,minWidth:"180px"}}>
+                              <div className="lbl">Admin Notes</div>
+                              <textarea rows={2} style={{minHeight:"60px"}} placeholder="Optional notes..."
+                                value={decision?.adminNotes || ""}
+                                onChange={e => {
+                                  setFinalDecisions(prev => ({
+                                    ...prev, [p.id]: { ...prev[p.id], adminNotes: e.target.value }
+                                  }));
+                                }} />
+                            </div>
+                          </div>
+                          <button className="btn sm" style={{width:"auto"}}
+                            disabled={!decision?.award || decision?.award === "Pending"}
+                            onClick={() => saveFinalDecision(p.id, decision?.award || "Pending", decision?.adminNotes || "")}>
+                            ✅ Finalize Decision
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </>}
 
             {/* SHARE RESULTS */}
@@ -1580,6 +2005,13 @@ export default function App() {
                       <div className="p-score" style={{color:podCols[ri]}}>{p.avg}</div>
                       <div style={{fontSize:".65rem",color:"var(--dim)",marginTop:".1rem"}}>/100 pts</div>
                       <div className="p-title">{p.title}</div>
+                      {finalDecisions[p.id]?.finalized && finalDecisions[p.id]?.award !== "No Award" && finalDecisions[p.id]?.award !== "Pending" && (
+                        <div style={{marginTop:".35rem"}}>
+                          <span className={`award-badge sm ${awardBadgeClass(finalDecisions[p.id].award)}`}>
+                            {awardEmoji(finalDecisions[p.id].award)} {finalDecisions[p.id].award}
+                          </span>
+                        </div>
+                      )}
                       <div className="p-cat"><span className="badge bb">{p.cat}</span></div>
                       <div className="p-revs">{p.revs} review{p.revs!==1?"s":""}</div>
                     </div>
@@ -1600,7 +2032,14 @@ export default function App() {
                     {i < 3 ? MEDALS[i] : <span>{i+1}</span>}
                   </div>
                   <div>
-                    <div className="res-title">{p.title}</div>
+                    <div className="res-title">
+                      {p.title}
+                      {finalDecisions[p.id]?.finalized && finalDecisions[p.id]?.award !== "No Award" && finalDecisions[p.id]?.award !== "Pending" && (
+                        <span className={`award-badge sm ${awardBadgeClass(finalDecisions[p.id].award)}`} style={{marginLeft:".5rem",verticalAlign:"middle"}}>
+                          {awardEmoji(finalDecisions[p.id].award)} {finalDecisions[p.id].award}
+                        </span>
+                      )}
+                    </div>
                     <div className="res-meta">{p.cat} · Grade {p.grade} · {p.revs} review{p.revs!==1?"s":""}</div>
                     {shareShowRubric && (
                       <div className="rub-chips">

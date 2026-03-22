@@ -65,8 +65,36 @@ CREATE TABLE app_settings (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Judge deliberation notes — one per judge+project pair
+CREATE TABLE deliberation_notes (
+  id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  judge_id       TEXT        NOT NULL REFERENCES judges(id) ON DELETE CASCADE,
+  project_id     TEXT        NOT NULL,
+  comment        TEXT        NOT NULL DEFAULT '',
+  recommendation TEXT        NOT NULL DEFAULT 'Pending'
+                             CHECK (recommendation IN ('Recommend for Award','Strong Contender','Good Work','Needs Improvement','Pending')),
+  flagged        BOOLEAN     NOT NULL DEFAULT FALSE,
+  submitted_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (judge_id, project_id)
+);
+
+-- Admin final award decisions — one per project
+CREATE TABLE final_decisions (
+  id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id   TEXT        NOT NULL UNIQUE,
+  award        TEXT        NOT NULL DEFAULT 'Pending'
+                           CHECK (award IN ('1st Place','2nd Place','3rd Place','Honorable Mention','Best in Category','No Award','Pending')),
+  admin_notes  TEXT        NOT NULL DEFAULT '',
+  finalized    BOOLEAN     NOT NULL DEFAULT FALSE,
+  finalized_at TIMESTAMPTZ,
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Seed the locked setting
 INSERT INTO app_settings (key, value) VALUES ('locked', 'false');
+
+-- Seed the deliberation_open setting
+INSERT INTO app_settings (key, value) VALUES ('deliberation_open', 'false');
 
 
 -- -- ROW LEVEL SECURITY -----------------------------------------------
@@ -82,6 +110,8 @@ ALTER TABLE activity_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE it_logs     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE share_links ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deliberation_notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE final_decisions    ENABLE ROW LEVEL SECURITY;
 
 -- judges: public read, anon can register (insert), no client-side updates
 CREATE POLICY "judges_select" ON judges FOR SELECT USING (true);
@@ -112,6 +142,19 @@ CREATE POLICY "share_links_delete" ON share_links FOR DELETE USING (true); -- re
 -- app_settings: public read, anon can update (lock/unlock)
 CREATE POLICY "app_settings_select" ON app_settings FOR SELECT USING (true);
 CREATE POLICY "app_settings_update" ON app_settings FOR UPDATE USING (true);
+CREATE POLICY "app_settings_insert" ON app_settings FOR INSERT WITH CHECK (true);
+
+-- deliberation_notes: public read, anon can submit/update, delete for reset
+CREATE POLICY "delib_notes_select" ON deliberation_notes FOR SELECT USING (true);
+CREATE POLICY "delib_notes_insert" ON deliberation_notes FOR INSERT WITH CHECK (true);
+CREATE POLICY "delib_notes_update" ON deliberation_notes FOR UPDATE USING (true);
+CREATE POLICY "delib_notes_delete" ON deliberation_notes FOR DELETE USING (true);
+
+-- final_decisions: public read, anon can submit/update, delete for reset
+CREATE POLICY "final_decisions_select" ON final_decisions FOR SELECT USING (true);
+CREATE POLICY "final_decisions_insert" ON final_decisions FOR INSERT WITH CHECK (true);
+CREATE POLICY "final_decisions_update" ON final_decisions FOR UPDATE USING (true);
+CREATE POLICY "final_decisions_delete" ON final_decisions FOR DELETE USING (true);
 
 
 -- -- REALTIME ----------------------------------------------------------
@@ -124,6 +167,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE activity_log;
 ALTER PUBLICATION supabase_realtime ADD TABLE it_logs;
 ALTER PUBLICATION supabase_realtime ADD TABLE share_links;
 ALTER PUBLICATION supabase_realtime ADD TABLE app_settings;
+ALTER PUBLICATION supabase_realtime ADD TABLE deliberation_notes;
+ALTER PUBLICATION supabase_realtime ADD TABLE final_decisions;
 
 
 -- -- INDEXES -----------------------------------------------------------
@@ -132,3 +177,6 @@ CREATE INDEX scores_project_id_idx  ON scores (project_id);
 CREATE INDEX activity_log_time_idx  ON activity_log (created_at DESC);
 CREATE INDEX it_logs_time_idx       ON it_logs (created_at DESC);
 CREATE INDEX share_links_token_idx  ON share_links (token) WHERE revoked_at IS NULL;
+CREATE INDEX delib_notes_judge_idx  ON deliberation_notes (judge_id);
+CREATE INDEX delib_notes_proj_idx   ON deliberation_notes (project_id);
+CREATE INDEX final_dec_proj_idx     ON final_decisions (project_id);
