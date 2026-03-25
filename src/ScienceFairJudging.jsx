@@ -224,6 +224,9 @@ const CSS = `
   .st-pend{background:var(--s2);color:var(--dim);}
   .locked-banner{background:var(--red-l);border:1px solid #dc262630;border-radius:10px;padding:.8rem 1.1rem;
     text-align:center;font-size:.95rem;color:var(--red);margin-bottom:1rem;font-weight:500;}
+  .offline-banner{background:var(--amber-l);border:1px solid #d9770630;border-radius:10px;padding:.7rem 1.1rem;
+    display:flex;align-items:center;gap:.5rem;font-size:.88rem;color:var(--amber);margin-bottom:.85rem;font-weight:500;flex-wrap:wrap;}
+  .offline-banner .sync-ct{font-family:var(--ff-m);font-size:.75rem;margin-left:.25rem;opacity:.8;}
   .all-done{background:var(--green-l);border:1px solid #05966920;border-radius:var(--r);padding:1.5rem;text-align:center;}
 
   /* SCORING */
@@ -534,6 +537,10 @@ export default function App() {
   const [locked,     setLocked]  = useState(false);
   const [loading,    setLoading] = useState(true);
   const [judge,      setJudge]   = useState(null);
+  const [isOnline,   setIsOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
+  const [offlineQueue, setOfflineQueue] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("sf_offline_queue") || "[]"); } catch { return []; }
+  });
   const [scoringPid, setScoringPid]  = useState(null);
   const [draftSc,    setDraftSc]     = useState({});
   const [draftNotes, setDraftNotes]  = useState("");
@@ -630,7 +637,9 @@ export default function App() {
   // ── INITIAL LOAD + REALTIME SUBSCRIPTIONS ─────────────────
   useEffect(() => {
     async function init() {
+      const timeout = setTimeout(() => setLoading(false), 8000);
       await Promise.all([loadJudges(), loadScores(), loadLog(), loadItLogs(), loadShare(), loadSettings(), loadDelibNotes(), loadFinalDecisions()]);
+      clearTimeout(timeout);
       setLoading(false);
     }
     init();
@@ -649,17 +658,91 @@ export default function App() {
     return () => supabase.removeChannel(channel);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── SESSION RESTORE ───────────────────────────────────────
-  // After data loads, check if this browser was previously logged in as a judge.
+  // ── INSTANT CACHE RESTORE (runs before Supabase loads) ────
+  useEffect(() => {
+    const savedId   = localStorage.getItem("sf_judge_id");
+    const savedData = localStorage.getItem("sf_judge_data");
+    if (savedId && savedData) {
+      try {
+        const cachedJudge  = JSON.parse(savedData);
+        const cachedScores = localStorage.getItem("sf_scores_cache");
+        setJudge(cachedJudge);
+        if (cachedScores) setScores(JSON.parse(cachedScores));
+        setView("judge-home");
+      } catch {
+        localStorage.removeItem("sf_judge_id");
+        localStorage.removeItem("sf_judge_data");
+        localStorage.removeItem("sf_scores_cache");
+      }
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── SESSION SYNC (after Supabase loads) ───────────────────
+  // Refresh judge from DB, or clear if admin has reset all data.
   useEffect(() => {
     if (loading) return;
     const savedId = localStorage.getItem("sf_judge_id");
-    if (savedId) {
+    if (!savedId) return;
+    if (judges.length > 0) {
       const found = judges.find(j => j.id === savedId);
-      if (found) { setJudge(found); setView("judge-home"); }
-      else localStorage.removeItem("sf_judge_id"); // judge was reset
+      if (found) {
+        setJudge(found);
+        localStorage.setItem("sf_judge_data", JSON.stringify(found));
+        setView("judge-home");
+      } else {
+        // Judge was reset by admin — wipe local cache
+        localStorage.removeItem("sf_judge_id");
+        localStorage.removeItem("sf_judge_data");
+        localStorage.removeItem("sf_scores_cache");
+        localStorage.removeItem("sf_offline_queue");
+        setJudge(null); setView("landing");
+      }
     }
+    // judges.length === 0 means Supabase was unreachable — keep the cached session
   }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── SCORE CACHE ───────────────────────────────────────────
+  // Persist this judge's own scores to localStorage after every change.
+  useEffect(() => {
+    if (loading || !judge) return;
+    const myScores = {};
+    judge.projects.forEach(pid => {
+      const key = `${judge.id}_${pid}`;
+      if (scores[key]) myScores[key] = scores[key];
+    });
+    localStorage.setItem("sf_scores_cache", JSON.stringify(myScores));
+  }, [scores, judge, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── ONLINE / OFFLINE EVENTS ───────────────────────────────
+  useEffect(() => {
+    const goOnline  = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener("online",  goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online",  goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (isOnline) flushOfflineQueue();
+  }, [isOnline]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function flushOfflineQueue() {
+    const queue = JSON.parse(localStorage.getItem("sf_offline_queue") || "[]");
+    if (!queue.length) return;
+    const remaining = [];
+    for (const item of queue) {
+      const { error } = await supabase.from("scores").upsert(item.data, { onConflict: "judge_id,project_id" });
+      if (error) remaining.push(item);
+    }
+    localStorage.setItem("sf_offline_queue", JSON.stringify(remaining));
+    setOfflineQueue(remaining);
+    if (remaining.length < queue.length) {
+      addItLog("INFO","DB","OFFLINE_QUEUE_FLUSHED",`Synced ${queue.length - remaining.length} queued score(s) to server`,{ synced: queue.length - remaining.length });
+    }
+  }
 
   function isLinkLive() {
     if (!shareEnabled || !shareToken) return false;
@@ -945,7 +1028,8 @@ export default function App() {
     const { error } = await supabase.from("judges").insert({ id: j.id, alias: j.alias, projects: j.projects });
     if (error) { setRegErr("Registration failed. Please try again."); return; }
     setJudges(p => [...p, j]); setJudge(j);
-    localStorage.setItem("sf_judge_id", j.id);
+    localStorage.setItem("sf_judge_id",   j.id);
+    localStorage.setItem("sf_judge_data", JSON.stringify(j));
     addLog(`${j.alias} joined as a judge`);
     addItLog("INFO","AUTH","JUDGE_REGISTERED","New judge registered with valid invite code",{ judgeId:j.id, alias:j.alias, assignedProjects:j.projects });
     setRegCode(""); setRegErr(""); setView("judge-home");
@@ -972,13 +1056,22 @@ export default function App() {
   async function submitScore() {
     const total = draftTotal();
     setScores(p => ({ ...p, [`${judge.id}_${scoringPid}`]: { ...draftSc, notes:draftNotes, time:Date.now() } }));
-    await supabase.from("scores").upsert({
+    const payload = {
       judge_id: judge.id, project_id: scoringPid,
       method: draftSc.method||0, research: draftSc.research||0,
       data: draftSc.data||0, results: draftSc.results||0,
       display: draftSc.display||0, creativity: draftSc.creativity||0,
       notes: draftNotes,
-    }, { onConflict: "judge_id,project_id" });
+    };
+    const { error } = await supabase.from("scores").upsert(payload, { onConflict: "judge_id,project_id" });
+    if (error || !navigator.onLine) {
+      const q = JSON.parse(localStorage.getItem("sf_offline_queue") || "[]");
+      const filtered = q.filter(x => !(x.data.judge_id === judge.id && x.data.project_id === scoringPid));
+      filtered.push({ data: payload, ts: Date.now() });
+      localStorage.setItem("sf_offline_queue", JSON.stringify(filtered));
+      setOfflineQueue(filtered);
+      addItLog("WARN","DB","SCORE_QUEUED","Score saved locally — will sync when online",{ judgeId:judge.id, projectId:scoringPid });
+    }
     const proj = PROJECTS.find(p=>p.id===scoringPid);
     addLog(`${judge.alias} submitted score for Project #${proj.num}`);
     addItLog("INFO","SCORE","SCORE_SUBMITTED","Judge submitted score for assigned project",{ judgeId:judge.id, alias:judge.alias, projectId:scoringPid, projectNum:proj.num, total, rubric:draftSc });
@@ -1037,7 +1130,7 @@ export default function App() {
   // ─── VIEWS ───
 
   /* LOADING */
-  if (loading) return (
+  if (loading && !judge) return (
     <div className="app"><style>{CSS}</style>
       <div className="center">
         <div style={{ textAlign:"center", color:"var(--dim)" }}>
@@ -1129,6 +1222,12 @@ export default function App() {
             </div>
             <div className="alias-tag">👤 {judge.alias}</div>
           </div>
+          {!isOnline && (
+            <div className="offline-banner">
+              📵 You're offline — scores are saved locally and will sync when reconnected.
+              {offlineQueue.length > 0 && <span className="sync-ct">({offlineQueue.length} pending sync)</span>}
+            </div>
+          )}
           {locked && <div className="locked-banner">🔒 Judging is currently locked by the administrator.</div>}
           <div className="card" style={{ padding:"1.1rem 1.4rem" }}>
             <div style={{ display:"flex", justifyContent:"space-between", marginBottom:".45rem" }}>
@@ -1229,7 +1328,7 @@ export default function App() {
               })}
             </div>
           )}
-          <button className="btn sec" style={{ marginTop:".85rem" }} onClick={() => { setJudge(null); localStorage.removeItem("sf_judge_id"); setView("landing"); }}>Sign Out</button>
+          <button className="btn sec" style={{ marginTop:".85rem" }} onClick={() => { setJudge(null); ["sf_judge_id","sf_judge_data","sf_scores_cache","sf_offline_queue"].forEach(k => localStorage.removeItem(k)); setView("landing"); }}>Sign Out</button>
         </div></div>
       </div>
     );
@@ -1243,6 +1342,11 @@ export default function App() {
         <div className="center" style={{ justifyContent:"flex-start", paddingTop:"2rem" }}>
           <div className="inner">
             <button className="back" onClick={() => setView("judge-home")}>← Back to my projects</button>
+            {!isOnline && (
+              <div className="offline-banner">
+                📵 Offline — score will be saved locally and synced when reconnected.
+              </div>
+            )}
             <div className="sc-header">
               <div style={{ fontFamily:"var(--ff-m)", fontSize:".78rem", color:"var(--navy)", marginBottom:".2rem" }}>PROJECT #{proj.num}</div>
               <h2>{proj.title}</h2>
