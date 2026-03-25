@@ -13,17 +13,21 @@ CREATE TABLE judges (
   joined_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- One score row per judge+project pair
+-- One score row per judge+project pair (10-criteria rubric, 42 pts max)
 CREATE TABLE scores (
   id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   judge_id     TEXT        NOT NULL REFERENCES judges(id) ON DELETE CASCADE,
   project_id   TEXT        NOT NULL,
-  method       SMALLINT    NOT NULL DEFAULT 0 CHECK (method    BETWEEN 0 AND 20),
-  research     SMALLINT    NOT NULL DEFAULT 0 CHECK (research  BETWEEN 0 AND 15),
-  data         SMALLINT    NOT NULL DEFAULT 0 CHECK (data      BETWEEN 0 AND 20),
-  results      SMALLINT    NOT NULL DEFAULT 0 CHECK (results   BETWEEN 0 AND 20),
-  display      SMALLINT    NOT NULL DEFAULT 0 CHECK (display   BETWEEN 0 AND 15),
-  creativity   SMALLINT    NOT NULL DEFAULT 0 CHECK (creativity BETWEEN 0 AND 10),
+  presentation SMALLINT    NOT NULL DEFAULT 0 CHECK (presentation IN (0,2,4,6)),
+  testable_q   SMALLINT    NOT NULL DEFAULT 0 CHECK (testable_q   IN (0,1,2,3)),
+  background   SMALLINT    NOT NULL DEFAULT 0 CHECK (background   IN (0,1,2,3)),
+  hypothesis   SMALLINT    NOT NULL DEFAULT 0 CHECK (hypothesis   IN (0,1,2,3)),
+  variables    SMALLINT    NOT NULL DEFAULT 0 CHECK (variables    IN (0,1,2,3)),
+  materials    SMALLINT    NOT NULL DEFAULT 0 CHECK (materials    IN (0,1,2,3)),
+  data         SMALLINT    NOT NULL DEFAULT 0 CHECK (data         IN (0,2,4,6)),
+  analysis     SMALLINT    NOT NULL DEFAULT 0 CHECK (analysis     IN (0,2,4,6)),
+  conclusion   SMALLINT    NOT NULL DEFAULT 0 CHECK (conclusion   IN (0,1,2,3)),
+  abstract     SMALLINT    NOT NULL DEFAULT 0 CHECK (abstract     IN (0,2,4,6)),
   notes        TEXT        NOT NULL DEFAULT '',
   submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (judge_id, project_id)
@@ -180,3 +184,27 @@ CREATE INDEX share_links_token_idx  ON share_links (token) WHERE revoked_at IS N
 CREATE INDEX delib_notes_judge_idx  ON deliberation_notes (judge_id);
 CREATE INDEX delib_notes_proj_idx   ON deliberation_notes (project_id);
 CREATE INDEX final_dec_proj_idx     ON final_decisions (project_id);
+
+
+-- -- MIGRATION: old rubric → new rubric (run once on live DB) --------
+-- If you already applied the original schema, run this block to migrate
+-- the scores table from the old 6-column rubric to the new 10-column rubric.
+--
+-- ALTER TABLE scores
+--   DROP COLUMN IF EXISTS method,
+--   DROP COLUMN IF EXISTS research,
+--   DROP COLUMN IF EXISTS results,
+--   DROP COLUMN IF EXISTS display,
+--   DROP COLUMN IF EXISTS creativity,
+--   ADD COLUMN presentation SMALLINT NOT NULL DEFAULT 0 CHECK (presentation IN (0,2,4,6)),
+--   ADD COLUMN testable_q   SMALLINT NOT NULL DEFAULT 0 CHECK (testable_q   IN (0,1,2,3)),
+--   ADD COLUMN background   SMALLINT NOT NULL DEFAULT 0 CHECK (background   IN (0,1,2,3)),
+--   ADD COLUMN hypothesis   SMALLINT NOT NULL DEFAULT 0 CHECK (hypothesis   IN (0,1,2,3)),
+--   ADD COLUMN variables    SMALLINT NOT NULL DEFAULT 0 CHECK (variables    IN (0,1,2,3)),
+--   ADD COLUMN materials    SMALLINT NOT NULL DEFAULT 0 CHECK (materials    IN (0,1,2,3)),
+--   ADD COLUMN analysis     SMALLINT NOT NULL DEFAULT 0 CHECK (analysis     IN (0,2,4,6)),
+--   ADD COLUMN conclusion   SMALLINT NOT NULL DEFAULT 0 CHECK (conclusion   IN (0,1,2,3)),
+--   ADD COLUMN abstract     SMALLINT NOT NULL DEFAULT 0 CHECK (abstract     IN (0,2,4,6));
+-- NOTE: 'data' column already exists — only its CHECK constraint changed.
+-- If you want to enforce the new constraint, drop and re-add the column or
+-- use ALTER TABLE scores ALTER COLUMN data TYPE SMALLINT (and add CHECK separately).

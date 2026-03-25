@@ -18,7 +18,7 @@ const RUBRIC = [
   { id:"hypothesis",   label:"Hypothesis",            desc:"Is based on background research.",                                                                                                                                                                                             max:3, steps:[0,1,2,3] },
   { id:"variables",    label:"Variables",             desc:"Are clearly defined (independent, controlled, dependent); may be worded as \"what I changed\", \"what I kept the same\", and \"what I measured\".",                                                                            max:3, steps:[0,1,2,3] },
   { id:"materials",    label:"Materials & Procedure", desc:"Materials are appropriate and a detailed list is given. Procedure is sequential and describes the investigation clearly and was repeated a minimum of 3 times.",                                                                max:3, steps:[0,1,2,3] },
-  { id:"data",         label:"Data",                  desc:"Quantitative Data: numbers, standard metric units, scale made up by the student. Qualitative Data: words, descriptions of physical or behavioral changes.",                                                                    max:6, steps:[0,2,4,6] },
+  { id:"data",         label:"Quantitative & Qualitative Data", desc:"Quantitative Data: numbers, standard metric units, scale made up by the student. Qualitative Data: words, descriptions of physical or behavioral changes.",                                                                    max:6, steps:[0,2,4,6] },
   { id:"analysis",     label:"Analysis",              desc:"Describes the trends or patterns found in the data; may have comments on reasons for trends or patterns.",                                                                                                                      max:6, steps:[0,2,4,6] },
   { id:"conclusion",   label:"Conclusion",            desc:"Based on the analysis of the data; acceptance or rejection of hypothesis or success of solution/invention; suggestions for further efforts.",                                                                                   max:3, steps:[0,1,2,3] },
   { id:"abstract",     label:"Abstract",              desc:"Required for projects 5th–High School. Concisely sums up the project explaining the test, the outcome, and the conclusion. Not to exceed 250 words.",                                                                          max:6, steps:[0,2,4,6] },
@@ -55,6 +55,15 @@ function fmt(ts)    { return new Date(ts).toLocaleTimeString([], { hour:"2-digit
 function fmtFull(ts){ return new Date(ts).toLocaleString([], { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" }); }
 function fmtISO(ts) { return new Date(ts).toISOString(); }
 function itId()     { return "EVT-" + Math.random().toString(36).slice(2,8).toUpperCase(); }
+function getDivision(grade) {
+  const g = parseInt(grade) || 0;
+  if (g <= 2)  return "K-2";
+  if (g <= 4)  return "3-4";
+  if (g <= 6)  return "5-6";
+  if (g <= 8)  return "7-8";
+  return "HS";
+}
+function requiresAbstract(proj) { return (parseInt(proj?.grade) || 0) >= 5; }
 
 // IT log levels + modules
 const IT_LEVELS  = ["ERROR","WARN","INFO","DEBUG"];
@@ -515,8 +524,11 @@ function dbToItLog(row) {
 function scoresToMap(rows) {
   return rows.reduce((acc, row) => {
     acc[`${row.judge_id}_${row.project_id}`] = {
-      method: row.method, research: row.research, data: row.data,
-      results: row.results, display: row.display, creativity: row.creativity,
+      presentation: row.presentation, testable_q: row.testable_q,
+      background: row.background, hypothesis: row.hypothesis,
+      variables: row.variables, materials: row.materials,
+      data: row.data, analysis: row.analysis,
+      conclusion: row.conclusion, abstract: row.abstract,
       notes: row.notes || "", time: new Date(row.submitted_at).getTime(),
     };
     return acc;
@@ -957,8 +969,29 @@ export default function App() {
   function hasScored(pid) { return !!scores[`${judge?.id}_${pid}`]; }
   function totalScored()  { return Object.keys(scores).length; }
   function possible()     { return judges.reduce((s,j) => s + j.projects.length, 0); }
-  function draftTotal()   { return RUBRIC.reduce((s,r) => s + (Number(draftSc[r.id])||0), 0); }
-  function allMoved()     { return RUBRIC.every(r => draftSc[r.id] !== undefined); }
+  function draftTotal() {
+    const proj = PROJECTS.find(p => p.id === scoringPid);
+    return RUBRIC.reduce((s,r) => {
+      if (r.id === "abstract" && proj && !requiresAbstract(proj)) return s;
+      return s + (Number(draftSc[r.id])||0);
+    }, 0);
+  }
+  function maxDraftScore() {
+    const proj = PROJECTS.find(p => p.id === scoringPid);
+    return requiresAbstract(proj) ? 42 : 36;
+  }
+  function allMoved() {
+    const proj = PROJECTS.find(p => p.id === scoringPid);
+    return RUBRIC.every(r => {
+      if (r.id === "abstract" && proj && !requiresAbstract(proj)) return true;
+      return draftSc[r.id] !== undefined;
+    });
+  }
+  function hasZeroScore() {
+    const proj = PROJECTS.find(p => p.id === scoringPid);
+    if (!proj || !requiresAbstract(proj)) return false;
+    return RUBRIC.some(r => draftSc[r.id] === 0);
+  }
 
   function getAnomalies() {
     const out = [];
@@ -1120,9 +1153,11 @@ export default function App() {
     setScores(p => ({ ...p, [`${judge.id}_${scoringPid}`]: { ...draftSc, notes:draftNotes, time:Date.now() } }));
     const payload = {
       judge_id: judge.id, project_id: scoringPid,
-      method: draftSc.method||0, research: draftSc.research||0,
-      data: draftSc.data||0, results: draftSc.results||0,
-      display: draftSc.display||0, creativity: draftSc.creativity||0,
+      presentation: draftSc.presentation||0, testable_q: draftSc.testable_q||0,
+      background: draftSc.background||0, hypothesis: draftSc.hypothesis||0,
+      variables: draftSc.variables||0, materials: draftSc.materials||0,
+      data: draftSc.data||0, analysis: draftSc.analysis||0,
+      conclusion: draftSc.conclusion||0, abstract: draftSc.abstract||0,
       notes: draftNotes,
     };
     const { error } = await supabase.from("scores").upsert(payload, { onConflict: "judge_id,project_id" });
@@ -1435,35 +1470,44 @@ export default function App() {
             <div className="sc-header">
               <div style={{ fontFamily:"var(--ff-m)", fontSize:".78rem", color:"var(--navy)", marginBottom:".2rem" }}>PROJECT #{proj.num}</div>
               <h2>{proj.title}</h2>
-              <div style={{ fontSize:".78rem", color:"var(--dim)", marginTop:".35rem" }}>{proj.cat} · Grade {proj.grade}</div>
+              <div style={{ fontSize:".78rem", color:"var(--dim)", marginTop:".35rem" }}>{proj.cat} · Grade {proj.grade} · {getDivision(proj.grade)}</div>
             </div>
-            {RUBRIC.map(r => (
-              <div className="rub-item" key={r.id}>
-                <div className="rub-top">
-                  <span className="rub-lbl">{r.label}</span>
-                  <span className="rub-val">{draftSc[r.id] !== undefined ? draftSc[r.id] : "—"} / {r.max}</span>
+            {RUBRIC.map(r => {
+              if (r.id === "abstract" && !requiresAbstract(proj)) return null;
+              return (
+                <div className="rub-item" key={r.id}>
+                  <div className="rub-top">
+                    <span className="rub-lbl">{r.label}</span>
+                    <span className="rub-val">{draftSc[r.id] !== undefined ? draftSc[r.id] : "—"} / {r.max}</span>
+                  </div>
+                  <div className="rub-desc">{r.desc}</div>
+                  <div className="rub-steps">
+                    {r.steps.map(v => (
+                      <button key={v} type="button"
+                        className={"rub-step-btn" + (draftSc[r.id] === v ? " selected" : "")}
+                        onClick={() => setDraftSc(p => ({ ...p, [r.id]: v }))}>
+                        {v}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="rub-desc">{r.desc}</div>
-                <div className="rub-steps">
-                  {r.steps.map(v => (
-                    <button key={v} type="button"
-                      className={"rub-step-btn" + (draftSc[r.id] === v ? " selected" : "")}
-                      onClick={() => setDraftSc(p => ({ ...p, [r.id]: v }))}>
-                      {v}
-                    </button>
-                  ))}
-                </div>
+              );
+            })}
+            {hasZeroScore() && (
+              <div className="val-tie-alert" style={{ marginBottom:"1rem" }}>
+                ⚠️ <strong>Grades 5 and up must have no zeroes.</strong> Please review your scores — at least one criterion is scored 0.
               </div>
-            ))}
+            )}
             <div className="card">
               <div className="lbl">Judge Notes (Optional)</div>
               <textarea placeholder="Add observations about this project…" value={draftNotes} onChange={e => setDraftNotes(e.target.value)} />
             </div>
             <div className="sc-total">
-              <div><div className="lbl">Total Score</div><div style={{ fontSize:".76rem", color:"var(--dim)" }}>Out of 42 points</div></div>
+              <div><div className="lbl">Total Score</div><div style={{ fontSize:".76rem", color:"var(--dim)" }}>Out of {maxDraftScore()} points</div></div>
               <div className="sc-total-num">{draftTotal()}</div>
             </div>
-            <button className="btn" onClick={submitScore} disabled={!allMoved()}>Submit Score →</button>
+            <button className="btn" onClick={submitScore} disabled={!allMoved() || hasZeroScore()}>Submit Score →</button>
+            {hasZeroScore() && <p style={{ textAlign:"center", fontSize:".72rem", color:"var(--red)", marginTop:".4rem" }}>Remove all zero scores before submitting (Grades 5+ rule).</p>}
             <p style={{ textAlign:"center", fontSize:".72rem", color:"var(--dim)", marginTop:".7rem" }}>You may revise this before judging closes.</p>
           </div>
         </div>
