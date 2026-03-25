@@ -7,13 +7,15 @@
 
 ## 🧭 Project Overview
 
-A **secure, anonymous, digital judging platform** for school science fairs.
+A **secure, digital judging platform** for school science fairs at Dishchiibikoh Community School.
 Built as a single-file React component (`ScienceFairJudging.jsx`).
-No external backend yet — all state lives in React `useState` (in-memory).
-Designed to eventually connect to **Supabase** (PostgreSQL + Auth + Realtime).
+**Supabase is fully connected** — PostgreSQL + Realtime powers all data persistence.
+**PWA-enabled** — installable on tablets/phones, works offline with local backup.
 
-**Target scale:** Medium — 10–30 judges, 50–150 projects.
-**Target devices:** Mobile phones, tablets, laptops, Chromebooks (fully responsive).
+**Target scale:** Medium — up to 15 judges, 50–150 projects.
+**Target devices:** Tablets (primary), phones, laptops, Chromebooks — fully responsive.
+**Live URL:** https://sciencefair-judging-app.vercel.app/
+**Supabase project:** https://cjzuiimoamrggucvahjm.supabase.co
 
 ---
 
@@ -21,8 +23,22 @@ Designed to eventually connect to **Supabase** (PostgreSQL + Auth + Realtime).
 
 ```
 /
-├── ScienceFairJudging.jsx   ← Entire app (single file, ~1400 lines)
-├── CLAUDE.md                ← This file — read before making any changes
+├── src/
+│   ├── ScienceFairJudging.jsx   ← Entire app (single file, ~1500+ lines)
+│   ├── supabaseClient.js        ← Supabase client init (reads from .env)
+│   └── main.jsx                 ← React root + PWA service worker registration
+├── supabase/
+│   └── schema.sql               ← Full DB schema (already applied to Supabase)
+├── public/
+│   ├── favicon.svg
+│   ├── logo.png                 ← School logo (also used as PWA icon)
+│   └── icons.svg
+├── index.html                   ← PWA meta tags (apple-touch-icon, theme-color, manifest)
+├── vite.config.js               ← Vite + vite-plugin-pwa config
+├── .env                         ← Local only, gitignored — holds Supabase credentials
+├── .env.example                 ← Template for .env
+├── .npmrc                       ← legacy-peer-deps=true (needed for vite-plugin-pwa on Vite 8)
+└── CLAUDE.md                    ← This file
 ```
 
 All CSS lives inside a `const CSS = \`...\`` template literal injected via `<style>{CSS}</style>`.
@@ -34,9 +50,9 @@ There are no separate `.css` files, no Tailwind, no CSS modules.
 
 ### Single-file React component
 - **One default export:** `App()` in `ScienceFairJudging.jsx`
-- **No routing library** — view switching is done via a `view` state string
+- **No routing library** — view switching via a `view` state string
 - **No external state management** — plain `useState` throughout
-- **All mock/seed data** is defined at the top of the file as constants
+- **Supabase realtime** subscriptions keep all clients in sync live
 
 ### View system
 The app renders different screens based on `const [view, setView] = useState("landing")`.
@@ -44,7 +60,7 @@ The app renders different screens based on `const [view, setView] = useState("la
 | `view` value | Screen |
 |---|---|
 | `"landing"` | Landing page — choose Judge or Admin |
-| `"judge-register"` | Judge registration with invite code |
+| `"judge-register"` | Judge sign-in (name + invite code) |
 | `"judge-home"` | Judge's project list + progress |
 | `"judge-scoring"` | Scoring form for one project |
 | `"admin-login"` | Admin password gate |
@@ -68,21 +84,30 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 
 ## 🔐 Security & Access Control
 
-### Credentials (demo values — change before production)
+### Credentials
 | Access | Credential |
 |---|---|
-| Judge registration | Invite code: `FAIR2025` |
-| Admin dashboard | Password: `admin2025` |
+| Judge sign-in name | `Judge1` through `Judge15` |
+| Judge invite code | `FAIR2026` |
+| Admin dashboard | Password: `SFadmin2026` |
 | IT Logs tab | PIN: `1680` |
 | Reset All Data | PIN: `1680` (same PIN, separate modal) |
 
 ### Security model
-- **Judges are anonymous** — on registration, a random alias is assigned from `ADJ[]` + `ANIM[]` arrays (e.g. "Bold Falcon"). Real identity never stored.
-- **Judges only see their assigned projects** — `assignProjects(idx)` assigns 4 projects per judge based on their registration index.
-- **IT Logs tab** is PIN-gated (`itUnlocked` state). Wrong PIN logs `IT_ACCESS_DENIED` to IT logs.
-- **Reset modal** requires the same PIN (`1680`). Wrong PIN logs `RESET_PIN_FAILED`.
-- **Activity log is NEVER cleared on reset** — preserved for security and review purposes. This is intentional and must not be changed.
-- **Judging can be locked** by admin (`locked` state) — locked state blocks all judge score submissions.
+- **Judges are identified by number** — they sign in as `Judge1`–`Judge15`. The alias IS their username.
+- **Duplicate prevention** — if a judge name is already registered (signed in on another device), a second registration attempt is blocked client-side.
+- **Project assignment is deterministic** — `assignProjects(seed)` uses the judge number as the seed (Judge1 → seed 0, Judge2 → seed 1, etc.) so Judge1 always gets the same 4 projects regardless of registration order.
+- **Judges only see their assigned projects** — 4 projects per judge.
+- **IT Logs tab** is PIN-gated (`itUnlocked` state). Wrong PIN logs `IT_ACCESS_DENIED`.
+- **Reset modal** requires PIN `1680`. Wrong PIN logs `RESET_PIN_FAILED`.
+- **Activity log is NEVER cleared on reset** — preserved for security audit. This is intentional.
+- **Judging can be locked** by admin (`locked` state) — blocks all judge score submissions.
+
+### Judge sign-in flow
+1. Judge enters their name (`Judge1`–`Judge15`) and invite code `FAIR2026`
+2. App validates name is in `JUDGE_NAMES` array and not already taken
+3. Judge is inserted into Supabase `judges` table with a random `id`, their name as `alias`, and assigned projects
+4. Session is saved to `localStorage` (`sf_judge_id` + `sf_judge_data`) for persistence across browser restarts
 
 ---
 
@@ -94,15 +119,16 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 // cat values: "Biology", "Physics", "Computer Sci.", "Chemistry", "Earth Science"
 ```
 
-### Judges (stored in `judges` state, seeded from `SEED_JUDGES`)
+### Judges (stored in `judges` state, synced from Supabase `judges` table)
 ```js
 { id, alias, projects: [pid, ...], joinedAt }
+// alias = judge's chosen name e.g. "Judge3"
 // projects: array of 4 project IDs assigned to this judge
 ```
 
-### Scores (stored in `scores` state as flat key-value object, seeded from `SEED_SCORES`)
+### Scores (stored in `scores` state as flat key-value object, synced from Supabase `scores` table)
 ```js
-// Key format: `${judgeId}_${projectId}`  e.g. "j_a_p1"
+// Key format: `${judgeId}_${projectId}`
 // Value:
 { method, research, data, results, display, creativity, notes, time }
 // All rubric values are numbers. Notes is a string. Time is a timestamp.
@@ -115,18 +141,43 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 // max values:    20,       15,         20,     20,        15,        10
 ```
 
-### Activity log (`log` state, seeded from `SEED_LOG`)
+### Activity log (`log` state — Supabase `activity_log` table)
 ```js
 [{ time: timestamp, msg: "Human readable string" }, ...]
 // NEVER clear this on reset. Preserved for security review.
 ```
 
-### IT diagnostic logs (`itLogs` state, seeded from `SEED_IT`)
+### IT diagnostic logs (`itLogs` state — Supabase `it_logs` table)
 ```js
 [{ id, ts, level, module, event, detail, payload }, ...]
 // level:  "ERROR" | "WARN" | "INFO" | "DEBUG"
 // module: "AUTH" | "JUDGE" | "SCORE" | "ADMIN" | "SHARE" | "DB" | "SYSTEM"
 ```
+
+---
+
+## 💾 Offline & PWA Support
+
+### PWA
+- Configured via `vite-plugin-pwa` in `vite.config.js`
+- Generates `sw.js` (service worker) and `manifest.webmanifest` at build time
+- App shell (JS, CSS, HTML, fonts) is precached — loads without internet after first visit
+- Install prompt appears on Chrome/Android automatically; iOS requires "Add to Home Screen" manually
+
+### localStorage keys
+| Key | Content |
+|---|---|
+| `sf_judge_id` | Judge's Supabase row ID |
+| `sf_judge_data` | Full judge object (JSON) for offline session restore |
+| `sf_scores_cache` | This judge's scores (JSON) for offline access |
+| `sf_offline_queue` | Array of score payloads pending sync to Supabase |
+
+### Offline flow
+1. On mount, app instantly restores judge session + scores from `localStorage` (before Supabase loads)
+2. After Supabase loads, session is verified — if judge was reset by admin, cache is cleared and judge is sent to landing
+3. If Supabase is unreachable, cached session and scores remain active
+4. Scores submitted offline are queued in `sf_offline_queue` and auto-synced when `window.online` fires
+5. 8-second timeout prevents infinite loading if Supabase is unreachable and there's no cache
 
 ---
 
@@ -147,40 +198,45 @@ shareTitle      // string — page heading on public results
 The public results page (`view === "public-results"`) shows:
 - Podium (top 3 projects) — reordered visually as 2nd, 1st, 3rd
 - Full ranked table with optional rubric breakdown chips
-- Judge aliases are **never** shown on the public page
+- Judge names are **never** shown on the public page
 
 ---
 
 ## 🎨 Design System
 
-### Fonts (loaded from Google Fonts)
+### Fonts (loaded from Google Fonts — also cached by service worker)
 | Variable | Font | Usage |
 |---|---|---|
-| `--ff-d` | Playfair Display 600/700 | Headings, titles, big numbers |
-| `--ff-b` | DM Sans 300–600 | Body text, UI labels |
+| `--ff-d` | Merriweather 400/700/900 | Headings, titles |
+| `--ff-b` | Source Sans 3 300–700 | Body text, UI labels |
 | `--ff-m` | DM Mono 400/500 | Codes, IDs, timestamps, pills |
 
-### Color palette (CSS variables)
+### Color palette (CSS variables — light theme)
 ```css
---bg:    #07101f   /* darkest background */
---s1:    #0d1b30   /* card background */
---s2:    #132240   /* hover / secondary card */
---bd:    #1c2e4a   /* borders */
---gold:  #f0a500   /* primary accent */
---gold2: #a37010   /* muted gold (borders) */
---text:  #e2e8f5   /* primary text */
---dim:   #6b7fa3   /* muted / secondary text */
---blue:  #3b82f6
---green: #22c55e
---red:   #ef4444
---amber: #f59e0b
---purple:#a78bfa
---r:     12px      /* border-radius */
+--bg:       #ffffff   /* page background */
+--s1:       #f8fafc   /* card background */
+--s2:       #f1f5f9   /* hover / secondary */
+--bd:       #e2e8f0   /* borders */
+--navy:     #1e3a5f   /* primary brand color */
+--navy-l:   #2d5a8e   /* lighter navy (hover) */
+--text:     #1e293b   /* primary text */
+--dim:      #64748b   /* muted / secondary text */
+--green:    #059669
+--green-l:  #d1fae5
+--red:      #dc2626
+--red-l:    #fee2e2
+--amber:    #d97706
+--amber-l:  #fef3c7
+--blue:     #2563eb
+--blue-l:   #dbeafe
+--purple:   #7c3aed
+--purple-l: #ede9fe
+--r:        12px      /* border-radius */
 ```
 
 ### Key CSS classes
-- `.card` — standard dark card with border
-- `.btn` — gold primary button (full width by default)
+- `.card` — white card with border and shadow
+- `.btn` — navy primary button (full width by default)
 - `.btn.sec` — secondary/ghost button
 - `.btn.danger` — red destructive button
 - `.btn.purple` — purple action button
@@ -188,6 +244,8 @@ The public results page (`view === "public-results"`) shows:
 - `.lbl` — monospace uppercase label above inputs
 - `.badge` — inline pill: `.bg` (green) `.ba` (amber) `.br` (red) `.bb` (blue) `.bp` (purple)
 - `.pbar` + `.pfill` — progress bar track + fill
+- `.offline-banner` — amber warning bar shown in judge views when offline
+- `.locked-banner` — red warning bar when admin has locked judging
 - `.it-term` — dark terminal-style container for IT logs
 - `.pin-gate` — PIN entry screen (centered, full height)
 - `.modal-overlay` + `.modal-box` — full-screen modal with blur backdrop
@@ -207,10 +265,10 @@ totalScored()               // Count of all score entries
 possible()                  // Max possible scores (judges × their assigned projects)
 getAnomalies()              // Array of outlier objects where deviation > 20pts from group avg
 isLinkLive()                // Boolean — is the public share link active and not expired?
-addLog(msg)                 // Append to human activity log
+addLog(msg)                 // Append to human activity log + Supabase activity_log
 addItLog(level, module, event, detail, payload)  // Append structured IT log entry
-genAlias(seed)              // Generate anonymous judge alias from ADJ+ANIM arrays
-assignProjects(idx)         // Assign 4 project IDs to a judge based on their index
+assignProjects(idx)         // Assign 4 project IDs to a judge based on their index (0-based)
+flushOfflineQueue()         // Sync any locally-queued scores to Supabase
 buildReport(logs)           // Generate formatted IT diagnostic report string for copy
 buildSnapshot()             // Generate current system state snapshot string
 executeReset()              // Reset all data EXCEPT activity log — requires PIN 1680
@@ -220,24 +278,38 @@ executeReset()              // Reset all data EXCEPT activity log — requires P
 
 ## 🚫 Critical Rules — Do NOT Break These
 
-1. **Never clear the activity log (`log` state) on reset.** It is preserved for security purposes. Only `judges`, `scores`, `locked`, and `share*` state are reset.
-2. **Judge aliases must never appear on the public results page.** The `view === "public-results"` page is visible without login — keep it score + project data only.
+1. **Never clear the activity log (`log` state) on reset.** Preserved for security purposes. Only `judges`, `scores`, `locked`, `share*`, `deliberationNotes`, and `finalDecisions` are reset.
+2. **Judge names must never appear on the public results page.** The `view === "public-results"` page is visible without login — keep it score + project data only.
 3. **IT Logs tab and Reset modal both use PIN `1680`.** They share the same PIN but have separate state (`itPin`/`itUnlocked` vs `resetPin`/`showReset`).
 4. **All CSS is inline** in the `CSS` template literal. Do not create external `.css` files.
 5. **No routing library.** All navigation uses `setView(...)`. Do not introduce React Router.
-6. **The score key format is `${judgeId}_${projectId}`** — this pattern is used throughout for lookups. Do not change it.
+6. **The score key format is `${judgeId}_${projectId}`** — used throughout for lookups. Do not change it.
 7. **Rubric max values must always sum to 100.** Current: method(20) + research(15) + data(20) + results(20) + display(15) + creativity(10) = 100.
+8. **Judge names are Judge1–Judge15.** The `JUDGE_NAMES` constant defines the allowed list. Do not change the sign-in to use random aliases — the school wants identifiable judges.
 
 ---
 
-## 🗄️ Planned Backend (Not yet implemented)
+## 🗄️ Active Backend (Supabase)
 
-When connecting to **Supabase**:
-- Replace `useState` for `judges`, `scores`, `log` with Supabase realtime subscriptions
-- Use Supabase Auth for invite code enforcement (not plain string comparison)
-- Enable Row-Level Security (RLS) so judges can only read/write their own score rows
-- Store share tokens in a `share_links` table with expiry timestamps
-- IT logs should write to a `diagnostic_logs` table
+Supabase is **fully integrated and live**. Schema is applied at `supabase/schema.sql`.
+
+### Tables
+| Table | Purpose |
+|---|---|
+| `judges` | Registered judges (id, alias, projects JSON, joined_at) |
+| `scores` | One row per judge+project pair; UNIQUE(judge_id, project_id) |
+| `activity_log` | Human-readable audit trail — never deleted |
+| `it_logs` | Structured diagnostic events |
+| `share_links` | Public results tokens with expiry + revoked_at |
+| `app_settings` | Key/value: `locked` and `deliberation_open` |
+| `deliberation_notes` | Judge comments/recommendations per project |
+| `final_decisions` | Admin award decisions per project |
+
+### Realtime
+All tables are subscribed via a single `supabase.channel("app-realtime")` — changes propagate live across all open tabs/devices.
+
+### RLS
+Row Level Security is enabled on all tables with open anon policies (public read/write). Full per-judge enforcement requires Supabase Auth (not yet implemented).
 
 ---
 
@@ -246,7 +318,7 @@ When connecting to **Supabase**:
 **Adding a new rubric criterion:**
 1. Add entry to `RUBRIC` array at top of file
 2. Ensure all `max` values still sum to 100
-3. Any existing `SEED_SCORES` entries will need the new key added
+3. Add the new column to `supabase/schema.sql` scores table and run migration
 
 **Adding a new admin tab:**
 1. Add `{ id, ico, label }` to `navItems` array inside the admin dashboard render
@@ -255,9 +327,17 @@ When connecting to **Supabase**:
 **Adding a new IT log event:**
 Call `addItLog(level, module, event, detail, payload)` anywhere in the code.
 
-**Changing the PIN:**
-Search for `"1680"` — it appears in the IT logs PIN handler and the reset modal PIN handler. Change both.
+**Changing credentials:**
+- Judge invite code: change `INVITE_CODE` constant (line ~7)
+- Admin password: change `ADMIN_PASS` constant (line ~8)
+- IT/Reset PIN: search `"1680"` — appears in IT logs PIN handler and reset modal PIN handler, change both
+
+**Adding more judges (beyond 15):**
+Change the `15` in `Array.from({ length: 15 }, ...)` in the `JUDGE_NAMES` constant.
 
 **Adding a new view/screen:**
 1. Add a new `if (view === "yourview") return (...)` block
 2. Navigate to it with `setView("yourview")`
+
+**Deploying:**
+Push to `main` branch on GitHub — Vercel auto-deploys. No manual steps needed.
