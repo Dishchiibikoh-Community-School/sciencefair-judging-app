@@ -12,13 +12,18 @@ const ADJ  = ["Swift","Bright","Noble","Keen","Bold","Wise","Sharp","Calm","Stea
 const ANIM = ["Falcon","Owl","Dolphin","Eagle","Lynx","Fox","Hawk","Puma","Raven","Crane","Ibis","Orca"];
 
 const RUBRIC = [
-  { id:"method",     label:"Scientific Method",      desc:"Hypothesis, variables, controls, experimental design",     max:20 },
-  { id:"research",   label:"Research & Background",  desc:"Literature review, citations, prior knowledge shown",      max:15 },
-  { id:"data",       label:"Data & Analysis",        desc:"Data collection quality, statistical analysis, graphs",    max:20 },
-  { id:"results",    label:"Results & Conclusions",  desc:"Accuracy, interpretation, implications of findings",       max:20 },
-  { id:"display",    label:"Presentation & Display", desc:"Organization, clarity, visual appeal of display board",    max:15 },
-  { id:"creativity", label:"Creativity & Innovation",desc:"Original thinking, novel approach or solution",            max:10 },
+  { id:"presentation", label:"Presentation",          desc:"Display Board and Project Data Book: Elements are aesthetically pleasing, organized, and creative. Is the information easy to understand?",                                                                                      max:6, steps:[0,2,4,6] },
+  { id:"testable_q",   label:"Testable Question",     desc:"References a cause and effect relationship and a measurable change.",                                                                                                                                                           max:3, steps:[0,1,2,3] },
+  { id:"background",   label:"Background Research",   desc:"Is diverse; multiple sources are cited and are complete.",                                                                                                                                                                     max:3, steps:[0,1,2,3] },
+  { id:"hypothesis",   label:"Hypothesis",            desc:"Is based on background research.",                                                                                                                                                                                             max:3, steps:[0,1,2,3] },
+  { id:"variables",    label:"Variables",             desc:"Are clearly defined (independent, controlled, dependent); may be worded as \"what I changed\", \"what I kept the same\", and \"what I measured\".",                                                                            max:3, steps:[0,1,2,3] },
+  { id:"materials",    label:"Materials & Procedure", desc:"Materials are appropriate and a detailed list is given. Procedure is sequential and describes the investigation clearly and was repeated a minimum of 3 times.",                                                                max:3, steps:[0,1,2,3] },
+  { id:"data",         label:"Data",                  desc:"Quantitative Data: numbers, standard metric units, scale made up by the student. Qualitative Data: words, descriptions of physical or behavioral changes.",                                                                    max:6, steps:[0,2,4,6] },
+  { id:"analysis",     label:"Analysis",              desc:"Describes the trends or patterns found in the data; may have comments on reasons for trends or patterns.",                                                                                                                      max:6, steps:[0,2,4,6] },
+  { id:"conclusion",   label:"Conclusion",            desc:"Based on the analysis of the data; acceptance or rejection of hypothesis or success of solution/invention; suggestions for further efforts.",                                                                                   max:3, steps:[0,1,2,3] },
+  { id:"abstract",     label:"Abstract",              desc:"Required for projects 5th–High School. Concisely sums up the project explaining the test, the outcome, and the conclusion. Not to exceed 250 words.",                                                                          max:6, steps:[0,2,4,6] },
 ];
+/// Scoring guide: 0=not present, 1/2=partial, 2/4=complete, 3/6=exceptional
 
 const PROJECTS = [
   { id:"p1", num:"001", title:"Effect of Microplastics on Aquatic Plant Growth",          cat:"Biology",       grade:"9"  },
@@ -64,12 +69,12 @@ const SEED_JUDGES = [
   { id:"j_c", alias:"Swift Eagle",  projects:["p5","p6","p7","p8"], joinedAt: Date.now()-1800000 },
 ];
 const SEED_SCORES = {
-  "j_a_p1":{ method:17,research:13,data:16,results:17,display:12,creativity:8,  notes:"Excellent methodology.", time:Date.now()-3000000 },
-  "j_a_p2":{ method:15,research:11,data:14,results:15,display:11,creativity:7,  notes:"Good work.",             time:Date.now()-2700000 },
-  "j_b_p3":{ method:18,research:14,data:18,results:17,display:13,creativity:9,  notes:"Impressive ML work.",    time:Date.now()-2000000 },
-  "j_b_p4":{ method:14,research:12,data:13,results:14,display:12,creativity:8,  notes:"Creative concept.",      time:Date.now()-1700000 },
-  "j_c_p5":{ method:16,research:13,data:15,results:16,display:14,creativity:7,  notes:"Solid research.",        time:Date.now()-1200000 },
-  "j_c_p6":{ method:19,research:14,data:17,results:18,display:14,creativity:10, notes:"Outstanding project.",   time:Date.now()-900000  },
+  "j_a_p1":{ presentation:4,testable_q:3,background:2,hypothesis:2,variables:3,materials:3,data:4,analysis:4,conclusion:3,abstract:4, notes:"Excellent methodology.", time:Date.now()-3000000 },
+  "j_a_p2":{ presentation:4,testable_q:2,background:2,hypothesis:2,variables:2,materials:2,data:4,analysis:4,conclusion:2,abstract:2, notes:"Good work.",             time:Date.now()-2700000 },
+  "j_b_p3":{ presentation:6,testable_q:3,background:3,hypothesis:3,variables:3,materials:3,data:6,analysis:6,conclusion:3,abstract:6, notes:"Impressive ML work.",    time:Date.now()-2000000 },
+  "j_b_p4":{ presentation:4,testable_q:2,background:2,hypothesis:2,variables:2,materials:2,data:4,analysis:4,conclusion:2,abstract:4, notes:"Creative concept.",      time:Date.now()-1700000 },
+  "j_c_p5":{ presentation:4,testable_q:2,background:2,hypothesis:2,variables:3,materials:3,data:4,analysis:4,conclusion:2,abstract:4, notes:"Solid research.",        time:Date.now()-1200000 },
+  "j_c_p6":{ presentation:6,testable_q:3,background:3,hypothesis:3,variables:3,materials:3,data:6,analysis:6,conclusion:3,abstract:6, notes:"Outstanding project.",   time:Date.now()-900000  },
 };
 const SEED_LOG = [
   { time:Date.now()-900000,  msg:"Swift Eagle submitted score for Project #006" },
@@ -240,16 +245,12 @@ const CSS = `
   .rub-lbl{font-weight:700;font-size:1rem;color:var(--text);}
   .rub-val{font-family:var(--ff-m);font-size:1.1rem;color:var(--navy);white-space:nowrap;font-weight:500;}
   .rub-desc{font-size:.88rem;color:var(--dim);margin-bottom:.85rem;line-height:1.5;}
-  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:8px;background:var(--bd);
-    border-radius:100px;outline:none;cursor:pointer;transition:background .2s;}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:28px;height:28px;
-    background:var(--navy);border-radius:50%;cursor:pointer;box-shadow:0 2px 6px rgba(30,58,95,.25);
-    border:3px solid #fff;transition:transform .15s;}
-  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15);}
-  input[type=range]::-webkit-slider-thumb:active{transform:scale(1.2);background:var(--navy-l);}
-  input[type=range]::-moz-range-thumb{width:28px;height:28px;background:var(--navy);border-radius:50%;
-    cursor:pointer;box-shadow:0 2px 6px rgba(30,58,95,.25);border:3px solid #fff;}
-  .rub-minmax{display:flex;justify-content:space-between;font-size:.8rem;color:var(--dim);margin-top:.35rem;}
+  .rub-steps{display:flex;gap:.6rem;margin-top:.5rem;}
+  .rub-step-btn{flex:1;padding:.65rem 0;border:2px solid var(--bd);border-radius:8px;background:var(--s1);
+    color:var(--dim);font-family:var(--ff-m);font-size:1.1rem;font-weight:600;cursor:pointer;transition:.15s;}
+  .rub-step-btn:hover{border-color:var(--navy);color:var(--text);}
+  .rub-step-btn.selected{background:var(--navy);border-color:var(--navy);color:#fff;box-shadow:0 2px 8px rgba(30,58,95,.35);}
+  .rub-step-btn.selected:hover{background:var(--navy-l);}
   .sc-total{display:flex;align-items:center;justify-content:space-between;
     background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:1.1rem 1.5rem;
     margin-bottom:.85rem;box-shadow:var(--shadow);}
@@ -472,6 +473,20 @@ const CSS = `
     background:var(--red-l);border:1px solid #dc262620;color:var(--red);padding:.3rem .7rem;border-radius:100px;}
   .delib-phase-toggle{display:flex;align-items:center;gap:1rem;padding:1rem 1.3rem;
     background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);margin-bottom:1rem;box-shadow:var(--shadow);}
+  /* VALIDATION */
+  .val-status-pill{display:inline-block;font-size:.75rem;font-family:var(--ff-m);font-weight:600;padding:.25rem .7rem;border-radius:100px;}
+  .val-status-pill.approved{background:var(--green-l);color:var(--green);}
+  .val-status-pill.concern{background:var(--amber-l);color:var(--amber);}
+  .val-status-pill.pending{background:var(--s2);color:var(--dim);}
+  .val-stat-pill{display:inline-flex;align-items:center;gap:.35rem;font-size:.78rem;font-family:var(--ff-m);font-weight:600;padding:.3rem .8rem;border-radius:100px;}
+  .val-stat-pill.green{background:var(--green-l);color:var(--green);}
+  .val-stat-pill.red{background:var(--red-l);color:var(--red);}
+  .val-stat-pill.dim{background:var(--s2);color:var(--dim);}
+  .val-consensus-card{padding:1rem 1.25rem;border-radius:var(--r);border:1px solid var(--bd);background:var(--s1);margin-bottom:1rem;}
+  .val-consensus-card.reached{background:var(--green-l);border-color:#05966930;}
+  .val-tie-alert{display:flex;align-items:center;gap:.75rem;padding:.9rem 1.1rem;background:var(--amber-l);border:1px solid #d9770630;border-radius:var(--r);margin-bottom:1rem;color:var(--amber);}
+  .val-finalized-banner{display:flex;align-items:center;gap:.85rem;padding:1rem 1.25rem;background:var(--green-l);border:1px solid #05966930;border-radius:var(--r);margin-bottom:1.25rem;}
+  .btn.amber{background:var(--amber);color:#fff;}
   .delib-finalized{background:var(--green-l);border:1px solid #05966920;border-radius:10px;
     padding:.6rem 1rem;display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;}
   .award-badge{display:inline-flex;align-items:center;gap:.35rem;font-family:var(--ff-m);font-size:.82rem;
@@ -585,6 +600,14 @@ export default function App() {
   const [delibDraftRec,      setDelibDraftRec]      = useState("Pending");
   const [delibDraftFlagged,  setDelibDraftFlagged]  = useState(false);
   const [delibReportCopied,  setDelibReportCopied]  = useState(false);
+  const [deliberationReason, setDeliberationReason] = useState(null); // "tie"|"manual"|null
+
+  // Validation & finalization state
+  const [judgeValidations,   setJudgeValidations]   = useState({});
+  const [adminValidation,    setAdminValidation]     = useState(null);
+  const [resultsFinalized,   setResultsFinalized]    = useState(false);
+  const [valComment,         setValComment]          = useState("");
+  const [showValForm,        setShowValForm]         = useState(false);
 
   const EXPIRY_MS = { "1h":3600000, "24h":86400000, "7d":604800000, "never":Infinity };
   const EXPIRY_OPTS = [{ val:"1h",label:"1 Hour" },{ val:"24h",label:"24 Hours" },{ val:"7d",label:"7 Days" },{ val:"never",label:"Never" }];
@@ -887,6 +910,10 @@ export default function App() {
     setDeliberationNotes({});
     setFinalDecisions({});
     setDeliberationOpen(false);
+    setDeliberationReason(null);
+    setJudgeValidations({});
+    setAdminValidation(null);
+    setResultsFinalized(false);
     setAdminTab("overview");
     setResetDone(true);
     setTimeout(() => { setShowReset(false); setResetDone(false); setResetPin(""); setResetPinErr(""); }, 1800);
@@ -942,7 +969,7 @@ export default function App() {
       const avg  = tots.reduce((a,b) => a+b, 0) / tots.length;
       hits.forEach(([key,s]) => {
         const t = getTotal(s);
-        if (Math.abs(t - avg) > 20) {
+        if (Math.abs(t - avg) > 8) {
           const jj = judges.find(j => key.startsWith(j.id));
           out.push({ project: p.title, judge: jj?.alias || "Unknown", score: t, avg: avg.toFixed(1) });
         }
@@ -971,6 +998,30 @@ export default function App() {
   function getFlagCount(pid) {
     return getDelibNotesForProject(pid).filter(n => n.flagged).length;
   }
+
+  // Validation helpers
+  function completedJudges() {
+    return judges.filter(j => judgeComp(j).pct === 100);
+  }
+  function hasTie() {
+    const scored = rankedProjects().filter(p => p.avg);
+    for (let i = 0; i < scored.length - 1; i++) {
+      if (scored[i].avg === scored[i + 1].avg) return true;
+    }
+    return false;
+  }
+  function consensusReached() {
+    const done = completedJudges();
+    if (!done.length || !adminValidation?.approved) return false;
+    return done.every(j => judgeValidations[j.id]?.approved === true);
+  }
+  function valProgress() {
+    const done = completedJudges();
+    const approved = done.filter(j => judgeValidations[j.id]?.approved === true).length;
+    const flagged  = done.filter(j => judgeValidations[j.id]?.approved === false).length;
+    return { total: done.length, approved, flagged, pending: done.length - approved - flagged };
+  }
+
   function recPillClass(rec) {
     return rec === "Recommend for Award" ? "award" : rec === "Strong Contender" ? "strong" : rec === "Good Work" ? "good" : "needs";
   }
@@ -1104,14 +1155,42 @@ export default function App() {
     setDelibDraftComment(""); setDelibDraftRec("Pending"); setDelibDraftFlagged(false);
   }
 
-  async function handleToggleDeliberation() {
-    const next = !deliberationOpen;
-    await supabase.from("app_settings").upsert({ key: "deliberation_open", value: String(next) }, { onConflict: "key" });
-    setDeliberationOpen(next);
-    addLog(next ? "Admin opened deliberation phase" : "Admin closed deliberation phase");
-    addItLog(next?"INFO":"WARN","ADMIN", next?"DELIBERATION_OPENED":"DELIBERATION_CLOSED",
-      next?"Admin opened deliberation — judges can now submit notes":"Admin closed deliberation — note submission disabled",
-      { timestamp:fmtISO(Date.now()) });
+  async function openDeliberation(reason) {
+    setDeliberationOpen(true);
+    setDeliberationReason(reason);
+    const msg = reason === "tie" ? "Deliberation triggered due to tied scores" : "Admin manually opened deliberation";
+    addLog(msg);
+    addItLog("INFO","ADMIN","DELIBERATION_OPENED", msg, { reason, timestamp:fmtISO(Date.now()) });
+  }
+  async function closeDeliberation() {
+    setDeliberationOpen(false);
+    setDeliberationReason(null);
+    addLog("Admin closed deliberation phase");
+    addItLog("INFO","ADMIN","DELIBERATION_CLOSED","Admin closed deliberation phase",{ timestamp:fmtISO(Date.now()) });
+  }
+  async function submitJudgeValidation(approved) {
+    const entry = { approved, comment: valComment, validatedAt: Date.now() };
+    setJudgeValidations(p => ({ ...p, [judge.id]: entry }));
+    addLog(`${judge.alias} ${approved ? "validated" : "raised a concern about"} the computed results`);
+    addItLog(approved?"INFO":"WARN","JUDGE", approved?"RESULTS_VALIDATED":"RESULTS_CONCERN",
+      approved ? "Judge validated computed results" : "Judge raised concern about results",
+      { judgeId:judge.id, alias:judge.alias, comment:valComment, timestamp:fmtISO(Date.now()) });
+    setValComment(""); setShowValForm(false);
+  }
+  async function submitAdminValidation(approved) {
+    const entry = { approved, comment: valComment, validatedAt: Date.now() };
+    setAdminValidation(entry);
+    addLog(`Admin ${approved ? "validated" : "flagged concerns with"} the computed results`);
+    addItLog(approved?"INFO":"WARN","ADMIN", approved?"ADMIN_RESULTS_VALIDATED":"ADMIN_RESULTS_CONCERN",
+      approved ? "Admin validated computed results" : "Admin flagged concerns with results",
+      { approved, comment:valComment, timestamp:fmtISO(Date.now()) });
+    setValComment(""); setShowValForm(false);
+  }
+  async function finalizeResults() {
+    setResultsFinalized(true);
+    if (deliberationOpen) { setDeliberationOpen(false); setDeliberationReason(null); }
+    addLog("Admin finalized results — public sharing now available");
+    addItLog("INFO","ADMIN","RESULTS_FINALIZED","Admin finalized results for public sharing",{ timestamp:fmtISO(Date.now()) });
   }
 
   async function saveFinalDecision(pid, award, adminNotes) {
@@ -1278,74 +1357,62 @@ export default function App() {
               <div style={{ fontSize:"2rem", marginBottom:".4rem" }}>🎉</div>
               <div style={{ fontWeight:600, marginBottom:".2rem" }}>All projects scored!</div>
               <div style={{ fontSize:".82rem", color:"var(--dim)" }}>
-                {deliberationOpen ? "You may now submit deliberation notes below." : "Thank you for your participation."}
+                Please review and validate the computed results below.
               </div>
             </div>
           )}
-          {done === myProj.length && deliberationOpen && (
-            <div className="delib-section">
-              <div style={{fontFamily:"var(--ff-d)",fontSize:"1.25rem",color:"var(--navy)",marginBottom:".3rem"}}>
-                🤝 Deliberation
+          {done === myProj.length && (() => {
+            const myVal = judgeValidations[judge.id];
+            if (myVal) return (
+              <div className="delib-section">
+                <div style={{fontFamily:"var(--ff-d)",fontSize:"1.1rem",color:"var(--navy)",marginBottom:".5rem"}}>
+                  ✅ Results Validated
+                </div>
+                <div className={`val-status-pill ${myVal.approved ? "approved" : "concern"}`}>
+                  {myVal.approved ? "✓ You approved the computed results" : "⚠ You flagged a concern"}
+                </div>
+                {myVal.comment && <div style={{fontSize:".82rem",color:"var(--dim)",marginTop:".5rem"}}>Your note: "{myVal.comment}"</div>}
+                <button className="btn sec sm" style={{marginTop:"1rem",width:"auto"}} onClick={() => {
+                  setJudgeValidations(p => { const n={...p}; delete n[judge.id]; return n; });
+                  setShowValForm(false); setValComment("");
+                }}>Revise my validation</button>
               </div>
-              <p style={{fontSize:".88rem",color:"var(--dim)",marginBottom:"1rem",lineHeight:1.6}}>
-                Share your thoughts on each project to help the judging committee. Your comments are identified by your alias only.
-              </p>
-              {myProj.map(proj => {
-                const existing = deliberationNotes[`${judge.id}_${proj.id}`];
-                return (
-                  <div key={proj.id} className="delib-proj">
-                    <div className="delib-proj-head">
-                      <div>
-                        <div style={{fontFamily:"var(--ff-m)",fontSize:".78rem",color:"var(--navy)"}}>#{proj.num}</div>
-                        <div style={{fontWeight:600,fontSize:".95rem"}}>{proj.title}</div>
-                        <div style={{fontSize:".78rem",color:"var(--dim)"}}>{proj.cat} · Grade {proj.grade}</div>
-                      </div>
-                      <div style={{fontFamily:"var(--ff-m)",fontSize:".85rem",color:"var(--navy)"}}>
-                        {getTotal(scores[`${judge.id}_${proj.id}`])} pts
-                      </div>
+            );
+            return (
+              <div className="delib-section">
+                <div style={{fontFamily:"var(--ff-d)",fontSize:"1.1rem",color:"var(--navy)",marginBottom:".3rem"}}>
+                  📋 Validate Computed Results
+                </div>
+                <p style={{fontSize:".85rem",color:"var(--dim)",marginBottom:"1rem",lineHeight:1.6}}>
+                  Review the system-computed rankings and confirm they look correct. If you have a concern, flag it for the admin to review.
+                </p>
+                <div style={{marginBottom:"1rem"}}>
+                  {rankedProjects().filter(p => myProj.some(mp => mp.id === p.id)).map((p, i) => (
+                    <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:".55rem .75rem",borderBottom:"1px solid var(--bd)",fontSize:".88rem"}}>
+                      <span style={{color:"var(--dim)",fontFamily:"var(--ff-m)",marginRight:".5rem"}}>{i+1}.</span>
+                      <span style={{flex:1}}>{p.title}</span>
+                      <span style={{fontFamily:"var(--ff-m)",color:"var(--navy)",fontWeight:600}}>{p.avg ?? "—"} pts</span>
                     </div>
-                    {existing ? (
-                      <div className="delib-submitted">
-                        <span>✓ Note submitted</span>
-                        <span style={{fontSize:".75rem",color:"var(--dim)",marginLeft:".5rem"}}>
-                          {existing.recommendation}{existing.flagged ? " · Flagged" : ""}
-                        </span>
-                      </div>
-                    ) : (
-                      <>
-                        <div style={{marginBottom:".6rem"}}>
-                          <div className="lbl">Your deliberation comment</div>
-                          <textarea placeholder="Share your observations, strengths, and areas for improvement..."
-                            value={delibDraftComment} onChange={e => setDelibDraftComment(e.target.value)} />
-                        </div>
-                        <div style={{marginBottom:".6rem"}}>
-                          <div className="lbl">Recommendation</div>
-                          <select className="delib-rec-select" value={delibDraftRec}
-                            onChange={e => setDelibDraftRec(e.target.value)}>
-                            <option value="Pending" disabled>Select recommendation...</option>
-                            {RECOMMENDATIONS.map(r => <option key={r} value={r}>{r}</option>)}
-                          </select>
-                        </div>
-                        <label className="delib-flag-wrap">
-                          <input type="checkbox" checked={delibDraftFlagged}
-                            onChange={e => setDelibDraftFlagged(e.target.checked)} />
-                          <div>
-                            <div style={{fontSize:".9rem",fontWeight:500}}>Flag for group discussion</div>
-                            <div style={{fontSize:".75rem",color:"var(--dim)"}}>Marks this project for special attention during deliberation</div>
-                          </div>
-                        </label>
-                        <button className="btn" style={{marginTop:".75rem"}}
-                          disabled={delibDraftRec === "Pending"}
-                          onClick={() => submitDelibNote(proj.id)}>
-                          Submit Deliberation Note
-                        </button>
-                      </>
-                    )}
+                  ))}
+                </div>
+                {showValForm && (
+                  <div style={{marginBottom:".75rem"}}>
+                    <div className="lbl">Comment (optional)</div>
+                    <textarea placeholder="Describe your concern or observation..." value={valComment} onChange={e => setValComment(e.target.value)} rows={3} />
                   </div>
-                );
-              })}
-            </div>
-          )}
+                )}
+                <div style={{display:"flex",gap:".65rem",flexWrap:"wrap"}}>
+                  <button className="btn sm" style={{width:"auto",background:"var(--green)"}} onClick={() => submitJudgeValidation(true)}>
+                    ✓ Approve Results
+                  </button>
+                  {!showValForm
+                    ? <button className="btn sec sm" style={{width:"auto"}} onClick={() => setShowValForm(true)}>⚠ Flag a Concern</button>
+                    : <button className="btn danger sm" style={{width:"auto"}} onClick={() => submitJudgeValidation(false)}>Submit Concern</button>
+                  }
+                </div>
+              </div>
+            );
+          })()}
           <button className="btn sec" style={{ marginTop:".85rem" }} onClick={() => { setJudge(null); ["sf_judge_id","sf_judge_data","sf_scores_cache","sf_offline_queue"].forEach(k => localStorage.removeItem(k)); setView("landing"); }}>Sign Out</button>
         </div></div>
       </div>
@@ -1377,10 +1444,15 @@ export default function App() {
                   <span className="rub-val">{draftSc[r.id] !== undefined ? draftSc[r.id] : "—"} / {r.max}</span>
                 </div>
                 <div className="rub-desc">{r.desc}</div>
-                <input type="range" min={0} max={r.max} step={1}
-                  value={draftSc[r.id] !== undefined ? draftSc[r.id] : 0}
-                  onChange={e => setDraftSc(p => ({ ...p, [r.id]: Number(e.target.value) }))} />
-                <div className="rub-minmax"><span>0</span><span>{r.max}</span></div>
+                <div className="rub-steps">
+                  {r.steps.map(v => (
+                    <button key={v} type="button"
+                      className={"rub-step-btn" + (draftSc[r.id] === v ? " selected" : "")}
+                      onClick={() => setDraftSc(p => ({ ...p, [r.id]: v }))}>
+                      {v}
+                    </button>
+                  ))}
+                </div>
               </div>
             ))}
             <div className="card">
@@ -1388,7 +1460,7 @@ export default function App() {
               <textarea placeholder="Add observations about this project…" value={draftNotes} onChange={e => setDraftNotes(e.target.value)} />
             </div>
             <div className="sc-total">
-              <div><div className="lbl">Total Score</div><div style={{ fontSize:".76rem", color:"var(--dim)" }}>Out of 100 points</div></div>
+              <div><div className="lbl">Total Score</div><div style={{ fontSize:".76rem", color:"var(--dim)" }}>Out of 42 points</div></div>
               <div className="sc-total-num">{draftTotal()}</div>
             </div>
             <button className="btn" onClick={submitScore} disabled={!allMoved()}>Submit Score →</button>
@@ -1434,8 +1506,8 @@ export default function App() {
       { id:"projects", ico:"🔬", label:"Projects"     },
       { id:"activity", ico:"📋", label:"Activity Log" },
       { id:"alerts",   ico:"⚠️", label:`Alerts${anomalies.length?` (${anomalies.length})`:""}`},
-      { id:"deliberation", ico:"🤝", label:"Deliberation" },
-      { id:"share",    ico:"🔗", label:"Share Results" },
+      { id:"deliberation", ico:"🤝", label:`Validation${resultsFinalized ? " ✓" : consensusReached() ? " 🟢" : ""}` },
+      { id:"share",    ico:"🔗", label:`Share${resultsFinalized ? " 🔗" : ""}` },
       { id:"itlogs",   ico:"🖥️", label:"IT Logs"      },
     ];
 
@@ -1701,151 +1773,216 @@ export default function App() {
             </>}
 
             {/* DELIBERATION */}
-            {adminTab==="deliberation" && <>
-              <div className="adm-h1">Deliberation</div>
-              <div className="adm-sub">Review judge comments, manage decisions, and finalize awards</div>
+            {adminTab==="deliberation" && (() => {
+              const vp = valProgress();
+              const tie = hasTie();
+              const consensus = consensusReached();
+              const canFinalize = adminValidation?.approved && !deliberationOpen;
+              return <>
+                <div className="adm-h1">Validation &amp; Deliberation</div>
+                <div className="adm-sub">Review computed results, reach consensus, and finalize before sharing</div>
 
-              {/* Phase toggle */}
-              <div className="delib-phase-toggle">
-                <div style={{flex:1}}>
-                  <div style={{fontWeight:600,fontSize:".95rem"}}>
-                    {deliberationOpen ? "🟢 Deliberation is OPEN" : "⚫ Deliberation is CLOSED"}
+                {/* Finalized banner */}
+                {resultsFinalized && (
+                  <div className="val-finalized-banner">
+                    <span style={{fontSize:"1.5rem"}}>✅</span>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:".95rem"}}>Results are finalized</div>
+                      <div style={{fontSize:".78rem",opacity:.8}}>Public sharing is now available from the Share tab.</div>
+                    </div>
+                    <button className="btn danger sm" style={{width:"auto",marginLeft:"auto"}} onClick={() => { setResultsFinalized(false); addLog("Admin reopened results for revision"); }}>Reopen</button>
                   </div>
-                  <div style={{fontSize:".78rem",color:"var(--dim)"}}>
-                    {deliberationOpen
-                      ? "Judges who have completed scoring can submit deliberation notes."
-                      : "Open deliberation to allow judges to submit comments and recommendations."}
+                )}
+
+                {/* Tie alert */}
+                {tie && !resultsFinalized && (
+                  <div className="val-tie-alert">
+                    <span style={{fontSize:"1.2rem"}}>⚠️</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:600,fontSize:".88rem"}}>Tie detected in rankings</div>
+                      <div style={{fontSize:".76rem",opacity:.85}}>Two or more projects share the same average score. Deliberation is recommended.</div>
+                    </div>
+                    {!deliberationOpen && <button className="btn amber sm" style={{width:"auto"}} onClick={() => openDeliberation("tie")}>Open Deliberation</button>}
                   </div>
-                </div>
-                <button className={`btn sm ${deliberationOpen ? "danger" : ""}`} style={{width:"auto"}}
-                  onClick={handleToggleDeliberation}>
-                  {deliberationOpen ? "Close Deliberation" : "Open Deliberation"}
-                </button>
-              </div>
+                )}
 
-              {/* Export button */}
-              <div style={{marginBottom:"1rem"}}>
-                <button className={`btn sec sm`}
-                  onClick={() => {
-                    navigator.clipboard.writeText(buildDelibReport()).catch(()=>{});
-                    setDelibReportCopied(true);
-                    setTimeout(() => setDelibReportCopied(false), 2500);
-                  }}>
-                  {delibReportCopied ? "✓ Copied!" : "📋 Copy Deliberation Summary"}
-                </button>
-              </div>
-
-              {/* Per-project deliberation cards */}
-              {rankedProjects().map((p, i) => {
-                const notes = getDelibNotesForProject(p.id);
-                const breakdown = getRecBreakdown(p.id);
-                const flags = getFlagCount(p.id);
-                const decision = finalDecisions[p.id];
-
-                return (
-                  <div className="card" key={p.id} style={{marginBottom:".85rem"}}>
-                    {/* Project header */}
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:"1rem",flexWrap:"wrap",marginBottom:".75rem"}}>
+                {/* Consensus status */}
+                {!resultsFinalized && (
+                  <div className={`val-consensus-card ${consensus ? "reached" : ""}`}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:".5rem"}}>
                       <div>
-                        <div style={{fontFamily:"var(--ff-m)",fontSize:".78rem",color:"var(--navy)",marginBottom:".2rem"}}>
-                          #{p.num} · Rank {i+1}
+                        <div style={{fontWeight:600,fontSize:".92rem"}}>{consensus ? "✅ Consensus reached" : "⏳ Awaiting consensus"}</div>
+                        <div style={{fontSize:".76rem",color:"var(--dim)",marginTop:".15rem"}}>
+                          {consensus ? "All reviewers approved the computed results. You can finalize and share." : "All judges who have completed scoring and the admin must approve before results can be finalized."}
                         </div>
-                        <div style={{fontWeight:600,marginBottom:".2rem",lineHeight:1.3}}>{p.title}</div>
-                        <div style={{fontSize:".76rem",color:"var(--dim)"}}>{p.cat} · Grade {p.grade}</div>
-                      </div>
-                      <div style={{textAlign:"right",flexShrink:0}}>
-                        <div style={{fontFamily:"var(--ff-d)",fontSize:"1.8rem",color:p.avg?"var(--navy)":"var(--dim)"}}>
-                          {p.avg ?? "—"}
-                        </div>
-                        <div style={{fontSize:".7rem",color:"var(--dim)"}}>avg / 100</div>
                       </div>
                     </div>
+                  </div>
+                )}
 
-                    {/* Badges row */}
-                    <div style={{display:"flex",gap:".4rem",flexWrap:"wrap",marginBottom:".75rem"}}>
-                      {Object.entries(breakdown).map(([rec, count]) => count > 0 && (
-                        <span key={rec} className={`delib-rec-pill ${recPillClass(rec)}`}>{rec}: {count}</span>
-                      ))}
-                      {flags > 0 && <span className="delib-discuss">🚩 Discussion needed ({flags})</span>}
-                      {notes.length === 0 && <span className="badge" style={{background:"var(--s2)",color:"var(--dim)"}}>No notes yet</span>}
-                    </div>
-
-                    {/* Judge comments */}
-                    {notes.length > 0 && (
-                      <div style={{borderTop:"1px solid var(--bd)",paddingTop:".75rem",marginBottom:".75rem"}}>
-                        <div className="sec-title" style={{fontSize:".9rem"}}>Judge Comments ({notes.length})</div>
-                        {notes.map((n, ni) => (
-                          <div key={ni} className="delib-comment-card">
-                            <div className="delib-comment-alias">👤 {n.judgeAlias}</div>
-                            {n.comment && <div className="delib-comment-text">"{n.comment}"</div>}
-                            <div className="delib-comment-meta">
-                              <span className={`delib-rec-pill ${recPillClass(n.recommendation)}`}>{n.recommendation}</span>
-                              {n.flagged && <span className="delib-flag-badge">🚩 Flagged</span>}
-                            </div>
+                {/* Judge validation status */}
+                <div className="card" style={{marginBottom:"1rem"}}>
+                  <div className="sec-title">Judge Validations</div>
+                  <div style={{display:"flex",gap:".75rem",marginBottom:"1rem",flexWrap:"wrap"}}>
+                    <div className="val-stat-pill green">{vp.approved} Approved</div>
+                    <div className="val-stat-pill red">{vp.flagged} Concerned</div>
+                    <div className="val-stat-pill dim">{vp.pending} Pending</div>
+                  </div>
+                  {completedJudges().length === 0
+                    ? <div style={{fontSize:".82rem",color:"var(--dim)"}}>No judges have completed scoring yet.</div>
+                    : completedJudges().map(j => {
+                        const v = judgeValidations[j.id];
+                        return (
+                          <div key={j.id} style={{display:"flex",alignItems:"center",gap:".75rem",padding:".5rem 0",borderBottom:"1px solid var(--bd)"}}>
+                            <div style={{flex:1,fontSize:".88rem",fontWeight:500}}>{j.alias}</div>
+                            {v
+                              ? <>
+                                  <span className={`val-status-pill ${v.approved ? "approved" : "concern"}`}>{v.approved ? "✓ Approved" : "⚠ Concern"}</span>
+                                  {v.comment && <span style={{fontSize:".72rem",color:"var(--dim)",maxWidth:"160px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>"{v.comment}"</span>}
+                                </>
+                              : <span className="val-status-pill pending">Pending</span>
+                            }
                           </div>
-                        ))}
+                        );
+                      })
+                  }
+                </div>
+
+                {/* Admin validation */}
+                <div className="card" style={{marginBottom:"1rem"}}>
+                  <div className="sec-title">Your Validation (Admin)</div>
+                  {adminValidation ? (
+                    <div>
+                      <div className={`val-status-pill ${adminValidation.approved ? "approved" : "concern"}`} style={{marginBottom:".5rem"}}>
+                        {adminValidation.approved ? "✓ You approved the computed results" : "⚠ You flagged a concern"}
                       </div>
-                    )}
-
-                    {/* Final Decision */}
-                    <div style={{borderTop:"1px solid var(--bd)",paddingTop:".75rem"}}>
-                      <div className="sec-title" style={{fontSize:".9rem"}}>Final Decision</div>
-                      {decision?.finalized ? (
-                        <div className="delib-finalized">
-                          <div style={{display:"flex",alignItems:"center",gap:".5rem",flexWrap:"wrap"}}>
-                            <span className={`award-badge ${awardBadgeClass(decision.award)}`}>
-                              {awardEmoji(decision.award)} {decision.award}
-                            </span>
-                            {decision.adminNotes && <span style={{fontSize:".78rem",color:"var(--dim)"}}>— {decision.adminNotes}</span>}
-                            <span style={{fontSize:".72rem",color:"var(--dim)"}}>
-                              Finalized {decision.finalizedAt ? fmtFull(decision.finalizedAt) : ""}
-                            </span>
-                          </div>
-                          <button className="btn sec sm" onClick={() => reviseDecision(p.id)}>✏️ Revise</button>
-                        </div>
-                      ) : (
-                        <div>
-                          <div style={{display:"flex",gap:".75rem",flexWrap:"wrap",marginBottom:".6rem"}}>
-                            <div style={{flex:1,minWidth:"180px"}}>
-                              <div className="lbl">Award</div>
-                              <select className="delib-rec-select"
-                                value={decision?.award || "Pending"}
-                                onChange={e => {
-                                  setFinalDecisions(prev => ({
-                                    ...prev, [p.id]: { ...prev[p.id], award: e.target.value, finalized: false, adminNotes: prev[p.id]?.adminNotes || "" }
-                                  }));
-                                }}>
-                                {AWARD_OPTIONS.map(a => <option key={a} value={a}>{a}</option>)}
-                              </select>
-                            </div>
-                            <div style={{flex:1,minWidth:"180px"}}>
-                              <div className="lbl">Admin Notes</div>
-                              <textarea rows={2} style={{minHeight:"60px"}} placeholder="Optional notes..."
-                                value={decision?.adminNotes || ""}
-                                onChange={e => {
-                                  setFinalDecisions(prev => ({
-                                    ...prev, [p.id]: { ...prev[p.id], adminNotes: e.target.value }
-                                  }));
-                                }} />
-                            </div>
-                          </div>
-                          <button className="btn sm" style={{width:"auto"}}
-                            disabled={!decision?.award || decision?.award === "Pending"}
-                            onClick={() => saveFinalDecision(p.id, decision?.award || "Pending", decision?.adminNotes || "")}>
-                            ✅ Finalize Decision
-                          </button>
+                      {adminValidation.comment && <div style={{fontSize:".8rem",color:"var(--dim)",marginBottom:".75rem"}}>Note: "{adminValidation.comment}"</div>}
+                      <button className="btn sec sm" style={{width:"auto"}} onClick={() => { setAdminValidation(null); setValComment(""); setShowValForm(false); }}>Revise</button>
+                    </div>
+                  ) : (
+                    <div>
+                      <p style={{fontSize:".83rem",color:"var(--dim)",marginBottom:".85rem",lineHeight:1.5}}>Review the auto-computed rankings and confirm they look correct before finalizing.</p>
+                      {showValForm && (
+                        <div style={{marginBottom:".75rem"}}>
+                          <div className="lbl">Comment (optional)</div>
+                          <textarea placeholder="Describe your concern..." value={valComment} onChange={e => setValComment(e.target.value)} rows={2} />
                         </div>
                       )}
+                      <div style={{display:"flex",gap:".65rem",flexWrap:"wrap"}}>
+                        <button className="btn sm" style={{width:"auto",background:"var(--green)"}} onClick={() => submitAdminValidation(true)}>✓ Approve Results</button>
+                        {!showValForm
+                          ? <button className="btn sec sm" style={{width:"auto"}} onClick={() => setShowValForm(true)}>⚠ Flag a Concern</button>
+                          : <button className="btn danger sm" style={{width:"auto"}} onClick={() => submitAdminValidation(false)}>Submit Concern</button>
+                        }
+                      </div>
                     </div>
+                  )}
+                </div>
+
+                {/* Deliberation section */}
+                {!resultsFinalized && (
+                  <div className="card" style={{marginBottom:"1rem"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:".5rem",marginBottom:".75rem"}}>
+                      <div>
+                        <div className="sec-title" style={{marginBottom:".1rem"}}>Deliberation</div>
+                        <div style={{fontSize:".76rem",color:"var(--dim)"}}>
+                          {deliberationOpen
+                            ? `Open · Reason: ${deliberationReason === "tie" ? "Tied scores" : "Admin initiated"}`
+                            : "Not active · Triggered automatically on ties or manually by admin"}
+                        </div>
+                      </div>
+                      {deliberationOpen
+                        ? <button className="btn sec sm" style={{width:"auto"}} onClick={closeDeliberation}>Close Deliberation</button>
+                        : <button className="btn sec sm" style={{width:"auto"}} onClick={() => openDeliberation("manual")}>Open Manually</button>
+                      }
+                    </div>
+                    {deliberationOpen && rankedProjects().map((p, i) => {
+                      const notes = getDelibNotesForProject(p.id);
+                      const flags = getFlagCount(p.id);
+                      const decision = finalDecisions[p.id];
+                      return (
+                        <div key={p.id} style={{borderTop:"1px solid var(--bd)",paddingTop:".85rem",marginTop:".85rem"}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:"1rem",flexWrap:"wrap",marginBottom:".5rem"}}>
+                            <div>
+                              <div style={{fontFamily:"var(--ff-m)",fontSize:".73rem",color:"var(--navy)"}}>#{p.num} · Rank {i+1}</div>
+                              <div style={{fontWeight:600,fontSize:".92rem",lineHeight:1.3}}>{p.title}</div>
+                            </div>
+                            <div style={{textAlign:"right",flexShrink:0}}>
+                              <div style={{fontFamily:"var(--ff-d)",fontSize:"1.5rem",color:"var(--navy)"}}>{p.avg ?? "—"}</div>
+                              <div style={{fontSize:".65rem",color:"var(--dim)"}}>avg pts</div>
+                            </div>
+                          </div>
+                          {flags > 0 && <div style={{display:"inline-flex",alignItems:"center",gap:".3rem",fontSize:".73rem",fontFamily:"var(--ff-m)",padding:".2rem .5rem",background:"var(--amber-l)",color:"var(--amber)",borderRadius:"6px",marginBottom:".5rem"}}>🚩 {flags} flag{flags!==1?"s":""} for discussion</div>}
+                          {notes.length > 0 && notes.map((n, ni) => (
+                            <div key={ni} className="delib-comment-card">
+                              <div className="delib-comment-alias">👤 {n.judgeAlias}</div>
+                              {n.comment && <div className="delib-comment-text">"{n.comment}"</div>}
+                              <div className="delib-comment-meta">
+                                <span className={`delib-rec-pill ${recPillClass(n.recommendation)}`}>{n.recommendation}</span>
+                                {n.flagged && <span className="delib-flag-badge">🚩 Flagged</span>}
+                              </div>
+                            </div>
+                          ))}
+                          <div style={{marginTop:".5rem"}}>
+                            <div style={{display:"flex",gap:".5rem",flexWrap:"wrap",marginBottom:".4rem"}}>
+                              <select className="delib-rec-select" style={{flex:1,minWidth:"140px"}}
+                                value={decision?.award || "Pending"}
+                                onChange={e => setFinalDecisions(prev => ({ ...prev, [p.id]: { ...prev[p.id], award: e.target.value, finalized:false, adminNotes:prev[p.id]?.adminNotes||"" } }))}>
+                                {AWARD_OPTIONS.map(a => <option key={a} value={a}>{a}</option>)}
+                              </select>
+                              <button className="btn sm" style={{width:"auto"}}
+                                disabled={!decision?.award || decision?.award==="Pending"}
+                                onClick={() => saveFinalDecision(p.id, decision?.award||"Pending", decision?.adminNotes||"")}>
+                                {decision?.finalized ? "✓ Saved" : "Save Award"}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </>}
+                )}
+
+                {/* Finalize button */}
+                {!resultsFinalized && (
+                  <div style={{background:"var(--s1)",border:"1px solid var(--bd)",borderRadius:"var(--r)",padding:"1.25rem",marginBottom:"1rem"}}>
+                    <div style={{fontWeight:600,marginBottom:".3rem"}}>Finalize &amp; Enable Sharing</div>
+                    <div style={{fontSize:".8rem",color:"var(--dim)",marginBottom:"1rem",lineHeight:1.5}}>
+                      {!adminValidation?.approved ? "You must approve the results before finalizing." :
+                       deliberationOpen ? "Close deliberation before finalizing." :
+                       "Results are ready to finalize. Once finalized, the Share tab will be unlocked."}
+                    </div>
+                    <button className="btn" disabled={!canFinalize} onClick={finalizeResults}>
+                      🏁 Finalize Results
+                    </button>
+                  </div>
+                )}
+
+                {/* Copy report */}
+                <div>
+                  <button className="btn sec sm" style={{width:"auto"}} onClick={() => { navigator.clipboard.writeText(buildDelibReport()).catch(()=>{}); setDelibReportCopied(true); setTimeout(()=>setDelibReportCopied(false),2500); }}>
+                    {delibReportCopied ? "✓ Copied!" : "📋 Copy Summary Report"}
+                  </button>
+                </div>
+              </>;
+            })()}
 
             {/* SHARE RESULTS */}
             {adminTab==="share" && <>
-              <div className="adm-h1">Share Results</div>
+              <div className="adm-h1">Share Live Results</div>
               <div className="adm-sub">Generate a public link for parents, students, and attendees — no login required to view.</div>
+
+              {/* Not-finalized gate */}
+              {!resultsFinalized && (
+                <div className="val-tie-alert" style={{marginBottom:"1.2rem"}}>
+                  <span style={{fontSize:"1.2rem"}}>🔒</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:600,fontSize:".88rem"}}>Results not yet finalized</div>
+                    <div style={{fontSize:".76rem",opacity:.85}}>Complete validation and finalize results in the Validation tab before sharing.</div>
+                  </div>
+                  <button className="btn sm" style={{width:"auto"}} onClick={() => setAdminTab("deliberation")}>Go to Validation →</button>
+                </div>
+              )}
 
               {/* Status bar */}
               <div className={`share-status ${isLinkLive()?"on":"off"}`}>
@@ -1914,9 +2051,10 @@ export default function App() {
                   </div>
                 </div>
 
-                <button className="btn" onClick={generateLink}>
-                  {isLinkLive() ? "🔄 Regenerate New Link" : "🔗 Generate Results Link"}
+                <button className="btn" onClick={generateLink} disabled={!resultsFinalized}>
+                  {isLinkLive() ? "🔄 Regenerate New Link" : "🔗 Generate Live Results Link"}
                 </button>
+                {!resultsFinalized && <p style={{fontSize:".72rem",color:"var(--dim)",marginTop:".5rem",textAlign:"center"}}>Finalize results first to enable sharing.</p>}
                 {isLinkLive() && (
                   <p style={{fontSize:".72rem",color:"var(--amber)",marginTop:".5rem",textAlign:"center"}}>
                     ⚠ Regenerating invalidates the current link immediately.
