@@ -5,6 +5,17 @@
 
 -- -- TABLES ----------------------------------------------------------
 
+-- Projects (dynamic — admin can add/remove/lock)
+CREATE TABLE projects (
+  id         TEXT        PRIMARY KEY,             -- e.g. "p1", "p_abc123"
+  num        TEXT        NOT NULL,                -- display number e.g. "001"
+  title      TEXT        NOT NULL,
+  cat        TEXT        NOT NULL DEFAULT '',      -- category
+  grade      TEXT        NOT NULL DEFAULT '',
+  locked     BOOLEAN     NOT NULL DEFAULT FALSE,   -- locked projects cannot be edited or removed
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Registered judges (anonymous aliases, no real identity stored)
 CREATE TABLE judges (
   id         TEXT        PRIMARY KEY,          -- client-generated: "j_" + random
@@ -108,6 +119,7 @@ INSERT INTO app_settings (key, value) VALUES ('deliberation_open', 'false');
 -- Auth is added, replace the score INSERT/UPDATE policies with:
 --   USING (auth.uid()::text = judge_id)
 
+ALTER TABLE projects    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE judges      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scores      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_log ENABLE ROW LEVEL SECURITY;
@@ -116,6 +128,12 @@ ALTER TABLE share_links ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deliberation_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE final_decisions    ENABLE ROW LEVEL SECURITY;
+
+-- projects: public read, anon can manage (admin-only in practice)
+CREATE POLICY "projects_select" ON projects FOR SELECT USING (true);
+CREATE POLICY "projects_insert" ON projects FOR INSERT WITH CHECK (true);
+CREATE POLICY "projects_update" ON projects FOR UPDATE USING (true);
+CREATE POLICY "projects_delete" ON projects FOR DELETE USING (true);
 
 -- judges: public read, anon can register (insert), no client-side updates
 CREATE POLICY "judges_select" ON judges FOR SELECT USING (true);
@@ -165,6 +183,7 @@ CREATE POLICY "final_decisions_delete" ON final_decisions FOR DELETE USING (true
 -- Enable realtime publication for live dashboard updates.
 -- Run these after enabling the Realtime extension in your Supabase project.
 
+ALTER PUBLICATION supabase_realtime ADD TABLE projects;
 ALTER PUBLICATION supabase_realtime ADD TABLE judges;
 ALTER PUBLICATION supabase_realtime ADD TABLE scores;
 ALTER PUBLICATION supabase_realtime ADD TABLE activity_log;

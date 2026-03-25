@@ -25,7 +25,7 @@ const RUBRIC = [
 ];
 /// Scoring guide: 0=not present, 1/2=partial, 2/4=complete, 3/6=exceptional
 
-const PROJECTS = [
+const DEFAULT_PROJECTS = [
   { id:"p1", num:"001", title:"Effect of Microplastics on Aquatic Plant Growth",          cat:"Biology",       grade:"9"  },
   { id:"p2", num:"002", title:"Solar Cell Efficiency Under Different Light Spectra",       cat:"Physics",       grade:"10" },
   { id:"p3", num:"003", title:"ML Model for Early Detection of Crop Disease",              cat:"Computer Sci.", grade:"11" },
@@ -41,11 +41,8 @@ const MEDALS = ["🥇","🥈","🥉"];
 const RECOMMENDATIONS = ["Recommend for Award","Strong Contender","Good Work","Needs Improvement"];
 const AWARD_OPTIONS   = ["1st Place","2nd Place","3rd Place","Honorable Mention","Best in Category","No Award","Pending"];
 
-function assignProjects(idx) {
-  const out = [];
-  for (let i = 0; i < 4; i++) out.push(PROJECTS[(idx * 3 + i) % PROJECTS.length].id);
-  return [...new Set(out)];
-}
+const CATEGORIES = ["Biology","Physics","Computer Sci.","Chemistry","Earth Science","Engineering","Math","Environmental Sci."];
+
 function genAlias(seed) {
   return `${ADJ[seed % ADJ.length]} ${ANIM[Math.floor(seed / ADJ.length) % ANIM.length]}`;
 }
@@ -507,6 +504,29 @@ const CSS = `
   .award-badge.best{background:var(--blue-l);color:var(--blue);border:1px solid #2563eb30;}
   .award-badge.none{background:var(--s2);color:var(--dim);border:1px solid var(--bd);}
   .award-badge.sm{font-size:.7rem;padding:.2rem .6rem;}
+
+  /* PROJECT MANAGEMENT */
+  .proj-mgmt-card{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:1.1rem 1.25rem;
+    margin-bottom:.6rem;box-shadow:var(--shadow);transition:border-color .15s;}
+  .proj-mgmt-card.is-locked{border-color:var(--amber);background:#fef3c705;}
+  .proj-mgmt-head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;}
+  .proj-mgmt-actions{display:flex;gap:.35rem;flex-shrink:0;align-items:center;}
+  .proj-act-btn{padding:.35rem .65rem;border-radius:6px;border:1px solid var(--bd);background:var(--bg);
+    font-family:var(--ff-m);font-size:.72rem;cursor:pointer;transition:all .15s;color:var(--dim);}
+  .proj-act-btn:hover{border-color:var(--navy);color:var(--navy);}
+  .proj-act-btn.lock{color:var(--amber);border-color:var(--amber)30;}
+  .proj-act-btn.lock:hover{background:var(--amber-l);}
+  .proj-act-btn.unlock{color:var(--green);border-color:var(--green)30;}
+  .proj-act-btn.unlock:hover{background:var(--green-l);}
+  .proj-act-btn.edit{color:var(--blue);border-color:var(--blue)30;}
+  .proj-act-btn.edit:hover{background:var(--blue-l);}
+  .proj-act-btn.del{color:var(--red);border-color:var(--red)30;}
+  .proj-act-btn.del:hover{background:var(--red-l);}
+  .proj-form{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:1.25rem;margin-bottom:.75rem;}
+  .proj-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;}
+  .proj-form-grid.full{grid-template-columns:1fr;}
+  .proj-lock-badge{display:inline-flex;align-items:center;gap:.25rem;font-size:.68rem;font-family:var(--ff-m);
+    color:var(--amber);background:var(--amber-l);padding:.15rem .5rem;border-radius:100px;}
 `;
 
 // ─────────────────────────────────────────────
@@ -559,6 +579,7 @@ function finalDecisionsToMap(rows) {
 // ─────────────────────────────────────────────
 export default function App() {
   const [view,       setView]    = useState("landing");
+  const [projects,   setProjects] = useState(DEFAULT_PROJECTS);
   const [judges,     setJudges]  = useState([]);
   const [scores,     setScores]  = useState({});
   const [log,        setLog]     = useState([]);
@@ -621,10 +642,21 @@ export default function App() {
   const [valComment,         setValComment]          = useState("");
   const [showValForm,        setShowValForm]         = useState(false);
 
+  // Project management state
+  const [showAddProject,     setShowAddProject]      = useState(false);
+  const [editingProject,     setEditingProject]      = useState(null); // project id being edited
+  const [projForm,           setProjForm]            = useState({ title:"", cat:"Biology", grade:"", num:"" });
+
   const EXPIRY_MS = { "1h":3600000, "24h":86400000, "7d":604800000, "never":Infinity };
   const EXPIRY_OPTS = [{ val:"1h",label:"1 Hour" },{ val:"24h",label:"24 Hours" },{ val:"7d",label:"7 Days" },{ val:"never",label:"Never" }];
 
   // ── SUPABASE LOADERS ──────────────────────────────────────
+  async function loadProjects() {
+    const { data } = await supabase.from("projects").select("*").order("created_at");
+    if (data && data.length > 0) {
+      setProjects(data.map(r => ({ id: r.id, num: r.num, title: r.title, cat: r.cat, grade: r.grade, locked: r.locked || false })));
+    }
+  }
   async function loadJudges() {
     const { data } = await supabase.from("judges").select("*").order("joined_at");
     if (data) setJudges(data.map(dbToJudge));
@@ -675,13 +707,14 @@ export default function App() {
   useEffect(() => {
     async function init() {
       const timeout = setTimeout(() => setLoading(false), 8000);
-      await Promise.all([loadJudges(), loadScores(), loadLog(), loadItLogs(), loadShare(), loadSettings(), loadDelibNotes(), loadFinalDecisions()]);
+      await Promise.all([loadProjects(), loadJudges(), loadScores(), loadLog(), loadItLogs(), loadShare(), loadSettings(), loadDelibNotes(), loadFinalDecisions()]);
       clearTimeout(timeout);
       setLoading(false);
     }
     init();
 
     const channel = supabase.channel("app-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "projects" },      loadProjects)
       .on("postgres_changes", { event: "*", schema: "public", table: "judges" },       loadJudges)
       .on("postgres_changes", { event: "*", schema: "public", table: "scores" },       loadScores)
       .on("postgres_changes", { event: "*", schema: "public", table: "activity_log" }, loadLog)
@@ -781,6 +814,12 @@ export default function App() {
     }
   }
 
+  function assignProjects(idx) {
+    const out = [];
+    for (let i = 0; i < 4; i++) out.push(projects[(idx * 3 + i) % projects.length].id);
+    return [...new Set(out)];
+  }
+
   function isLinkLive() {
     if (!shareEnabled || !shareToken) return false;
     if (shareExpiry === "never") return true;
@@ -838,7 +877,7 @@ export default function App() {
       "",
       "── SYSTEM STATE ──────────────────────────────────────────────",
       `Judges Registered : ${judges.length}`,
-      `Projects          : ${PROJECTS.length}`,
+      `Projects          : ${projects.length}`,
       `Scores Submitted  : ${totalScored()} / ${possible()}`,
       `Completion        : ${Math.round((totalScored()/possible())*100)||0}%`,
       `Judging Locked    : ${locked}`,
@@ -846,7 +885,7 @@ export default function App() {
       shareToken ? `Share Token       : ${shareToken}` : `Share Token       : (none)`,
       `Deliberation      : ${deliberationOpen ? "Open" : "Closed"}`,
       `Delib Notes       : ${Object.keys(deliberationNotes).length}`,
-      `Decisions         : ${Object.values(finalDecisions).filter(d => d.finalized).length} finalized / ${PROJECTS.length} total`,
+      `Decisions         : ${Object.values(finalDecisions).filter(d => d.finalized).length} finalized / ${projects.length} total`,
       "",
       "── IT LOG ENTRIES ────────────────────────────────────────────",
     ].join("\n");
@@ -956,7 +995,7 @@ export default function App() {
   }
 
   function rankedProjects() {
-    return PROJECTS
+    return projects
       .map(p => ({ ...p, avg: projAvg(p.id), revs: Object.keys(scores).filter(k => k.endsWith(`_${p.id}`)).length }))
       .sort((a,b) => (Number(b.avg)||0) - (Number(a.avg)||0));
   }
@@ -970,32 +1009,32 @@ export default function App() {
   function totalScored()  { return Object.keys(scores).length; }
   function possible()     { return judges.reduce((s,j) => s + j.projects.length, 0); }
   function draftTotal() {
-    const proj = PROJECTS.find(p => p.id === scoringPid);
+    const proj = projects.find(p => p.id === scoringPid);
     return RUBRIC.reduce((s,r) => {
       if (r.id === "abstract" && proj && !requiresAbstract(proj)) return s;
       return s + (Number(draftSc[r.id])||0);
     }, 0);
   }
   function maxDraftScore() {
-    const proj = PROJECTS.find(p => p.id === scoringPid);
+    const proj = projects.find(p => p.id === scoringPid);
     return requiresAbstract(proj) ? 42 : 36;
   }
   function allMoved() {
-    const proj = PROJECTS.find(p => p.id === scoringPid);
+    const proj = projects.find(p => p.id === scoringPid);
     return RUBRIC.every(r => {
       if (r.id === "abstract" && proj && !requiresAbstract(proj)) return true;
       return draftSc[r.id] !== undefined;
     });
   }
   function hasZeroScore() {
-    const proj = PROJECTS.find(p => p.id === scoringPid);
+    const proj = projects.find(p => p.id === scoringPid);
     if (!proj || !requiresAbstract(proj)) return false;
     return RUBRIC.some(r => draftSc[r.id] === 0);
   }
 
   function getAnomalies() {
     const out = [];
-    PROJECTS.forEach(p => {
+    projects.forEach(p => {
       const hits = Object.entries(scores).filter(([k]) => k.endsWith(`_${p.id}`));
       if (hits.length < 2) return;
       const tots = hits.map(([,s]) => getTotal(s));
@@ -1169,7 +1208,7 @@ export default function App() {
       setOfflineQueue(filtered);
       addItLog("WARN","DB","SCORE_QUEUED","Score saved locally — will sync when online",{ judgeId:judge.id, projectId:scoringPid });
     }
-    const proj = PROJECTS.find(p=>p.id===scoringPid);
+    const proj = projects.find(p=>p.id===scoringPid);
     addLog(`${judge.alias} submitted score for Project #${proj.num}`);
     addItLog("INFO","SCORE","SCORE_SUBMITTED","Judge submitted score for assigned project",{ judgeId:judge.id, alias:judge.alias, projectId:scoringPid, projectNum:proj.num, total, rubric:draftSc });
     setView("judge-home");
@@ -1183,7 +1222,7 @@ export default function App() {
       judge_id: judge.id, project_id: pid,
       comment: delibDraftComment, recommendation: delibDraftRec, flagged: delibDraftFlagged,
     }, { onConflict: "judge_id,project_id" });
-    const proj = PROJECTS.find(p => p.id === pid);
+    const proj = projects.find(p => p.id === pid);
     addLog(`${judge.alias} submitted deliberation note for Project #${proj.num}`);
     addItLog("INFO","JUDGE","DELIB_NOTE_SUBMITTED","Judge submitted deliberation note",
       { judgeId:judge.id, alias:judge.alias, projectId:pid, projectNum:proj.num, recommendation:delibDraftRec, flagged:delibDraftFlagged });
@@ -1236,7 +1275,7 @@ export default function App() {
       project_id: pid, award, admin_notes: adminNotes,
       finalized: isFinalize, finalized_at: isFinalize ? new Date().toISOString() : null,
     }, { onConflict: "project_id" });
-    const proj = PROJECTS.find(p => p.id === pid);
+    const proj = projects.find(p => p.id === pid);
     addLog(`Admin ${isFinalize ? "finalized" : "updated"} decision for Project #${proj.num}: ${award}`);
     addItLog("INFO","ADMIN", isFinalize?"DECISION_FINALIZED":"DECISION_UPDATED",
       `Admin ${isFinalize?"finalized":"updated"} award decision for project`,
@@ -1246,10 +1285,88 @@ export default function App() {
   async function reviseDecision(pid) {
     setFinalDecisions(p => ({ ...p, [pid]: { ...p[pid], finalized: false, finalizedAt: null } }));
     await supabase.from("final_decisions").update({ finalized: false, finalized_at: null }).eq("project_id", pid);
-    const proj = PROJECTS.find(p => p.id === pid);
+    const proj = projects.find(p => p.id === pid);
     addLog(`Admin reopened decision for Project #${proj.num} for revision`);
     addItLog("INFO","ADMIN","DECISION_REVISED","Admin reopened award decision for revision",
       { projectId:pid, projectNum:proj.num, timestamp:fmtISO(Date.now()) });
+  }
+
+  // ── PROJECT MANAGEMENT ──────────────────────────────────────
+  function nextProjectNum() {
+    const nums = projects.map(p => parseInt(p.num) || 0);
+    return String(Math.max(0, ...nums) + 1).padStart(3, "0");
+  }
+
+  async function addProject() {
+    const { title, cat, grade, num } = projForm;
+    if (!title.trim()) return;
+    const id = "p_" + uid();
+    const finalNum = num.trim() || nextProjectNum();
+    const proj = { id, num: finalNum, title: title.trim(), cat, grade, locked: false };
+    setProjects(p => [...p, proj]);
+    await supabase.from("projects").insert(proj);
+    addLog(`Admin added project: ${proj.title} (#${finalNum})`);
+    addItLog("INFO","ADMIN","PROJECT_ADDED","Admin added a new project",
+      { projectId:id, num:finalNum, title:proj.title, cat, grade, timestamp:fmtISO(Date.now()) });
+    setProjForm({ title:"", cat:"Biology", grade:"", num:"" });
+    setShowAddProject(false);
+  }
+
+  async function updateProject(pid) {
+    const existing = projects.find(p => p.id === pid);
+    if (!existing || existing.locked) return;
+    const { title, cat, grade, num } = projForm;
+    if (!title.trim()) return;
+    const updated = { ...existing, title: title.trim(), cat, grade, num: num.trim() || existing.num };
+    setProjects(p => p.map(pp => pp.id === pid ? updated : pp));
+    await supabase.from("projects").update({ title: updated.title, cat: updated.cat, grade: updated.grade, num: updated.num }).eq("id", pid);
+    addLog(`Admin updated project #${updated.num}: ${updated.title}`);
+    addItLog("INFO","ADMIN","PROJECT_UPDATED","Admin updated project details",
+      { projectId:pid, title:updated.title, num:updated.num, timestamp:fmtISO(Date.now()) });
+    setEditingProject(null);
+    setProjForm({ title:"", cat:"Biology", grade:"", num:"" });
+  }
+
+  async function removeProject(pid) {
+    const proj = projects.find(p => p.id === pid);
+    if (!proj || proj.locked) return;
+    // Clean up all related data
+    const relatedScoreKeys = Object.keys(scores).filter(k => k.endsWith(`_${pid}`));
+    const relatedDelibKeys = Object.keys(deliberationNotes).filter(k => k.endsWith(`_${pid}`));
+    // Remove from local state
+    setProjects(p => p.filter(pp => pp.id !== pid));
+    if (relatedScoreKeys.length) setScores(p => { const n = {...p}; relatedScoreKeys.forEach(k => delete n[k]); return n; });
+    if (relatedDelibKeys.length) setDeliberationNotes(p => { const n = {...p}; relatedDelibKeys.forEach(k => delete n[k]); return n; });
+    setFinalDecisions(p => { const n = {...p}; delete n[pid]; return n; });
+    // Remove from Supabase
+    await Promise.all([
+      supabase.from("scores").delete().eq("project_id", pid),
+      supabase.from("deliberation_notes").delete().eq("project_id", pid),
+      supabase.from("final_decisions").delete().eq("project_id", pid),
+      supabase.from("projects").delete().eq("id", pid),
+    ]);
+    // Remove from judge assignments (clean orphaned refs)
+    for (const j of judges) {
+      if (j.projects.includes(pid)) {
+        const newProjs = j.projects.filter(id => id !== pid);
+        await supabase.from("judges").update({ projects: newProjs }).eq("id", j.id);
+      }
+    }
+    addLog(`Admin removed project #${proj.num}: ${proj.title}`);
+    addItLog("WARN","ADMIN","PROJECT_REMOVED","Admin removed a project and all related data",
+      { projectId:pid, num:proj.num, title:proj.title, scoresCleared:relatedScoreKeys.length, delibCleared:relatedDelibKeys.length, timestamp:fmtISO(Date.now()) });
+  }
+
+  async function toggleProjectLock(pid) {
+    const proj = projects.find(p => p.id === pid);
+    if (!proj) return;
+    const next = !proj.locked;
+    setProjects(p => p.map(pp => pp.id === pid ? { ...pp, locked: next } : pp));
+    await supabase.from("projects").update({ locked: next }).eq("id", pid);
+    addLog(`Admin ${next ? "locked" : "unlocked"} project #${proj.num}`);
+    addItLog("INFO","ADMIN", next ? "PROJECT_LOCKED" : "PROJECT_UNLOCKED",
+      `Admin ${next ? "locked" : "unlocked"} project`,
+      { projectId:pid, num:proj.num, title:proj.title, timestamp:fmtISO(Date.now()) });
   }
 
   // ─── VIEWS ───
@@ -1341,7 +1458,7 @@ export default function App() {
 
   /* JUDGE HOME */
   if (view === "judge-home" && judge) {
-    const myProj = PROJECTS.filter(p => judge.projects.includes(p.id));
+    const myProj = projects.filter(p => judge.projects.includes(p.id));
     const done   = myProj.filter(p => hasScored(p.id)).length;
     const pct    = Math.round((done / myProj.length) * 100);
     return (
@@ -1456,7 +1573,7 @@ export default function App() {
 
   /* JUDGE SCORING */
   if (view === "judge-scoring" && scoringPid) {
-    const proj = PROJECTS.find(p => p.id === scoringPid);
+    const proj = projects.find(p => p.id === scoringPid);
     return (
       <div className="app"><style>{CSS}</style>
         <div className="center" style={{ justifyContent:"flex-start", paddingTop:"2rem" }}>
@@ -1664,7 +1781,7 @@ export default function App() {
               {locked && <div className="locked-banner">🔒 Judging LOCKED — judges cannot submit scores</div>}
               <div className="stat-grid">
                 <div className="stat-card"><div className="stat-v" style={{color:"var(--navy)"}}>{judges.length}</div><div className="stat-l">Judges</div></div>
-                <div className="stat-card"><div className="stat-v" style={{color:"var(--blue)"}}>{PROJECTS.length}</div><div className="stat-l">Projects</div></div>
+                <div className="stat-card"><div className="stat-v" style={{color:"var(--blue)"}}>{projects.length}</div><div className="stat-l">Projects</div></div>
                 <div className="stat-card"><div className="stat-v" style={{color:"var(--green)"}}>{totalScored()}</div><div className="stat-l">Scores In</div></div>
                 <div className="stat-card">
                   <div className="stat-v" style={{color:completion<50?"var(--red)":completion<80?"var(--amber)":"var(--green)"}}>{completion}%</div>
@@ -1735,22 +1852,119 @@ export default function App() {
 
             {/* PROJECTS */}
             {adminTab==="projects" && <>
-              <div className="adm-h1">Projects Overview</div>
-              <div className="adm-sub">Per-rubric breakdown</div>
-              {PROJECTS.map(p => {
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:".5rem"}}>
+                <div>
+                  <div className="adm-h1">Projects Overview</div>
+                  <div className="adm-sub">Manage projects, view rubric breakdown, and control project access</div>
+                </div>
+                <button className="btn sm" style={{width:"auto"}} onClick={() => {
+                  setProjForm({ title:"", cat:"Biology", grade:"", num:nextProjectNum() });
+                  setShowAddProject(true); setEditingProject(null);
+                }}>
+                  + Add Project
+                </button>
+              </div>
+
+              {/* Add / Edit project form */}
+              {(showAddProject || editingProject) && (
+                <div className="proj-form">
+                  <div style={{fontWeight:600,marginBottom:".75rem",fontSize:".95rem"}}>
+                    {editingProject ? "Edit Project" : "Add New Project"}
+                  </div>
+                  <div className="proj-form-grid full">
+                    <div>
+                      <div className="lbl">Title</div>
+                      <input type="text" placeholder="Project title..." value={projForm.title}
+                        onChange={e => setProjForm(f => ({...f, title:e.target.value}))} />
+                    </div>
+                  </div>
+                  <div className="proj-form-grid" style={{marginTop:".5rem"}}>
+                    <div>
+                      <div className="lbl">Category</div>
+                      <select className="delib-rec-select" value={projForm.cat}
+                        onChange={e => setProjForm(f => ({...f, cat:e.target.value}))}>
+                        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <div className="lbl">Grade</div>
+                      <input type="text" placeholder="e.g. 9" value={projForm.grade}
+                        onChange={e => setProjForm(f => ({...f, grade:e.target.value}))} />
+                    </div>
+                  </div>
+                  <div className="proj-form-grid" style={{marginTop:".5rem"}}>
+                    <div>
+                      <div className="lbl">Project Number</div>
+                      <input type="text" placeholder="e.g. 001" value={projForm.num} style={{fontFamily:"var(--ff-m)"}}
+                        onChange={e => setProjForm(f => ({...f, num:e.target.value}))} />
+                    </div>
+                    <div style={{display:"flex",alignItems:"flex-end",gap:".5rem",paddingBottom:".1rem"}}>
+                      <button className="btn sm" style={{width:"auto"}}
+                        disabled={!projForm.title.trim()}
+                        onClick={() => editingProject ? updateProject(editingProject) : addProject()}>
+                        {editingProject ? "Save Changes" : "Add Project"}
+                      </button>
+                      <button className="btn sec sm" style={{width:"auto"}}
+                        onClick={() => { setShowAddProject(false); setEditingProject(null); setProjForm({ title:"", cat:"Biology", grade:"", num:"" }); }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Project cards */}
+              {projects.map(p => {
                 const hits = Object.entries(scores).filter(([k]) => k.endsWith(`_${p.id}`));
                 const avg  = projAvg(p.id);
+                const assignedJudges = judges.filter(j => j.projects.includes(p.id));
                 return (
-                  <div className="card" key={p.id} style={{marginBottom:".75rem"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:"1rem",flexWrap:"wrap"}}>
-                      <div>
-                        <div style={{fontFamily:"var(--ff-m)",fontSize:".78rem",color:"var(--navy)",marginBottom:".2rem"}}>#{p.num} · {p.cat}</div>
+                  <div className={`proj-mgmt-card ${p.locked?"is-locked":""}`} key={p.id}>
+                    <div className="proj-mgmt-head">
+                      <div style={{flex:1}}>
+                        <div style={{display:"flex",alignItems:"center",gap:".5rem",marginBottom:".2rem",flexWrap:"wrap"}}>
+                          <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",color:"var(--navy)"}}>#{p.num} · {p.cat}</span>
+                          {p.locked && <span className="proj-lock-badge">🔒 Locked</span>}
+                        </div>
                         <div style={{fontWeight:600,marginBottom:".2rem",lineHeight:1.3}}>{p.title}</div>
-                        <div style={{fontSize:".76rem",color:"var(--dim)"}}>Grade {p.grade} · {hits.length} review{hits.length!==1?"s":""}</div>
+                        <div style={{fontSize:".76rem",color:"var(--dim)"}}>
+                          Grade {p.grade} · {hits.length} review{hits.length!==1?"s":""}
+                          {assignedJudges.length > 0 && ` · ${assignedJudges.length} judge${assignedJudges.length!==1?"s":""} assigned`}
+                        </div>
                       </div>
-                      <div style={{textAlign:"right",flexShrink:0}}>
-                        <div style={{fontFamily:"var(--ff-d)",fontSize:"2rem",color:avg?"var(--navy)":"var(--dim)"}}>{avg??"—"}</div>
-                        <div style={{fontSize:".7rem",color:"var(--dim)"}}>avg / 100</div>
+                      <div style={{display:"flex",alignItems:"flex-start",gap:"1rem"}}>
+                        <div className="proj-mgmt-actions">
+                          <button className={`proj-act-btn ${p.locked?"unlock":"lock"}`}
+                            onClick={() => toggleProjectLock(p.id)}
+                            title={p.locked ? "Unlock project" : "Lock project"}>
+                            {p.locked ? "🔓 Unlock" : "🔒 Lock"}
+                          </button>
+                          {!p.locked && (
+                            <>
+                              <button className="proj-act-btn edit"
+                                onClick={() => {
+                                  setEditingProject(p.id);
+                                  setProjForm({ title:p.title, cat:p.cat, grade:p.grade, num:p.num });
+                                  setShowAddProject(false);
+                                }}
+                                title="Edit project">
+                                ✏️ Edit
+                              </button>
+                              <button className="proj-act-btn del"
+                                onClick={() => {
+                                  if (window.confirm(`Remove "${p.title}" and all its scores, deliberation notes, and decisions? This cannot be undone.`))
+                                    removeProject(p.id);
+                                }}
+                                title="Remove project">
+                                🗑 Remove
+                              </button>
+                            </>
+                          )}
+                        </div>
+                        <div style={{textAlign:"right",flexShrink:0}}>
+                          <div style={{fontFamily:"var(--ff-d)",fontSize:"1.8rem",color:avg?"var(--navy)":"var(--dim)"}}>{avg??"—"}</div>
+                          <div style={{fontSize:".7rem",color:"var(--dim)"}}>avg / {requiresAbstract(p)?42:36}</div>
+                        </div>
                       </div>
                     </div>
                     {hits.length > 0 && (
@@ -1772,6 +1986,13 @@ export default function App() {
                   </div>
                 );
               })}
+              {projects.length === 0 && (
+                <div className="all-done">
+                  <div style={{fontSize:"2rem",marginBottom:".4rem"}}>📋</div>
+                  <div style={{fontWeight:600}}>No projects yet</div>
+                  <div style={{fontSize:".82rem",color:"var(--dim)",marginTop:".25rem"}}>Click "Add Project" to get started.</div>
+                </div>
+              )}
             </>}
 
             {/* ACTIVITY */}
