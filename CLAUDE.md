@@ -14,10 +14,18 @@ Built as a single-file React component (`ScienceFairJudging.jsx`).
 **PWA-enabled** — installable on tablets/phones, works offline with local backup.
 
 **Rubric:** Northeast AZ Regional Science and Engineering Fair scoring sheet (10 criteria, 42 pts max).
-**Target scale:** Up to 15 judges, 50–150 projects.
+**Target scale:** Flexible — supports 1–100+ judges, 1–150+ projects (configurable).
 **Target devices:** Tablets (primary), phones, laptops, Chromebooks — fully responsive.
 **Live URL:** https://sciencefair-judging-app.vercel.app/
 **Supabase project:** https://cjzuiimoamrggucvahjm.supabase.co
+
+---
+
+## 📖 User Guides
+
+For end-user instructions, see:
+- **[JudgeInstructions.md](./JudgeInstructions.md)** — Complete guide for judges (how to register, score, validate)
+- **[AdminInstructions.md](./AdminInstructions.md)** — Complete guide for administrators (setup, project mgmt, deliberation, results sharing)
 
 ---
 
@@ -39,8 +47,10 @@ Built as a single-file React component (`ScienceFairJudging.jsx`).
 ├── vite.config.js               ← Vite + vite-plugin-pwa config
 ├── .env                         ← Local only, gitignored — holds Supabase credentials
 ├── .env.example                 ← Template for .env
-├── .npmrc                       ← legacy-peer-deps=true (needed for vite-plugin-pwa on Vite 8)
-└── CLAUDE.md                    ← This file
+├── .npmrc                        ← legacy-peer-deps=true (needed for vite-plugin-pwa on Vite 8)
+├── CLAUDE.md                    ← AI development context (this file)
+├── JudgeInstructions.md         ← User guide for judges
+└── AdminInstructions.md         ← User guide for administrators
 ```
 
 All CSS lives inside a `const CSS = \`...\`` template literal injected via `<style>{CSS}</style>`.
@@ -90,17 +100,17 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 ### Credentials
 | Access | Credential |
 |---|---|
-| Judge sign-in name | `Judge1` through `Judge15` |
+| Judge sign-in name | `Judge1` through `Judge15` (configurable up to any number) |
 | Judge invite code | `FAIR2026` |
 | Admin dashboard | Password: `SFadmin2026` |
 | IT Logs tab | PIN: `1680` |
 | Reset All Data | PIN: `1680` (same PIN, separate modal) |
 
 ### Security model
-- **Judges are identified by number** — they sign in as `Judge1`–`Judge15`. The alias IS their username.
+- **Judges are identified by number** — they sign in as `Judge1`–`Judge15` (or configurable range). The alias IS their username.
+- **Max judges is configurable** — admin sets this before judging begins (stored in `app_settings` as `max_judges`). Once first judge registers, it locks to prevent mid-event changes. Resets to 15 when data is reset.
+- **Every judge scores every project** — `assignProjects()` returns all project IDs (not a subset). This ensures comprehensive scoring and robust averages.
 - **Duplicate prevention** — if a judge name is already registered, a second registration attempt is blocked client-side.
-- **Project assignment is deterministic** — `assignProjects(seed)` uses the judge number as the seed (Judge1 → seed 0, Judge2 → seed 1, etc.) so Judge1 always gets the same 4 projects. This function is defined inside `App()` because it accesses the dynamic `projects` state.
-- **Judges only see their assigned projects** — 4 projects per judge.
 - **Project locking** — admin can lock individual projects to prevent editing or removal. Locked projects show a lock badge in the UI.
 - **IT Logs tab** is PIN-gated (`itUnlocked` state). Wrong PIN logs `IT_ACCESS_DENIED`.
 - **Reset modal** requires PIN `1680`. Wrong PIN logs `RESET_PIN_FAILED`.
@@ -109,9 +119,16 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 - **Public results page never shows judge names** — score + project data only.
 
 ### Judge sign-in flow
-1. Judge enters their name (`Judge1`–`Judge15`) and invite code `FAIR2026`
-2. App validates name is in `JUDGE_NAMES` array and not already taken
-3. Judge is inserted into Supabase `judges` table with a random `id`, their name as `alias`, and assigned projects
+1. Judge enters their name (`Judge1`–`Judge15` or configurable) and invite code `FAIR2026`
+2. App validates:
+   - Name is in valid range (based on configured `maxJudges`)
+   - Name is not already taken (no duplicate registration)
+   - Invite code matches
+3. Judge is inserted into Supabase `judges` table with:
+   - Random unique `id`
+   - Name as `alias`
+   - **All project IDs** (every project gets scored by every judge)
+   - Current `joinedAt` timestamp
 4. Session is saved to `localStorage` (`sf_judge_id` + `sf_judge_data`) for persistence across browser restarts
 
 ---
@@ -132,7 +149,7 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 ```js
 { id, alias, projects: [pid, ...], joinedAt }
 // alias = judge's chosen name e.g. "Judge3"
-// projects: array of 4 project IDs assigned to this judge
+// projects: array of ALL project IDs (every judge scores every project)
 ```
 
 ### Scores (stored in `scores` state as flat key-value object, synced from Supabase `scores` table)
@@ -492,7 +509,7 @@ Supabase is **fully integrated and live**. Schema is applied at `supabase/schema
 | `activity_log` | Human-readable audit trail — never deleted |
 | `it_logs` | Structured diagnostic events |
 | `share_links` | Public results tokens with expiry + revoked_at |
-| `app_settings` | Key/value: `locked` and `deliberation_open` |
+| `app_settings` | Key/value: `locked`, `deliberation_open`, `max_judges` (default 15, configurable by admin pre-event) |
 | `deliberation_notes` | Judge comments/recommendations per project (used during deliberation) |
 | `final_decisions` | Admin award decisions per project |
 
@@ -508,20 +525,26 @@ Row Level Security is enabled on all tables with open anon policies (public read
 
 ## 🚫 Critical Rules — Do NOT Break These
 
-1. **Never clear the activity log (`log` state) on reset.** Preserved for security purposes. `executeReset()` resets: judges, scores, locked, share*, deliberationNotes, finalDecisions, judgeValidations, adminValidation, resultsFinalized, deliberationOpen. It does NOT clear projects or the activity log.
+1. **Never clear the activity log (`log` state) on reset.** Preserved for security purposes. `executeReset()` resets: judges, scores, locked, share*, deliberationNotes, finalDecisions, judgeValidations, adminValidation, resultsFinalized, deliberationOpen, maxJudges. It does NOT clear projects or the activity log.
 2. **Judge names must never appear on the public results page.** The `view === "public-results"` page is visible without login — keep it score + project data only.
 3. **IT Logs tab and Reset modal both use PIN `1680`.** They share the same PIN but have separate state (`itPin`/`itUnlocked` vs `resetPin`/`showReset`).
 4. **All CSS is inline** in the `CSS` template literal. Do not create external `.css` files.
 5. **No routing library.** All navigation uses `setView(...)`. Do not introduce React Router.
 6. **The score key format is `${judgeId}_${projectId}`** — used throughout for lookups. Do not change it.
 7. **Rubric has 10 criteria summing to 42 pts max.** See rubric table above. Do NOT revert to the old 6-criteria/100-pt rubric. Each criterion uses discrete `steps` values — do not replace with continuous sliders.
-8. **Judge names are Judge1–Judge15.** The `JUDGE_NAMES` constant defines the allowed list.
-9. **Share tab is gated by `resultsFinalized`.** The "Generate Live Results Link" button must remain disabled until `resultsFinalized === true`. Do not remove this gate.
-10. **Deliberation is conditional.** It must NOT auto-open on every session — only on tie detection or admin manual trigger. If all reviewers reached consensus, finalization proceeds without deliberation.
-11. **Locked projects cannot be edited or removed.** The `locked` boolean on the `projects` table (and local state) must be checked before any update or delete operation. Only `toggleProjectLock()` can change the lock state.
-12. **Removing a project must cascade-delete all related data.** When `removeProject(pid)` runs, it must delete: scores with that `project_id`, deliberation notes with that `project_id`, final decisions for that project, and remove the project ID from all judge assignment arrays. No orphaned records.
-13. **Projects are NOT cleared on reset.** Projects are configuration data, not session data. `executeReset()` clears judges, scores, deliberation data, share links, and settings — but never the projects table.
-14. **`CATEGORIES` constant defines allowed project categories.** Use this array for category dropdowns: `["Biology","Physics","Computer Sci.","Chemistry","Earth Science","Engineering","Math","Environmental Sci."]`.
+8. **Judge names are configurable.** The `JUDGE_NAMES` constant generates Judge1 through JudgeN (default 15). **HOWEVER, `maxJudges` is now the source of truth** — it's stored in `app_settings` so admins can configure it pre-event via UI. Do not hardcode judge limits; respect `maxJudges` state in registration validation.
+9. **Max judges is configurable and event-locked.** Admin sets `maxJudges` on Overview tab before judging begins. Once first judge registers, it locks (becomes read-only) to prevent mid-event changes. Resets to 15 when data is reset. Stored in `app_settings` table as `max_judges`.
+10. **Every judge scores every project.** `assignProjects()` returns ALL project IDs, not a subset. This ensures:
+    - Each project gets comprehensive scoring (N judges × 1 project = N scores per project)
+    - Robust averages (not dependent on random assignment)
+    - Fair evaluation (no "easier" or "harder" project subsets for different judges)
+    - Do NOT revert to seed-based per-judge project assignment
+11. **Share tab is gated by `resultsFinalized`.** The "Generate Live Results Link" button must remain disabled until `resultsFinalized === true`. Do not remove this gate.
+12. **Deliberation is conditional.** It must NOT auto-open on every session — only on tie detection or admin manual trigger. If all reviewers reached consensus, finalization proceeds without deliberation.
+13. **Locked projects cannot be edited or removed.** The `locked` boolean on the `projects` table (and local state) must be checked before any update or delete operation. Only `toggleProjectLock()` can change the lock state.
+14. **Removing a project must cascade-delete all related data.** When `removeProject(pid)` runs, it must delete: scores with that `project_id`, deliberation notes with that `project_id`, final decisions for that project, and remove the project ID from all judge assignment arrays. No orphaned records.
+15. **Projects are NOT cleared on reset.** Projects are configuration data, not session data. `executeReset()` clears judges, scores, deliberation data, share links, and settings (including max_judges) — but never the projects table.
+16. **`CATEGORIES` constant defines allowed project categories.** Use this array for category dropdowns: `["Biology","Physics","Computer Sci.","Chemistry","Earth Science","Engineering","Math","Environmental Sci."]`.
 
 ---
 
@@ -551,7 +574,7 @@ Call `addItLog(level, module, event, detail, payload)` anywhere in the code.
 - IT/Reset PIN: search `"1680"` — appears in IT logs PIN handler and reset modal PIN handler, change both
 
 **Adding more judges (beyond 15):**
-Change the `15` in `Array.from({ length: 15 }, ...)` in the `JUDGE_NAMES` constant.
+Admin can now configure max judges via the UI on the Overview tab (before first judge registers). Set "Max Judges for This Event" to the desired number (e.g., 20, 30, 50). Internally, the `JUDGE_NAMES` constant still generates Judge1–Judge15, but `maxJudges` state controls the actual limit. If you need to support more than 15 distinct judge name slots, modify the `JUDGE_NAMES` constant: `Array.from({ length: 50 }, (_, i) => \`Judge${i + 1}\`)` for 50 judges. Then admin can set maxJudges to 50 via UI.
 
 **Adding a new view/screen:**
 1. Add a new `if (view === "yourview") return (...)` block

@@ -584,6 +584,7 @@ export default function App() {
   const [scores,     setScores]  = useState({});
   const [log,        setLog]     = useState([]);
   const [locked,     setLocked]  = useState(false);
+  const [maxJudges,  setMaxJudges] = useState(15);
   const [loading,    setLoading] = useState(true);
   const [judge,      setJudge]   = useState(null);
   const [isOnline,   setIsOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
@@ -598,6 +599,8 @@ export default function App() {
   const [regErr,     setRegErr]      = useState("");
   const [adminPass,  setAdminPass]   = useState("");
   const [adminErr,   setAdminErr]    = useState("");
+  const [maxJudgesErr, setMaxJudgesErr] = useState("");
+  const [maxJudgesDraft, setMaxJudgesDraft] = useState("15");
   const [adminTab,   setAdminTab]    = useState("overview");
 
   // Share state
@@ -692,6 +695,9 @@ export default function App() {
       const map = Object.fromEntries(data.map(r => [r.key, r.value]));
       setLocked(map.locked === "true");
       setDeliberationOpen(map.deliberation_open === "true");
+      const loadedMax = map.max_judges ? parseInt(map.max_judges) : 15;
+      setMaxJudges(loadedMax);
+      setMaxJudgesDraft(String(loadedMax));
     }
   }
   async function loadDelibNotes() {
@@ -815,9 +821,8 @@ export default function App() {
   }
 
   function assignProjects(idx) {
-    const out = [];
-    for (let i = 0; i < 4; i++) out.push(projects[(idx * 3 + i) % projects.length].id);
-    return [...new Set(out)];
+    // Every judge scores every project (flexible for any number of projects/judges)
+    return projects.map(p => p.id);
   }
 
   function isLinkLive() {
@@ -845,6 +850,29 @@ export default function App() {
     addItLog("WARN","SHARE","LINK_REVOKED","Admin revoked public results link",{ token:shareToken, wasExpiry:shareExpiry });
     setShareEnabled(false); setShareToken(""); setShareCreated(null);
     addLog("Admin revoked public results link");
+  }
+
+  async function updateMaxJudges(newMax) {
+    const numMax = parseInt(newMax) || 15;
+    if (isNaN(numMax) || numMax < 1) {
+      setMaxJudgesErr("Max judges must be at least 1.");
+      return;
+    }
+    if (numMax < judges.length) {
+      setMaxJudgesErr(`Cannot lower limit below current judges (${judges.length}). Remove judges first.`);
+      return;
+    }
+    try {
+      await supabase.from("app_settings").update({ value: String(numMax) }).eq("key", "max_judges");
+      setMaxJudges(numMax);
+      setMaxJudgesDraft(String(numMax));
+      setMaxJudgesErr("");
+      addLog(`Admin set max judges to ${numMax}`);
+      addItLog("INFO","ADMIN","MAX_JUDGES_UPDATED","Admin updated max judges setting",{ newMax: numMax, currentCount: judges.length });
+    } catch (err) {
+      setMaxJudgesErr("Failed to update setting. Try again.");
+      addItLog("ERROR","ADMIN","MAX_JUDGES_UPDATE_FAILED","Failed to update max judges setting",{ error: err?.message, attempted: numMax });
+    }
   }
 
   function handleCopy() {
@@ -938,7 +966,7 @@ export default function App() {
   }
 
   async function executeReset() {
-    addItLog("WARN","ADMIN","FULL_RESET","Admin performed a full data reset of the application",{ judgesCleared:judges.length, scoresCleared:Object.keys(scores).length, delibNotesCleared:Object.keys(deliberationNotes).length, decisionsCleared:Object.keys(finalDecisions).length, timestamp:fmtISO(Date.now()) });
+    addItLog("WARN","ADMIN","FULL_RESET","Admin performed a full data reset of the application",{ judgesCleared:judges.length, scoresCleared:Object.keys(scores).length, delibNotesCleared:Object.keys(deliberationNotes).length, decisionsCleared:Object.keys(finalDecisions).length, maxJudgesResetTo:15, timestamp:fmtISO(Date.now()) });
     // Delete all transient data. activity_log is intentionally excluded (security audit trail).
     await Promise.all([
       supabase.from("scores").delete().not("id", "is", null),
@@ -948,11 +976,13 @@ export default function App() {
       supabase.from("deliberation_notes").delete().not("id", "is", null),
       supabase.from("final_decisions").delete().not("id", "is", null),
       supabase.from("app_settings").update({ value: "false" }).eq("key", "deliberation_open"),
+      supabase.from("app_settings").update({ value: "15" }).eq("key", "max_judges"),
     ]);
     setJudges([]);
     setScores({});
     addLog("Admin performed a full data reset — activity log preserved for security review");
     setLocked(false);
+    setMaxJudges(15);
     setShareEnabled(false);
     setShareToken("");
     setShareCreated(null);
@@ -1155,6 +1185,11 @@ export default function App() {
     if (regCode.trim().toUpperCase() !== INVITE_CODE) {
       setRegErr("Invalid invite code.");
       addItLog("WARN","AUTH","INVALID_INVITE_CODE","Failed registration attempt with wrong invite code",{ attemptedCode: regCode.trim(), name, timestamp: fmtISO(Date.now()) });
+      return;
+    }
+    if (judges.length >= maxJudges) {
+      setRegErr(`Max judges (${maxJudges}) reached. Contact admin to increase the limit.`);
+      addItLog("WARN","AUTH","MAX_JUDGES_REACHED","Judge registration blocked — max limit reached",{ attempted: name, currentCount: judges.length, maxJudges: maxJudges, timestamp: fmtISO(Date.now()) });
       return;
     }
     const seed = parseInt(name.replace(/\D/g, "")) - 1;
@@ -1780,7 +1815,7 @@ export default function App() {
               <div className="adm-sub">Live judging progress · Science Fair SY 2025-2026</div>
               {locked && <div className="locked-banner">🔒 Judging LOCKED — judges cannot submit scores</div>}
               <div className="stat-grid">
-                <div className="stat-card"><div className="stat-v" style={{color:"var(--navy)"}}>{judges.length}</div><div className="stat-l">Judges</div></div>
+                <div className="stat-card"><div className="stat-v" style={{color:"var(--navy)"}}>{judges.length}/{maxJudges}</div><div className="stat-l">Judges</div></div>
                 <div className="stat-card"><div className="stat-v" style={{color:"var(--blue)"}}>{projects.length}</div><div className="stat-l">Projects</div></div>
                 <div className="stat-card"><div className="stat-v" style={{color:"var(--green)"}}>{totalScored()}</div><div className="stat-l">Scores In</div></div>
                 <div className="stat-card">
@@ -1788,6 +1823,36 @@ export default function App() {
                   <div className="stat-l">Completion</div>
                 </div>
               </div>
+              {judges.length === 0 && (
+                <div className="card" style={{backgroundColor:"var(--s1)",border:"1px solid var(--bd)"}}>
+                  <div style={{display:"flex",gap:"1rem",alignItems:"flex-end"}}>
+                    <div style={{flex:1}}>
+                      <div className="lbl">Max Judges for This Event</div>
+                      <p style={{fontSize:".85rem",color:"var(--dim)",marginBottom:".5rem"}}>Set before any judges register. This will be locked once judging begins.</p>
+                      <div style={{display:"flex",gap:".5rem"}}>
+                        <input type="number" min="1" max="100" value={maxJudgesDraft}
+                          onChange={e => { setMaxJudgesDraft(e.target.value); setMaxJudgesErr(""); }}
+                          style={{width:"80px",padding:".4rem",border:"1px solid var(--bd)",borderRadius:"var(--r)",fontFamily:"var(--ff-m)"}}
+                          onKeyDown={e => e.key === "Enter" && updateMaxJudges(e.target.value)}
+                          onBlur={e => updateMaxJudges(e.target.value)}
+                        />
+                        <button className="btn sm" style={{width:"auto"}} onClick={() => updateMaxJudges(maxJudgesDraft)}>Save</button>
+                      </div>
+                      {maxJudgesErr && <div style={{color:"var(--red)",fontSize:".8rem",marginTop:".4rem"}}>{maxJudgesErr}</div>}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {judges.length > 0 && (
+                <div className="card" style={{backgroundColor:"var(--s1)",border:"1px solid var(--bd)"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <div>
+                      <div className="lbl">Max Judges Setting</div>
+                      <p style={{fontSize:".85rem",color:"var(--dim)"}}>🔒 Locked — max judges set to {maxJudges}. Reset data to change.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="card">
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:".82rem",marginBottom:".4rem"}}>
                   <span style={{color:"var(--dim)"}}>Overall completion</span>

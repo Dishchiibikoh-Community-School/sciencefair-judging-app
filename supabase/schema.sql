@@ -111,6 +111,9 @@ INSERT INTO app_settings (key, value) VALUES ('locked', 'false');
 -- Seed the deliberation_open setting
 INSERT INTO app_settings (key, value) VALUES ('deliberation_open', 'false');
 
+-- Seed the max_judges setting
+INSERT INTO app_settings (key, value) VALUES ('max_judges', '15');
+
 
 -- -- ROW LEVEL SECURITY -----------------------------------------------
 -- NOTE: Full per-judge enforcement (judges can only write their OWN scores)
