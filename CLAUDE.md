@@ -26,7 +26,7 @@ Built as a single-file React component (`ScienceFairJudging.jsx`).
 ```
 /
 ├── src/
-│   ├── ScienceFairJudging.jsx   ← Entire app (single file, ~1800+ lines)
+│   ├── ScienceFairJudging.jsx   ← Entire app (single file, ~2500+ lines)
 │   ├── supabaseClient.js        ← Supabase client init (reads from .env)
 │   └── main.jsx                 ← React root + PWA service worker registration
 ├── supabase/
@@ -76,7 +76,7 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 |---|---|
 | `"overview"` | Stats, completion bar, leaderboard |
 | `"judges"` | Per-judge progress table |
-| `"projects"` | Per-project rubric breakdown |
+| `"projects"` | Project management — add/edit/remove/lock projects + per-project rubric breakdown |
 | `"activity"` | Human-readable activity log |
 | `"alerts"` | Anomaly detection + system status |
 | `"deliberation"` | **Validation & Deliberation workflow** (see section below) |
@@ -99,8 +99,9 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 ### Security model
 - **Judges are identified by number** — they sign in as `Judge1`–`Judge15`. The alias IS their username.
 - **Duplicate prevention** — if a judge name is already registered, a second registration attempt is blocked client-side.
-- **Project assignment is deterministic** — `assignProjects(seed)` uses the judge number as the seed (Judge1 → seed 0, Judge2 → seed 1, etc.) so Judge1 always gets the same 4 projects.
+- **Project assignment is deterministic** — `assignProjects(seed)` uses the judge number as the seed (Judge1 → seed 0, Judge2 → seed 1, etc.) so Judge1 always gets the same 4 projects. This function is defined inside `App()` because it accesses the dynamic `projects` state.
 - **Judges only see their assigned projects** — 4 projects per judge.
+- **Project locking** — admin can lock individual projects to prevent editing or removal. Locked projects show a lock badge in the UI.
 - **IT Logs tab** is PIN-gated (`itUnlocked` state). Wrong PIN logs `IT_ACCESS_DENIED`.
 - **Reset modal** requires PIN `1680`. Wrong PIN logs `RESET_PIN_FAILED`.
 - **Activity log is NEVER cleared on reset** — preserved for security audit. This is intentional.
@@ -117,11 +118,15 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 
 ## 📊 Data Model
 
-### Projects (`PROJECTS` constant array)
+### Projects (dynamic — `projects` state, synced from Supabase `projects` table)
 ```js
-{ id, num, title, cat, grade }
-// cat values: "Biology", "Physics", "Computer Sci.", "Chemistry", "Earth Science"
+{ id, num, title, cat, grade, locked }
+// id: "p1", "p2", ... or "p_abc123" for admin-added projects
+// num: display number e.g. "001"
+// cat values: "Biology", "Physics", "Computer Sci.", "Chemistry", "Earth Science", "Engineering", "Math", "Environmental Sci."
+// locked: boolean — locked projects cannot be edited or removed by admin
 ```
+`DEFAULT_PROJECTS` is a seed array used as fallback if the Supabase `projects` table is empty. On init, projects are loaded from Supabase; if the table has rows, those replace the defaults. Admin can add/edit/remove/lock projects dynamically via the Projects tab.
 
 ### Judges (stored in `judges` state, synced from Supabase `judges` table)
 ```js
@@ -260,6 +265,17 @@ deliberationOpen   // boolean
 deliberationReason // "tie" | "manual" | null
 valComment         // string — draft comment for validate/flag forms
 showValForm        // boolean — shows the comment textarea
+
+// Deliberation draft state (judge-home)
+delibDraftComment  // string — comment textarea draft
+delibDraftRec      // string — recommendation dropdown draft (default "Pending")
+delibDraftFlagged  // boolean — flag checkbox draft
+delibReportCopied  // boolean — copy feedback for deliberation summary
+
+// Project management state (admin Projects tab)
+showAddProject     // boolean — show add project modal
+editingProject     // string | null — project ID being edited
+projForm           // { title, cat, grade, num } — form fields for add/edit
 ```
 
 ### Key functions
@@ -321,6 +337,7 @@ resultsFinalized // boolean — must be true before generateLink() is enabled
 The public results page (`view === "public-results"`) shows:
 - Podium (top 3 projects) — reordered visually as 2nd, 1st, 3rd
 - Full ranked table with optional rubric breakdown chips
+- **Award badges** on podium cards and table rows when `finalDecisions[pid]?.finalized` and award is not "No Award"/"Pending"
 - **Judge names are never shown on the public page**
 
 ---
@@ -380,6 +397,24 @@ The public results page (`view === "public-results"`) shows:
 - `.it-term` — dark terminal-style container for IT logs
 - `.pin-gate` — PIN entry screen (centered, full height)
 - `.modal-overlay` + `.modal-box` — full-screen modal with blur backdrop
+- `.delib-section` — deliberation container on judge-home
+- `.delib-proj` — per-project card in judge deliberation view
+- `.delib-rec-select` — styled recommendation dropdown
+- `.delib-flag-wrap` — flag checkbox + label combo
+- `.delib-submitted` — green confirmation badge for submitted notes
+- `.delib-comment-card` — judge comment card in admin deliberation view
+- `.delib-rec-pill` — recommendation pill (4 color variants: `.award`/`.strong`/`.good`/`.needs`)
+- `.delib-flag-badge` — amber flag indicator
+- `.delib-discuss` — red "discussion needed" badge
+- `.delib-phase-toggle` — admin deliberation open/close toggle control
+- `.delib-finalized` — green finalized decision row
+- `.award-badge` — award display pill (variants: `.gold`/`.silver`/`.bronze`/`.hm`/`.best`/`.none`)
+- `.proj-mgmt-header` — project management section header with add button
+- `.proj-mgmt-table` — project list table in admin
+- `.proj-act-btn` — small action button (edit/delete/lock) in project rows
+- `.proj-form-overlay` + `.proj-form-card` — add/edit project modal
+- `.proj-form-grid` — form layout grid for project fields
+- `.proj-lock-badge` — lock/unlock status badge on projects
 
 ---
 
@@ -413,17 +448,33 @@ finalizeResults()           // Sets resultsFinalized=true, unlocks Share tab
 getDelibNotesForProject(pid) // Array of { judgeAlias, comment, recommendation, flagged }
 getRecBreakdown(pid)         // { [rec]: count } for all RECOMMENDATIONS
 getFlagCount(pid)            // Number of flagged notes for a project
+recPillClass(rec)            // CSS class for recommendation pill (award/strong/good/needs)
+awardBadgeClass(award)       // CSS class for award badge (gold/silver/bronze/hm/best/none)
+awardEmoji(award)            // Emoji for award (🥇/🥈/🥉/🏅/⭐/"")
+
+// Project management
+nextProjectNum()             // Next available project number (max + 1, zero-padded to 3 digits)
+addProject()                 // Insert new project to Supabase + local state, logs to both
+updateProject(pid)           // Update project fields (blocked if locked), logs to both
+removeProject(pid)           // Cascading delete: scores, delib notes, final decisions, judge refs, project
+toggleProjectLock(pid)       // Toggle locked boolean on a project
 
 // Admin / shared
 getAnomalies()              // Array of outlier objects where deviation > 8pts from group avg
 isLinkLive()                // Boolean — is the public share link active and not expired?
 addLog(msg)                 // Append to human activity log + Supabase activity_log
 addItLog(level, module, event, detail, payload)  // Append structured IT log entry
-assignProjects(idx)         // Assign 4 project IDs to a judge based on their index (0-based)
+assignProjects(idx)         // Assign 4 project IDs to a judge based on their index (defined inside App(), uses dynamic projects state)
 flushOfflineQueue()         // Sync any locally-queued scores to Supabase
 buildDelibReport()          // Generate formatted deliberation summary string for copy
 buildSnapshot()             // Generate current system state snapshot string
-executeReset()              // Reset all data EXCEPT activity log — requires PIN 1680
+executeReset()              // Reset all data EXCEPT activity log and projects — requires PIN 1680
+
+// Deliberation actions
+submitDelibNote(pid)         // Upsert judge's deliberation note to Supabase, logs to both
+handleToggleDeliberation()   // Toggle deliberation_open in app_settings, logs to both
+saveFinalDecision(pid, award, adminNotes)  // Upsert final decision, set finalized=true
+reviseDecision(pid)          // Set finalized=false on a decision, logs revision
 ```
 
 ---
@@ -435,6 +486,7 @@ Supabase is **fully integrated and live**. Schema is applied at `supabase/schema
 ### Tables
 | Table | Purpose |
 |---|---|
+| `projects` | Dynamic project list (id, num, title, cat, grade, locked, created_at) |
 | `judges` | Registered judges (id, alias, projects JSON, joined_at) |
 | `scores` | One row per judge+project pair; UNIQUE(judge_id, project_id) |
 | `activity_log` | Human-readable audit trail — never deleted |
@@ -456,7 +508,7 @@ Row Level Security is enabled on all tables with open anon policies (public read
 
 ## 🚫 Critical Rules — Do NOT Break These
 
-1. **Never clear the activity log (`log` state) on reset.** Preserved for security purposes. `executeReset()` resets: judges, scores, locked, share*, deliberationNotes, finalDecisions, judgeValidations, adminValidation, resultsFinalized, deliberationOpen.
+1. **Never clear the activity log (`log` state) on reset.** Preserved for security purposes. `executeReset()` resets: judges, scores, locked, share*, deliberationNotes, finalDecisions, judgeValidations, adminValidation, resultsFinalized, deliberationOpen. It does NOT clear projects or the activity log.
 2. **Judge names must never appear on the public results page.** The `view === "public-results"` page is visible without login — keep it score + project data only.
 3. **IT Logs tab and Reset modal both use PIN `1680`.** They share the same PIN but have separate state (`itPin`/`itUnlocked` vs `resetPin`/`showReset`).
 4. **All CSS is inline** in the `CSS` template literal. Do not create external `.css` files.
@@ -466,6 +518,10 @@ Row Level Security is enabled on all tables with open anon policies (public read
 8. **Judge names are Judge1–Judge15.** The `JUDGE_NAMES` constant defines the allowed list.
 9. **Share tab is gated by `resultsFinalized`.** The "Generate Live Results Link" button must remain disabled until `resultsFinalized === true`. Do not remove this gate.
 10. **Deliberation is conditional.** It must NOT auto-open on every session — only on tie detection or admin manual trigger. If all reviewers reached consensus, finalization proceeds without deliberation.
+11. **Locked projects cannot be edited or removed.** The `locked` boolean on the `projects` table (and local state) must be checked before any update or delete operation. Only `toggleProjectLock()` can change the lock state.
+12. **Removing a project must cascade-delete all related data.** When `removeProject(pid)` runs, it must delete: scores with that `project_id`, deliberation notes with that `project_id`, final decisions for that project, and remove the project ID from all judge assignment arrays. No orphaned records.
+13. **Projects are NOT cleared on reset.** Projects are configuration data, not session data. `executeReset()` clears judges, scores, deliberation data, share links, and settings — but never the projects table.
+14. **`CATEGORIES` constant defines allowed project categories.** Use this array for category dropdowns: `["Biology","Physics","Computer Sci.","Chemistry","Earth Science","Engineering","Math","Environmental Sci."]`.
 
 ---
 
@@ -503,6 +559,24 @@ Change the `15` in `Array.from({ length: 15 }, ...)` in the `JUDGE_NAMES` consta
 
 **Deploying:**
 Push to `main` branch on GitHub — Vercel auto-deploys. No manual steps needed.
+
+**Adding a project (admin UI):**
+Admin clicks "+ Add Project" in the Projects tab → fills in title, category, grade → project is inserted into Supabase `projects` table with an auto-generated ID (`p_` + random) and the next available number (zero-padded). Realtime syncs to all clients.
+
+**Removing a project (admin UI):**
+Admin clicks the delete button on an unlocked project → `removeProject(pid)` performs cascading cleanup:
+1. Deletes all scores where `project_id = pid`
+2. Deletes all deliberation notes where `project_id = pid`
+3. Deletes the final decision for that project
+4. Removes `pid` from each judge's `projects` array in Supabase
+5. Deletes the project row itself
+6. Updates all local state accordingly
+
+**Locking/unlocking a project:**
+Admin clicks the lock toggle → `toggleProjectLock(pid)` flips the `locked` boolean in both Supabase and local state. Locked projects show a lock badge and cannot be edited or deleted.
+
+**Changing project categories:**
+Edit the `CATEGORIES` constant array. This affects the category dropdown in the add/edit project form.
 
 **Persisting validation state to Supabase (not yet done):**
 Add a `validations` table: `(judge_id, approved, comment, validated_at)` and an `app_settings` row for `results_finalized`. Load in the Supabase loader section and subscribe in `app-realtime` channel.
