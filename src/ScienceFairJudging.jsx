@@ -4,8 +4,9 @@ import { supabase } from "./supabaseClient";
 // ─────────────────────────────────────────────
 // CONSTANTS & MOCK DATA
 // ─────────────────────────────────────────────
-const INVITE_CODE = "FAIR2025";
-const ADMIN_PASS  = "admin2025";
+const INVITE_CODE  = "FAIR2026";
+const ADMIN_PASS   = "SFadmin2026";
+const JUDGE_NAMES  = Array.from({ length: 15 }, (_, i) => `Judge${i + 1}`);
 
 const ADJ  = ["Swift","Bright","Noble","Keen","Bold","Wise","Sharp","Calm","Steady","Vivid","Clever","Agile"];
 const ANIM = ["Falcon","Owl","Dolphin","Eagle","Lynx","Fox","Hawk","Puma","Raven","Crane","Ibis","Orca"];
@@ -544,6 +545,7 @@ export default function App() {
   const [scoringPid, setScoringPid]  = useState(null);
   const [draftSc,    setDraftSc]     = useState({});
   const [draftNotes, setDraftNotes]  = useState("");
+  const [regName,    setRegName]     = useState("");
   const [regCode,    setRegCode]     = useState("");
   const [regErr,     setRegErr]      = useState("");
   const [adminPass,  setAdminPass]   = useState("");
@@ -1018,21 +1020,30 @@ export default function App() {
 
   // Actions
   async function handleRegister() {
-    if (regCode.trim().toUpperCase() !== INVITE_CODE) {
-      setRegErr("Invalid invite code.");
-      addItLog("WARN","AUTH","INVALID_INVITE_CODE","Failed registration attempt with wrong invite code",{ attemptedCode: regCode.trim(), timestamp: fmtISO(Date.now()) });
+    const name = regName.trim();
+    if (!JUDGE_NAMES.includes(name)) {
+      setRegErr("Invalid judge name. Use Judge1 – Judge15.");
       return;
     }
-    const seed = judges.length;
-    const j = { id:"j_"+uid(), alias:genAlias(seed), projects:assignProjects(seed), joinedAt:Date.now() };
+    if (judges.some(j => j.alias === name)) {
+      setRegErr(`${name} is already signed in on another device.`);
+      return;
+    }
+    if (regCode.trim().toUpperCase() !== INVITE_CODE) {
+      setRegErr("Invalid invite code.");
+      addItLog("WARN","AUTH","INVALID_INVITE_CODE","Failed registration attempt with wrong invite code",{ attemptedCode: regCode.trim(), name, timestamp: fmtISO(Date.now()) });
+      return;
+    }
+    const seed = parseInt(name.replace(/\D/g, "")) - 1;
+    const j = { id:"j_"+uid(), alias:name, projects:assignProjects(seed), joinedAt:Date.now() };
     const { error } = await supabase.from("judges").insert({ id: j.id, alias: j.alias, projects: j.projects });
     if (error) { setRegErr("Registration failed. Please try again."); return; }
     setJudges(p => [...p, j]); setJudge(j);
     localStorage.setItem("sf_judge_id",   j.id);
     localStorage.setItem("sf_judge_data", JSON.stringify(j));
     addLog(`${j.alias} joined as a judge`);
-    addItLog("INFO","AUTH","JUDGE_REGISTERED","New judge registered with valid invite code",{ judgeId:j.id, alias:j.alias, assignedProjects:j.projects });
-    setRegCode(""); setRegErr(""); setView("judge-home");
+    addItLog("INFO","AUTH","JUDGE_REGISTERED","Judge registered with valid credentials",{ judgeId:j.id, alias:j.alias, assignedProjects:j.projects });
+    setRegName(""); setRegCode(""); setRegErr(""); setView("judge-home");
   }
 
   function handleAdminLogin() {
@@ -1173,7 +1184,7 @@ export default function App() {
           )}
         </div>
         <div className="demo-hint">
-          Demo — Invite code: <strong>FAIR2025</strong> · Admin: <strong>admin2025</strong>
+          Judges: <strong>Judge1</strong>–<strong>Judge15</strong> + code <strong>FAIR2026</strong> · Admin code: <strong>SFadmin2026</strong>
         </div>
       </div>
     </div>
@@ -1183,16 +1194,23 @@ export default function App() {
   if (view === "judge-register") return (
     <div className="app"><style>{CSS}</style>
       <div className="center"><div className="inner">
-        <button className="back" onClick={() => { setView("landing"); setRegErr(""); setRegCode(""); }}>← Back</button>
+        <button className="back" onClick={() => { setView("landing"); setRegErr(""); setRegCode(""); setRegName(""); }}>← Back</button>
         <div className="card">
           <div style={{ textAlign:"center", marginBottom:"1.5rem" }}>
             <div style={{ fontSize:"2.5rem", marginBottom:".5rem" }}>🔐</div>
-            <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.5rem", marginBottom:".4rem", color:"var(--navy)" }}>Judge Registration</h2>
-            <p style={{ color:"var(--dim)", fontSize:".95rem" }}>You'll get an anonymous alias to keep evaluations unbiased.</p>
+            <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.5rem", marginBottom:".4rem", color:"var(--navy)" }}>Judge Sign In</h2>
+            <p style={{ color:"var(--dim)", fontSize:".95rem" }}>Enter your assigned judge name and the event invite code.</p>
+          </div>
+          <div style={{ marginBottom:"1rem" }}>
+            <div className="lbl">Judge Name</div>
+            <input type="text" placeholder="e.g. Judge1" value={regName}
+              onChange={e => { setRegName(e.target.value.trim()); setRegErr(""); }}
+              onKeyDown={e => e.key==="Enter" && handleRegister()}
+              style={{ textAlign:"center", fontFamily:"var(--ff-m)", fontSize:"1.1rem" }} />
           </div>
           <div style={{ marginBottom:"1rem" }}>
             <div className="lbl">Invite Code</div>
-            <input type="text" placeholder="e.g. FAIR2025" value={regCode}
+            <input type="text" placeholder="Event invite code" value={regCode}
               onChange={e => { setRegCode(e.target.value.toUpperCase()); setRegErr(""); }}
               onKeyDown={e => e.key==="Enter" && handleRegister()}
               style={{ textAlign:"center", letterSpacing:".18em", fontFamily:"var(--ff-m)", fontSize:"1.1rem" }} />
@@ -1200,7 +1218,7 @@ export default function App() {
           </div>
           <button className="btn" onClick={handleRegister}>Enter as Judge →</button>
           <p style={{ textAlign:"center", fontSize:".72rem", color:"var(--dim)", marginTop:".9rem" }}>
-            🔒 Your identity remains anonymous throughout the process.
+            🔒 Judge names are Judge1 – Judge15. Get your invite code from the administrator.
           </p>
         </div>
       </div></div>
