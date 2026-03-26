@@ -10,7 +10,7 @@ This guide will walk you through how to use the app to score science fair projec
 
 **You'll need:**
 - Your judge name: **Judge1** through **Judge15** (assigned by organizers)
-- Invite code: **FAIR2026** (shared by event organizers)
+- Invite code: **provided by your event organizer** (ask them before the event starts)
 - A tablet, phone, or laptop with internet access
 - About 30–45 minutes to score all projects
 

@@ -8,7 +8,7 @@ This guide covers everything an event organizer needs to know to run the digital
 
 ## 🔐 Admin Access
 
-**Password:** `SFadmin2026`
+**Password:** set by your deployment administrator (stored in `VITE_ADMIN_PASS` environment variable — never shared in docs)
 
 **To enter admin mode:**
 1. Open the app
@@ -71,7 +71,7 @@ This guide covers everything an event organizer needs to know to run the digital
 ### 3. Prepare Judge Credentials
 
 - **Judge names:** Judge1 through Judge15 (or up to however many you set as max)
-- **Invite code:** `FAIR2026` (pre-configured)
+- **Invite code:** provided at deployment — check your `VITE_INVITE_CODE` environment variable or ask your technical administrator
 - **Share this with judges** before the event so they know what to expect
 
 ---
@@ -239,9 +239,9 @@ This guide covers everything an event organizer needs to know to run the digital
 
 **⚠️ CAUTION — This is permanent:**
 
-1. Go to **IT Logs tab** (PIN: `1680`)
+1. Go to **IT Logs tab** (enter the 4-digit IT PIN set by your administrator)
 2. Click **"Reset All Data"** button
-3. Enter PIN: `1680`
+3. Enter the IT PIN
 4. Confirm the prompt
 5. ✅ Cleared: Judges, scores, validation, deliberation, results, sharing link
 6. ✅ **Preserved:** Projects (configuration), activity log (audit trail)
@@ -320,11 +320,11 @@ This guide covers everything an event organizer needs to know to run the digital
 
 ### Access IT Logs Terminal
 
-**PIN:** `1680`
+**PIN:** set by your deployment administrator (stored in `VITE_IT_PIN` environment variable)
 
 1. Go to **IT Logs tab**
 2. Click **"Unlock"** button
-3. Enter PIN: `1680`
+3. Enter the 4-digit IT PIN
 4. Click **"Unlock"**
 5. Terminal opens showing detailed event logs
 

@@ -4,8 +4,9 @@ import { supabase } from "./supabaseClient";
 // ─────────────────────────────────────────────
 // CONSTANTS & MOCK DATA
 // ─────────────────────────────────────────────
-const INVITE_CODE  = "FAIR2026";
-const ADMIN_PASS   = "SFadmin2026";
+const INVITE_CODE  = import.meta.env.VITE_INVITE_CODE;
+const ADMIN_PASS   = import.meta.env.VITE_ADMIN_PASS;
+const IT_PIN       = import.meta.env.VITE_IT_PIN;
 const JUDGE_NAMES  = Array.from({ length: 15 }, (_, i) => `Judge${i + 1}`);
 
 const ADJ  = ["Swift","Bright","Noble","Keen","Bold","Wise","Sharp","Calm","Steady","Vivid","Clever","Agile"];
@@ -1449,9 +1450,6 @@ export default function App() {
             </div>
           )}
         </div>
-        <div className="demo-hint">
-          Judges: <strong>Judge1</strong>–<strong>Judge15</strong> + code <strong>FAIR2026</strong> · Admin code: <strong>SFadmin2026</strong>
-        </div>
       </div>
     </div>
   );
@@ -1784,7 +1782,7 @@ export default function App() {
                           setResetPin(val);
                           setResetPinErr("");
                           if (val.length === 4) {
-                            if (val === "1680") {
+                            if (val === IT_PIN) {
                               executeReset();
                             } else {
                               setResetPinErr("Incorrect PIN.");
@@ -2428,7 +2426,7 @@ export default function App() {
                         setItPin(val);
                         setItPinErr("");
                         if (val.length === 4) {
-                          if (val === "1680") {
+                          if (val === IT_PIN) {
                             setItUnlocked(true);
                             setItPin("");
                             addItLog("INFO","AUTH","IT_ACCESS_GRANTED","IT diagnostic logs accessed with correct PIN",{ timestamp:fmtISO(Date.now()) });

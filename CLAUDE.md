@@ -101,10 +101,12 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 | Access | Credential |
 |---|---|
 | Judge sign-in name | `Judge1` through `Judge15` (configurable up to any number) |
-| Judge invite code | `FAIR2026` |
-| Admin dashboard | Password: `SFadmin2026` |
-| IT Logs tab | PIN: `1680` |
-| Reset All Data | PIN: `1680` (same PIN, separate modal) |
+| Judge invite code | `VITE_INVITE_CODE` env var |
+| Admin dashboard | `VITE_ADMIN_PASS` env var |
+| IT Logs tab | `VITE_IT_PIN` env var (4-digit PIN) |
+| Reset All Data | `VITE_IT_PIN` env var (same PIN, separate modal) |
+
+> **Note:** Credentials are no longer hardcoded. Set them in `.env` locally and in Vercel environment variables for production. See `.env.example` for the required variable names.
 
 ### Security model
 - **Judges are identified by number** — they sign in as `Judge1`–`Judge15` (or configurable range). The alias IS their username.
@@ -119,7 +121,7 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 - **Public results page never shows judge names** — score + project data only.
 
 ### Judge sign-in flow
-1. Judge enters their name (`Judge1`–`Judge15` or configurable) and invite code `FAIR2026`
+1. Judge enters their name (`Judge1`–`Judge15` or configurable) and the invite code (from `VITE_INVITE_CODE`)
 2. App validates:
    - Name is in valid range (based on configured `maxJudges`)
    - Name is not already taken (no duplicate registration)
