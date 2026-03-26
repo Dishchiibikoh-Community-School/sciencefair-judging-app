@@ -1892,6 +1892,15 @@ export default function App() {
             </div>
           )}
           {locked && <div className="locked-banner">🔒 Judging is currently locked by the administrator.</div>}
+          <div className="card" style={{ padding:"1rem 1.2rem" }}>
+            <div className="lbl">Scoring Guide</div>
+            <div style={{ fontSize:".88rem", color:"var(--text)", lineHeight:1.6 }}>
+              <div>0 = not present</div>
+              <div>1 or 2 = partial</div>
+              <div>2 or 4 = complete</div>
+              <div>3 or 6 = exceptional</div>
+            </div>
+          </div>
           <div className="card" style={{ padding:"1.1rem 1.4rem" }}>
             <div style={{ display:"flex", justifyContent:"space-between", marginBottom:".45rem" }}>
               <span style={{ fontSize:".83rem" }}>Your Progress</span>
