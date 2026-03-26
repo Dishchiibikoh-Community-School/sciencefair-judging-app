@@ -962,6 +962,7 @@ export default function App() {
   const [resultsFinalized,   setResultsFinalized]    = useState(false);
   const [valComment,         setValComment]          = useState("");
   const [showValForm,        setShowValForm]         = useState(false);
+  const [transferAllowances, setTransferAllowances]  = useState({}); // { [alias]: expiryTs }
 
   // Project management state
   const [showAddProject,     setShowAddProject]      = useState(false);
@@ -1017,7 +1018,27 @@ export default function App() {
       const loadedMax = map.max_judges ? parseInt(map.max_judges) : 15;
       setMaxJudges(loadedMax);
       setMaxJudgesDraft(String(loadedMax));
+      try {
+        const raw = map.judge_transfer_allowances || "{}";
+        const parsed = JSON.parse(raw);
+        setTransferAllowances(parsed && typeof parsed === "object" ? parsed : {});
+      } catch {
+        setTransferAllowances({});
+      }
     }
+  }
+
+  async function saveTransferAllowances(next) {
+    setTransferAllowances(next);
+    await supabase.from("app_settings").upsert({ key: "judge_transfer_allowances", value: JSON.stringify(next) });
+  }
+
+  async function allowJudgeTransfer(alias) {
+    const expiry = Date.now() + 10 * 60 * 1000; // 10 minutes
+    const next = { ...transferAllowances, [alias]: expiry };
+    await saveTransferAllowances(next);
+    addLog(`Admin approved device transfer for ${alias} (expires in 10 minutes)`);
+    addItLog("WARN","ADMIN","JUDGE_TRANSFER_APPROVED","Admin approved judge device transfer",{ alias, expiresAt: fmtISO(expiry) });
   }
   async function loadDelibNotes() {
     const { data } = await supabase.from("deliberation_notes").select("*");
@@ -1299,6 +1320,7 @@ export default function App() {
       supabase.from("final_decisions").delete().not("id", "is", null),
       supabase.from("app_settings").update({ value: "false" }).eq("key", "deliberation_open"),
       supabase.from("app_settings").update({ value: "15" }).eq("key", "max_judges"),
+      supabase.from("app_settings").upsert({ key: "judge_transfer_allowances", value: "{}" }),
     ]);
     setJudges([]);
     setScores({});
@@ -1317,6 +1339,7 @@ export default function App() {
     setJudgeValidations({});
     setAdminValidation(null);
     setResultsFinalized(false);
+    setTransferAllowances({});
     setAdminTab("overview");
     setResetDone(true);
     setTimeout(() => { setShowReset(false); setResetDone(false); setResetPin(""); setResetPinErr(""); }, 1800);
@@ -1508,19 +1531,21 @@ export default function App() {
 
     const existingJudge = judges.find(j => j.alias === name);
     if (existingJudge) {
-      const confirmed = window.confirm(
-        `${name} is already active on another device. Transfer this judge session to this device and continue scoring?`
-      );
-      if (!confirmed) {
-        setRegErr(`${name} is already signed in. Transfer was cancelled.`);
+      const allowedUntil = transferAllowances[name] || 0;
+      if (!allowedUntil || Date.now() > allowedUntil) {
+        setRegErr(`${name} is already signed in. Ask admin to approve device transfer.`);
+        addItLog("WARN","AUTH","JUDGE_TRANSFER_DENIED","Judge transfer blocked — no admin approval",{ alias:name, timestamp:fmtISO(Date.now()) });
         return;
       }
 
       setJudge(existingJudge);
       localStorage.setItem("sf_judge_id", existingJudge.id);
       localStorage.setItem("sf_judge_data", JSON.stringify(existingJudge));
+      const nextAllow = { ...transferAllowances };
+      delete nextAllow[name]; // one-time use transfer approval
+      await saveTransferAllowances(nextAllow);
       addLog(`${existingJudge.alias} session transferred to a new device`);
-      addItLog("WARN","AUTH","JUDGE_SESSION_TRANSFERRED","Existing judge session transferred to another device",{
+      addItLog("WARN","AUTH","JUDGE_SESSION_TRANSFERRED","Existing judge session transferred to another device (admin-approved)",{
         judgeId: existingJudge.id,
         alias: existingJudge.alias,
         timestamp: fmtISO(Date.now()),
@@ -2260,13 +2285,14 @@ export default function App() {
             {/* JUDGES */}
             {adminTab==="judges" && <>
               <div className="adm-h1">Judge Management</div>
-              <div className="adm-sub">Monitor activity and completion per judge</div>
+              <div className="adm-sub">Monitor activity and completion per judge · approve device transfer only when needed</div>
               <div className="card"><div className="tbl-wrap">
                 <table>
-                  <thead><tr><th>Alias</th><th>Joined</th><th>Assigned</th><th>Progress</th><th>Status</th></tr></thead>
+                  <thead><tr><th>Alias</th><th>Joined</th><th>Assigned</th><th>Progress</th><th>Status</th><th>Transfer</th></tr></thead>
                   <tbody>
                     {judges.map(j => {
                       const {done,total,pct} = judgeComp(j);
+                      const transferOpen = !!transferAllowances[j.alias] && Date.now() <= transferAllowances[j.alias];
                       return (
                         <tr key={j.id}>
                           <td style={{fontFamily:"var(--ff-m)",color:"var(--navy)"}}>{j.alias}</td>
@@ -2283,6 +2309,15 @@ export default function App() {
                           <td><span className={`badge ${done===total?"bg":done>0?"ba":"br"}`}>
                             {done===total?"Complete":done>0?"In Progress":"Not Started"}
                           </span></td>
+                          <td>
+                            <button
+                              className="btn sec sm"
+                              style={{width:"auto"}}
+                              onClick={() => allowJudgeTransfer(j.alias)}
+                            >
+                              {transferOpen ? "Approved (active)" : "Allow Transfer"}
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
