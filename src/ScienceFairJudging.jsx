@@ -1835,17 +1835,6 @@ export default function App() {
               {offlineQueue.length > 0 && <span className="sync-ct">({offlineQueue.length} pending sync)</span>}
             </div>
           )}
-          {offlineQueue.length > 0 && (
-            <div className="sync-banner">
-              <div>
-                ⚠ {offlineQueue.length} score{offlineQueue.length!==1?"s":""} currently saved only on this device (not yet in Supabase).
-              </div>
-              {isOnline && <button className="btn sec sm" style={{width:"auto"}} onClick={flushOfflineQueue}>Sync Now</button>}
-            </div>
-          )}
-          <div className="sync-meta" style={{ marginBottom:".7rem" }}>
-            Sync status: {offlineQueue.length > 0 ? "Pending local saves" : "All local scores synced"} · Last sync: {lastSyncAt ? fmtFull(lastSyncAt) : "Not yet"}
-          </div>
           {locked && <div className="locked-banner">🔒 Judging is currently locked by the administrator.</div>}
           <div className="card" style={{ padding:"1.1rem 1.4rem" }}>
             <div style={{ display:"flex", justifyContent:"space-between", marginBottom:".45rem" }}>
@@ -1934,7 +1923,26 @@ export default function App() {
               </div>
             );
           })()}
-          <button className="btn sec" style={{ marginTop:".85rem" }} onClick={() => { setJudge(null); ["sf_judge_id","sf_judge_data","sf_scores_cache","sf_offline_queue"].forEach(k => localStorage.removeItem(k)); setView("landing"); }}>Sign Out</button>
+          {offlineQueue.length > 0 && (
+            <div className="sync-banner" style={{ marginTop:".85rem" }}>
+              <div>
+                ⚠ {offlineQueue.length} score{offlineQueue.length!==1?"s":""} currently saved only on this device (not yet in Supabase).
+              </div>
+              {isOnline && <button className="btn sec sm" style={{width:"auto"}} onClick={flushOfflineQueue}>Sync Now</button>}
+            </div>
+          )}
+          <div className="sync-meta" style={{ marginTop:".3rem", marginBottom:".7rem" }}>
+            Sync status: {offlineQueue.length > 0 ? "Pending local saves" : "All local scores synced"} · Last sync: {lastSyncAt ? fmtFull(lastSyncAt) : "Not yet"}
+          </div>
+          <button className="btn sec" style={{ marginTop:".85rem" }} onClick={() => {
+            if (done < myProj.length) {
+              const confirmed = window.confirm("You have unfinished scoring. Are you sure you want to sign out?");
+              if (!confirmed) return;
+            }
+            setJudge(null);
+            ["sf_judge_id","sf_judge_data","sf_scores_cache","sf_offline_queue"].forEach(k => localStorage.removeItem(k));
+            setView("landing");
+          }}>Sign Out</button>
         </div></div>
       </div>
     );
