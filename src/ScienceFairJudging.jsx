@@ -131,8 +131,56 @@ const CSS = `
     --shadow-md:0 4px 12px rgba(0,0,0,.07),0 2px 4px rgba(0,0,0,.04);
     --shadow-lg:0 10px 30px rgba(0,0,0,.08),0 4px 8px rgba(0,0,0,.04);
   }
-  body{background:var(--bg);color:var(--text);font-family:var(--ff-b);font-size:16px;line-height:1.6;}
-  .app{min-height:100vh;}
+  body{background:var(--bg);color:var(--text);font-family:var(--ff-b);font-size:16px;line-height:1.6;overflow-x:hidden;}
+  body::before,
+  body::after{
+    content:"";
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+  }
+  body::before{
+    z-index:-2;
+    background:
+      radial-gradient(1200px 800px at 10% -20%, #dbeafe 0%, transparent 62%),
+      radial-gradient(1100px 700px at 95% 8%, #e0f2fe 0%, transparent 60%),
+      linear-gradient(135deg, #f5faff 0%, #eef6ff 45%, #f8fbff 100%);
+    animation:bgShift 20s ease-in-out infinite alternate;
+  }
+  body::after{
+    z-index:-1;
+    opacity:.65;
+    background-image:
+      radial-gradient(circle at 15% 20%, rgba(30,58,95,.18) 0 1.2px, transparent 1.3px),
+      radial-gradient(circle at 80% 35%, rgba(37,99,235,.16) 0 1.4px, transparent 1.5px),
+      radial-gradient(circle at 45% 70%, rgba(14,116,144,.14) 0 1.1px, transparent 1.2px),
+      radial-gradient(circle at 65% 85%, rgba(30,58,95,.14) 0 1.1px, transparent 1.2px);
+    background-size: 240px 240px, 300px 300px, 260px 260px, 330px 330px;
+    animation:particleDrift 36s linear infinite;
+  }
+  .app{min-height:100vh;position:relative;z-index:0;}
+
+  @keyframes bgShift {
+    0% {
+      transform: translate3d(0,0,0) scale(1);
+      filter: saturate(1);
+    }
+    100% {
+      transform: translate3d(0,-14px,0) scale(1.025);
+      filter: saturate(1.08);
+    }
+  }
+  @keyframes particleDrift {
+    0% {
+      background-position: 0 0, 0 0, 0 0, 0 0;
+    }
+    50% {
+      background-position: 90px -120px, -70px 100px, 60px -80px, -90px -40px;
+    }
+    100% {
+      background-position: 180px -240px, -140px 200px, 120px -160px, -180px -80px;
+    }
+  }
   .center{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:1.5rem;}
   .inner{width:100%;max-width:580px;}
 
