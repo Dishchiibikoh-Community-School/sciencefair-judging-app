@@ -322,6 +322,9 @@ const CSS = `
   .offline-banner{background:var(--amber-l);border:1px solid #d9770630;border-radius:10px;padding:.7rem 1.1rem;
     display:flex;align-items:center;gap:.5rem;font-size:.88rem;color:var(--amber);margin-bottom:.85rem;font-weight:500;flex-wrap:wrap;}
   .offline-banner .sync-ct{font-family:var(--ff-m);font-size:.75rem;margin-left:.25rem;opacity:.8;}
+  .sync-banner{background:#fff7ed;border:1px solid #fb923c55;border-radius:10px;padding:.7rem 1.1rem;
+    display:flex;align-items:center;justify-content:space-between;gap:.7rem;font-size:.86rem;color:#9a3412;margin-bottom:.85rem;flex-wrap:wrap;}
+  .sync-meta{font-size:.78rem;color:var(--dim);font-family:var(--ff-m);}
   .all-done{background:var(--green-l);border:1px solid #05966920;border-radius:var(--r);padding:1.5rem;text-align:center;}
 
   /* SCORING */
@@ -897,6 +900,15 @@ export default function App() {
   const [offlineQueue, setOfflineQueue] = useState(() => {
     try { return JSON.parse(localStorage.getItem("sf_offline_queue") || "[]"); } catch { return []; }
   });
+  const [lastSyncAt, setLastSyncAt] = useState(() => {
+    try {
+      const raw = localStorage.getItem("sf_last_sync_at");
+      const n = raw ? parseInt(raw, 10) : NaN;
+      return Number.isFinite(n) && n > 0 ? n : null;
+    } catch {
+      return null;
+    }
+  });
   const [scoringPid, setScoringPid]  = useState(null);
   const [draftSc,    setDraftSc]     = useState({});
   const [draftNotes, setDraftNotes]  = useState("");
@@ -1123,6 +1135,9 @@ export default function App() {
     localStorage.setItem("sf_offline_queue", JSON.stringify(remaining));
     setOfflineQueue(remaining);
     if (remaining.length < queue.length) {
+      const syncedAt = Date.now();
+      setLastSyncAt(syncedAt);
+      localStorage.setItem("sf_last_sync_at", String(syncedAt));
       addItLog("INFO","DB","OFFLINE_QUEUE_FLUSHED",`Synced ${queue.length - remaining.length} queued score(s) to server`,{ synced: queue.length - remaining.length });
     }
   }
@@ -1549,6 +1564,10 @@ export default function App() {
       localStorage.setItem("sf_offline_queue", JSON.stringify(filtered));
       setOfflineQueue(filtered);
       addItLog("WARN","DB","SCORE_QUEUED","Score saved locally — will sync when online",{ judgeId:judge.id, projectId:scoringPid });
+    } else {
+      const syncedAt = Date.now();
+      setLastSyncAt(syncedAt);
+      localStorage.setItem("sf_last_sync_at", String(syncedAt));
     }
     const proj = projects.find(p=>p.id===scoringPid);
     addLog(`${judge.alias} submitted score for Project #${proj.num}`);
@@ -1816,6 +1835,17 @@ export default function App() {
               {offlineQueue.length > 0 && <span className="sync-ct">({offlineQueue.length} pending sync)</span>}
             </div>
           )}
+          {offlineQueue.length > 0 && (
+            <div className="sync-banner">
+              <div>
+                ⚠ {offlineQueue.length} score{offlineQueue.length!==1?"s":""} currently saved only on this device (not yet in Supabase).
+              </div>
+              {isOnline && <button className="btn sec sm" style={{width:"auto"}} onClick={flushOfflineQueue}>Sync Now</button>}
+            </div>
+          )}
+          <div className="sync-meta" style={{ marginBottom:".7rem" }}>
+            Sync status: {offlineQueue.length > 0 ? "Pending local saves" : "All local scores synced"} · Last sync: {lastSyncAt ? fmtFull(lastSyncAt) : "Not yet"}
+          </div>
           {locked && <div className="locked-banner">🔒 Judging is currently locked by the administrator.</div>}
           <div className="card" style={{ padding:"1.1rem 1.4rem" }}>
             <div style={{ display:"flex", justifyContent:"space-between", marginBottom:".45rem" }}>
@@ -1921,6 +1951,11 @@ export default function App() {
             {!isOnline && (
               <div className="offline-banner">
                 📵 Offline — score will be saved locally and synced when reconnected.
+              </div>
+            )}
+            {offlineQueue.length > 0 && (
+              <div className="sync-banner">
+                ⚠ {offlineQueue.length} pending local save{offlineQueue.length!==1?"s":""} not yet in backend.
               </div>
             )}
             <div className="sc-header">
@@ -2118,6 +2153,15 @@ export default function App() {
               <div className="adm-h1">Dashboard Overview</div>
               <div className="adm-sub">Live judging progress · Science Fair SY 2025-2026</div>
               {locked && <div className="locked-banner">🔒 Judging LOCKED — judges cannot submit scores</div>}
+              <div className="card" style={{ marginBottom:".9rem" }}>
+                <div className="lbl">Sync Health (This Device)</div>
+                <div style={{fontSize:".9rem", color: offlineQueue.length > 0 ? "var(--amber)" : "var(--green)", fontWeight:600, marginBottom:".2rem"}}>
+                  {offlineQueue.length > 0
+                    ? `${offlineQueue.length} local score${offlineQueue.length!==1?"s":""} waiting to sync`
+                    : "All local scores synced to Supabase"}
+                </div>
+                <div className="sync-meta">Last successful sync: {lastSyncAt ? fmtFull(lastSyncAt) : "Not yet"}</div>
+              </div>
               <div className="stat-grid">
                 <div className="stat-card"><div className="stat-v" style={{color:"var(--navy)"}}>{judges.length}/{maxJudges}</div><div className="stat-l">Judges</div></div>
                 <div className="stat-card"><div className="stat-v" style={{color:"var(--blue)"}}>{projects.length}</div><div className="stat-l">Projects</div></div>
