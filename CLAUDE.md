@@ -113,9 +113,10 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 - **Max judges is configurable** — admin sets this before judging begins (stored in `app_settings` as `max_judges`). Once first judge registers, it locks to prevent mid-event changes. Resets to 15 when data is reset.
 - **Every judge scores every project** — `assignProjects()` returns all project IDs (not a subset). This ensures comprehensive scoring and robust averages.
 - **Duplicate prevention** — if a judge name is already registered, a second registration attempt is blocked client-side.
+- **Admin-controlled judge transfer** — if a judge's device fails, transfer to a new device is only allowed after admin approval in the Judges tab, and approval is PIN-gated.
 - **Project locking** — admin can lock individual projects to prevent editing or removal. Locked projects show a lock badge in the UI.
 - **IT Logs tab** is PIN-gated (`itUnlocked` state). Wrong PIN logs `IT_ACCESS_DENIED`.
-- **Reset modal** requires PIN `1680`. Wrong PIN logs `RESET_PIN_FAILED`.
+- **Reset modal** requires `VITE_IT_PIN`. Wrong PIN logs `RESET_PIN_FAILED`.
 - **Activity log is NEVER cleared on reset** — preserved for security audit. This is intentional.
 - **Judging can be locked** by admin (`locked` state) — blocks all judge score submissions.
 - **Public results page never shows judge names** — score + project data only.
@@ -124,7 +125,7 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 1. Judge enters their name (`Judge1`–`Judge15` or configurable) and the invite code (from `VITE_INVITE_CODE`)
 2. App validates:
    - Name is in valid range (based on configured `maxJudges`)
-   - Name is not already taken (no duplicate registration)
+  - If name is already active, transfer is allowed only when admin pre-approves transfer for that judge
    - Invite code matches
 3. Judge is inserted into Supabase `judges` table with:
    - Random unique `id`
@@ -132,6 +133,7 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
    - **All project IDs** (every project gets scored by every judge)
    - Current `joinedAt` timestamp
 4. Session is saved to `localStorage` (`sf_judge_id` + `sf_judge_data`) for persistence across browser restarts
+5. If transfer is admin-approved, existing judge session is restored on the new device and the approval is consumed (one-time use)
 
 ---
 
@@ -326,13 +328,15 @@ finalizeResults()                // sets resultsFinalized=true, unlocks Share ta
 | `sf_judge_data` | Full judge object (JSON) for offline session restore |
 | `sf_scores_cache` | This judge's scores (JSON) for offline access |
 | `sf_offline_queue` | Array of score payloads pending sync to Supabase |
+| `sf_last_sync_at` | Timestamp of last successful sync to Supabase |
 
 ### Offline flow
 1. On mount, app instantly restores judge session + scores from `localStorage` (before Supabase loads)
 2. After Supabase loads, session is verified — if judge was reset by admin, cache is cleared and judge is sent to landing
 3. If Supabase is unreachable, cached session and scores remain active
 4. Scores submitted offline are queued in `sf_offline_queue` and auto-synced when `window.online` fires
-5. 8-second timeout prevents infinite loading if Supabase is unreachable and there's no cache
+5. Judges see sync-state UI: pending-local warning, Sync Now button (when online), and last successful sync timestamp
+6. 8-second timeout prevents infinite loading if Supabase is unreachable and there's no cache
 
 ---
 
@@ -485,9 +489,10 @@ addLog(msg)                 // Append to human activity log + Supabase activity_
 addItLog(level, module, event, detail, payload)  // Append structured IT log entry
 assignProjects(idx)         // Assign 4 project IDs to a judge based on their index (defined inside App(), uses dynamic projects state)
 flushOfflineQueue()         // Sync any locally-queued scores to Supabase
+allowJudgeTransfer(alias)   // Admin approves one-time judge transfer for 10 minutes (requires IT PIN)
 buildDelibReport()          // Generate formatted deliberation summary string for copy
 buildSnapshot()             // Generate current system state snapshot string
-executeReset()              // Reset all data EXCEPT activity log and projects — requires PIN 1680
+executeReset()              // Reset all data EXCEPT activity log and projects — requires VITE_IT_PIN
 
 // Deliberation actions
 submitDelibNote(pid)         // Upsert judge's deliberation note to Supabase, logs to both
@@ -511,7 +516,7 @@ Supabase is **fully integrated and live**. Schema is applied at `supabase/schema
 | `activity_log` | Human-readable audit trail — never deleted |
 | `it_logs` | Structured diagnostic events |
 | `share_links` | Public results tokens with expiry + revoked_at |
-| `app_settings` | Key/value: `locked`, `deliberation_open`, `max_judges` (default 15, configurable by admin pre-event) |
+| `app_settings` | Key/value: `locked`, `deliberation_open`, `max_judges` (default 15), `judge_transfer_allowances` |
 | `deliberation_notes` | Judge comments/recommendations per project (used during deliberation) |
 | `final_decisions` | Admin award decisions per project |
 
@@ -529,7 +534,7 @@ Row Level Security is enabled on all tables with open anon policies (public read
 
 1. **Never clear the activity log (`log` state) on reset.** Preserved for security purposes. `executeReset()` resets: judges, scores, locked, share*, deliberationNotes, finalDecisions, judgeValidations, adminValidation, resultsFinalized, deliberationOpen, maxJudges. It does NOT clear projects or the activity log.
 2. **Judge names must never appear on the public results page.** The `view === "public-results"` page is visible without login — keep it score + project data only.
-3. **IT Logs tab and Reset modal both use PIN `1680`.** They share the same PIN but have separate state (`itPin`/`itUnlocked` vs `resetPin`/`showReset`).
+3. **IT Logs tab, Reset modal, and Judge Transfer approval all use `VITE_IT_PIN`.** They share the same PIN but have separate flows/states.
 4. **All CSS is inline** in the `CSS` template literal. Do not create external `.css` files.
 5. **No routing library.** All navigation uses `setView(...)`. Do not introduce React Router.
 6. **The score key format is `${judgeId}_${projectId}`** — used throughout for lookups. Do not change it.
@@ -571,9 +576,9 @@ Row Level Security is enabled on all tables with open anon policies (public read
 Call `addItLog(level, module, event, detail, payload)` anywhere in the code.
 
 **Changing credentials:**
-- Judge invite code: change `INVITE_CODE` constant
-- Admin password: change `ADMIN_PASS` constant
-- IT/Reset PIN: search `"1680"` — appears in IT logs PIN handler and reset modal PIN handler, change both
+- Judge invite code: set `VITE_INVITE_CODE` in `.env` / Vercel
+- Admin password: set `VITE_ADMIN_PASS` in `.env` / Vercel
+- IT/Reset/Transfer PIN: set `VITE_IT_PIN` in `.env` / Vercel
 
 **Adding more judges (beyond 15):**
 Admin can now configure max judges via the UI on the Overview tab (before first judge registers). Set "Max Judges for This Event" to the desired number (e.g., 20, 30, 50). Internally, the `JUDGE_NAMES` constant still generates Judge1–Judge15, but `maxJudges` state controls the actual limit. If you need to support more than 15 distinct judge name slots, modify the `JUDGE_NAMES` constant: `Array.from({ length: 50 }, (_, i) => \`Judge${i + 1}\`)` for 50 judges. Then admin can set maxJudges to 50 via UI.

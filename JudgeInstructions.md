@@ -26,7 +26,7 @@ This guide will walk you through how to use the app to score science fair projec
 
 If you see an error:
 - ❌ **"Invalid judge name"** → Check that you're using the correct format (Judge1–Judge15)
-- ❌ **"Already signed in"** → Another browser already has this judge name. Log out from that browser first.
+- ❌ **"Already signed in"** → Ask the admin to approve **device transfer** in the Judges tab, then try again on the new device.
 - ❌ **"Invalid invite code"** → Double-check the code with organizers
 - ❌ **"Max judges reached"** → All judge slots are full. Contact organizers.
 
@@ -174,6 +174,8 @@ If internet drops:
 2. **Continue scoring offline** — the form works without internet
 3. Scores will **auto-sync** when internet returns
 4. You'll see **"Offline" banner** while disconnected
+5. If you see a **pending local saves** warning, those scores are not yet in the backend until sync succeeds
+6. Use **"Sync Now"** when back online (if shown)
 
 **Note:** Ensure your browser doesn't clear data, or scores may be lost.
 
@@ -185,7 +187,7 @@ If internet drops:
 A: Yes! Go back to the project and tap "Edit" or click the project card again. Your scores are editable until you validate results.
 
 **Q: What if I enter a judge name that's already taken?**
-A: You'll see an error. That judge is already signed in on another device. Log them out first or use a different judge name.
+A: You'll see an error. Ask the admin to approve device transfer for that judge, then sign in again on the new device.
 
 **Q: How long does scoring take?**
 A: Typically 30–45 minutes depending on project count and your familiarity with the rubric.

@@ -111,6 +111,22 @@ This guide covers everything an event organizer needs to know to run the digital
 - Contact slow judges for a nudge (off-app)
 - Confirm everyone has registered
 
+### Device Transfer (Admin-Controlled)
+
+If a judge's tablet fails and they need to continue on another device:
+
+1. Go to **Judges** tab
+2. Find the judge row
+3. Click **"Allow Transfer"**
+4. Enter the **IT PIN** to authorize transfer
+5. Approval stays active briefly (about 10 minutes, one-time use)
+6. Judge signs in on the new device with the same judge name + invite code
+
+**Important:**
+- Judges cannot self-transfer without admin approval
+- Approval is consumed after a successful transfer
+- If transfer expires, admin can approve again
+
 ### Projects Tab — Project Management
 
 **View all projects with:**
@@ -437,7 +453,7 @@ This guide covers everything an event organizer needs to know to run the digital
 ## ❓ Common Admin Tasks
 
 **Q: A judge registered twice. How do I remove them?**
-A: Use Reset All Data (resets judges, but keeps projects). Then re-register only the correct judges. Activity log shows the duplicate entry for audit purposes.
+A: If this is a device issue, use **Allow Transfer** in the Judges tab (PIN required) so they can continue on the new device. Use Reset All Data only for full event reset scenarios.
 
 **Q: Can I add judges beyond 15?**
 A: Yes! Before any judge registers, set Max Judges to higher number (e.g., 25) on Overview tab.
