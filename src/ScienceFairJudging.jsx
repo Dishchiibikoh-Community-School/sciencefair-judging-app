@@ -1034,6 +1034,17 @@ export default function App() {
   }
 
   async function allowJudgeTransfer(alias) {
+    const pin = window.prompt(`Enter IT PIN to approve transfer for ${alias}:`) || "";
+    if (!pin.trim()) {
+      addItLog("WARN","AUTH","JUDGE_TRANSFER_PIN_EMPTY","Transfer approval cancelled due to empty PIN",{ alias, timestamp: fmtISO(Date.now()) });
+      return;
+    }
+    if (pin.trim() !== IT_PIN) {
+      addItLog("WARN","AUTH","JUDGE_TRANSFER_PIN_FAILED","Transfer approval denied due to incorrect PIN",{ alias, timestamp: fmtISO(Date.now()) });
+      window.alert("Incorrect PIN. Transfer approval denied.");
+      return;
+    }
+
     const expiry = Date.now() + 10 * 60 * 1000; // 10 minutes
     const next = { ...transferAllowances, [alias]: expiry };
     await saveTransferAllowances(next);
