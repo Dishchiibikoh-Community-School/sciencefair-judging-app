@@ -1500,15 +1500,35 @@ export default function App() {
       setRegErr("Invalid judge name. Use Judge1 – Judge15.");
       return;
     }
-    if (judges.some(j => j.alias === name)) {
-      setRegErr(`${name} is already signed in on another device.`);
-      return;
-    }
     if (regCode.trim().toUpperCase() !== INVITE_CODE) {
       setRegErr("Invalid invite code.");
       addItLog("WARN","AUTH","INVALID_INVITE_CODE","Failed registration attempt with wrong invite code",{ attemptedCode: regCode.trim(), name, timestamp: fmtISO(Date.now()) });
       return;
     }
+
+    const existingJudge = judges.find(j => j.alias === name);
+    if (existingJudge) {
+      const confirmed = window.confirm(
+        `${name} is already active on another device. Transfer this judge session to this device and continue scoring?`
+      );
+      if (!confirmed) {
+        setRegErr(`${name} is already signed in. Transfer was cancelled.`);
+        return;
+      }
+
+      setJudge(existingJudge);
+      localStorage.setItem("sf_judge_id", existingJudge.id);
+      localStorage.setItem("sf_judge_data", JSON.stringify(existingJudge));
+      addLog(`${existingJudge.alias} session transferred to a new device`);
+      addItLog("WARN","AUTH","JUDGE_SESSION_TRANSFERRED","Existing judge session transferred to another device",{
+        judgeId: existingJudge.id,
+        alias: existingJudge.alias,
+        timestamp: fmtISO(Date.now()),
+      });
+      setRegName(""); setRegCode(""); setRegErr(""); setView("judge-home");
+      return;
+    }
+
     if (judges.length >= maxJudges) {
       setRegErr(`Max judges (${maxJudges}) reached. Contact admin to increase the limit.`);
       addItLog("WARN","AUTH","MAX_JUDGES_REACHED","Judge registration blocked — max limit reached",{ attempted: name, currentCount: judges.length, maxJudges: maxJudges, timestamp: fmtISO(Date.now()) });
