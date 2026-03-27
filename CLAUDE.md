@@ -19,7 +19,7 @@ Built as a single-file React component (`ScienceFairJudging.jsx`).
 **Live URL:** https://sciencefair-judging-app.vercel.app/
 **Supabase project:** https://cjzuiimoamrggucvahjm.supabase.co
 
-> Last major update: 2026-03-26 — full QA pass; all 16 bugs from QA_ASSESSMENT.md resolved.
+> Last major update: 2026-03-26 — full QA pass (18 bugs resolved) + deliberation UX fixes + performance optimizations.
 
 ---
 
@@ -67,6 +67,12 @@ There are no separate `.css` files, no Tailwind, no CSS modules.
 - **No routing library** — view switching via a `view` state string
 - **No external state management** — plain `useState` throughout
 - **Supabase realtime** subscriptions keep all clients in sync live
+
+### AnimatedBackdrop (canvas animation)
+- Rendered on all views except `judge-scoring` via `const backdrop = view === "judge-scoring" ? null : <AnimatedBackdrop />`
+- Runs a `requestAnimationFrame` loop **capped at ~30fps** (`if (timestamp - lastFrame < 33) return`) to avoid burning CPU
+- Max **36 atoms** (down from 72) — the O(n²) bond-drawing loop runs on the main thread; more atoms = direct UI lag
+- **Do not raise these limits** — higher atom counts or uncapped FPS caused measurable input lag on tablets
 
 ### View system
 The app renders different screens based on `const [view, setView] = useState("landing")`.
@@ -261,6 +267,7 @@ Results are **auto-computed** by the system (`projAvg`, `rankedProjects`). No hu
 - Two actions: **"Approve Results"** (sets `judgeValidations[judgeId].approved = true`) or **"Flag a Concern"** (opens an optional comment field, sets `approved = false`).
 - Judge can revise their validation until admin finalizes (revision deletes their row from `validations` table).
 - **Judges cannot re-score after validating** — the `proj-item` click handler is gated on `!judgeValidations[judge.id]`; cursor becomes `not-allowed` when validated.
+- **Deliberation notes form** — when `deliberationOpen === true`, a 💬 Deliberation Notes section appears below the validation section showing a per-project form (recommendation dropdown, comment textarea, flag checkbox). Uses `delibDrafts` state keyed by `pid`. Submits to `deliberation_notes` table via upsert.
 
 **2. Admin validates (Validation tab)**
 - Admin reviews the `judgeValidations` table — shows each completed judge's status (Approved / Concern / Pending).
@@ -278,7 +285,11 @@ Results are **auto-computed** by the system (`projAvg`, `rankedProjects`). No hu
   - **Tie detected** — `hasTie()` detects two or more projects with the same avg score → amber alert with "Open Deliberation" button appears automatically.
   - **Admin manually opens it** — "Open Manually" button always available.
 - `deliberationOpen` (boolean) + `deliberationReason` (`"tie" | "manual" | null`) track state — persisted to `app_settings.deliberation_open`.
-- While open, admin can view judge notes per project and assign awards (`finalDecisions`).
+- While open, admin sees per-project cards showing:
+  - **Per-judge score breakdown** — each judge's total (e.g. `Judge3 ░░░░░░░░ 35/42`) with a progress bar
+  - **Judge scoring notes** — the optional `notes` field from scoring shown inline under each judge's bar (italic, left-bordered), only if the judge wrote one
+  - **Deliberation notes** — recommendation pill + flagged status from `deliberation_notes` table
+  - Admin assigns final awards (`finalDecisions`) per project
 - Admin closes deliberation when done.
 - If **all reviewers reached consensus and no tie exists**, the admin can finalize without ever opening deliberation.
 
@@ -318,9 +329,8 @@ deleteProjectId    // string | null — project ID pending deletion
 activityFilter     // string — keyword filter for the Activity Log tab
 
 // Deliberation draft state (judge-home)
-delibDraftComment  // string — comment textarea draft
-delibDraftRec      // string — recommendation dropdown draft (default "Pending")
-delibDraftFlagged  // boolean — flag checkbox draft
+delibDrafts        // { [pid]: { comment, rec, flagged } } — per-project draft state for deliberation notes form
+                   // Pre-populated from existing deliberationNotes when judge revisits a project
 delibReportCopied  // boolean — copy feedback for deliberation summary
 
 // Project management state (admin Projects tab)
@@ -556,6 +566,13 @@ Supabase is **fully integrated and live**. Schema is applied at `supabase/schema
 
 ### Realtime
 All tables are subscribed via a single `supabase.channel("app-realtime")` — changes propagate live across all open tabs/devices.
+
+**Optimized handlers (do NOT revert to full table refetches):**
+- `scores`, `judges`, `deliberation_notes`, `final_decisions`, `validations` — on INSERT/UPDATE, state is updated directly from `payload.new` without re-fetching the table. Full `loadX()` refetch only fires on DELETE events (reset/project removal).
+- `activity_log`, `it_logs` — INSERT-only listeners prepend the new row to state from `payload.new`. These tables are append-only so only INSERT is subscribed.
+- `projects`, `share_links`, `app_settings` — still use full `loadX()` since they change rarely (admin-only actions) and correctness matters more than speed.
+
+This prevents the cascade of 3+ full Supabase queries + component re-renders that previously fired on every single score submission.
 
 ### RLS
 Row Level Security is enabled on all tables with open anon policies (public read/write). Full per-judge enforcement requires Supabase Auth (not yet implemented).
