@@ -19,6 +19,8 @@ Built as a single-file React component (`ScienceFairJudging.jsx`).
 **Live URL:** https://sciencefair-judging-app.vercel.app/
 **Supabase project:** https://cjzuiimoamrggucvahjm.supabase.co
 
+> Last major update: 2026-03-26 — full QA pass; all 16 bugs from QA_ASSESSMENT.md resolved.
+
 ---
 
 ## 📖 User Guides
@@ -34,7 +36,7 @@ For end-user instructions, see:
 ```
 /
 ├── src/
-│   ├── ScienceFairJudging.jsx   ← Entire app (single file, ~2500+ lines)
+│   ├── ScienceFairJudging.jsx   ← Entire app (single file, ~3100+ lines)
 │   ├── supabaseClient.js        ← Supabase client init (reads from .env)
 │   └── main.jsx                 ← React root + PWA service worker registration
 ├── supabase/
@@ -100,7 +102,7 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 ### Credentials
 | Access | Credential |
 |---|---|
-| Judge sign-in name | `Judge1` through `Judge15` (configurable up to any number) |
+| Judge sign-in name | `Judge1` through `Judge[N]` — N is `maxJudges` (default 15, configurable) |
 | Judge invite code | `VITE_INVITE_CODE` env var |
 | Admin dashboard | `VITE_ADMIN_PASS` env var |
 | IT Logs tab | `VITE_IT_PIN` env var (4-digit PIN) |
@@ -109,11 +111,11 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 > **Note:** Credentials are no longer hardcoded. Set them in `.env` locally and in Vercel environment variables for production. See `.env.example` for the required variable names.
 
 ### Security model
-- **Judges are identified by number** — they sign in as `Judge1`–`Judge15` (or configurable range). The alias IS their username.
+- **Judges are identified by number** — they sign in as `Judge1`–`Judge[N]` where N equals `maxJudges`. The alias IS their username.
 - **Max judges is configurable** — admin sets this before judging begins (stored in `app_settings` as `max_judges`). Once first judge registers, it locks to prevent mid-event changes. Resets to 15 when data is reset.
 - **Every judge scores every project** — `assignProjects()` returns all project IDs (not a subset). This ensures comprehensive scoring and robust averages.
 - **Duplicate prevention** — if a judge name is already registered, a second registration attempt is blocked client-side.
-- **Admin-controlled judge transfer** — if a judge's device fails, transfer to a new device is only allowed after admin approval in the Judges tab, and approval is PIN-gated.
+- **Admin-controlled judge transfer** — if a judge's device fails, transfer to a new device is only allowed after admin approval in the Judges tab (PIN-gated via custom modal — not `window.prompt`).
 - **Project locking** — admin can lock individual projects to prevent editing or removal. Locked projects show a lock badge in the UI.
 - **IT Logs tab** is PIN-gated (`itUnlocked` state). Wrong PIN logs `IT_ACCESS_DENIED`.
 - **Reset modal** requires `VITE_IT_PIN`. Wrong PIN logs `RESET_PIN_FAILED`.
@@ -121,8 +123,13 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 - **Judging can be locked** by admin (`locked` state) — blocks all judge score submissions.
 - **Public results page never shows judge names** — score + project data only.
 
+### Admin login protection
+- **Rate-limited:** 5 failed attempts triggers a 30-second lockout
+- Each failed attempt is logged to IT logs (`ADMIN_LOGIN_FAILED`)
+- Lockout state is in-memory only (resets on page reload)
+
 ### Judge sign-in flow
-1. Judge enters their name (`Judge1`–`Judge15` or configurable) and the invite code (from `VITE_INVITE_CODE`)
+1. Judge enters their name (`Judge1`–`Judge[N]`) and the invite code (from `VITE_INVITE_CODE`)
 2. App validates:
    - Name is in valid range (based on configured `maxJudges`)
   - If name is already active, transfer is allowed only when admin pre-approves transfer for that judge
@@ -208,15 +215,19 @@ The scoring UI renders **discrete tap buttons** for each criterion (not sliders)
 // module: "AUTH" | "JUDGE" | "SCORE" | "ADMIN" | "SHARE" | "DB" | "SYSTEM"
 ```
 
-### Judge validations (`judgeValidations` state — in-memory, not yet in Supabase)
+### Judge validations (`judgeValidations` state — Supabase `validations` table)
 ```js
 // Key: judgeId, Value:
 { approved: boolean, comment: string, validatedAt: timestamp }
+// Persisted: upsert to validations(judge_id, approved, comment, validated_at)
+// Loaded on init via loadValidations(); subscribed via app-realtime channel
+// judge_id = 'admin' stores the admin's own validation entry
 ```
 
-### Admin validation (`adminValidation` state — in-memory)
+### Admin validation (`adminValidation` state — Supabase `validations` table, judge_id = 'admin')
 ```js
 { approved: boolean, comment: string, validatedAt: timestamp } | null
+// Persisted same as judgeValidations — uses judge_id = 'admin'
 ```
 
 ### Deliberation notes (`deliberationNotes` state — Supabase `deliberation_notes` table)
@@ -248,7 +259,8 @@ Results are **auto-computed** by the system (`projAvg`, `rankedProjects`). No hu
 - Shown to a judge only after they complete all their assigned scoring.
 - The judge sees a read-only ranked list of their assigned projects with computed averages.
 - Two actions: **"Approve Results"** (sets `judgeValidations[judgeId].approved = true`) or **"Flag a Concern"** (opens an optional comment field, sets `approved = false`).
-- Judge can revise their validation until admin finalizes.
+- Judge can revise their validation until admin finalizes (revision deletes their row from `validations` table).
+- **Judges cannot re-score after validating** — the `proj-item` click handler is gated on `!judgeValidations[judge.id]`; cursor becomes `not-allowed` when validated.
 
 **2. Admin validates (Validation tab)**
 - Admin reviews the `judgeValidations` table — shows each completed judge's status (Approved / Concern / Pending).
@@ -265,7 +277,7 @@ Results are **auto-computed** by the system (`projAvg`, `rankedProjects`). No hu
 - Deliberation is **only triggered** when:
   - **Tie detected** — `hasTie()` detects two or more projects with the same avg score → amber alert with "Open Deliberation" button appears automatically.
   - **Admin manually opens it** — "Open Manually" button always available.
-- `deliberationOpen` (boolean) + `deliberationReason` (`"tie" | "manual" | null`) track state.
+- `deliberationOpen` (boolean) + `deliberationReason` (`"tie" | "manual" | null`) track state — persisted to `app_settings.deliberation_open`.
 - While open, admin can view judge notes per project and assign awards (`finalDecisions`).
 - Admin closes deliberation when done.
 - If **all reviewers reached consensus and no tie exists**, the admin can finalize without ever opening deliberation.
@@ -274,18 +286,36 @@ Results are **auto-computed** by the system (`projAvg`, `rankedProjects`). No hu
 - The "Finalize Results" button is enabled when:
   - `adminValidation?.approved === true` AND
   - `deliberationOpen === false`
-- Clicking it sets `resultsFinalized = true`.
+- Clicking it sets `resultsFinalized = true` and upserts `results_finalized: "true"` to `app_settings`.
 - This **unlocks the Share tab** — the "Generate Live Results Link" button is disabled until `resultsFinalized`.
+- `resultsFinalized` is loaded from `app_settings` on init — survives page refreshes.
 
 ### Key state variables for this workflow
 ```js
-judgeValidations   // { [judgeId]: { approved, comment, validatedAt } }
-adminValidation    // { approved, comment, validatedAt } | null
-resultsFinalized   // boolean — gates the Share tab
-deliberationOpen   // boolean
+judgeValidations   // { [judgeId]: { approved, comment, validatedAt } } — persisted to validations table
+adminValidation    // { approved, comment, validatedAt } | null — persisted as judge_id='admin'
+resultsFinalized   // boolean — gates the Share tab; persisted to app_settings.results_finalized
+deliberationOpen   // boolean — persisted to app_settings.deliberation_open
 deliberationReason // "tie" | "manual" | null
 valComment         // string — draft comment for validate/flag forms
 showValForm        // boolean — shows the comment textarea
+
+// Admin login protection
+adminLoginAttempts // number — failed login counter (in-memory)
+adminLockoutUntil  // number | null — timestamp when lockout expires (in-memory)
+
+// Transfer PIN modal
+showTransferPinModal // boolean — shows the custom transfer PIN entry modal
+transferPinAlias     // string — judge alias being transferred
+transferPin          // string — PIN draft input
+transferPinErr       // string — error message in transfer modal
+
+// Project deletion modal
+showDeleteConfirm  // boolean — shows the delete confirmation modal
+deleteProjectId    // string | null — project ID pending deletion
+
+// Activity log filter
+activityFilter     // string — keyword filter for the Activity Log tab
 
 // Deliberation draft state (judge-home)
 delibDraftComment  // string — comment textarea draft
@@ -463,9 +493,11 @@ consensusReached()          // Boolean — all completedJudges approved + admin 
 valProgress()               // { total, approved, flagged, pending } for completed judges
 submitJudgeValidation(bool) // Judge approves or flags results
 submitAdminValidation(bool) // Admin approves or flags results
-openDeliberation(reason)    // Opens deliberation ("tie" | "manual")
-closeDeliberation()         // Closes deliberation
-finalizeResults()           // Sets resultsFinalized=true, unlocks Share tab
+openDeliberation(reason)    // Opens deliberation ("tie" | "manual") — persists to app_settings
+closeDeliberation()         // Closes deliberation — persists to app_settings
+finalizeResults()           // Sets resultsFinalized=true, persists to app_settings, unlocks Share tab
+loadValidations()           // Load all rows from validations table into judgeValidations + adminValidation
+exportResultsCSV()          // Generate and download a CSV of ranked projects + awards (Share tab)
 
 // Deliberation helpers
 getDelibNotesForProject(pid) // Array of { judgeAlias, comment, recommendation, flagged }
@@ -489,7 +521,8 @@ addLog(msg)                 // Append to human activity log + Supabase activity_
 addItLog(level, module, event, detail, payload)  // Append structured IT log entry
 assignProjects(idx)         // Assign 4 project IDs to a judge based on their index (defined inside App(), uses dynamic projects state)
 flushOfflineQueue()         // Sync any locally-queued scores to Supabase
-allowJudgeTransfer(alias)   // Admin approves one-time judge transfer for 10 minutes (requires IT PIN)
+allowJudgeTransfer(alias)   // Admin approves one-time judge transfer for 10 minutes — uses custom PIN modal, not window.prompt
+confirmTransfer()           // Confirms the PIN in transfer modal and executes transfer
 buildDelibReport()          // Generate formatted deliberation summary string for copy
 buildSnapshot()             // Generate current system state snapshot string
 executeReset()              // Reset all data EXCEPT activity log and projects — requires VITE_IT_PIN
@@ -516,11 +549,10 @@ Supabase is **fully integrated and live**. Schema is applied at `supabase/schema
 | `activity_log` | Human-readable audit trail — never deleted |
 | `it_logs` | Structured diagnostic events |
 | `share_links` | Public results tokens with expiry + revoked_at |
-| `app_settings` | Key/value: `locked`, `deliberation_open`, `max_judges` (default 15), `judge_transfer_allowances` |
+| `app_settings` | Key/value: `locked`, `deliberation_open`, `max_judges` (default 15), `results_finalized`, `judge_transfer_allowances` |
 | `deliberation_notes` | Judge comments/recommendations per project (used during deliberation) |
 | `final_decisions` | Admin award decisions per project |
-
-> **Note:** `judgeValidations`, `adminValidation`, and `resultsFinalized` are currently **in-memory only** (not persisted to Supabase). If the admin refreshes the page, validation state resets. Persisting these is a planned improvement.
+| `validations` | Judge + admin validation entries — `judge_id` is judge UUID or `'admin'` |
 
 ### Realtime
 All tables are subscribed via a single `supabase.channel("app-realtime")` — changes propagate live across all open tabs/devices.
@@ -532,7 +564,7 @@ Row Level Security is enabled on all tables with open anon policies (public read
 
 ## 🚫 Critical Rules — Do NOT Break These
 
-1. **Never clear the activity log (`log` state) on reset.** Preserved for security purposes. `executeReset()` resets: judges, scores, locked, share*, deliberationNotes, finalDecisions, judgeValidations, adminValidation, resultsFinalized, deliberationOpen, maxJudges. It does NOT clear projects or the activity log.
+1. **Never clear the activity log (`log` state) on reset.** Preserved for security purposes. `executeReset()` resets: judges, scores, locked, share*, deliberationNotes, finalDecisions, validations table rows, resultsFinalized (`app_settings`), deliberationOpen, maxJudges. It does NOT clear projects or the activity log.
 2. **Judge names must never appear on the public results page.** The `view === "public-results"` page is visible without login — keep it score + project data only.
 3. **IT Logs tab, Reset modal, and Judge Transfer approval all use `VITE_IT_PIN`.** They share the same PIN but have separate flows/states.
 4. **All CSS is inline** in the `CSS` template literal. Do not create external `.css` files.
@@ -552,6 +584,10 @@ Row Level Security is enabled on all tables with open anon policies (public read
 14. **Removing a project must cascade-delete all related data.** When `removeProject(pid)` runs, it must delete: scores with that `project_id`, deliberation notes with that `project_id`, final decisions for that project, and remove the project ID from all judge assignment arrays. No orphaned records.
 15. **Projects are NOT cleared on reset.** Projects are configuration data, not session data. `executeReset()` clears judges, scores, deliberation data, share links, and settings (including max_judges) — but never the projects table.
 16. **`CATEGORIES` constant defines allowed project categories.** Use this array for category dropdowns: `["Biology","Physics","Computer Sci.","Chemistry","Earth Science","Engineering","Math","Environmental Sci."]`.
+17. **Never use `window.prompt` or `window.confirm`.** Both are blocked in PWA/standalone mode on iOS and Android. Use the custom modal pattern (`modal-overlay` / `modal-box`) instead. The judge transfer flow and project deletion flow both already use custom modals.
+18. **Judges cannot re-score after validating.** The `proj-item` click handler checks `!judgeValidations[judge.id]` — validated judges see projects as non-clickable (cursor: not-allowed). Do not remove this gate.
+19. **`submitDelibNote` is gated on `deliberationOpen`.** It returns early if deliberation is closed. Do not allow judges to submit deliberation notes outside an active deliberation session.
+20. **Leaderboard always separates scored vs unscored projects.** `rankedProjects()` returns all projects, but the Overview leaderboard renders scored (avg !== null) first, then a divider row, then unscored projects at 50% opacity. Do not mix them.
 
 ---
 
@@ -581,7 +617,7 @@ Call `addItLog(level, module, event, detail, payload)` anywhere in the code.
 - IT/Reset/Transfer PIN: set `VITE_IT_PIN` in `.env` / Vercel
 
 **Adding more judges (beyond 15):**
-Admin can now configure max judges via the UI on the Overview tab (before first judge registers). Set "Max Judges for This Event" to the desired number (e.g., 20, 30, 50). Internally, the `JUDGE_NAMES` constant still generates Judge1–Judge15, but `maxJudges` state controls the actual limit. If you need to support more than 15 distinct judge name slots, modify the `JUDGE_NAMES` constant: `Array.from({ length: 50 }, (_, i) => \`Judge${i + 1}\`)` for 50 judges. Then admin can set maxJudges to 50 via UI.
+Admin configures max judges via the UI on the Overview tab before judging begins. `JUDGE_NAMES` is now `Array.from({ length: 100 }, (_, i) => \`Judge${i + 1}\`)` — 100 slots pre-generated. `maxJudges` state (loaded from `app_settings`) is the actual enforced limit. Set it to any value up to 100 via the UI; no code changes needed.
 
 **Adding a new view/screen:**
 1. Add a new `if (view === "yourview") return (...)` block
@@ -608,5 +644,5 @@ Admin clicks the lock toggle → `toggleProjectLock(pid)` flips the `locked` boo
 **Changing project categories:**
 Edit the `CATEGORIES` constant array. This affects the category dropdown in the add/edit project form.
 
-**Persisting validation state to Supabase (not yet done):**
-Add a `validations` table: `(judge_id, approved, comment, validated_at)` and an `app_settings` row for `results_finalized`. Load in the Supabase loader section and subscribe in `app-realtime` channel.
+**Exporting results to CSV:**
+Call `exportResultsCSV()` from the Share tab (visible only when `resultsFinalized`). Generates a CSV with columns: Rank, Project #, Title, Category, Grade, Avg Score, Reviews, Award. Downloaded via `URL.createObjectURL`.

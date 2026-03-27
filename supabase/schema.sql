@@ -105,6 +105,15 @@ CREATE TABLE final_decisions (
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Judge and admin validation entries — one row per judge (plus 'admin')
+-- judge_id = 'admin' stores the admin's own validation
+CREATE TABLE validations (
+  judge_id     TEXT        PRIMARY KEY,  -- judge UUID or 'admin'
+  approved     BOOLEAN     NOT NULL,
+  comment      TEXT        NOT NULL DEFAULT '',
+  validated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Seed the locked setting
 INSERT INTO app_settings (key, value) VALUES ('locked', 'false');
 
@@ -113,6 +122,9 @@ INSERT INTO app_settings (key, value) VALUES ('deliberation_open', 'false');
 
 -- Seed the max_judges setting
 INSERT INTO app_settings (key, value) VALUES ('max_judges', '15');
+
+-- Seed the results_finalized setting
+INSERT INTO app_settings (key, value) VALUES ('results_finalized', 'false');
 
 
 -- -- ROW LEVEL SECURITY -----------------------------------------------
@@ -131,6 +143,7 @@ ALTER TABLE share_links ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deliberation_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE final_decisions    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE validations        ENABLE ROW LEVEL SECURITY;
 
 -- projects: public read, anon can manage (admin-only in practice)
 CREATE POLICY "projects_select" ON projects FOR SELECT USING (true);
@@ -181,6 +194,12 @@ CREATE POLICY "final_decisions_insert" ON final_decisions FOR INSERT WITH CHECK 
 CREATE POLICY "final_decisions_update" ON final_decisions FOR UPDATE USING (true);
 CREATE POLICY "final_decisions_delete" ON final_decisions FOR DELETE USING (true);
 
+-- validations: public read/write (judge + admin validation entries), delete for reset
+CREATE POLICY "validations_select" ON validations FOR SELECT USING (true);
+CREATE POLICY "validations_insert" ON validations FOR INSERT WITH CHECK (true);
+CREATE POLICY "validations_update" ON validations FOR UPDATE USING (true);
+CREATE POLICY "validations_delete" ON validations FOR DELETE USING (true);
+
 
 -- -- REALTIME ----------------------------------------------------------
 -- Enable realtime publication for live dashboard updates.
@@ -195,6 +214,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE share_links;
 ALTER PUBLICATION supabase_realtime ADD TABLE app_settings;
 ALTER PUBLICATION supabase_realtime ADD TABLE deliberation_notes;
 ALTER PUBLICATION supabase_realtime ADD TABLE final_decisions;
+ALTER PUBLICATION supabase_realtime ADD TABLE validations;
 
 
 -- -- INDEXES -----------------------------------------------------------
@@ -206,6 +226,24 @@ CREATE INDEX share_links_token_idx  ON share_links (token) WHERE revoked_at IS N
 CREATE INDEX delib_notes_judge_idx  ON deliberation_notes (judge_id);
 CREATE INDEX delib_notes_proj_idx   ON deliberation_notes (project_id);
 CREATE INDEX final_dec_proj_idx     ON final_decisions (project_id);
+
+
+-- -- MIGRATION: add validations table + results_finalized setting (run once on live DB) --
+-- Run this block if you applied the original schema before the validations table was added.
+--
+-- CREATE TABLE IF NOT EXISTS validations (
+--   judge_id     TEXT        PRIMARY KEY,
+--   approved     BOOLEAN     NOT NULL,
+--   comment      TEXT        NOT NULL DEFAULT '',
+--   validated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+-- );
+-- ALTER TABLE validations ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY "validations_select" ON validations FOR SELECT USING (true);
+-- CREATE POLICY "validations_insert" ON validations FOR INSERT WITH CHECK (true);
+-- CREATE POLICY "validations_update" ON validations FOR UPDATE USING (true);
+-- CREATE POLICY "validations_delete" ON validations FOR DELETE USING (true);
+-- ALTER PUBLICATION supabase_realtime ADD TABLE validations;
+-- INSERT INTO app_settings (key, value) VALUES ('results_finalized', 'false') ON CONFLICT (key) DO NOTHING;
 
 
 -- -- MIGRATION: old rubric → new rubric (run once on live DB) --------

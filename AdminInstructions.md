@@ -70,7 +70,7 @@ This guide covers everything an event organizer needs to know to run the digital
 
 ### 3. Prepare Judge Credentials
 
-- **Judge names:** Judge1 through Judge15 (or up to however many you set as max)
+- **Judge names:** Judge1 through Judge[N] — where N is the Max Judges value you configured on the Overview tab
 - **Invite code:** provided at deployment — check your `VITE_INVITE_CODE` environment variable or ask your technical administrator
 - **Share this with judges** before the event so they know what to expect
 

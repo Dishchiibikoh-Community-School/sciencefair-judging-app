@@ -9,7 +9,7 @@ This guide will walk you through how to use the app to score science fair projec
 ## 📋 Before You Start
 
 **You'll need:**
-- Your judge name: **Judge1** through **Judge15** (assigned by organizers)
+- Your judge name: **Judge1** through **Judge[N]** — the exact range is set by your event organizer (e.g., Judge1–Judge12 for 12 judges)
 - Invite code: **provided by your event organizer** (ask them before the event starts)
 - A tablet, phone, or laptop with internet access
 - About 30–45 minutes to score all projects
@@ -25,7 +25,7 @@ This guide will walk you through how to use the app to score science fair projec
 5. **Click "Register"**
 
 If you see an error:
-- ❌ **"Invalid judge name"** → Check that you're using the correct format (Judge1–Judge15)
+- ❌ **"Invalid judge name"** → Check that you're using the correct format (Judge1–Judge[N], where N is the max set by your organizer)
 - ❌ **"Already signed in"** → Ask the admin to approve **device transfer** in the Judges tab, then try again on the new device.
 - ❌ **"Invalid invite code"** → Double-check the code with organizers
 - ❌ **"Max judges reached"** → All judge slots are full. Contact organizers.

@@ -7,10 +7,8 @@ import { supabase } from "./supabaseClient";
 const INVITE_CODE  = import.meta.env.VITE_INVITE_CODE;
 const ADMIN_PASS   = import.meta.env.VITE_ADMIN_PASS;
 const IT_PIN       = import.meta.env.VITE_IT_PIN;
-const JUDGE_NAMES  = Array.from({ length: 15 }, (_, i) => `Judge${i + 1}`);
+const JUDGE_NAMES  = Array.from({ length: 100 }, (_, i) => `Judge${i + 1}`);
 
-const ADJ  = ["Swift","Bright","Noble","Keen","Bold","Wise","Sharp","Calm","Steady","Vivid","Clever","Agile"];
-const ANIM = ["Falcon","Owl","Dolphin","Eagle","Lynx","Fox","Hawk","Puma","Raven","Crane","Ibis","Orca"];
 
 const RUBRIC = [
   { id:"presentation", label:"Presentation",          desc:"Display Board and Project Data Book: Elements are aesthetically pleasing, organized, and creative. Is the information easy to understand?",                                                                                      max:6, steps:[0,2,4,6] },
@@ -44,9 +42,6 @@ const AWARD_OPTIONS   = ["1st Place","2nd Place","3rd Place","Honorable Mention"
 
 const CATEGORIES = ["Biology","Physics","Computer Sci.","Chemistry","Earth Science","Engineering","Math","Environmental Sci."];
 
-function genAlias(seed) {
-  return `${ADJ[seed % ADJ.length]} ${ANIM[Math.floor(seed / ADJ.length) % ANIM.length]}`;
-}
 function uid()      { return Math.random().toString(36).slice(2, 10); }
 function genToken() { return Array.from({length:4}, () => Math.random().toString(36).slice(2,6).toUpperCase()).join("-"); }
 function fmt(ts)    { return new Date(ts).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }); }
@@ -915,8 +910,10 @@ export default function App() {
   const [regName,    setRegName]     = useState("");
   const [regCode,    setRegCode]     = useState("");
   const [regErr,     setRegErr]      = useState("");
-  const [adminPass,  setAdminPass]   = useState("");
-  const [adminErr,   setAdminErr]    = useState("");
+  const [adminPass,         setAdminPass]         = useState("");
+  const [adminErr,          setAdminErr]          = useState("");
+  const [adminLoginAttempts, setAdminLoginAttempts] = useState(0);
+  const [adminLockoutUntil,  setAdminLockoutUntil]  = useState(null);
   const [maxJudgesErr, setMaxJudgesErr] = useState("");
   const [maxJudgesDraft, setMaxJudgesDraft] = useState("15");
   const [adminTab,   setAdminTab]    = useState("overview");
@@ -931,6 +928,7 @@ export default function App() {
   const [copied,          setCopied]          = useState(false);
 
   // IT logs state
+  const [activityFilter, setActivityFilter] = useState("");
   const [itLogs,       setItLogs]       = useState([]);
   const [itFilter,     setItFilter]     = useState("ALL");
   const [itExpanded,   setItExpanded]   = useState({});
@@ -964,10 +962,18 @@ export default function App() {
   const [showValForm,        setShowValForm]         = useState(false);
   const [transferAllowances, setTransferAllowances]  = useState({}); // { [alias]: expiryTs }
 
+  // Transfer PIN modal state
+  const [showTransferPinModal,  setShowTransferPinModal]  = useState(false);
+  const [transferPinAlias,      setTransferPinAlias]      = useState("");
+  const [transferPin,           setTransferPin]           = useState("");
+  const [transferPinErr,        setTransferPinErr]        = useState("");
+
   // Project management state
   const [showAddProject,     setShowAddProject]      = useState(false);
   const [editingProject,     setEditingProject]      = useState(null); // project id being edited
   const [projForm,           setProjForm]            = useState({ title:"", cat:"Biology", grade:"", num:"" });
+  const [showDeleteConfirm,  setShowDeleteConfirm]   = useState(false);
+  const [deleteProjectId,    setDeleteProjectId]     = useState(null);
 
   const EXPIRY_MS = { "1h":3600000, "24h":86400000, "7d":604800000, "never":Infinity };
   const EXPIRY_OPTS = [{ val:"1h",label:"1 Hour" },{ val:"24h",label:"24 Hours" },{ val:"7d",label:"7 Days" },{ val:"never",label:"Never" }];
@@ -1015,6 +1021,7 @@ export default function App() {
       const map = Object.fromEntries(data.map(r => [r.key, r.value]));
       setLocked(map.locked === "true");
       setDeliberationOpen(map.deliberation_open === "true");
+      setResultsFinalized(map.results_finalized === "true");
       const loadedMax = map.max_judges ? parseInt(map.max_judges) : 15;
       setMaxJudges(loadedMax);
       setMaxJudgesDraft(String(loadedMax));
@@ -1033,23 +1040,42 @@ export default function App() {
     await supabase.from("app_settings").upsert({ key: "judge_transfer_allowances", value: JSON.stringify(next) });
   }
 
-  async function allowJudgeTransfer(alias) {
-    const pin = window.prompt(`Enter IT PIN to approve transfer for ${alias}:`) || "";
-    if (!pin.trim()) {
-      addItLog("WARN","AUTH","JUDGE_TRANSFER_PIN_EMPTY","Transfer approval cancelled due to empty PIN",{ alias, timestamp: fmtISO(Date.now()) });
-      return;
-    }
-    if (pin.trim() !== IT_PIN) {
-      addItLog("WARN","AUTH","JUDGE_TRANSFER_PIN_FAILED","Transfer approval denied due to incorrect PIN",{ alias, timestamp: fmtISO(Date.now()) });
-      window.alert("Incorrect PIN. Transfer approval denied.");
-      return;
-    }
+  function allowJudgeTransfer(alias) {
+    setTransferPinAlias(alias);
+    setTransferPin("");
+    setTransferPinErr("");
+    setShowTransferPinModal(true);
+  }
 
-    const expiry = Date.now() + 10 * 60 * 1000; // 10 minutes
-    const next = { ...transferAllowances, [alias]: expiry };
+  async function confirmTransfer() {
+    if (transferPin !== IT_PIN) {
+      setTransferPinErr("Incorrect PIN. Transfer approval denied.");
+      addItLog("WARN","AUTH","JUDGE_TRANSFER_PIN_FAILED","Transfer approval denied due to incorrect PIN",{ alias: transferPinAlias, timestamp: fmtISO(Date.now()) });
+      setTimeout(() => setTransferPin(""), 600);
+      return;
+    }
+    const expiry = Date.now() + 10 * 60 * 1000;
+    const next = { ...transferAllowances, [transferPinAlias]: expiry };
     await saveTransferAllowances(next);
-    addLog(`Admin approved device transfer for ${alias} (expires in 10 minutes)`);
-    addItLog("WARN","ADMIN","JUDGE_TRANSFER_APPROVED","Admin approved judge device transfer",{ alias, expiresAt: fmtISO(expiry) });
+    addLog(`Admin approved device transfer for ${transferPinAlias} (expires in 10 minutes)`);
+    addItLog("WARN","ADMIN","JUDGE_TRANSFER_APPROVED","Admin approved judge device transfer",{ alias: transferPinAlias, expiresAt: fmtISO(expiry) });
+    setShowTransferPinModal(false);
+    setTransferPin("");
+    setTransferPinErr("");
+  }
+  async function loadValidations() {
+    const { data } = await supabase.from("validations").select("*");
+    if (data) {
+      const jv = {};
+      let av = null;
+      data.forEach(row => {
+        const entry = { approved: row.approved, comment: row.comment, validatedAt: new Date(row.validated_at).getTime() };
+        if (row.judge_id === "admin") av = entry;
+        else jv[row.judge_id] = entry;
+      });
+      setJudgeValidations(jv);
+      if (av) setAdminValidation(av);
+    }
   }
   async function loadDelibNotes() {
     const { data } = await supabase.from("deliberation_notes").select("*");
@@ -1064,7 +1090,7 @@ export default function App() {
   useEffect(() => {
     async function init() {
       const timeout = setTimeout(() => setLoading(false), 8000);
-      await Promise.all([loadProjects(), loadJudges(), loadScores(), loadLog(), loadItLogs(), loadShare(), loadSettings(), loadDelibNotes(), loadFinalDecisions()]);
+      await Promise.all([loadProjects(), loadJudges(), loadScores(), loadLog(), loadItLogs(), loadShare(), loadSettings(), loadDelibNotes(), loadFinalDecisions(), loadValidations()]);
       clearTimeout(timeout);
       setLoading(false);
     }
@@ -1080,6 +1106,7 @@ export default function App() {
       .on("postgres_changes", { event: "*", schema: "public", table: "app_settings" }, loadSettings)
       .on("postgres_changes", { event: "*", schema: "public", table: "deliberation_notes" }, loadDelibNotes)
       .on("postgres_changes", { event: "*", schema: "public", table: "final_decisions" }, loadFinalDecisions)
+      .on("postgres_changes", { event: "*", schema: "public", table: "validations" },     loadValidations)
       .subscribe();
 
     return () => supabase.removeChannel(channel);
@@ -1234,6 +1261,30 @@ export default function App() {
     setCopied(true); setTimeout(() => setCopied(false), 2000);
   }
 
+  function exportResultsCSV() {
+    const ranked = rankedProjects();
+    const rows = [
+      ["Rank","Project #","Title","Category","Grade","Avg Score","Reviews","Award"],
+      ...ranked.map((p, i) => {
+        const decision = finalDecisions[p.id];
+        return [
+          i + 1, p.num,
+          `"${(p.title || "").replace(/"/g, '""')}"`,
+          p.cat, p.grade,
+          p.avg ?? "",
+          p.revs,
+          decision?.finalized ? decision.award : "Pending"
+        ];
+      })
+    ];
+    const csv = rows.map(r => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "science-fair-results.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
   // Helpers — optimistic local update + fire-and-forget DB write.
   // Realtime subscriptions handle cross-client sync.
   function addLog(msg) {
@@ -1332,6 +1383,8 @@ export default function App() {
       supabase.from("app_settings").update({ value: "false" }).eq("key", "deliberation_open"),
       supabase.from("app_settings").update({ value: "15" }).eq("key", "max_judges"),
       supabase.from("app_settings").upsert({ key: "judge_transfer_allowances", value: "{}" }),
+      supabase.from("app_settings").upsert({ key: "results_finalized", value: "false" }),
+      supabase.from("validations").delete().not("judge_id", "is", null),
     ]);
     setJudges([]);
     setScores({});
@@ -1509,7 +1562,7 @@ export default function App() {
       const breakdown = getRecBreakdown(p.id);
       const flags = getFlagCount(p.id);
       lines.push(`#${i+1} — ${p.title} (${p.cat}, Grade ${p.grade})`);
-      lines.push(`  Avg Score: ${p.avg ?? "N/A"} / 100  |  Reviews: ${p.revs}`);
+      lines.push(`  Avg Score: ${p.avg ?? "N/A"} / 42  |  Reviews: ${p.revs}`);
       lines.push(`  Award Decision: ${decision?.award || "Pending"}${decision?.finalized ? " [FINALIZED]" : ""}`);
       if (decision?.adminNotes) lines.push(`  Admin Notes: ${decision.adminNotes}`);
       lines.push(`  Recommendations: ${RECOMMENDATIONS.map(r => `${r}: ${breakdown[r]}`).join(", ")}`);
@@ -1531,7 +1584,8 @@ export default function App() {
   async function handleRegister() {
     const name = regName.trim();
     if (!JUDGE_NAMES.includes(name)) {
-      setRegErr("Invalid judge name. Use Judge1 – Judge15.");
+      setRegErr(`Invalid judge name. Use Judge1 – Judge${maxJudges}.`);
+      addItLog("WARN","AUTH","INVALID_JUDGE_NAME","Failed registration attempt with invalid judge name",{ attemptedName: name, maxJudges, timestamp: fmtISO(Date.now()) });
       return;
     }
     if (regCode.trim().toUpperCase() !== INVITE_CODE) {
@@ -1583,12 +1637,28 @@ export default function App() {
   }
 
   function handleAdminLogin() {
+    if (adminLockoutUntil && Date.now() < adminLockoutUntil) {
+      const secs = Math.ceil((adminLockoutUntil - Date.now()) / 1000);
+      setAdminErr(`Too many failed attempts. Try again in ${secs}s.`);
+      return;
+    }
     if (adminPass === ADMIN_PASS) {
+      setAdminLoginAttempts(0);
+      setAdminLockoutUntil(null);
       addItLog("INFO","AUTH","ADMIN_LOGIN_SUCCESS","Admin authenticated successfully",{ sessionToken:"adm_***masked***" });
       setView("admin-home"); setAdminPass(""); setAdminErr("");
     } else {
-      addItLog("WARN","AUTH","ADMIN_LOGIN_FAILED","Admin login attempted with incorrect password",{ attempt: 1 });
-      setAdminErr("Incorrect password.");
+      const next = adminLoginAttempts + 1;
+      setAdminLoginAttempts(next);
+      addItLog("WARN","AUTH","ADMIN_LOGIN_FAILED","Admin login attempted with incorrect password",{ attempt: next });
+      if (next >= 5) {
+        const until = Date.now() + 30000;
+        setAdminLockoutUntil(until);
+        setAdminLoginAttempts(0);
+        setAdminErr("Too many failed attempts. Locked for 30 seconds.");
+      } else {
+        setAdminErr(`Incorrect password. ${5 - next} attempt${5 - next !== 1 ? "s" : ""} remaining.`);
+      }
     }
   }
 
@@ -1632,6 +1702,7 @@ export default function App() {
   }
 
   async function submitDelibNote(pid) {
+    if (!deliberationOpen) return;
     const key = `${judge.id}_${pid}`;
     const entry = { comment: delibDraftComment, recommendation: delibDraftRec, flagged: delibDraftFlagged, submittedAt: Date.now() };
     setDeliberationNotes(p => ({ ...p, [key]: entry }));
@@ -1649,6 +1720,7 @@ export default function App() {
   async function openDeliberation(reason) {
     setDeliberationOpen(true);
     setDeliberationReason(reason);
+    await supabase.from("app_settings").upsert({ key: "deliberation_open", value: "true" });
     const msg = reason === "tie" ? "Deliberation triggered due to tied scores" : "Admin manually opened deliberation";
     addLog(msg);
     addItLog("INFO","ADMIN","DELIBERATION_OPENED", msg, { reason, timestamp:fmtISO(Date.now()) });
@@ -1656,12 +1728,14 @@ export default function App() {
   async function closeDeliberation() {
     setDeliberationOpen(false);
     setDeliberationReason(null);
+    await supabase.from("app_settings").upsert({ key: "deliberation_open", value: "false" });
     addLog("Admin closed deliberation phase");
     addItLog("INFO","ADMIN","DELIBERATION_CLOSED","Admin closed deliberation phase",{ timestamp:fmtISO(Date.now()) });
   }
   async function submitJudgeValidation(approved) {
     const entry = { approved, comment: valComment, validatedAt: Date.now() };
     setJudgeValidations(p => ({ ...p, [judge.id]: entry }));
+    await supabase.from("validations").upsert({ judge_id: judge.id, approved, comment: valComment }, { onConflict: "judge_id" });
     addLog(`${judge.alias} ${approved ? "validated" : "raised a concern about"} the computed results`);
     addItLog(approved?"INFO":"WARN","JUDGE", approved?"RESULTS_VALIDATED":"RESULTS_CONCERN",
       approved ? "Judge validated computed results" : "Judge raised concern about results",
@@ -1671,6 +1745,7 @@ export default function App() {
   async function submitAdminValidation(approved) {
     const entry = { approved, comment: valComment, validatedAt: Date.now() };
     setAdminValidation(entry);
+    await supabase.from("validations").upsert({ judge_id: "admin", approved, comment: valComment }, { onConflict: "judge_id" });
     addLog(`Admin ${approved ? "validated" : "flagged concerns with"} the computed results`);
     addItLog(approved?"INFO":"WARN","ADMIN", approved?"ADMIN_RESULTS_VALIDATED":"ADMIN_RESULTS_CONCERN",
       approved ? "Admin validated computed results" : "Admin flagged concerns with results",
@@ -1680,6 +1755,7 @@ export default function App() {
   async function finalizeResults() {
     setResultsFinalized(true);
     if (deliberationOpen) { setDeliberationOpen(false); setDeliberationReason(null); }
+    await supabase.from("app_settings").upsert({ key: "results_finalized", value: "true" });
     addLog("Admin finalized results — public sharing now available");
     addItLog("INFO","ADMIN","RESULTS_FINALIZED","Admin finalized results for public sharing",{ timestamp:fmtISO(Date.now()) });
   }
@@ -1863,7 +1939,7 @@ export default function App() {
           </div>
           <button className="btn" onClick={handleRegister}>Enter as Judge →</button>
           <p style={{ textAlign:"center", fontSize:".72rem", color:"var(--dim)", marginTop:".9rem" }}>
-            🔒 Judge names are Judge1 – Judge15. Get your invite code from the administrator.
+            🔒 Judge names are Judge1 – Judge{maxJudges}. Get your invite code from the administrator.
           </p>
         </div>
       </div></div>
@@ -1914,8 +1990,8 @@ export default function App() {
               const ex = scores[`${judge.id}_${proj.id}`];
               return (
                 <div key={proj.id} className="proj-item"
-                  onClick={() => !locked && startScoring(proj.id)}
-                  style={{ cursor:locked?"not-allowed":"pointer", opacity:scored?.75:1 }}>
+                  onClick={() => !locked && !judgeValidations[judge.id] && startScoring(proj.id)}
+                  style={{ cursor: locked || judgeValidations[judge.id] ? "not-allowed" : "pointer", opacity:scored?.75:1 }}>
                   <div className="proj-num">#{proj.num}</div>
                   <div className="proj-info">
                     <div className="proj-title">{proj.title}</div>
@@ -1949,6 +2025,7 @@ export default function App() {
                 {myVal.comment && <div style={{fontSize:".82rem",color:"var(--dim)",marginTop:".5rem"}}>Your note: "{myVal.comment}"</div>}
                 <button className="btn sec sm" style={{marginTop:"1rem",width:"auto"}} onClick={() => {
                   setJudgeValidations(p => { const n={...p}; delete n[judge.id]; return n; });
+                  supabase.from("validations").delete().eq("judge_id", judge.id);
                   setShowValForm(false); setValComment("");
                 }}>Revise my validation</button>
               </div>
@@ -2097,7 +2174,10 @@ export default function App() {
               onKeyDown={e => e.key==="Enter" && handleAdminLogin()} />
             {adminErr && <div className="err">⚠ {adminErr}</div>}
           </div>
-          <button className="btn" onClick={handleAdminLogin}>Access Dashboard →</button>
+          <button className="btn" onClick={handleAdminLogin}
+            disabled={!!(adminLockoutUntil && Date.now() < adminLockoutUntil)}>
+            Access Dashboard →
+          </button>
         </div>
       </div></div>
     </div>
@@ -2219,6 +2299,70 @@ export default function App() {
             </div>
           )}
 
+          {/* ── TRANSFER PIN MODAL ── */}
+          {showTransferPinModal && (
+            <div className="modal-overlay" onClick={e => { if(e.target===e.currentTarget){ setShowTransferPinModal(false); setTransferPin(""); setTransferPinErr(""); }}}>
+              <div className="modal-box">
+                <div className="ico">🔐</div>
+                <h2>Approve Device Transfer</h2>
+                <p>Enter the IT PIN to approve a one-time device transfer for <strong>{transferPinAlias}</strong>.</p>
+                <p style={{fontSize:".8rem",color:"var(--dim)",marginTop:".4rem"}}>Approval expires in 10 minutes.</p>
+                <div className="modal-pin-label" style={{marginTop:"1.25rem"}}>IT PIN</div>
+                <div className="modal-pin-dots">
+                  {[0,1,2,3].map(i => (
+                    <div key={i} className={`modal-pin-dot ${transferPin.length > i ? "filled" : ""}`} />
+                  ))}
+                </div>
+                <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:".25rem"}}>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    placeholder="••••"
+                    value={transferPin}
+                    autoFocus
+                    style={{
+                      width:"160px", textAlign:"center", letterSpacing:".5em",
+                      fontFamily:"var(--ff-m)", fontSize:"1.3rem",
+                      background:"var(--bg)", border:`1.5px solid ${transferPinErr?"var(--red)":"var(--bd)"}`,
+                      borderRadius:"8px", padding:".8rem 1rem", color:"var(--text)", outline:"none"
+                    }}
+                    onChange={e => {
+                      const val = e.target.value.replace(/\D/g,"").slice(0,4);
+                      setTransferPin(val);
+                      setTransferPinErr("");
+                      if (val.length === 4) confirmTransfer();
+                    }}
+                  />
+                  {transferPinErr && <div style={{color:"var(--red)",fontSize:".8rem",marginTop:".25rem"}}>{transferPinErr}</div>}
+                </div>
+                <div className="modal-btn-row">
+                  <button className="btn sec" onClick={() => { setShowTransferPinModal(false); setTransferPin(""); setTransferPinErr(""); }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── DELETE PROJECT MODAL ── */}
+          {showDeleteConfirm && deleteProjectId && (() => {
+            const proj = projects.find(p => p.id === deleteProjectId);
+            return (
+              <div className="modal-overlay" onClick={e => { if(e.target===e.currentTarget){ setShowDeleteConfirm(false); setDeleteProjectId(null); }}}>
+                <div className="modal-box">
+                  <div className="ico">🗑️</div>
+                  <h2>Remove Project?</h2>
+                  <p>Remove <strong>"{proj?.title}"</strong> and all its scores, deliberation notes, and decisions?</p>
+                  <p style={{color:"var(--red)",fontSize:".85rem",marginTop:".5rem"}}>This cannot be undone.</p>
+                  <div className="modal-btn-row" style={{marginTop:"1.5rem"}}>
+                    <button className="btn sec" onClick={() => { setShowDeleteConfirm(false); setDeleteProjectId(null); }}>Cancel</button>
+                    <button className="btn danger sm" style={{width:"auto"}} onClick={() => { removeProject(deleteProjectId); setShowDeleteConfirm(false); setDeleteProjectId(null); }}>Remove</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           <div className="adm-main">
 
             {/* OVERVIEW */}
@@ -2284,20 +2428,39 @@ export default function App() {
               <div className="card">
                 <div className="sec-title">Project Leaderboard</div>
                 <div className="tbl-wrap">
-                  <table>
-                    <thead><tr><th>#</th><th>Project</th><th>Category</th><th>Avg</th><th>Reviews</th></tr></thead>
-                    <tbody>
-                      {rankedProjects().map((p,i) => (
-                        <tr key={p.id}>
-                          <td style={{fontFamily:"var(--ff-m)",color:"var(--dim)"}}>{i+1}</td>
-                          <td style={{maxWidth:"200px"}}>{p.title}</td>
-                          <td><span className="badge bb">{p.cat}</span></td>
-                          <td style={{fontFamily:"var(--ff-m)",color:p.avg?"var(--navy)":"var(--dim)"}}>{p.avg??("—")}</td>
-                          <td>{p.revs}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  {(() => {
+                    const all = rankedProjects();
+                    const scored = all.filter(p => p.avg !== null);
+                    const unscored = all.filter(p => p.avg === null);
+                    return (
+                      <table>
+                        <thead><tr><th>#</th><th>Project</th><th>Category</th><th>Avg</th><th>Reviews</th></tr></thead>
+                        <tbody>
+                          {scored.map((p,i) => (
+                            <tr key={p.id}>
+                              <td style={{fontFamily:"var(--ff-m)",color:"var(--dim)"}}>{i+1}</td>
+                              <td style={{maxWidth:"200px"}}>{p.title}</td>
+                              <td><span className="badge bb">{p.cat}</span></td>
+                              <td style={{fontFamily:"var(--ff-m)",color:"var(--navy)"}}>{p.avg}</td>
+                              <td>{p.revs}</td>
+                            </tr>
+                          ))}
+                          {unscored.length > 0 && (
+                            <tr><td colSpan={5} style={{textAlign:"center",fontSize:".75rem",color:"var(--dim)",padding:".4rem .75rem",background:"var(--s1)",fontFamily:"var(--ff-m)",letterSpacing:".05em"}}>NOT YET SCORED</td></tr>
+                          )}
+                          {unscored.map(p => (
+                            <tr key={p.id} style={{opacity:.5}}>
+                              <td style={{fontFamily:"var(--ff-m)",color:"var(--dim)"}}>—</td>
+                              <td style={{maxWidth:"200px"}}>{p.title}</td>
+                              <td><span className="badge bb">{p.cat}</span></td>
+                              <td style={{fontFamily:"var(--ff-m)",color:"var(--dim)"}}>—</td>
+                              <td>{p.revs}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    );
+                  })()}
                 </div>
               </div>
             </>}
@@ -2447,10 +2610,7 @@ export default function App() {
                                 ✏️ Edit
                               </button>
                               <button className="proj-act-btn del"
-                                onClick={() => {
-                                  if (window.confirm(`Remove "${p.title}" and all its scores, deliberation notes, and decisions? This cannot be undone.`))
-                                    removeProject(p.id);
-                                }}
+                                onClick={() => { setDeleteProjectId(p.id); setShowDeleteConfirm(true); }}
                                 title="Remove project">
                                 🗑 Remove
                               </button>
@@ -2495,13 +2655,23 @@ export default function App() {
             {adminTab==="activity" && <>
               <div className="adm-h1">Activity Log</div>
               <div className="adm-sub">Timestamped record of all actions</div>
+              <div style={{marginBottom:".75rem"}}>
+                <input type="text" placeholder="Filter by keyword…" value={activityFilter}
+                  onChange={e => setActivityFilter(e.target.value)}
+                  style={{width:"100%",padding:".6rem 1rem",border:"1.5px solid var(--bd)",borderRadius:"8px",fontFamily:"var(--ff-b)",fontSize:".9rem",outline:"none"}} />
+              </div>
               <div className="card">
-                {log.map((e,i) => (
-                  <div className="log-row" key={i}>
-                    <div className="log-t">{fmt(e.time)}</div>
-                    <div>{e.msg}</div>
-                  </div>
-                ))}
+                {log
+                  .filter(e => !activityFilter || e.msg.toLowerCase().includes(activityFilter.toLowerCase()))
+                  .map((e,i) => (
+                    <div className="log-row" key={i}>
+                      <div className="log-t">{fmtFull(e.time)}</div>
+                      <div>{e.msg}</div>
+                    </div>
+                  ))}
+                {log.filter(e => !activityFilter || e.msg.toLowerCase().includes(activityFilter.toLowerCase())).length === 0 && (
+                  <div style={{color:"var(--dim)",textAlign:"center",padding:"1rem",fontSize:".88rem"}}>No matching entries.</div>
+                )}
               </div>
             </>}
 
@@ -2519,7 +2689,7 @@ export default function App() {
                       <div className="alert-ico">⚠️</div>
                       <div className="alert-msg">
                         <strong>Score Outlier — Review Recommended</strong>
-                        <span><strong>{a.judge}</strong> scored <strong>{a.score}/100</strong> — group avg is <strong>{a.avg}</strong>. Deviation &gt; 20 pts.</span>
+                        <span><strong>{a.judge}</strong> scored <strong>{a.score}/42</strong> — group avg is <strong>{a.avg}</strong>. Deviation &gt; 8 pts.</span>
                       </div>
                     </div>
                   ))
@@ -2551,7 +2721,7 @@ export default function App() {
                       <div style={{fontWeight:700,fontSize:".95rem"}}>Results are finalized</div>
                       <div style={{fontSize:".78rem",opacity:.8}}>Public sharing is now available from the Share tab.</div>
                     </div>
-                    <button className="btn danger sm" style={{width:"auto",marginLeft:"auto"}} onClick={() => { setResultsFinalized(false); addLog("Admin reopened results for revision"); }}>Reopen</button>
+                    <button className="btn danger sm" style={{width:"auto",marginLeft:"auto"}} onClick={async () => { setResultsFinalized(false); await supabase.from("app_settings").upsert({ key: "results_finalized", value: "false" }); addLog("Admin reopened results for revision"); }}>Reopen</button>
                   </div>
                 )}
 
@@ -2822,6 +2992,15 @@ export default function App() {
                   </p>
                 )}
               </div>
+
+              {/* CSV Export */}
+              {resultsFinalized && (
+                <div className="card" style={{background:"var(--s1)"}}>
+                  <div style={{fontFamily:"var(--ff-d)",fontSize:"1rem",marginBottom:".5rem"}}>📥 Export Results</div>
+                  <p style={{fontSize:".85rem",color:"var(--dim)",marginBottom:".75rem"}}>Download a CSV of ranked projects with awards — for school records or regional fair submission.</p>
+                  <button className="btn sec sm" style={{width:"auto"}} onClick={exportResultsCSV}>⬇ Download Results CSV</button>
+                </div>
+              )}
 
               {/* Security notes */}
               <div className="card sec-notes" style={{background:"var(--s1)"}}>
