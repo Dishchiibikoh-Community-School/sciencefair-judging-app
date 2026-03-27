@@ -682,7 +682,7 @@ function AnimatedBackdrop() {
       canvas.style.height = `${height}px`;
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
 
-      const count = Math.min(72, Math.max(28, Math.floor((width * height) / 26000)));
+      const count = Math.min(36, Math.max(14, Math.floor((width * height) / 52000)));
       atoms = Array.from({ length: count }, (_, index) => ({
         kind: index % 6 === 0 ? "atom" : "molecule",
         x: Math.random() * width,
@@ -799,8 +799,12 @@ function AnimatedBackdrop() {
       });
     }
 
-    function draw() {
-      const time = performance.now();
+    let lastFrame = 0;
+    function draw(timestamp) {
+      frameId = window.requestAnimationFrame(draw);
+      if (timestamp - lastFrame < 33) return; // ~30fps cap
+      lastFrame = timestamp;
+      const time = timestamp;
       context.clearRect(0, 0, width, height);
 
       for (let index = 0; index < atoms.length; index += 1) {
@@ -838,7 +842,6 @@ function AnimatedBackdrop() {
         else drawMoleculeNode(atom);
       }
 
-      frameId = window.requestAnimationFrame(draw);
     }
 
     function handlePointerMove(event) {
@@ -1098,16 +1101,52 @@ export default function App() {
     init();
 
     const channel = supabase.channel("app-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "projects" },      loadProjects)
-      .on("postgres_changes", { event: "*", schema: "public", table: "judges" },       loadJudges)
-      .on("postgres_changes", { event: "*", schema: "public", table: "scores" },       loadScores)
-      .on("postgres_changes", { event: "*", schema: "public", table: "activity_log" }, loadLog)
-      .on("postgres_changes", { event: "*", schema: "public", table: "it_logs" },      loadItLogs)
+      .on("postgres_changes", { event: "*", schema: "public", table: "projects" }, loadProjects)
+      .on("postgres_changes", { event: "*", schema: "public", table: "judges" }, ({ eventType, new: row }) => {
+        if (eventType === "INSERT") setJudges(prev => [...prev, dbToJudge(row)].sort((a,b) => a.joinedAt - b.joinedAt));
+        else if (eventType === "UPDATE") setJudges(prev => prev.map(j => j.id === row.id ? dbToJudge(row) : j));
+        else loadJudges(); // DELETE (reset)
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "scores" }, ({ eventType, new: row }) => {
+        if (eventType === "INSERT" || eventType === "UPDATE") {
+          const key = `${row.judge_id}_${row.project_id}`;
+          setScores(prev => ({ ...prev, [key]: { presentation:row.presentation, testable_q:row.testable_q, background:row.background, hypothesis:row.hypothesis, variables:row.variables, materials:row.materials, data:row.data, analysis:row.analysis, conclusion:row.conclusion, abstract:row.abstract, notes:row.notes||"", time:new Date(row.submitted_at).getTime() } }));
+        } else {
+          loadScores(); // DELETE (reset or project removal)
+        }
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "activity_log" }, ({ new: row }) => {
+        setLog(prev => [dbToLog(row), ...prev]);
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "it_logs" }, ({ new: row }) => {
+        setItLogs(prev => [dbToItLog(row), ...prev]);
+      })
       .on("postgres_changes", { event: "*", schema: "public", table: "share_links" },  loadShare)
       .on("postgres_changes", { event: "*", schema: "public", table: "app_settings" }, loadSettings)
-      .on("postgres_changes", { event: "*", schema: "public", table: "deliberation_notes" }, loadDelibNotes)
-      .on("postgres_changes", { event: "*", schema: "public", table: "final_decisions" }, loadFinalDecisions)
-      .on("postgres_changes", { event: "*", schema: "public", table: "validations" },     loadValidations)
+      .on("postgres_changes", { event: "*", schema: "public", table: "deliberation_notes" }, ({ eventType, new: row }) => {
+        if (eventType === "INSERT" || eventType === "UPDATE") {
+          const key = `${row.judge_id}_${row.project_id}`;
+          setDeliberationNotes(prev => ({ ...prev, [key]: { comment:row.comment, recommendation:row.recommendation, flagged:row.flagged, submittedAt:new Date(row.submitted_at).getTime() } }));
+        } else {
+          loadDelibNotes(); // DELETE
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "final_decisions" }, ({ eventType, new: row }) => {
+        if (eventType === "INSERT" || eventType === "UPDATE") {
+          setFinalDecisions(prev => ({ ...prev, [row.project_id]: { award:row.award, adminNotes:row.admin_notes||"", finalized:row.finalized, finalizedAt:row.finalized_at ? new Date(row.finalized_at).getTime() : null } }));
+        } else {
+          loadFinalDecisions(); // DELETE
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "validations" }, ({ eventType, new: row }) => {
+        if (eventType === "INSERT" || eventType === "UPDATE") {
+          const entry = { approved:row.approved, comment:row.comment, validatedAt:new Date(row.validated_at).getTime() };
+          if (row.judge_id === "admin") setAdminValidation(entry);
+          else setJudgeValidations(prev => ({ ...prev, [row.judge_id]: entry }));
+        } else {
+          loadValidations(); // DELETE (reset)
+        }
+      })
       .subscribe();
 
     return () => supabase.removeChannel(channel);
@@ -2918,12 +2957,19 @@ export default function App() {
                                 {judgeScores.map(({alias, sc}) => {
                                   const total = getTotal(sc);
                                   return (
-                                    <div key={alias} style={{display:"flex",alignItems:"center",gap:".6rem",marginBottom:".3rem"}}>
-                                      <span style={{fontFamily:"var(--ff-m)",fontSize:".75rem",color:"var(--dim)",width:"60px",flexShrink:0}}>{alias}</span>
-                                      <div className="pbar" style={{flex:1,height:"5px"}}>
-                                        <div className="pfill" style={{width:`${(total/42)*100}%`,height:"5px"}} />
+                                    <div key={alias} style={{marginBottom:".5rem"}}>
+                                      <div style={{display:"flex",alignItems:"center",gap:".6rem",marginBottom:".2rem"}}>
+                                        <span style={{fontFamily:"var(--ff-m)",fontSize:".75rem",color:"var(--dim)",width:"60px",flexShrink:0}}>{alias}</span>
+                                        <div className="pbar" style={{flex:1,height:"5px"}}>
+                                          <div className="pfill" style={{width:`${(total/42)*100}%`,height:"5px"}} />
+                                        </div>
+                                        <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",fontWeight:600,width:"42px",textAlign:"right",color:"var(--navy)"}}>{total}/42</span>
                                       </div>
-                                      <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",fontWeight:600,width:"42px",textAlign:"right",color:"var(--navy)"}}>{total}/42</span>
+                                      {sc.notes && sc.notes.trim() && (
+                                        <div style={{marginLeft:"68px",fontSize:".78rem",color:"var(--dim)",fontStyle:"italic",lineHeight:1.5,borderLeft:"2px solid var(--bd)",paddingLeft:".5rem"}}>
+                                          "{sc.notes.trim()}"
+                                        </div>
+                                      )}
                                     </div>
                                   );
                                 })}
