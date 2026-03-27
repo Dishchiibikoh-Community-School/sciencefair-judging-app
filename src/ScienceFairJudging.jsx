@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "./supabaseClient";
 
 // ─────────────────────────────────────────────
@@ -141,49 +141,6 @@ const CSS = `
     animation:bgShift 18s ease-in-out infinite alternate;
   }
   .app{min-height:100vh;position:relative;z-index:1;isolation:isolate;}
-  .particle-canvas{
-    position:fixed;
-    inset:0;
-    width:100%;
-    height:100%;
-    pointer-events:none;
-    z-index:-2;
-    opacity:.92;
-  }
-  .bg-orb{
-    position:fixed;
-    border-radius:50%;
-    filter:blur(16px);
-    pointer-events:none;
-    z-index:-1;
-    opacity:.55;
-    mix-blend-mode:screen;
-  }
-  .bg-orb.a{
-    width:26rem;
-    height:26rem;
-    top:-8rem;
-    left:-5rem;
-    background:radial-gradient(circle, rgba(37,99,235,.34) 0%, rgba(37,99,235,.12) 45%, transparent 72%);
-    animation:orbFloatA 22s ease-in-out infinite alternate;
-  }
-  .bg-orb.b{
-    width:22rem;
-    height:22rem;
-    right:-4rem;
-    top:20%;
-    background:radial-gradient(circle, rgba(14,165,233,.28) 0%, rgba(125,211,252,.1) 48%, transparent 72%);
-    animation:orbFloatB 26s ease-in-out infinite alternate;
-  }
-  .bg-orb.c{
-    width:18rem;
-    height:18rem;
-    left:18%;
-    bottom:-5rem;
-    background:radial-gradient(circle, rgba(30,58,95,.2) 0%, rgba(96,165,250,.1) 46%, transparent 72%);
-    animation:orbFloatC 24s ease-in-out infinite alternate;
-  }
-
   @keyframes bgShift {
     0% {
       transform: translate3d(0,0,0) scale(1);
@@ -194,21 +151,8 @@ const CSS = `
       filter: saturate(1.08);
     }
   }
-  @keyframes orbFloatA {
-    0% { transform:translate3d(0,0,0) scale(1); }
-    100% { transform:translate3d(4rem,2rem,0) scale(1.08); }
-  }
-  @keyframes orbFloatB {
-    0% { transform:translate3d(0,0,0) scale(1); }
-    100% { transform:translate3d(-3rem,3rem,0) scale(1.1); }
-  }
-  @keyframes orbFloatC {
-    0% { transform:translate3d(0,0,0) scale(1); }
-    100% { transform:translate3d(3rem,-2rem,0) scale(1.06); }
-  }
   @media (prefers-reduced-motion: reduce) {
-    #root::before,
-    .bg-orb{animation:none;}
+    #root::before{animation:none;}
   }
   .center{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:1.5rem;}
   .inner{width:100%;max-width:580px;}
@@ -655,232 +599,6 @@ function finalDecisionsToMap(rows) {
   }, {});
 }
 
-function AnimatedBackdrop() {
-  const canvasRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return undefined;
-
-    const context = canvas.getContext("2d");
-    if (!context) return undefined;
-
-    const reduceMotion = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const pointer = { x: null, y: null, active: false };
-    let frameId = 0;
-    let width = 0;
-    let height = 0;
-    let atoms = [];
-
-    function resetCanvas() {
-      width = window.innerWidth;
-      height = window.innerHeight;
-      const ratio = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.floor(width * ratio);
-      canvas.height = Math.floor(height * ratio);
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-      context.setTransform(ratio, 0, 0, ratio, 0, 0);
-
-      const count = Math.min(36, Math.max(14, Math.floor((width * height) / 52000)));
-      atoms = Array.from({ length: count }, (_, index) => ({
-        kind: index % 6 === 0 ? "atom" : "molecule",
-        x: Math.random() * width,
-        y: Math.random() * height,
-        vx: (Math.random() - 0.5) * 0.38,
-        vy: (Math.random() - 0.5) * 0.38,
-        size: 2 + Math.random() * 3.2,
-        orbitRadius: 12 + Math.random() * 18,
-        orbitTilt: Math.random() * Math.PI,
-        orbitSpeed: 0.006 + Math.random() * 0.01,
-        electronPhase: Math.random() * Math.PI * 2,
-        hue: index % 3 === 0 ? "blue" : index % 3 === 1 ? "cyan" : "navy",
-      }));
-    }
-
-    function atomColor(hue, alpha) {
-      if (hue === "cyan") return `rgba(14, 165, 233, ${alpha})`;
-      if (hue === "navy") return `rgba(30, 58, 95, ${alpha})`;
-      return `rgba(37, 99, 235, ${alpha})`;
-    }
-
-    function drawBond(atom, other, distance, maxDistance) {
-      context.strokeStyle = `rgba(30, 58, 95, ${0.2 - (distance / maxDistance) * 0.14})`;
-      context.lineWidth = distance < 80 ? 1.8 : 1;
-      context.beginPath();
-      context.moveTo(atom.x, atom.y);
-      context.lineTo(other.x, other.y);
-      context.stroke();
-
-      if (distance < 72) {
-        const midX = (atom.x + other.x) / 2;
-        const midY = (atom.y + other.y) / 2;
-        context.fillStyle = "rgba(255,255,255,0.65)";
-        context.beginPath();
-        context.arc(midX, midY, 1.4, 0, Math.PI * 2);
-        context.fill();
-      }
-    }
-
-    function drawMoleculeNode(atom) {
-      const glow = context.createRadialGradient(atom.x, atom.y, 0, atom.x, atom.y, atom.size * 5);
-      glow.addColorStop(0, atomColor(atom.hue, 0.7));
-      glow.addColorStop(0.45, atomColor(atom.hue, 0.28));
-      glow.addColorStop(1, atomColor(atom.hue, 0));
-      context.fillStyle = glow;
-      context.beginPath();
-      context.arc(atom.x, atom.y, atom.size * 5, 0, Math.PI * 2);
-      context.fill();
-
-      context.fillStyle = "rgba(255,255,255,0.82)";
-      context.beginPath();
-      context.arc(atom.x, atom.y, atom.size * 1.05, 0, Math.PI * 2);
-      context.fill();
-
-      context.fillStyle = atomColor(atom.hue, 0.92);
-      context.beginPath();
-      context.arc(atom.x, atom.y, atom.size * 0.62, 0, Math.PI * 2);
-      context.fill();
-    }
-
-    function drawAtomicNode(atom, time) {
-      const nucleusGlow = context.createRadialGradient(atom.x, atom.y, 0, atom.x, atom.y, atom.orbitRadius + 16);
-      nucleusGlow.addColorStop(0, atomColor(atom.hue, 0.2));
-      nucleusGlow.addColorStop(0.55, atomColor(atom.hue, 0.08));
-      nucleusGlow.addColorStop(1, atomColor(atom.hue, 0));
-      context.fillStyle = nucleusGlow;
-      context.beginPath();
-      context.arc(atom.x, atom.y, atom.orbitRadius + 16, 0, Math.PI * 2);
-      context.fill();
-
-      context.save();
-      context.translate(atom.x, atom.y);
-      context.rotate(atom.orbitTilt);
-      context.strokeStyle = atomColor(atom.hue, 0.28);
-      context.lineWidth = 1.1;
-      context.beginPath();
-      context.ellipse(0, 0, atom.orbitRadius, atom.orbitRadius * 0.46, 0, 0, Math.PI * 2);
-      context.stroke();
-      context.rotate(Math.PI / 2.35);
-      context.beginPath();
-      context.ellipse(0, 0, atom.orbitRadius * 0.88, atom.orbitRadius * 0.32, 0, 0, Math.PI * 2);
-      context.stroke();
-      context.restore();
-
-      const electronAngle = atom.electronPhase + time * atom.orbitSpeed;
-      const electronX = atom.x + Math.cos(electronAngle) * atom.orbitRadius;
-      const electronY = atom.y + Math.sin(electronAngle) * atom.orbitRadius * 0.46;
-      const electronX2 = atom.x + Math.cos(-electronAngle * 1.1 + atom.orbitTilt) * atom.orbitRadius * 0.88;
-      const electronY2 = atom.y + Math.sin(-electronAngle * 1.1 + atom.orbitTilt) * atom.orbitRadius * 0.3;
-
-      context.fillStyle = atomColor(atom.hue, 0.95);
-      context.beginPath();
-      context.arc(atom.x, atom.y, atom.size * 1.25, 0, Math.PI * 2);
-      context.fill();
-
-      context.fillStyle = "rgba(255,255,255,0.92)";
-      context.beginPath();
-      context.arc(atom.x - atom.size * 0.2, atom.y - atom.size * 0.2, atom.size * 0.42, 0, Math.PI * 2);
-      context.fill();
-
-      [
-        { x: electronX, y: electronY },
-        { x: electronX2, y: electronY2 },
-      ].forEach((electron) => {
-        context.fillStyle = "rgba(255,255,255,0.95)";
-        context.beginPath();
-        context.arc(electron.x, electron.y, 2.1, 0, Math.PI * 2);
-        context.fill();
-
-        context.fillStyle = atomColor(atom.hue, 0.8);
-        context.beginPath();
-        context.arc(electron.x, electron.y, 1.2, 0, Math.PI * 2);
-        context.fill();
-      });
-    }
-
-    let lastFrame = 0;
-    function draw(timestamp) {
-      frameId = window.requestAnimationFrame(draw);
-      if (timestamp - lastFrame < 33) return; // ~30fps cap
-      lastFrame = timestamp;
-      const time = timestamp;
-      context.clearRect(0, 0, width, height);
-
-      for (let index = 0; index < atoms.length; index += 1) {
-        const atom = atoms[index];
-
-        if (!reduceMotion) {
-          atom.x += atom.vx;
-          atom.y += atom.vy;
-
-          if (atom.x < -24 || atom.x > width + 24) atom.vx *= -1;
-          if (atom.y < -24 || atom.y > height + 24) atom.vy *= -1;
-
-          if (pointer.active) {
-            const dx = pointer.x - atom.x;
-            const dy = pointer.y - atom.y;
-            const distance = Math.hypot(dx, dy);
-            if (distance < 150 && distance > 0) {
-              atom.x -= (dx / distance) * 0.24;
-              atom.y -= (dy / distance) * 0.24;
-            }
-          }
-        }
-
-        for (let otherIndex = index + 1; otherIndex < atoms.length; otherIndex += 1) {
-          const other = atoms[otherIndex];
-          const dx = atom.x - other.x;
-          const dy = atom.y - other.y;
-          const distance = Math.hypot(dx, dy);
-          if (distance < 128) {
-            drawBond(atom, other, distance, 128);
-          }
-        }
-
-        if (atom.kind === "atom") drawAtomicNode(atom, time);
-        else drawMoleculeNode(atom);
-      }
-
-    }
-
-    function handlePointerMove(event) {
-      pointer.x = event.clientX;
-      pointer.y = event.clientY;
-      pointer.active = true;
-    }
-
-    function handlePointerLeave() {
-      pointer.active = false;
-      pointer.x = null;
-      pointer.y = null;
-    }
-
-    resetCanvas();
-    draw();
-
-    window.addEventListener("resize", resetCanvas);
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerleave", handlePointerLeave);
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      window.removeEventListener("resize", resetCanvas);
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerleave", handlePointerLeave);
-    };
-  }, []);
-
-  return (
-    <>
-      <canvas ref={canvasRef} className="particle-canvas" aria-hidden="true" />
-      <div className="bg-orb a" aria-hidden="true" />
-      <div className="bg-orb b" aria-hidden="true" />
-      <div className="bg-orb c" aria-hidden="true" />
-    </>
-  );
-}
-
 // ─────────────────────────────────────────────
 // APP
 // ─────────────────────────────────────────────
@@ -981,7 +699,7 @@ export default function App() {
 
   const EXPIRY_MS = { "1h":3600000, "24h":86400000, "7d":604800000, "never":Infinity };
   const EXPIRY_OPTS = [{ val:"1h",label:"1 Hour" },{ val:"24h",label:"24 Hours" },{ val:"7d",label:"7 Days" },{ val:"never",label:"Never" }];
-  const backdrop = view === "judge-scoring" ? null : <AnimatedBackdrop />;
+  const backdrop = null;
 
   // ── SUPABASE LOADERS ──────────────────────────────────────
   async function loadProjects() {
