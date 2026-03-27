@@ -952,6 +952,7 @@ export default function App() {
   const [delibDraftRec,      setDelibDraftRec]      = useState("Pending");
   const [delibDraftFlagged,  setDelibDraftFlagged]  = useState(false);
   const [delibReportCopied,  setDelibReportCopied]  = useState(false);
+  const [delibDrafts,        setDelibDrafts]        = useState({}); // { [pid]: { comment, rec, flagged } }
   const [deliberationReason, setDeliberationReason] = useState(null); // "tie"|"manual"|null
 
   // Validation & finalization state
@@ -2065,6 +2066,68 @@ export default function App() {
               </div>
             );
           })()}
+          {deliberationOpen && (
+            <div className="delib-section" style={{marginTop:"1rem"}}>
+              <div style={{fontFamily:"var(--ff-d)",fontSize:"1.1rem",color:"var(--navy)",marginBottom:".3rem"}}>
+                💬 Deliberation Notes
+              </div>
+              <p style={{fontSize:".85rem",color:"var(--dim)",marginBottom:"1rem",lineHeight:1.6}}>
+                Admin has opened deliberation. Add a recommendation and optional comment for each project to help inform the final award decision.
+              </p>
+              {myProj.map(proj => {
+                const noteKey = `${judge.id}_${proj.id}`;
+                const existing = deliberationNotes[noteKey];
+                const draft = delibDrafts[proj.id] || { comment: existing?.comment || "", rec: existing?.recommendation || "Pending", flagged: existing?.flagged || false };
+                return (
+                  <div key={proj.id} className="delib-proj">
+                    <div className="delib-proj-head">
+                      <div>
+                        <div style={{fontFamily:"var(--ff-m)",fontSize:".73rem",color:"var(--navy)"}}>#{proj.num}</div>
+                        <div style={{fontWeight:600,fontSize:".88rem"}}>{proj.title}</div>
+                        <div style={{fontSize:".75rem",color:"var(--dim)"}}>{proj.cat} · Grade {proj.grade}</div>
+                      </div>
+                      {existing && <span className="delib-submitted">✓ Submitted</span>}
+                    </div>
+                    <div style={{marginBottom:".5rem"}}>
+                      <div className="lbl">Recommendation</div>
+                      <select className="delib-rec-select"
+                        value={draft.rec}
+                        onChange={e => setDelibDrafts(p => ({...p, [proj.id]: {...(delibDrafts[proj.id]||draft), rec: e.target.value}}))}>
+                        <option value="Pending">Pending</option>
+                        {RECOMMENDATIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </div>
+                    <div style={{marginBottom:".5rem"}}>
+                      <div className="lbl">Comment (optional)</div>
+                      <textarea rows={2} placeholder="Your observations about this project…"
+                        value={draft.comment}
+                        onChange={e => setDelibDrafts(p => ({...p, [proj.id]: {...(delibDrafts[proj.id]||draft), comment: e.target.value}}))} />
+                    </div>
+                    <label className="delib-flag-wrap">
+                      <input type="checkbox" checked={draft.flagged || false}
+                        onChange={e => setDelibDrafts(p => ({...p, [proj.id]: {...(delibDrafts[proj.id]||draft), flagged: e.target.checked}}))} />
+                      <span style={{fontSize:".88rem"}}>🚩 Flag this project for discussion</span>
+                    </label>
+                    <button className="btn sm" style={{marginTop:".75rem",width:"auto"}}
+                      onClick={async () => {
+                        const d = delibDrafts[proj.id] || draft;
+                        const entry = { comment: d.comment, recommendation: d.rec, flagged: d.flagged||false, submittedAt: Date.now() };
+                        setDeliberationNotes(p => ({...p, [noteKey]: entry}));
+                        await supabase.from("deliberation_notes").upsert({
+                          judge_id: judge.id, project_id: proj.id,
+                          comment: d.comment, recommendation: d.rec, flagged: d.flagged||false,
+                        }, { onConflict: "judge_id,project_id" });
+                        addLog(`${judge.alias} submitted deliberation note for Project #${proj.num}`);
+                        addItLog("INFO","JUDGE","DELIB_NOTE_SUBMITTED","Judge submitted deliberation note",
+                          { judgeId: judge.id, alias: judge.alias, projectId: proj.id, projectNum: proj.num, recommendation: d.rec, flagged: d.flagged||false });
+                      }}>
+                      {existing ? "Update Note" : "Submit Note"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
           {offlineQueue.length > 0 && (
             <div className="sync-banner" style={{ marginTop:".85rem" }}>
               <div>
@@ -2840,9 +2903,33 @@ export default function App() {
                             </div>
                             <div style={{textAlign:"right",flexShrink:0}}>
                               <div style={{fontFamily:"var(--ff-d)",fontSize:"1.5rem",color:"var(--navy)"}}>{p.avg ?? "—"}</div>
-                              <div style={{fontSize:".65rem",color:"var(--dim)"}}>avg pts</div>
+                              <div style={{fontSize:".65rem",color:"var(--dim)"}}>avg / 42</div>
                             </div>
                           </div>
+                          {/* Per-judge score breakdown */}
+                          {(() => {
+                            const judgeScores = judges
+                              .map(j => ({ alias: j.alias, sc: scores[`${j.id}_${p.id}`] }))
+                              .filter(x => x.sc);
+                            if (!judgeScores.length) return null;
+                            return (
+                              <div style={{background:"var(--s1)",border:"1px solid var(--bd)",borderRadius:"8px",padding:".65rem .85rem",marginBottom:".6rem"}}>
+                                <div style={{fontSize:".7rem",fontFamily:"var(--ff-m)",color:"var(--dim)",marginBottom:".45rem",textTransform:"uppercase",letterSpacing:".04em"}}>Judge Scores</div>
+                                {judgeScores.map(({alias, sc}) => {
+                                  const total = getTotal(sc);
+                                  return (
+                                    <div key={alias} style={{display:"flex",alignItems:"center",gap:".6rem",marginBottom:".3rem"}}>
+                                      <span style={{fontFamily:"var(--ff-m)",fontSize:".75rem",color:"var(--dim)",width:"60px",flexShrink:0}}>{alias}</span>
+                                      <div className="pbar" style={{flex:1,height:"5px"}}>
+                                        <div className="pfill" style={{width:`${(total/42)*100}%`,height:"5px"}} />
+                                      </div>
+                                      <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",fontWeight:600,width:"42px",textAlign:"right",color:"var(--navy)"}}>{total}/42</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
                           {flags > 0 && <div style={{display:"inline-flex",alignItems:"center",gap:".3rem",fontSize:".73rem",fontFamily:"var(--ff-m)",padding:".2rem .5rem",background:"var(--amber-l)",color:"var(--amber)",borderRadius:"6px",marginBottom:".5rem"}}>🚩 {flags} flag{flags!==1?"s":""} for discussion</div>}
                           {notes.length > 0 && notes.map((n, ni) => (
                             <div key={ni} className="delib-comment-card">
