@@ -19,7 +19,7 @@ Built as a single-file React component (`ScienceFairJudging.jsx`).
 **Live URL:** https://sciencefair-judging-app.vercel.app/
 **Supabase project:** https://cjzuiimoamrggucvahjm.supabase.co
 
-> Last major update: 2026-03-26 — full QA pass (18 bugs resolved) + deliberation UX fixes + performance optimizations.
+> Last major update: 2026-03-27 — added Score Export admin tab: per-judge CSV export and persistent score backups saved to `score_backups` table.
 
 ---
 
@@ -563,6 +563,7 @@ Supabase is **fully integrated and live**. Schema is applied at `supabase/schema
 | `deliberation_notes` | Judge comments/recommendations per project (used during deliberation) |
 | `final_decisions` | Admin award decisions per project |
 | `validations` | Judge + admin validation entries — `judge_id` is judge UUID or `'admin'` |
+| `score_backups` | Admin-saved score snapshots — full JSONB of all judge+project scores at a point in time |
 
 ### Realtime
 All tables are subscribed via a single `supabase.channel("app-realtime")` — changes propagate live across all open tabs/devices.

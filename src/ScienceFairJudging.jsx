@@ -676,6 +676,11 @@ export default function App() {
   const [delibDrafts,        setDelibDrafts]        = useState({}); // { [pid]: { comment, rec, flagged } }
   const [deliberationReason, setDeliberationReason] = useState(null); // "tie"|"manual"|null
 
+  // Score backup state
+  const [scoreBackups,   setScoreBackups]   = useState([]);
+  const [savingBackup,   setSavingBackup]   = useState(false);
+  const [backupSaved,    setBackupSaved]    = useState(false);
+
   // Validation & finalization state
   const [judgeValidations,   setJudgeValidations]   = useState({});
   const [adminValidation,    setAdminValidation]     = useState(null);
@@ -812,7 +817,7 @@ export default function App() {
   useEffect(() => {
     async function init() {
       const timeout = setTimeout(() => setLoading(false), 8000);
-      await Promise.all([loadProjects(), loadJudges(), loadScores(), loadLog(), loadItLogs(), loadShare(), loadSettings(), loadDelibNotes(), loadFinalDecisions(), loadValidations()]);
+      await Promise.all([loadProjects(), loadJudges(), loadScores(), loadLog(), loadItLogs(), loadShare(), loadSettings(), loadDelibNotes(), loadFinalDecisions(), loadValidations(), loadScoreBackups()]);
       clearTimeout(timeout);
       setLoading(false);
     }
@@ -1017,6 +1022,124 @@ export default function App() {
   function handleCopy() {
     navigator.clipboard.writeText(shareUrl()).catch(()=>{});
     setCopied(true); setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function loadScoreBackups() {
+    const { data } = await supabase.from("score_backups").select("id, label, created_at").order("created_at", { ascending: false });
+    if (data) setScoreBackups(data);
+  }
+
+  async function saveScoreBackup() {
+    setSavingBackup(true);
+    setBackupSaved(false);
+    const entries = [];
+    for (const judge of judges) {
+      for (const pid of judge.projects) {
+        const sc = scores[`${judge.id}_${pid}`];
+        if (!sc) continue;
+        const proj = projects.find(p => p.id === pid);
+        entries.push({
+          judgeId:   judge.id,
+          judgeAlias: judge.alias,
+          projectId:  pid,
+          projectNum: proj?.num ?? "",
+          projectTitle: proj?.title ?? "",
+          category:   proj?.cat ?? "",
+          grade:      proj?.grade ?? "",
+          presentation: sc.presentation,
+          testable_q:   sc.testable_q,
+          background:   sc.background,
+          hypothesis:   sc.hypothesis,
+          variables:    sc.variables,
+          materials:    sc.materials,
+          data:         sc.data,
+          analysis:     sc.analysis,
+          conclusion:   sc.conclusion,
+          abstract:     sc.abstract,
+          total:        getTotal(sc),
+          notes:        sc.notes || "",
+          submittedAt:  sc.time ? new Date(sc.time).toISOString() : "",
+        });
+      }
+    }
+    const snapshot = {
+      generatedAt:   new Date().toISOString(),
+      judgeCount:    judges.length,
+      projectCount:  projects.length,
+      scoreCount:    entries.length,
+      entries,
+    };
+    const label = `Backup — ${new Date().toLocaleString()}`;
+    const { data, error } = await supabase.from("score_backups").insert({ label, snapshot }).select("id, label, created_at").single();
+    if (!error && data) {
+      setScoreBackups(prev => [data, ...prev]);
+      addLog(`Admin saved score backup (${entries.length} entries)`);
+      addItLog("INFO","ADMIN","SCORE_BACKUP_SAVED","Admin saved score backup to database",{ entryCount: entries.length, label });
+      setBackupSaved(true);
+      setTimeout(() => setBackupSaved(false), 3000);
+    }
+    setSavingBackup(false);
+  }
+
+  function exportJudgeScoresCSV() {
+    const header = [
+      "Judge","Project #","Project Title","Category","Grade",
+      "Presentation (6)","Testable Q (3)","Background (3)","Hypothesis (3)",
+      "Variables (3)","Materials (3)","Data (6)","Analysis (6)",
+      "Conclusion (3)","Abstract (6)","Total (42)","Notes","Submitted"
+    ];
+    const rows = [header];
+    for (const judge of [...judges].sort((a,b) => a.alias.localeCompare(b.alias))) {
+      for (const proj of [...projects].sort((a,b) => (a.num||"").localeCompare(b.num||""))) {
+        const sc = scores[`${judge.id}_${proj.id}`];
+        if (!sc) continue;
+        rows.push([
+          judge.alias,
+          proj.num,
+          `"${(proj.title||"").replace(/"/g,'""')}"`,
+          proj.cat,
+          proj.grade,
+          sc.presentation, sc.testable_q, sc.background, sc.hypothesis,
+          sc.variables, sc.materials, sc.data, sc.analysis, sc.conclusion, sc.abstract,
+          getTotal(sc),
+          `"${(sc.notes||"").replace(/"/g,'""')}"`,
+          sc.time ? new Date(sc.time).toISOString() : "",
+        ]);
+      }
+    }
+    const csv = rows.map(r => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `judge-scores-${Date.now()}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadBackupCSV(backup) {
+    const entries = backup?.snapshot?.entries;
+    if (!entries?.length) return;
+    const header = [
+      "Judge","Project #","Project Title","Category","Grade",
+      "Presentation (6)","Testable Q (3)","Background (3)","Hypothesis (3)",
+      "Variables (3)","Materials (3)","Data (6)","Analysis (6)",
+      "Conclusion (3)","Abstract (6)","Total (42)","Notes","Submitted"
+    ];
+    const rows = [header, ...entries.map(e => [
+      e.judgeAlias, e.projectNum,
+      `"${(e.projectTitle||"").replace(/"/g,'""')}"`,
+      e.category, e.grade,
+      e.presentation, e.testable_q, e.background, e.hypothesis,
+      e.variables, e.materials, e.data, e.analysis, e.conclusion, e.abstract,
+      e.total,
+      `"${(e.notes||"").replace(/"/g,'""')}"`,
+      e.submittedAt,
+    ])];
+    const csv = rows.map(r => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `score-backup-${backup.id?.slice(0,8)}.csv`; a.click();
+    URL.revokeObjectURL(url);
   }
 
   function exportResultsCSV() {
@@ -2016,6 +2139,7 @@ export default function App() {
       { id:"alerts",   ico:"⚠️", label:`Alerts${anomalies.length?` (${anomalies.length})`:""}`},
       { id:"deliberation", ico:"🤝", label:`Validation${resultsFinalized ? " ✓" : consensusReached() ? " 🟢" : ""}` },
       { id:"share",    ico:"🔗", label:`Share${resultsFinalized ? " 🔗" : ""}` },
+      { id:"export",   ico:"📦", label:"Score Export"  },
       { id:"itlogs",   ico:"🖥️", label:"IT Logs"      },
     ];
 
@@ -2860,6 +2984,92 @@ export default function App() {
                 <div>• Shows <strong>project names and scores only</strong> — judge aliases are never exposed.</div>
                 <div>• <strong>Revoke anytime</strong> — the link stops working instantly.</div>
                 <div>• Use <strong>expiry</strong> to auto-disable the link after the event ends.</div>
+              </div>
+            </>}
+
+            {/* SCORE EXPORT */}
+            {adminTab==="export" && <>
+              <div className="adm-h1">Score Export</div>
+              <div className="adm-sub">Extract every judge's scores for every project — download as CSV or save a backup to the database.</div>
+
+              {/* Live export */}
+              <div className="card">
+                <div className="sec-title">Live Export</div>
+                <p style={{fontSize:".85rem",color:"var(--dim)",marginBottom:"1rem"}}>
+                  Download the current scores as a detailed CSV — one row per judge + project combination, with all 10 rubric criteria, totals, and judge notes.
+                </p>
+                <div style={{display:"flex",gap:".75rem",flexWrap:"wrap",alignItems:"center"}}>
+                  <button className="btn sec sm" style={{width:"auto"}} onClick={exportJudgeScoresCSV}
+                    disabled={Object.keys(scores).length === 0}>
+                    ⬇ Download Judge Scores CSV
+                  </button>
+                  {Object.keys(scores).length === 0 && (
+                    <span style={{fontSize:".78rem",color:"var(--dim)"}}>No scores recorded yet.</span>
+                  )}
+                </div>
+                <div style={{marginTop:".75rem",fontSize:".76rem",color:"var(--dim)"}}>
+                  Columns: Judge · Project # · Title · Category · Grade · Presentation · Testable Q · Background · Hypothesis · Variables · Materials · Data · Analysis · Conclusion · Abstract · Total · Notes · Submitted
+                </div>
+              </div>
+
+              {/* Save backup to DB */}
+              <div className="card">
+                <div className="sec-title">Save Backup to Database</div>
+                <p style={{fontSize:".85rem",color:"var(--dim)",marginBottom:"1rem"}}>
+                  Snapshot the current scores and store them permanently in Supabase. Saved backups are listed below and can be re-downloaded anytime.
+                </p>
+                <div style={{display:"flex",gap:".75rem",flexWrap:"wrap",alignItems:"center"}}>
+                  <button className="btn sm" style={{width:"auto",background:backupSaved?"var(--green)":undefined}}
+                    onClick={saveScoreBackup} disabled={savingBackup || Object.keys(scores).length === 0}>
+                    {savingBackup ? "⏳ Saving…" : backupSaved ? "✓ Saved!" : "💾 Save Score Backup"}
+                  </button>
+                  {Object.keys(scores).length === 0 && (
+                    <span style={{fontSize:".78rem",color:"var(--dim)"}}>No scores to back up yet.</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Saved backups list */}
+              <div className="card">
+                <div className="sec-title">Saved Backups</div>
+                {scoreBackups.length === 0 ? (
+                  <div style={{fontSize:".85rem",color:"var(--dim)",padding:".5rem 0"}}>No backups saved yet.</div>
+                ) : (
+                  <div className="tbl-wrap">
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:".84rem"}}>
+                      <thead>
+                        <tr style={{borderBottom:"2px solid var(--bd)"}}>
+                          <th style={{textAlign:"left",padding:".5rem .75rem",color:"var(--dim)",fontFamily:"var(--ff-m)",fontSize:".73rem",fontWeight:500}}>SAVED AT</th>
+                          <th style={{textAlign:"left",padding:".5rem .75rem",color:"var(--dim)",fontFamily:"var(--ff-m)",fontSize:".73rem",fontWeight:500}}>LABEL</th>
+                          <th style={{textAlign:"right",padding:".5rem .75rem",color:"var(--dim)",fontFamily:"var(--ff-m)",fontSize:".73rem",fontWeight:500}}>ACTION</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scoreBackups.map((bk, i) => (
+                          <tr key={bk.id} style={{borderBottom:"1px solid var(--bd)",background:i%2===0?"var(--s1)":"var(--bg)"}}>
+                            <td style={{padding:".55rem .75rem",fontFamily:"var(--ff-m)",fontSize:".78rem",color:"var(--dim)",whiteSpace:"nowrap"}}>
+                              {new Date(bk.created_at).toLocaleString()}
+                            </td>
+                            <td style={{padding:".55rem .75rem",fontSize:".84rem",color:"var(--text)"}}>{bk.label}</td>
+                            <td style={{padding:".55rem .75rem",textAlign:"right"}}>
+                              <button className="btn sec sm" style={{width:"auto",fontSize:".75rem"}}
+                                onClick={() => {
+                                  if (!bk.snapshot) {
+                                    supabase.from("score_backups").select("snapshot").eq("id", bk.id).single()
+                                      .then(({ data }) => data && downloadBackupCSV({ ...bk, snapshot: data.snapshot }));
+                                  } else {
+                                    downloadBackupCSV(bk);
+                                  }
+                                }}>
+                                ⬇ CSV
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </>}
 

@@ -105,6 +105,14 @@ CREATE TABLE final_decisions (
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Admin-generated score snapshots — one row per saved backup
+CREATE TABLE score_backups (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  label      TEXT        NOT NULL DEFAULT '',
+  snapshot   JSONB       NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Judge and admin validation entries — one row per judge (plus 'admin')
 -- judge_id = 'admin' stores the admin's own validation
 CREATE TABLE validations (
@@ -144,6 +152,7 @@ ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deliberation_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE final_decisions    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE validations        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE score_backups      ENABLE ROW LEVEL SECURITY;
 
 -- projects: public read, anon can manage (admin-only in practice)
 CREATE POLICY "projects_select" ON projects FOR SELECT USING (true);
@@ -200,6 +209,11 @@ CREATE POLICY "validations_insert" ON validations FOR INSERT WITH CHECK (true);
 CREATE POLICY "validations_update" ON validations FOR UPDATE USING (true);
 CREATE POLICY "validations_delete" ON validations FOR DELETE USING (true);
 
+-- score_backups: admin read/write/delete
+CREATE POLICY "score_backups_select" ON score_backups FOR SELECT USING (true);
+CREATE POLICY "score_backups_insert" ON score_backups FOR INSERT WITH CHECK (true);
+CREATE POLICY "score_backups_delete" ON score_backups FOR DELETE USING (true);
+
 
 -- -- REALTIME ----------------------------------------------------------
 -- Enable realtime publication for live dashboard updates.
@@ -215,6 +229,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE app_settings;
 ALTER PUBLICATION supabase_realtime ADD TABLE deliberation_notes;
 ALTER PUBLICATION supabase_realtime ADD TABLE final_decisions;
 ALTER PUBLICATION supabase_realtime ADD TABLE validations;
+ALTER PUBLICATION supabase_realtime ADD TABLE score_backups;
 
 
 -- -- INDEXES -----------------------------------------------------------
@@ -226,6 +241,7 @@ CREATE INDEX share_links_token_idx  ON share_links (token) WHERE revoked_at IS N
 CREATE INDEX delib_notes_judge_idx  ON deliberation_notes (judge_id);
 CREATE INDEX delib_notes_proj_idx   ON deliberation_notes (project_id);
 CREATE INDEX final_dec_proj_idx     ON final_decisions (project_id);
+CREATE INDEX score_backups_time_idx ON score_backups (created_at DESC);
 
 
 -- -- MIGRATION: add validations table + results_finalized setting (run once on live DB) --
@@ -244,6 +260,24 @@ CREATE INDEX final_dec_proj_idx     ON final_decisions (project_id);
 -- CREATE POLICY "validations_delete" ON validations FOR DELETE USING (true);
 -- ALTER PUBLICATION supabase_realtime ADD TABLE validations;
 -- INSERT INTO app_settings (key, value) VALUES ('results_finalized', 'false') ON CONFLICT (key) DO NOTHING;
+
+
+-- -- MIGRATION: add score_backups table (run once on live DB) --------
+-- Admin-generated snapshots of all judge scores for backup/audit purposes.
+-- Run this block if you applied the original schema before this table was added.
+--
+-- CREATE TABLE IF NOT EXISTS score_backups (
+--   id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+--   label      TEXT        NOT NULL DEFAULT '',
+--   snapshot   JSONB       NOT NULL DEFAULT '{}',
+--   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+-- );
+-- ALTER TABLE score_backups ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY "score_backups_select" ON score_backups FOR SELECT USING (true);
+-- CREATE POLICY "score_backups_insert" ON score_backups FOR INSERT WITH CHECK (true);
+-- CREATE POLICY "score_backups_delete" ON score_backups FOR DELETE USING (true);
+-- ALTER PUBLICATION supabase_realtime ADD TABLE score_backups;
+-- CREATE INDEX score_backups_time_idx ON score_backups (created_at DESC);
 
 
 -- -- MIGRATION: old rubric → new rubric (run once on live DB) --------
