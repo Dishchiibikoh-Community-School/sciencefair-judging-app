@@ -46,6 +46,22 @@ stale `app_settings` keys.
 correct and required no changes. The read path (`loadValidations`) and the "Revise my validation"
 delete flow were already pointed at the `validations` table.
 
+### 2026-03-30 — Fix: Offline queue items lost during flush (Bug #2)
+**Problem:** `flushOfflineQueue` read the queue snapshot at the start, then awaited each Supabase
+upsert. If `submitScore` ran during the flush (adding a new item to localStorage), the flush would
+finish and write back only its `remaining` (failed) items, overwriting and silently discarding
+the newly added entry.
+
+**Fix:** After the upsert loop, re-read localStorage to capture any items added during the flush.
+Filter to keep only items that either (a) failed and need a retry, or (b) were not in the original
+batch (added after the flush started). Items that succeeded are dropped. Uses two `Set`s —
+`flushedKeys` (all attempted) and `failedKeys` (those that errored) — to classify each item in
+the post-flush localStorage state.
+
+**Files changed:** `src/ScienceFairJudging.jsx`
+- `flushOfflineQueue`: replaced `remaining[]` accumulator pattern with key-set tracking +
+  post-loop localStorage re-read and merge. No changes to `submitScore` or the queue write path.
+
 ---
 
 ## 📖 User Guides

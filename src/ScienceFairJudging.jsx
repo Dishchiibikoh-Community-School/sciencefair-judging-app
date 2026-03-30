@@ -952,18 +952,30 @@ export default function App() {
   async function flushOfflineQueue() {
     const queue = JSON.parse(localStorage.getItem("sf_offline_queue") || "[]");
     if (!queue.length) return;
-    const remaining = [];
+    const flushedKeys = new Set();
+    const failedKeys  = new Set();
     for (const item of queue) {
+      const key = `${item.data.judge_id}_${item.data.project_id}`;
+      flushedKeys.add(key);
       const { error } = await supabase.from("scores").upsert(item.data, { onConflict: "judge_id,project_id" });
-      if (error) remaining.push(item);
+      if (error) failedKeys.add(key);
     }
-    localStorage.setItem("sf_offline_queue", JSON.stringify(remaining));
-    setOfflineQueue(remaining);
-    if (remaining.length < queue.length) {
+    // Re-read localStorage after the async loop — submitScore may have added new items
+    // while we were awaiting upserts. Keep items that either failed (need retry) or
+    // were added after this flush started (not in the original batch).
+    const current = JSON.parse(localStorage.getItem("sf_offline_queue") || "[]");
+    const next = current.filter(i => {
+      const key = `${i.data.judge_id}_${i.data.project_id}`;
+      return failedKeys.has(key) || !flushedKeys.has(key);
+    });
+    localStorage.setItem("sf_offline_queue", JSON.stringify(next));
+    setOfflineQueue(next);
+    const syncedCount = queue.length - failedKeys.size;
+    if (syncedCount > 0) {
       const syncedAt = Date.now();
       setLastSyncAt(syncedAt);
       localStorage.setItem("sf_last_sync_at", String(syncedAt));
-      addItLog("INFO","DB","OFFLINE_QUEUE_FLUSHED",`Synced ${queue.length - remaining.length} queued score(s) to server`,{ synced: queue.length - remaining.length });
+      addItLog("INFO","DB","OFFLINE_QUEUE_FLUSHED",`Synced ${syncedCount} queued score(s) to server`,{ synced: syncedCount });
     }
   }
 
