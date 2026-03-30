@@ -21,6 +21,31 @@ Built as a single-file React component (`ScienceFairJudging.jsx`).
 
 > Last major update: 2026-03-27 — added Score Export admin tab: per-judge CSV export and persistent score backups saved to `score_backups` table.
 
+## 🐛 Bug Fix Log
+
+### 2026-03-30 — Fix: Judge validation concurrent overwrite (Bug #1)
+**Problem:** `submitJudgeValidation` and `submitAdminValidation` were writing validations as a
+merged JSON blob into a single `app_settings` row (`key = "judge_validations"` / `"admin_validation"`).
+If two judges validated simultaneously, both would read the same stale local state, construct a
+`next` object containing only their own entry, and race to overwrite the row — silently discarding
+the other judge's validation.
+
+**Fix:** Both functions now write directly to the `validations` table using an atomic
+`UPSERT ON CONFLICT judge_id`. Each judge gets their own row; concurrent submissions can never
+overwrite each other. `loadSettings()` no longer parses these keys from `app_settings`.
+`executeReset()` now deletes all rows from the `validations` table instead of resetting the
+stale `app_settings` keys.
+
+**Files changed:** `src/ScienceFairJudging.jsx`
+- `submitJudgeValidation`: writes to `validations` table, uses functional `setJudgeValidations` updater
+- `submitAdminValidation`: writes to `validations` table with `judge_id = "admin"`
+- `loadSettings()`: removed `admin_validation` / `judge_validations` parsing (handled by `loadValidations()`)
+- `executeReset()`: replaced two `app_settings` upserts with `validations` table delete
+
+**Note:** The `validations` table, its RLS policies, and the realtime subscription were already
+correct and required no changes. The read path (`loadValidations`) and the "Revise my validation"
+delete flow were already pointed at the `validations` table.
+
 ---
 
 ## 📖 User Guides

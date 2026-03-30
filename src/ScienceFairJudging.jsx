@@ -760,14 +760,8 @@ export default function App() {
       } catch {
         setTransferAllowances({});
       }
-      try {
-        const rawAV = map.admin_validation;
-        setAdminValidation(rawAV ? JSON.parse(rawAV) : null);
-      } catch { setAdminValidation(null); }
-      try {
-        const rawJV = map.judge_validations;
-        setJudgeValidations(rawJV ? JSON.parse(rawJV) : {});
-      } catch { setJudgeValidations({}); }
+      // Note: judge/admin validations are loaded separately by loadValidations()
+      // from the validations table — not from app_settings.
     }
   }
 
@@ -1274,8 +1268,7 @@ export default function App() {
       supabase.from("app_settings").update({ value: "15" }).eq("key", "max_judges"),
       supabase.from("app_settings").upsert({ key: "judge_transfer_allowances", value: "{}" }),
       supabase.from("app_settings").upsert({ key: "results_finalized", value: "false" }),
-      supabase.from("app_settings").upsert({ key: "admin_validation", value: "" }),
-      supabase.from("app_settings").upsert({ key: "judge_validations", value: "{}" }),
+      supabase.from("validations").delete().neq("judge_id", ""),
       supabase.from("app_settings").upsert({ key: "deliberation_reason", value: "" }),
     ]);
     setJudges([]);
@@ -1632,9 +1625,11 @@ export default function App() {
   }
   async function submitJudgeValidation(approved) {
     const entry = { approved, comment: valComment, validatedAt: Date.now() };
-    const next = { ...judgeValidations, [judge.id]: entry };
-    setJudgeValidations(next);
-    await supabase.from("app_settings").upsert({ key: "judge_validations", value: JSON.stringify(next) });
+    setJudgeValidations(p => ({ ...p, [judge.id]: entry }));
+    await supabase.from("validations").upsert(
+      { judge_id: judge.id, approved, comment: valComment, validated_at: new Date().toISOString() },
+      { onConflict: "judge_id" }
+    );
     addLog(`${judge.alias} ${approved ? "validated" : "raised a concern about"} the computed results`);
     addItLog(approved?"INFO":"WARN","JUDGE", approved?"RESULTS_VALIDATED":"RESULTS_CONCERN",
       approved ? "Judge validated computed results" : "Judge raised concern about results",
@@ -1644,7 +1639,10 @@ export default function App() {
   async function submitAdminValidation(approved) {
     const entry = { approved, comment: valComment, validatedAt: Date.now() };
     setAdminValidation(entry);
-    await supabase.from("app_settings").upsert({ key: "admin_validation", value: JSON.stringify(entry) });
+    await supabase.from("validations").upsert(
+      { judge_id: "admin", approved, comment: valComment, validated_at: new Date().toISOString() },
+      { onConflict: "judge_id" }
+    );
     addLog(`Admin ${approved ? "validated" : "flagged concerns with"} the computed results`);
     addItLog(approved?"INFO":"WARN","ADMIN", approved?"ADMIN_RESULTS_VALIDATED":"ADMIN_RESULTS_CONCERN",
       approved ? "Admin validated computed results" : "Admin flagged concerns with results",
