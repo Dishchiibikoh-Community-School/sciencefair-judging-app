@@ -748,6 +748,7 @@ export default function App() {
       const map = Object.fromEntries(data.map(r => [r.key, r.value]));
       setLocked(map.locked === "true");
       setDeliberationOpen(map.deliberation_open === "true");
+      setDeliberationReason(map.deliberation_reason || null);
       setResultsFinalized(map.results_finalized === "true");
       const loadedMax = map.max_judges ? parseInt(map.max_judges) : 15;
       setMaxJudges(loadedMax);
@@ -759,6 +760,14 @@ export default function App() {
       } catch {
         setTransferAllowances({});
       }
+      try {
+        const rawAV = map.admin_validation;
+        setAdminValidation(rawAV ? JSON.parse(rawAV) : null);
+      } catch { setAdminValidation(null); }
+      try {
+        const rawJV = map.judge_validations;
+        setJudgeValidations(rawJV ? JSON.parse(rawJV) : {});
+      } catch { setJudgeValidations({}); }
     }
   }
 
@@ -1265,7 +1274,9 @@ export default function App() {
       supabase.from("app_settings").update({ value: "15" }).eq("key", "max_judges"),
       supabase.from("app_settings").upsert({ key: "judge_transfer_allowances", value: "{}" }),
       supabase.from("app_settings").upsert({ key: "results_finalized", value: "false" }),
-      supabase.from("validations").delete().not("judge_id", "is", null),
+      supabase.from("app_settings").upsert({ key: "admin_validation", value: "" }),
+      supabase.from("app_settings").upsert({ key: "judge_validations", value: "{}" }),
+      supabase.from("app_settings").upsert({ key: "deliberation_reason", value: "" }),
     ]);
     setJudges([]);
     setScores({});
@@ -1601,7 +1612,10 @@ export default function App() {
   async function openDeliberation(reason) {
     setDeliberationOpen(true);
     setDeliberationReason(reason);
-    await supabase.from("app_settings").upsert({ key: "deliberation_open", value: "true" });
+    await Promise.all([
+      supabase.from("app_settings").upsert({ key: "deliberation_open", value: "true" }),
+      supabase.from("app_settings").upsert({ key: "deliberation_reason", value: reason }),
+    ]);
     const msg = reason === "tie" ? "Deliberation triggered due to tied scores" : "Admin manually opened deliberation";
     addLog(msg);
     addItLog("INFO","ADMIN","DELIBERATION_OPENED", msg, { reason, timestamp:fmtISO(Date.now()) });
@@ -1609,14 +1623,18 @@ export default function App() {
   async function closeDeliberation() {
     setDeliberationOpen(false);
     setDeliberationReason(null);
-    await supabase.from("app_settings").upsert({ key: "deliberation_open", value: "false" });
+    await Promise.all([
+      supabase.from("app_settings").upsert({ key: "deliberation_open", value: "false" }),
+      supabase.from("app_settings").upsert({ key: "deliberation_reason", value: "" }),
+    ]);
     addLog("Admin closed deliberation phase");
     addItLog("INFO","ADMIN","DELIBERATION_CLOSED","Admin closed deliberation phase",{ timestamp:fmtISO(Date.now()) });
   }
   async function submitJudgeValidation(approved) {
     const entry = { approved, comment: valComment, validatedAt: Date.now() };
-    setJudgeValidations(p => ({ ...p, [judge.id]: entry }));
-    await supabase.from("validations").upsert({ judge_id: judge.id, approved, comment: valComment }, { onConflict: "judge_id" });
+    const next = { ...judgeValidations, [judge.id]: entry };
+    setJudgeValidations(next);
+    await supabase.from("app_settings").upsert({ key: "judge_validations", value: JSON.stringify(next) });
     addLog(`${judge.alias} ${approved ? "validated" : "raised a concern about"} the computed results`);
     addItLog(approved?"INFO":"WARN","JUDGE", approved?"RESULTS_VALIDATED":"RESULTS_CONCERN",
       approved ? "Judge validated computed results" : "Judge raised concern about results",
@@ -1626,7 +1644,7 @@ export default function App() {
   async function submitAdminValidation(approved) {
     const entry = { approved, comment: valComment, validatedAt: Date.now() };
     setAdminValidation(entry);
-    await supabase.from("validations").upsert({ judge_id: "admin", approved, comment: valComment }, { onConflict: "judge_id" });
+    await supabase.from("app_settings").upsert({ key: "admin_validation", value: JSON.stringify(entry) });
     addLog(`Admin ${approved ? "validated" : "flagged concerns with"} the computed results`);
     addItLog(approved?"INFO":"WARN","ADMIN", approved?"ADMIN_RESULTS_VALIDATED":"ADMIN_RESULTS_CONCERN",
       approved ? "Admin validated computed results" : "Admin flagged concerns with results",
@@ -1636,7 +1654,13 @@ export default function App() {
   async function finalizeResults() {
     setResultsFinalized(true);
     if (deliberationOpen) { setDeliberationOpen(false); setDeliberationReason(null); }
-    await supabase.from("app_settings").upsert({ key: "results_finalized", value: "true" });
+    await Promise.all([
+      supabase.from("app_settings").upsert({ key: "results_finalized", value: "true" }),
+      ...(deliberationOpen ? [
+        supabase.from("app_settings").upsert({ key: "deliberation_open", value: "false" }),
+        supabase.from("app_settings").upsert({ key: "deliberation_reason", value: "" }),
+      ] : []),
+    ]);
     addLog("Admin finalized results — public sharing now available");
     addItLog("INFO","ADMIN","RESULTS_FINALIZED","Admin finalized results for public sharing",{ timestamp:fmtISO(Date.now()) });
   }
