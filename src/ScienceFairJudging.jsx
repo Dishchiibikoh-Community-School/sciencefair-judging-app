@@ -42,6 +42,12 @@ const AWARD_OPTIONS   = ["1st Place","2nd Place","3rd Place","Honorable Mention"
 
 const CATEGORIES = ["Biology","Physics","Computer Sci.","Chemistry","Earth Science","Engineering","Math","Environmental Sci."];
 
+const DEFAULT_DEPARTMENTS = [
+  { id: null, name: "Elementary",    max_judges: 5, ord: 0 },
+  { id: null, name: "Middle School", max_judges: 5, ord: 1 },
+  { id: null, name: "High School",   max_judges: 5, ord: 2 },
+];
+
 function uid()      { return Math.random().toString(36).slice(2, 10); }
 function genToken() { return Array.from({length:4}, () => Math.random().toString(36).slice(2,6).toUpperCase()).join("-"); }
 function fmt(ts)    { return new Date(ts).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }); }
@@ -558,7 +564,7 @@ const CSS = `
 // DB ↔ STATE MAPPERS
 // ─────────────────────────────────────────────
 function dbToJudge(row) {
-  return { id: row.id, alias: row.alias, projects: row.projects, joinedAt: new Date(row.joined_at).getTime() };
+  return { id: row.id, alias: row.alias, projects: row.projects, joinedAt: new Date(row.joined_at).getTime(), department_id: row.department_id || null };
 }
 function dbToLog(row) {
   return { time: new Date(row.created_at).getTime(), msg: row.message };
@@ -603,9 +609,10 @@ function finalDecisionsToMap(rows) {
 // APP
 // ─────────────────────────────────────────────
 export default function App() {
-  const [view,       setView]    = useState("landing");
-  const [projects,   setProjects] = useState(DEFAULT_PROJECTS);
-  const [judges,     setJudges]  = useState([]);
+  const [view,        setView]       = useState("landing");
+  const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
+  const [projects,    setProjects]   = useState(DEFAULT_PROJECTS);
+  const [judges,      setJudges]     = useState([]);
   const [scores,     setScores]  = useState({});
   const [log,        setLog]     = useState([]);
   const [locked,     setLocked]  = useState(false);
@@ -630,6 +637,7 @@ export default function App() {
   const [draftNotes, setDraftNotes]  = useState("");
   const [regName,    setRegName]     = useState("");
   const [regCode,    setRegCode]     = useState("");
+  const [regDept,    setRegDept]     = useState("");
   const [regErr,     setRegErr]      = useState("");
   const [adminPass,         setAdminPass]         = useState("");
   const [adminErr,          setAdminErr]          = useState("");
@@ -637,6 +645,7 @@ export default function App() {
   const [adminLockoutUntil,  setAdminLockoutUntil]  = useState(null);
   const [maxJudgesErr, setMaxJudgesErr] = useState("");
   const [maxJudgesDraft, setMaxJudgesDraft] = useState("15");
+  const [deptMaxDrafts, setDeptMaxDrafts] = useState({});  // { [deptId]: string }
   const [adminTab,   setAdminTab]    = useState("overview");
 
   // Share state
@@ -698,7 +707,7 @@ export default function App() {
   // Project management state
   const [showAddProject,     setShowAddProject]      = useState(false);
   const [editingProject,     setEditingProject]      = useState(null); // project id being edited
-  const [projForm,           setProjForm]            = useState({ title:"", cat:"Biology", grade:"", num:"" });
+  const [projForm,           setProjForm]            = useState({ title:"", cat:"Biology", grade:"", num:"", department_id:"" });
   const [showDeleteConfirm,  setShowDeleteConfirm]   = useState(false);
   const [deleteProjectId,    setDeleteProjectId]     = useState(null);
 
@@ -707,10 +716,25 @@ export default function App() {
   const backdrop = null;
 
   // ── SUPABASE LOADERS ──────────────────────────────────────
+  async function loadDepartments() {
+    const { data } = await supabase.from("departments").select("*").order("ord");
+    if (data && data.length > 0) {
+      setDepartments(data.map(r => ({ id: r.id, name: r.name, max_judges: r.max_judges, ord: r.ord })));
+    } else {
+      // Seed defaults on first run (table empty)
+      const defaults = [
+        { name: "Elementary",    max_judges: 5, ord: 0 },
+        { name: "Middle School", max_judges: 5, ord: 1 },
+        { name: "High School",   max_judges: 5, ord: 2 },
+      ];
+      const { data: seeded } = await supabase.from("departments").insert(defaults).select();
+      if (seeded) setDepartments(seeded.map(r => ({ id: r.id, name: r.name, max_judges: r.max_judges, ord: r.ord })));
+    }
+  }
   async function loadProjects() {
     const { data } = await supabase.from("projects").select("*").order("created_at");
     if (data && data.length > 0) {
-      setProjects(data.map(r => ({ id: r.id, num: r.num, title: r.title, cat: r.cat, grade: r.grade, locked: r.locked || false })));
+      setProjects(data.map(r => ({ id: r.id, num: r.num, title: r.title, cat: r.cat, grade: r.grade, locked: r.locked || false, department_id: r.department_id || null })));
     }
   }
   async function loadJudges() {
@@ -820,13 +844,14 @@ export default function App() {
   useEffect(() => {
     async function init() {
       const timeout = setTimeout(() => setLoading(false), 8000);
-      await Promise.all([loadProjects(), loadJudges(), loadScores(), loadLog(), loadItLogs(), loadShare(), loadSettings(), loadDelibNotes(), loadFinalDecisions(), loadValidations(), loadScoreBackups()]);
+      await Promise.all([loadDepartments(), loadProjects(), loadJudges(), loadScores(), loadLog(), loadItLogs(), loadShare(), loadSettings(), loadDelibNotes(), loadFinalDecisions(), loadValidations(), loadScoreBackups()]);
       clearTimeout(timeout);
       setLoading(false);
     }
     init();
 
     const channel = supabase.channel("app-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "departments" }, loadDepartments)
       .on("postgres_changes", { event: "*", schema: "public", table: "projects" }, loadProjects)
       .on("postgres_changes", { event: "*", schema: "public", table: "judges" }, ({ eventType, new: row }) => {
         if (eventType === "INSERT") setJudges(prev => [...prev, dbToJudge(row)].sort((a,b) => a.joinedAt - b.joinedAt));
@@ -979,9 +1004,9 @@ export default function App() {
     }
   }
 
-  function assignProjects(idx) {
-    // Every judge scores every project (flexible for any number of projects/judges)
-    return projects.map(p => p.id);
+  function assignProjects(deptId) {
+    // Every judge scores every project in their department
+    return projects.filter(p => p.department_id === deptId).map(p => p.id);
   }
 
   function isLinkLive() {
@@ -1032,6 +1057,22 @@ export default function App() {
       setMaxJudgesErr("Failed to update setting. Try again.");
       addItLog("ERROR","ADMIN","MAX_JUDGES_UPDATE_FAILED","Failed to update max judges setting",{ error: err?.message, attempted: numMax });
     }
+  }
+
+  async function updateDeptMaxJudges(deptId, newMax) {
+    const num = parseInt(newMax);
+    if (isNaN(num) || num < 1) return;
+    const dept = departments.find(d => d.id === deptId);
+    if (!dept) return;
+    const currentCount = judges.filter(j => j.department_id === deptId).length;
+    if (num < currentCount) {
+      setDeptMaxDrafts(p => ({ ...p, [deptId]: String(dept.max_judges) }));
+      return;
+    }
+    await supabase.from("departments").update({ max_judges: num }).eq("id", deptId);
+    setDepartments(prev => prev.map(d => d.id === deptId ? { ...d, max_judges: num } : d));
+    addLog(`Admin set max judges for ${dept.name} to ${num}`);
+    addItLog("INFO","ADMIN","MAX_JUDGES_UPDATED","Admin updated max judges for department",{ dept: dept.name, newMax: num, currentCount });
   }
 
   function handleCopy() {
@@ -1480,57 +1521,69 @@ export default function App() {
   // Actions
   async function handleRegister() {
     const name = regName.trim();
-    if (!JUDGE_NAMES.includes(name)) {
-      setRegErr(`Invalid judge name. Use Judge1 – Judge${maxJudges}.`);
-      addItLog("WARN","AUTH","INVALID_JUDGE_NAME","Failed registration attempt with invalid judge name",{ attemptedName: name, maxJudges, timestamp: fmtISO(Date.now()) });
+
+    // Validate department selection
+    const dept = departments.find(d => d.id === regDept);
+    if (!dept) {
+      setRegErr("Please select your department.");
       return;
     }
+
+    // Validate judge name format and range
+    const judgeNum = parseInt(name.replace(/\D/g, ""));
+    if (!JUDGE_NAMES.includes(name) || isNaN(judgeNum) || judgeNum < 1 || judgeNum > dept.max_judges) {
+      setRegErr(`Invalid judge name. Use Judge1 – Judge${dept.max_judges} for ${dept.name}.`);
+      addItLog("WARN","AUTH","INVALID_JUDGE_NAME","Failed registration attempt with invalid judge name",{ attemptedName: name, dept: dept.name, maxJudges: dept.max_judges, timestamp: fmtISO(Date.now()) });
+      return;
+    }
+
     if (regCode.trim().toUpperCase() !== INVITE_CODE) {
       setRegErr("Invalid invite code.");
-      addItLog("WARN","AUTH","INVALID_INVITE_CODE","Failed registration attempt with wrong invite code",{ attemptedCode: regCode.trim(), name, timestamp: fmtISO(Date.now()) });
+      addItLog("WARN","AUTH","INVALID_INVITE_CODE","Failed registration attempt with wrong invite code",{ attemptedCode: regCode.trim(), name, dept: dept.name, timestamp: fmtISO(Date.now()) });
       return;
     }
 
-    const existingJudge = judges.find(j => j.alias === name);
+    // Check for existing judge with same name in this same department
+    const existingJudge = judges.find(j => j.alias === name && j.department_id === dept.id);
     if (existingJudge) {
-      const allowedUntil = transferAllowances[name] || 0;
+      const allowedUntil = transferAllowances[`${dept.id}:${name}`] || transferAllowances[name] || 0;
       if (!allowedUntil || Date.now() > allowedUntil) {
-        setRegErr(`${name} is already signed in. Ask admin to approve device transfer.`);
-        addItLog("WARN","AUTH","JUDGE_TRANSFER_DENIED","Judge transfer blocked — no admin approval",{ alias:name, timestamp:fmtISO(Date.now()) });
+        setRegErr(`${name} is already signed in for ${dept.name}. Ask admin to approve device transfer.`);
+        addItLog("WARN","AUTH","JUDGE_TRANSFER_DENIED","Judge transfer blocked — no admin approval",{ alias:name, dept:dept.name, timestamp:fmtISO(Date.now()) });
         return;
       }
-
       setJudge(existingJudge);
       localStorage.setItem("sf_judge_id", existingJudge.id);
       localStorage.setItem("sf_judge_data", JSON.stringify(existingJudge));
       const nextAllow = { ...transferAllowances };
-      delete nextAllow[name]; // one-time use transfer approval
+      delete nextAllow[`${dept.id}:${name}`];
+      delete nextAllow[name]; // clean up legacy key too
       await saveTransferAllowances(nextAllow);
-      addLog(`${existingJudge.alias} session transferred to a new device`);
+      addLog(`${existingJudge.alias} (${dept.name}) session transferred to a new device`);
       addItLog("WARN","AUTH","JUDGE_SESSION_TRANSFERRED","Existing judge session transferred to another device (admin-approved)",{
-        judgeId: existingJudge.id,
-        alias: existingJudge.alias,
-        timestamp: fmtISO(Date.now()),
+        judgeId: existingJudge.id, alias: existingJudge.alias, dept: dept.name, timestamp: fmtISO(Date.now()),
       });
-      setRegName(""); setRegCode(""); setRegErr(""); setView("judge-home");
+      setRegName(""); setRegCode(""); setRegDept(""); setRegErr(""); setView("judge-home");
       return;
     }
 
-    if (judges.length >= maxJudges) {
-      setRegErr(`Max judges (${maxJudges}) reached. Contact admin to increase the limit.`);
-      addItLog("WARN","AUTH","MAX_JUDGES_REACHED","Judge registration blocked — max limit reached",{ attempted: name, currentCount: judges.length, maxJudges: maxJudges, timestamp: fmtISO(Date.now()) });
+    // Check per-department capacity
+    const deptJudgeCount = judges.filter(j => j.department_id === dept.id).length;
+    if (deptJudgeCount >= dept.max_judges) {
+      setRegErr(`${dept.name} is full (${deptJudgeCount}/${dept.max_judges}). Contact admin.`);
+      addItLog("WARN","AUTH","MAX_JUDGES_REACHED","Judge registration blocked — department at capacity",{ attempted: name, dept: dept.name, currentCount: deptJudgeCount, maxJudges: dept.max_judges, timestamp: fmtISO(Date.now()) });
       return;
     }
-    const seed = parseInt(name.replace(/\D/g, "")) - 1;
-    const j = { id:"j_"+uid(), alias:name, projects:assignProjects(seed), joinedAt:Date.now() };
-    const { error } = await supabase.from("judges").insert({ id: j.id, alias: j.alias, projects: j.projects });
+
+    const j = { id:"j_"+uid(), alias:name, projects:assignProjects(dept.id), joinedAt:Date.now(), department_id:dept.id };
+    const { error } = await supabase.from("judges").insert({ id: j.id, alias: j.alias, projects: j.projects, department_id: j.department_id });
     if (error) { setRegErr("Registration failed. Please try again."); return; }
     setJudges(p => [...p, j]); setJudge(j);
     localStorage.setItem("sf_judge_id",   j.id);
     localStorage.setItem("sf_judge_data", JSON.stringify(j));
-    addLog(`${j.alias} joined as a judge`);
-    addItLog("INFO","AUTH","JUDGE_REGISTERED","Judge registered with valid credentials",{ judgeId:j.id, alias:j.alias, assignedProjects:j.projects });
-    setRegName(""); setRegCode(""); setRegErr(""); setView("judge-home");
+    addLog(`${j.alias} joined as a judge (${dept.name})`);
+    addItLog("INFO","AUTH","JUDGE_REGISTERED","Judge registered with valid credentials",{ judgeId:j.id, alias:j.alias, dept:dept.name, assignedProjects:j.projects });
+    setRegName(""); setRegCode(""); setRegDept(""); setRegErr(""); setView("judge-home");
   }
 
   function handleAdminLogin() {
@@ -1706,33 +1759,34 @@ export default function App() {
   }
 
   async function addProject() {
-    const { title, cat, grade, num } = projForm;
+    const { title, cat, grade, num, department_id } = projForm;
     if (!title.trim()) return;
     const id = "p_" + uid();
     const finalNum = num.trim() || nextProjectNum();
-    const proj = { id, num: finalNum, title: title.trim(), cat, grade, locked: false };
+    const proj = { id, num: finalNum, title: title.trim(), cat, grade, locked: false, department_id: department_id || null };
     setProjects(p => [...p, proj]);
     await supabase.from("projects").insert(proj);
-    addLog(`Admin added project: ${proj.title} (#${finalNum})`);
+    const deptName = departments.find(d => d.id === department_id)?.name || "Unassigned";
+    addLog(`Admin added project: ${proj.title} (#${finalNum}) — ${deptName}`);
     addItLog("INFO","ADMIN","PROJECT_ADDED","Admin added a new project",
-      { projectId:id, num:finalNum, title:proj.title, cat, grade, timestamp:fmtISO(Date.now()) });
-    setProjForm({ title:"", cat:"Biology", grade:"", num:"" });
+      { projectId:id, num:finalNum, title:proj.title, cat, grade, dept:deptName, timestamp:fmtISO(Date.now()) });
+    setProjForm({ title:"", cat:"Biology", grade:"", num:"", department_id:"" });
     setShowAddProject(false);
   }
 
   async function updateProject(pid) {
     const existing = projects.find(p => p.id === pid);
     if (!existing || existing.locked) return;
-    const { title, cat, grade, num } = projForm;
+    const { title, cat, grade, num, department_id } = projForm;
     if (!title.trim()) return;
-    const updated = { ...existing, title: title.trim(), cat, grade, num: num.trim() || existing.num };
+    const updated = { ...existing, title: title.trim(), cat, grade, num: num.trim() || existing.num, department_id: department_id || null };
     setProjects(p => p.map(pp => pp.id === pid ? updated : pp));
-    await supabase.from("projects").update({ title: updated.title, cat: updated.cat, grade: updated.grade, num: updated.num }).eq("id", pid);
+    await supabase.from("projects").update({ title: updated.title, cat: updated.cat, grade: updated.grade, num: updated.num, department_id: updated.department_id }).eq("id", pid);
     addLog(`Admin updated project #${updated.num}: ${updated.title}`);
     addItLog("INFO","ADMIN","PROJECT_UPDATED","Admin updated project details",
       { projectId:pid, title:updated.title, num:updated.num, timestamp:fmtISO(Date.now()) });
     setEditingProject(null);
-    setProjForm({ title:"", cat:"Biology", grade:"", num:"" });
+    setProjForm({ title:"", cat:"Biology", grade:"", num:"", department_id:"" });
   }
 
   async function removeProject(pid) {
@@ -1830,12 +1884,34 @@ export default function App() {
   if (view === "judge-register") return (
     <div className="app"><style>{CSS}</style>{backdrop}
       <div className="center"><div className="inner">
-        <button className="back" onClick={() => { setView("landing"); setRegErr(""); setRegCode(""); setRegName(""); }}>← Back</button>
+        <button className="back" onClick={() => { setView("landing"); setRegErr(""); setRegCode(""); setRegName(""); setRegDept(""); }}>← Back</button>
         <div className="card">
           <div style={{ textAlign:"center", marginBottom:"1.5rem" }}>
             <div style={{ fontSize:"2.5rem", marginBottom:".5rem" }}>🔐</div>
             <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.5rem", marginBottom:".4rem", color:"var(--navy)" }}>Judge Sign In</h2>
-            <p style={{ color:"var(--dim)", fontSize:".95rem" }}>Enter your assigned judge name and the event invite code.</p>
+            <p style={{ color:"var(--dim)", fontSize:".95rem" }}>Select your department, then enter your judge name and invite code.</p>
+          </div>
+          <div style={{ marginBottom:"1rem" }}>
+            <div className="lbl">Department</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:".45rem" }}>
+              {departments.map(d => (
+                <button key={d.id} type="button"
+                  onClick={() => { setRegDept(d.id); setRegErr(""); }}
+                  style={{
+                    padding:".65rem 1rem", borderRadius:"var(--r)", cursor:"pointer", fontFamily:"var(--ff-b)",
+                    fontSize:".95rem", fontWeight: regDept === d.id ? 600 : 400, textAlign:"left",
+                    background: regDept === d.id ? "var(--navy)" : "var(--s1)",
+                    color:       regDept === d.id ? "#fff"       : "var(--text)",
+                    border:`1.5px solid ${regDept === d.id ? "var(--navy)" : "var(--bd)"}`,
+                    transition:"all .15s",
+                  }}>
+                  {regDept === d.id ? "✓ " : ""}{d.name}
+                  <span style={{ float:"right", fontSize:".78rem", opacity:.65, fontFamily:"var(--ff-m)" }}>
+                    {judges.filter(j => j.department_id === d.id).length}/{d.max_judges} judges
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
           <div style={{ marginBottom:"1rem" }}>
             <div className="lbl">Judge Name</div>
@@ -1854,7 +1930,7 @@ export default function App() {
           </div>
           <button className="btn" onClick={handleRegister}>Enter as Judge →</button>
           <p style={{ textAlign:"center", fontSize:".72rem", color:"var(--dim)", marginTop:".9rem" }}>
-            🔒 Judge names are Judge1 – Judge{maxJudges}. Get your invite code from the administrator.
+            🔒 Judge names are Judge1 – Judge5 per department. Get your invite code from the administrator.
           </p>
         </div>
       </div></div>
@@ -2358,7 +2434,7 @@ export default function App() {
                 <div className="sync-meta">Last successful sync: {lastSyncAt ? fmtFull(lastSyncAt) : "Not yet"}</div>
               </div>
               <div className="stat-grid">
-                <div className="stat-card"><div className="stat-v" style={{color:"var(--navy)"}}>{judges.length}/{maxJudges}</div><div className="stat-l">Judges</div></div>
+                <div className="stat-card"><div className="stat-v" style={{color:"var(--navy)"}}>{judges.length}/{departments.reduce((s,d)=>s+d.max_judges,0)}</div><div className="stat-l">Judges</div></div>
                 <div className="stat-card"><div className="stat-v" style={{color:"var(--blue)"}}>{projects.length}</div><div className="stat-l">Projects</div></div>
                 <div className="stat-card"><div className="stat-v" style={{color:"var(--green)"}}>{totalScored()}</div><div className="stat-l">Scores In</div></div>
                 <div className="stat-card">
@@ -2366,36 +2442,39 @@ export default function App() {
                   <div className="stat-l">Completion</div>
                 </div>
               </div>
-              {judges.length === 0 && (
-                <div className="card" style={{backgroundColor:"var(--s1)",border:"1px solid var(--bd)"}}>
-                  <div style={{display:"flex",gap:"1rem",alignItems:"flex-end"}}>
-                    <div style={{flex:1}}>
-                      <div className="lbl">Max Judges for This Event</div>
-                      <p style={{fontSize:".85rem",color:"var(--dim)",marginBottom:".5rem"}}>Set before any judges register. This will be locked once judging begins.</p>
-                      <div style={{display:"flex",gap:".5rem"}}>
-                        <input type="number" min="1" max="100" value={maxJudgesDraft}
-                          onChange={e => { setMaxJudgesDraft(e.target.value); setMaxJudgesErr(""); }}
-                          style={{width:"80px",padding:".4rem",border:"1px solid var(--bd)",borderRadius:"var(--r)",fontFamily:"var(--ff-m)"}}
-                          onKeyDown={e => e.key === "Enter" && updateMaxJudges(e.target.value)}
-                          onBlur={e => updateMaxJudges(e.target.value)}
-                        />
-                        <button className="btn sm" style={{width:"auto"}} onClick={() => updateMaxJudges(maxJudgesDraft)}>Save</button>
+
+              {/* Per-department judge slots config */}
+              <div className="card" style={{backgroundColor:"var(--s1)",border:"1px solid var(--bd)"}}>
+                <div className="lbl" style={{marginBottom:".5rem"}}>Departments — Judge Slots</div>
+                <p style={{fontSize:".82rem",color:"var(--dim)",marginBottom:".75rem"}}>
+                  Set max judges per department before judging begins. Locked once that department's first judge registers.
+                </p>
+                <div style={{display:"flex",flexDirection:"column",gap:".5rem"}}>
+                  {departments.map(dept => {
+                    const deptCount = judges.filter(j => j.department_id === dept.id).length;
+                    const locked = deptCount > 0;
+                    const draft = deptMaxDrafts[dept.id] ?? String(dept.max_judges);
+                    return (
+                      <div key={dept.id} style={{display:"flex",alignItems:"center",gap:".75rem",flexWrap:"wrap"}}>
+                        <div style={{minWidth:"120px",fontWeight:600,fontSize:".9rem"}}>{dept.name}</div>
+                        <div style={{fontSize:".8rem",color:"var(--dim)",fontFamily:"var(--ff-m)",minWidth:"60px"}}>{deptCount}/{dept.max_judges} judges</div>
+                        {locked
+                          ? <span style={{fontSize:".78rem",color:"var(--amber)"}}>🔒 Locked (judges registered)</span>
+                          : <>
+                              <input type="number" min="1" max="50" value={draft}
+                                onChange={e => setDeptMaxDrafts(p => ({...p, [dept.id]: e.target.value}))}
+                                onBlur={e => updateDeptMaxJudges(dept.id, e.target.value)}
+                                onKeyDown={e => e.key==="Enter" && updateDeptMaxJudges(dept.id, draft)}
+                                style={{width:"64px",padding:".3rem .5rem",border:"1px solid var(--bd)",borderRadius:"var(--r)",fontFamily:"var(--ff-m)",fontSize:".9rem"}} />
+                              <button className="btn sm" style={{width:"auto"}} onClick={() => updateDeptMaxJudges(dept.id, draft)}>Save</button>
+                            </>
+                        }
                       </div>
-                      {maxJudgesErr && <div style={{color:"var(--red)",fontSize:".8rem",marginTop:".4rem"}}>{maxJudgesErr}</div>}
-                    </div>
-                  </div>
+                    );
+                  })}
                 </div>
-              )}
-              {judges.length > 0 && (
-                <div className="card" style={{backgroundColor:"var(--s1)",border:"1px solid var(--bd)"}}>
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                    <div>
-                      <div className="lbl">Max Judges Setting</div>
-                      <p style={{fontSize:".85rem",color:"var(--dim)"}}>🔒 Locked — max judges set to {maxJudges}. Reset data to change.</p>
-                    </div>
-                  </div>
-                </div>
-              )}
+              </div>
+
               <div className="card">
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:".82rem",marginBottom:".4rem"}}>
                   <span style={{color:"var(--dim)"}}>Overall completion</span>
@@ -2403,14 +2482,17 @@ export default function App() {
                 </div>
                 <div className="pbar" style={{height:"10px"}}><div className="pfill" style={{width:`${completion}%`,height:"10px"}} /></div>
               </div>
-              <div className="card">
-                <div className="sec-title">Project Leaderboard</div>
-                <div className="tbl-wrap">
-                  {(() => {
-                    const all = rankedProjects();
-                    const scored = all.filter(p => p.avg !== null);
-                    const unscored = all.filter(p => p.avg === null);
-                    return (
+
+              {/* Per-department leaderboards */}
+              {departments.map(dept => {
+                const all = rankedProjects().filter(p => p.department_id === dept.id);
+                const scored   = all.filter(p => p.avg !== null);
+                const unscored = all.filter(p => p.avg === null);
+                if (projects.filter(p => p.department_id === dept.id).length === 0) return null;
+                return (
+                  <div className="card" key={dept.id}>
+                    <div className="sec-title">{dept.name} — Project Leaderboard</div>
+                    <div className="tbl-wrap">
                       <table>
                         <thead><tr><th>#</th><th>Project</th><th>Category</th><th>Avg</th><th>Reviews</th></tr></thead>
                         <tbody>
@@ -2435,12 +2517,41 @@ export default function App() {
                               <td>{p.revs}</td>
                             </tr>
                           ))}
+                          {all.length === 0 && (
+                            <tr><td colSpan={5} style={{textAlign:"center",fontSize:".8rem",color:"var(--dim)",padding:".75rem"}}>No projects yet</td></tr>
+                          )}
                         </tbody>
                       </table>
-                    );
-                  })()}
-                </div>
-              </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {/* Unassigned projects leaderboard (safety net) */}
+              {(() => {
+                const unassigned = rankedProjects().filter(p => !p.department_id);
+                if (!unassigned.length) return null;
+                return (
+                  <div className="card">
+                    <div className="sec-title">Unassigned — Project Leaderboard</div>
+                    <div className="tbl-wrap">
+                      <table>
+                        <thead><tr><th>#</th><th>Project</th><th>Category</th><th>Avg</th><th>Reviews</th></tr></thead>
+                        <tbody>
+                          {unassigned.map((p,i) => (
+                            <tr key={p.id}>
+                              <td style={{fontFamily:"var(--ff-m)",color:"var(--dim)"}}>{p.avg ? i+1 : "—"}</td>
+                              <td style={{maxWidth:"200px"}}>{p.title}</td>
+                              <td><span className="badge bb">{p.cat}</span></td>
+                              <td style={{fontFamily:"var(--ff-m)",color:p.avg?"var(--navy)":"var(--dim)"}}>{p.avg ?? "—"}</td>
+                              <td>{p.revs}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
             </>}
 
             {/* JUDGES */}
@@ -2449,14 +2560,60 @@ export default function App() {
               <div className="adm-sub">Monitor activity and completion per judge · approve device transfer only when needed</div>
               <div className="card"><div className="tbl-wrap">
                 <table>
-                  <thead><tr><th>Alias</th><th>Joined</th><th>Assigned</th><th>Progress</th><th>Status</th><th>Transfer</th></tr></thead>
+                  <thead><tr><th>Alias</th><th>Department</th><th>Joined</th><th>Assigned</th><th>Progress</th><th>Status</th><th>Transfer</th></tr></thead>
                   <tbody>
-                    {judges.map(j => {
+                    {judges.length === 0 && (
+                      <tr><td colSpan={7} style={{textAlign:"center",color:"var(--dim)",padding:"1rem",fontSize:".85rem"}}>No judges registered yet.</td></tr>
+                    )}
+                    {departments.map(dept => {
+                      const deptJudges = judges.filter(j => j.department_id === dept.id);
+                      if (!deptJudges.length) return null;
+                      return [
+                        <tr key={`dept-hdr-${dept.id}`}>
+                          <td colSpan={7} style={{background:"var(--s2)",fontWeight:600,fontSize:".78rem",color:"var(--navy)",fontFamily:"var(--ff-m)",letterSpacing:".05em",padding:".35rem .75rem"}}>
+                            {dept.name.toUpperCase()} — {deptJudges.length}/{dept.max_judges}
+                          </td>
+                        </tr>,
+                        ...deptJudges.map(j => {
+                          const {done,total,pct} = judgeComp(j);
+                          const transferKey = `${dept.id}:${j.alias}`;
+                          const transferOpen = (!!transferAllowances[transferKey] && Date.now() <= transferAllowances[transferKey])
+                                            || (!!transferAllowances[j.alias]     && Date.now() <= transferAllowances[j.alias]);
+                          return (
+                            <tr key={j.id}>
+                              <td style={{fontFamily:"var(--ff-m)",color:"var(--navy)"}}>{j.alias}</td>
+                              <td><span className="badge bp" style={{fontSize:".72rem"}}>{dept.name}</span></td>
+                              <td style={{color:"var(--dim)",fontSize:".78rem"}}>{fmt(j.joinedAt)}</td>
+                              <td>{total}</td>
+                              <td>
+                                <div style={{display:"flex",alignItems:"center",gap:".5rem"}}>
+                                  <div className="pbar" style={{width:"60px",height:"4px"}}>
+                                    <div className="pfill" style={{width:`${pct}%`,height:"4px"}} />
+                                  </div>
+                                  <span style={{fontFamily:"var(--ff-m)",fontSize:".76rem"}}>{done}/{total}</span>
+                                </div>
+                              </td>
+                              <td><span className={`badge ${done===total?"bg":done>0?"ba":"br"}`}>
+                                {done===total?"Complete":done>0?"In Progress":"Not Started"}
+                              </span></td>
+                              <td>
+                                <button className="btn sec sm" style={{width:"auto"}} onClick={() => allowJudgeTransfer(j.alias)}>
+                                  {transferOpen ? "Approved (active)" : "Allow Transfer"}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ];
+                    })}
+                    {/* Judges without a department (legacy / migration) */}
+                    {judges.filter(j => !j.department_id).map(j => {
                       const {done,total,pct} = judgeComp(j);
                       const transferOpen = !!transferAllowances[j.alias] && Date.now() <= transferAllowances[j.alias];
                       return (
                         <tr key={j.id}>
                           <td style={{fontFamily:"var(--ff-m)",color:"var(--navy)"}}>{j.alias}</td>
+                          <td><span className="badge br" style={{fontSize:".72rem"}}>Unassigned</span></td>
                           <td style={{color:"var(--dim)",fontSize:".78rem"}}>{fmt(j.joinedAt)}</td>
                           <td>{total}</td>
                           <td>
@@ -2471,11 +2628,7 @@ export default function App() {
                             {done===total?"Complete":done>0?"In Progress":"Not Started"}
                           </span></td>
                           <td>
-                            <button
-                              className="btn sec sm"
-                              style={{width:"auto"}}
-                              onClick={() => allowJudgeTransfer(j.alias)}
-                            >
+                            <button className="btn sec sm" style={{width:"auto"}} onClick={() => allowJudgeTransfer(j.alias)}>
                               {transferOpen ? "Approved (active)" : "Allow Transfer"}
                             </button>
                           </td>
@@ -2495,7 +2648,7 @@ export default function App() {
                   <div className="adm-sub">Manage projects, view rubric breakdown, and control project access</div>
                 </div>
                 <button className="btn sm" style={{width:"auto"}} onClick={() => {
-                  setProjForm({ title:"", cat:"Biology", grade:"", num:nextProjectNum() });
+                  setProjForm({ title:"", cat:"Biology", grade:"", num:nextProjectNum(), department_id:"" });
                   setShowAddProject(true); setEditingProject(null);
                 }}>
                   + Add Project
@@ -2517,35 +2670,43 @@ export default function App() {
                   </div>
                   <div className="proj-form-grid" style={{marginTop:".5rem"}}>
                     <div>
+                      <div className="lbl">Department</div>
+                      <select className="delib-rec-select" value={projForm.department_id}
+                        onChange={e => setProjForm(f => ({...f, department_id:e.target.value}))}>
+                        <option value="">— Unassigned —</option>
+                        {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
                       <div className="lbl">Category</div>
                       <select className="delib-rec-select" value={projForm.cat}
                         onChange={e => setProjForm(f => ({...f, cat:e.target.value}))}>
                         {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
+                  </div>
+                  <div className="proj-form-grid" style={{marginTop:".5rem"}}>
                     <div>
                       <div className="lbl">Grade</div>
                       <input type="text" placeholder="e.g. 9" value={projForm.grade}
                         onChange={e => setProjForm(f => ({...f, grade:e.target.value}))} />
                     </div>
-                  </div>
-                  <div className="proj-form-grid" style={{marginTop:".5rem"}}>
                     <div>
                       <div className="lbl">Project Number</div>
                       <input type="text" placeholder="e.g. 001" value={projForm.num} style={{fontFamily:"var(--ff-m)"}}
                         onChange={e => setProjForm(f => ({...f, num:e.target.value}))} />
                     </div>
-                    <div style={{display:"flex",alignItems:"flex-end",gap:".5rem",paddingBottom:".1rem"}}>
-                      <button className="btn sm" style={{width:"auto"}}
-                        disabled={!projForm.title.trim()}
-                        onClick={() => editingProject ? updateProject(editingProject) : addProject()}>
-                        {editingProject ? "Save Changes" : "Add Project"}
-                      </button>
-                      <button className="btn sec sm" style={{width:"auto"}}
-                        onClick={() => { setShowAddProject(false); setEditingProject(null); setProjForm({ title:"", cat:"Biology", grade:"", num:"" }); }}>
-                        Cancel
-                      </button>
-                    </div>
+                  </div>
+                  <div style={{marginTop:".5rem",display:"flex",gap:".5rem"}}>
+                    <button className="btn sm" style={{width:"auto"}}
+                      disabled={!projForm.title.trim()}
+                      onClick={() => editingProject ? updateProject(editingProject) : addProject()}>
+                      {editingProject ? "Save Changes" : "Add Project"}
+                    </button>
+                    <button className="btn sec sm" style={{width:"auto"}}
+                      onClick={() => { setShowAddProject(false); setEditingProject(null); setProjForm({ title:"", cat:"Biology", grade:"", num:"", department_id:"" }); }}>
+                      Cancel
+                    </button>
                   </div>
                 </div>
               )}
@@ -2561,6 +2722,7 @@ export default function App() {
                       <div style={{flex:1}}>
                         <div style={{display:"flex",alignItems:"center",gap:".5rem",marginBottom:".2rem",flexWrap:"wrap"}}>
                           <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",color:"var(--navy)"}}>#{p.num} · {p.cat}</span>
+                          {(() => { const d = departments.find(d => d.id === p.department_id); return d ? <span className="badge bp" style={{fontSize:".68rem"}}>{d.name}</span> : <span className="badge br" style={{fontSize:".68rem"}}>Unassigned</span>; })()}
                           {p.locked && <span className="proj-lock-badge">🔒 Locked</span>}
                         </div>
                         <div style={{fontWeight:600,marginBottom:".2rem",lineHeight:1.3}}>{p.title}</div>
@@ -2581,7 +2743,7 @@ export default function App() {
                               <button className="proj-act-btn edit"
                                 onClick={() => {
                                   setEditingProject(p.id);
-                                  setProjForm({ title:p.title, cat:p.cat, grade:p.grade, num:p.num });
+                                  setProjForm({ title:p.title, cat:p.cat, grade:p.grade, num:p.num, department_id:p.department_id||"" });
                                   setShowAddProject(false);
                                 }}
                                 title="Edit project">
@@ -3267,12 +3429,90 @@ export default function App() {
 
   /* PUBLIC RESULTS */
   if (view === "public-results") {
-    const ranked   = rankedProjects();
-    const scored   = ranked.filter(p => p.avg);
-    const unscored = ranked.filter(p => !p.avg);
-    const top3     = scored.slice(0, 3);
-    const rest     = scored.slice(3);
-    const podCols  = ["var(--amber)","#64748b","#b45309"];
+    const podCols = ["var(--amber)","#64748b","#b45309"];
+
+    // Helper: render podium + ranked table for a given set of projects
+    function DeptResults({ deptProjects, deptName }) {
+      const scored   = deptProjects.filter(p => p.avg);
+      const unscored = deptProjects.filter(p => !p.avg);
+      const top3     = scored.slice(0, 3);
+      return (
+        <>
+          {top3.length > 0 && (
+            <div className="podium-wrap">
+              {[top3[1], top3[0], top3[2]].filter(Boolean).map((p, vi) => {
+                const ri = p===top3[0]?0:p===top3[1]?1:2;
+                return (
+                  <div key={p.id} className={`podium-card p${ri+1}`}
+                    style={{ width:ri===0?"200px":"168px", order:[1,0,2][vi] }}>
+                    <div className="p-medal">{MEDALS[ri]}</div>
+                    <div className="p-score" style={{color:podCols[ri]}}>{p.avg}</div>
+                    <div style={{fontSize:".65rem",color:"var(--dim)",marginTop:".1rem"}}>/42 pts</div>
+                    <div className="p-title">{p.title}</div>
+                    {finalDecisions[p.id]?.finalized && finalDecisions[p.id]?.award !== "No Award" && finalDecisions[p.id]?.award !== "Pending" && (
+                      <div style={{marginTop:".35rem"}}>
+                        <span className={`award-badge sm ${awardBadgeClass(finalDecisions[p.id].award)}`}>
+                          {awardEmoji(finalDecisions[p.id].award)} {finalDecisions[p.id].award}
+                        </span>
+                      </div>
+                    )}
+                    <div className="p-cat"><span className="badge bb">{p.cat}</span></div>
+                    <div className="p-revs">{p.revs} review{p.revs!==1?"s":""}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div style={{marginBottom:".75rem",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:".5rem"}}>
+            <div style={{fontFamily:"var(--ff-d)",fontSize:"1.05rem"}}>{deptName} — All Projects</div>
+            <span className="badge bg">{scored.length} scored · {unscored.length} pending</span>
+          </div>
+          <div className="results-table">
+            {scored.map((p, i) => (
+              <div key={p.id} className="res-row">
+                <div className="res-rank">{i < 3 ? MEDALS[i] : <span>{i+1}</span>}</div>
+                <div>
+                  <div className="res-title">
+                    {p.title}
+                    {finalDecisions[p.id]?.finalized && finalDecisions[p.id]?.award !== "No Award" && finalDecisions[p.id]?.award !== "Pending" && (
+                      <span className={`award-badge sm ${awardBadgeClass(finalDecisions[p.id].award)}`} style={{marginLeft:".5rem",verticalAlign:"middle"}}>
+                        {awardEmoji(finalDecisions[p.id].award)} {finalDecisions[p.id].award}
+                      </span>
+                    )}
+                  </div>
+                  <div className="res-meta">{p.cat} · Grade {p.grade} · {p.revs} review{p.revs!==1?"s":""}</div>
+                  {shareShowRubric && (
+                    <div className="rub-chips">
+                      {RUBRIC.map(r => {
+                        const avg = rubAvg(p.id, r.id);
+                        if (!avg) return null;
+                        return <span key={r.id} className="rub-chip">{r.label.split(" ")[0]}: {avg}/{r.max}</span>;
+                      })}
+                    </div>
+                  )}
+                </div>
+                <div className="res-score">
+                  <div className="res-score-big">{p.avg}</div>
+                  <div className="res-score-sub">/42</div>
+                </div>
+              </div>
+            ))}
+            {unscored.map(p => (
+              <div key={p.id} className="res-row" style={{opacity:.35}}>
+                <div className="res-rank">—</div>
+                <div>
+                  <div className="res-title">{p.title}</div>
+                  <div className="res-meta">{p.cat} · Grade {p.grade} · Awaiting scores</div>
+                </div>
+                <div className="res-score"><div style={{fontFamily:"var(--ff-m)",color:"var(--dim)",fontSize:".85rem"}}>TBD</div></div>
+              </div>
+            ))}
+          </div>
+        </>
+      );
+    }
+
+    const allRanked = rankedProjects();
 
     return (
       <div className="app"><style>{CSS}</style>{backdrop}
@@ -3288,81 +3528,33 @@ export default function App() {
               <div className="live-chip">● RESULTS PUBLISHED · {shareCreated ? fmtFull(shareCreated) : "Today"}</div>
             </div>
 
-            {/* Podium */}
-            {top3.length > 0 && (
-              <div className="podium-wrap">
-                {[top3[1], top3[0], top3[2]].filter(Boolean).map((p, vi) => {
-                  const ri = p===top3[0]?0:p===top3[1]?1:2;
-                  return (
-                    <div key={p.id} className={`podium-card p${ri+1}`}
-                      style={{ width:ri===0?"200px":"168px", order:[1,0,2][vi] }}>
-                      <div className="p-medal">{MEDALS[ri]}</div>
-                      <div className="p-score" style={{color:podCols[ri]}}>{p.avg}</div>
-                      <div style={{fontSize:".65rem",color:"var(--dim)",marginTop:".1rem"}}>/100 pts</div>
-                      <div className="p-title">{p.title}</div>
-                      {finalDecisions[p.id]?.finalized && finalDecisions[p.id]?.award !== "No Award" && finalDecisions[p.id]?.award !== "Pending" && (
-                        <div style={{marginTop:".35rem"}}>
-                          <span className={`award-badge sm ${awardBadgeClass(finalDecisions[p.id].award)}`}>
-                            {awardEmoji(finalDecisions[p.id].award)} {finalDecisions[p.id].award}
-                          </span>
-                        </div>
-                      )}
-                      <div className="p-cat"><span className="badge bb">{p.cat}</span></div>
-                      <div className="p-revs">{p.revs} review{p.revs!==1?"s":""}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            {/* Per-department sections */}
+            {departments.map(dept => {
+              const deptProjects = allRanked.filter(p => p.department_id === dept.id);
+              if (!deptProjects.length) return null;
+              return (
+                <div key={dept.id}>
+                  <div style={{fontFamily:"var(--ff-d)",fontSize:"1.4rem",color:"var(--navy)",margin:"2rem 0 1rem",borderBottom:"2px solid var(--bd)",paddingBottom:".5rem"}}>
+                    {dept.name}
+                  </div>
+                  <DeptResults deptProjects={deptProjects} deptName={dept.name} />
+                </div>
+              );
+            })}
 
-            {/* Full ranked table */}
-            <div style={{marginBottom:".75rem",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:".5rem"}}>
-              <div style={{fontFamily:"var(--ff-d)",fontSize:"1.1rem"}}>All Projects</div>
-              <span className="badge bg">{scored.length} scored · {unscored.length} pending</span>
-            </div>
-            <div className="results-table">
-              {scored.map((p, i) => (
-                <div key={p.id} className="res-row">
-                  <div className="res-rank">
-                    {i < 3 ? MEDALS[i] : <span>{i+1}</span>}
+            {/* Unassigned projects (safety net) */}
+            {(() => {
+              const unassigned = allRanked.filter(p => !p.department_id);
+              if (!unassigned.length) return null;
+              return (
+                <div>
+                  <div style={{fontFamily:"var(--ff-d)",fontSize:"1.4rem",color:"var(--dim)",margin:"2rem 0 1rem",borderBottom:"2px solid var(--bd)",paddingBottom:".5rem"}}>
+                    Other Projects
                   </div>
-                  <div>
-                    <div className="res-title">
-                      {p.title}
-                      {finalDecisions[p.id]?.finalized && finalDecisions[p.id]?.award !== "No Award" && finalDecisions[p.id]?.award !== "Pending" && (
-                        <span className={`award-badge sm ${awardBadgeClass(finalDecisions[p.id].award)}`} style={{marginLeft:".5rem",verticalAlign:"middle"}}>
-                          {awardEmoji(finalDecisions[p.id].award)} {finalDecisions[p.id].award}
-                        </span>
-                      )}
-                    </div>
-                    <div className="res-meta">{p.cat} · Grade {p.grade} · {p.revs} review{p.revs!==1?"s":""}</div>
-                    {shareShowRubric && (
-                      <div className="rub-chips">
-                        {RUBRIC.map(r => {
-                          const avg = rubAvg(p.id, r.id);
-                          if (!avg) return null;
-                          return <span key={r.id} className="rub-chip">{r.label.split(" ")[0]}: {avg}/{r.max}</span>;
-                        })}
-                      </div>
-                    )}
-                  </div>
-                  <div className="res-score">
-                    <div className="res-score-big">{p.avg}</div>
-                    <div className="res-score-sub">/100</div>
-                  </div>
+                  <DeptResults deptProjects={unassigned} deptName="Other" />
                 </div>
-              ))}
-              {unscored.map(p => (
-                <div key={p.id} className="res-row" style={{opacity:.35}}>
-                  <div className="res-rank">—</div>
-                  <div>
-                    <div className="res-title">{p.title}</div>
-                    <div className="res-meta">{p.cat} · Grade {p.grade} · Awaiting scores</div>
-                  </div>
-                  <div className="res-score"><div style={{fontFamily:"var(--ff-m)",color:"var(--dim)",fontSize:".85rem"}}>TBD</div></div>
-                </div>
-              ))}
-            </div>
+              );
+            })()}
 
             <div className="pub-footer">
               <strong>{shareTitle || "Science Fair SY 2025-2026"}</strong><br />

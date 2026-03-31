@@ -5,23 +5,35 @@
 
 -- -- TABLES ----------------------------------------------------------
 
+-- Departments (Elementary / Middle School / High School — admin-configurable)
+CREATE TABLE departments (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  name       TEXT        NOT NULL UNIQUE,
+  max_judges INT         NOT NULL DEFAULT 5,   -- max judges allowed per department
+  ord        INT         NOT NULL DEFAULT 0,   -- display order
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Projects (dynamic — admin can add/remove/lock)
 CREATE TABLE projects (
-  id         TEXT        PRIMARY KEY,             -- e.g. "p1", "p_abc123"
-  num        TEXT        NOT NULL,                -- display number e.g. "001"
-  title      TEXT        NOT NULL,
-  cat        TEXT        NOT NULL DEFAULT '',      -- category
-  grade      TEXT        NOT NULL DEFAULT '',
-  locked     BOOLEAN     NOT NULL DEFAULT FALSE,   -- locked projects cannot be edited or removed
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id            TEXT        PRIMARY KEY,             -- e.g. "p1", "p_abc123"
+  num           TEXT        NOT NULL,                -- display number e.g. "001"
+  title         TEXT        NOT NULL,
+  cat           TEXT        NOT NULL DEFAULT '',      -- category
+  grade         TEXT        NOT NULL DEFAULT '',
+  locked        BOOLEAN     NOT NULL DEFAULT FALSE,   -- locked projects cannot be edited or removed
+  department_id UUID        REFERENCES departments(id) ON DELETE SET NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Registered judges (anonymous aliases, no real identity stored)
 CREATE TABLE judges (
-  id         TEXT        PRIMARY KEY,          -- client-generated: "j_" + random
-  alias      TEXT        NOT NULL,             -- e.g. "Bold Falcon"
-  projects   JSONB       NOT NULL DEFAULT '[]', -- assigned project IDs
-  joined_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id            TEXT        PRIMARY KEY,          -- client-generated: "j_" + random
+  alias         TEXT        NOT NULL,             -- e.g. "Judge1"
+  projects      JSONB       NOT NULL DEFAULT '[]', -- assigned project IDs
+  department_id UUID        REFERENCES departments(id) ON DELETE SET NULL,
+  joined_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (department_id, alias)                   -- one alias per department
 );
 
 -- One score row per judge+project pair (10-criteria rubric, 42 pts max)
@@ -122,6 +134,12 @@ CREATE TABLE validations (
   validated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Seed default departments
+INSERT INTO departments (name, max_judges, ord) VALUES
+  ('Elementary',    5, 0),
+  ('Middle School', 5, 1),
+  ('High School',   5, 2);
+
 -- Seed the locked setting
 INSERT INTO app_settings (key, value) VALUES ('locked', 'false');
 
@@ -142,6 +160,7 @@ INSERT INTO app_settings (key, value) VALUES ('results_finalized', 'false');
 -- Auth is added, replace the score INSERT/UPDATE policies with:
 --   USING (auth.uid()::text = judge_id)
 
+ALTER TABLE departments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE projects    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE judges      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scores      ENABLE ROW LEVEL SECURITY;
@@ -153,6 +172,12 @@ ALTER TABLE deliberation_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE final_decisions    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE validations        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE score_backups      ENABLE ROW LEVEL SECURITY;
+
+-- departments: public read (judges need to see dept list), admin write
+CREATE POLICY "departments_select" ON departments FOR SELECT USING (true);
+CREATE POLICY "departments_insert" ON departments FOR INSERT WITH CHECK (true);
+CREATE POLICY "departments_update" ON departments FOR UPDATE USING (true);
+CREATE POLICY "departments_delete" ON departments FOR DELETE USING (true);
 
 -- projects: public read, anon can manage (admin-only in practice)
 CREATE POLICY "projects_select" ON projects FOR SELECT USING (true);
@@ -219,6 +244,7 @@ CREATE POLICY "score_backups_delete" ON score_backups FOR DELETE USING (true);
 -- Enable realtime publication for live dashboard updates.
 -- Run these after enabling the Realtime extension in your Supabase project.
 
+ALTER PUBLICATION supabase_realtime ADD TABLE departments;
 ALTER PUBLICATION supabase_realtime ADD TABLE projects;
 ALTER PUBLICATION supabase_realtime ADD TABLE judges;
 ALTER PUBLICATION supabase_realtime ADD TABLE scores;
@@ -233,6 +259,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE score_backups;
 
 
 -- -- INDEXES -----------------------------------------------------------
+CREATE INDEX departments_ord_idx    ON departments (ord);
+CREATE INDEX projects_dept_idx      ON projects (department_id);
+CREATE INDEX judges_dept_idx        ON judges (department_id);
 CREATE INDEX scores_judge_id_idx    ON scores (judge_id);
 CREATE INDEX scores_project_id_idx  ON scores (project_id);
 CREATE INDEX activity_log_time_idx  ON activity_log (created_at DESC);
@@ -260,6 +289,39 @@ CREATE INDEX score_backups_time_idx ON score_backups (created_at DESC);
 -- CREATE POLICY "validations_delete" ON validations FOR DELETE USING (true);
 -- ALTER PUBLICATION supabase_realtime ADD TABLE validations;
 -- INSERT INTO app_settings (key, value) VALUES ('results_finalized', 'false') ON CONFLICT (key) DO NOTHING;
+
+
+-- -- MIGRATION: add departments + department_id columns (run once on live DB) --
+-- Adds multi-department support (e.g. Elementary / Middle School / High School).
+-- Each department has its own judge pool and project list.
+--
+-- CREATE TABLE IF NOT EXISTS departments (
+--   id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+--   name       TEXT        NOT NULL UNIQUE,
+--   max_judges INT         NOT NULL DEFAULT 5,
+--   ord        INT         NOT NULL DEFAULT 0,
+--   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+-- );
+-- ALTER TABLE departments ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY "departments_select" ON departments FOR SELECT USING (true);
+-- CREATE POLICY "departments_insert" ON departments FOR INSERT WITH CHECK (true);
+-- CREATE POLICY "departments_update" ON departments FOR UPDATE USING (true);
+-- CREATE POLICY "departments_delete" ON departments FOR DELETE USING (true);
+-- ALTER PUBLICATION supabase_realtime ADD TABLE departments;
+-- CREATE INDEX departments_ord_idx ON departments (ord);
+--
+-- ALTER TABLE projects ADD COLUMN IF NOT EXISTS department_id UUID REFERENCES departments(id) ON DELETE SET NULL;
+-- ALTER TABLE judges  ADD COLUMN IF NOT EXISTS department_id UUID REFERENCES departments(id) ON DELETE SET NULL;
+-- ALTER TABLE judges  ADD CONSTRAINT IF NOT EXISTS judges_dept_alias_unique UNIQUE (department_id, alias);
+-- CREATE INDEX IF NOT EXISTS projects_dept_idx ON projects (department_id);
+-- CREATE INDEX IF NOT EXISTS judges_dept_idx   ON judges  (department_id);
+--
+-- -- Seed default departments (run once):
+-- INSERT INTO departments (name, max_judges, ord) VALUES
+--   ('Elementary',    5, 0),
+--   ('Middle School', 5, 1),
+--   ('High School',   5, 2)
+-- ON CONFLICT (name) DO NOTHING;
 
 
 -- -- MIGRATION: add score_backups table (run once on live DB) --------

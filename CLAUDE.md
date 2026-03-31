@@ -19,7 +19,9 @@ Built as a single-file React component (`ScienceFairJudging.jsx`).
 **Live URL:** https://sciencefair-judging-app.vercel.app/
 **Supabase project:** https://cjzuiimoamrggucvahjm.supabase.co
 
-> Last major update: 2026-03-27 — added Score Export admin tab: per-judge CSV export and persistent score backups saved to `score_backups` table.
+> Last major update: 2026-03-31 — added multi-department support (Elementary / Middle School / High School). Each department has its own judge pool, project list, leaderboard, and per-dept max-judges cap. Judges select their department at registration. Projects are assigned a department by admin. Public results page splits by department.
+>
+> Previous update: 2026-03-27 — added Score Export admin tab: per-judge CSV export and persistent score backups saved to `score_backups` table.
 
 ## 🐛 Bug Fix Log
 
@@ -193,21 +195,34 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 
 ## 📊 Data Model
 
+### Departments (`departments` state, synced from Supabase `departments` table)
+```js
+{ id, name, max_judges, ord }
+// id: UUID (PK from Supabase)
+// name: "Elementary" | "Middle School" | "High School" (or custom)
+// max_judges: per-department judge cap (default 5)
+// ord: display order integer
+```
+`DEFAULT_DEPARTMENTS` is a fallback constant used before Supabase loads. `loadDepartments()` auto-seeds 3 default rows if the table is empty on first run. Admin can adjust `max_judges` per department before any judge in that department registers (locks after first registration in that dept).
+
 ### Projects (dynamic — `projects` state, synced from Supabase `projects` table)
 ```js
-{ id, num, title, cat, grade, locked }
+{ id, num, title, cat, grade, locked, department_id }
 // id: "p1", "p2", ... or "p_abc123" for admin-added projects
 // num: display number e.g. "001"
 // cat values: "Biology", "Physics", "Computer Sci.", "Chemistry", "Earth Science", "Engineering", "Math", "Environmental Sci."
 // locked: boolean — locked projects cannot be edited or removed by admin
+// department_id: UUID FK to departments table (null = unassigned/legacy)
 ```
-`DEFAULT_PROJECTS` is a seed array used as fallback if the Supabase `projects` table is empty. On init, projects are loaded from Supabase; if the table has rows, those replace the defaults. Admin can add/edit/remove/lock projects dynamically via the Projects tab.
+`DEFAULT_PROJECTS` is a seed array used as fallback if the Supabase `projects` table is empty. On init, projects are loaded from Supabase; if the table has rows, those replace the defaults. Admin can add/edit/remove/lock projects dynamically via the Projects tab. Admin assigns a department when adding/editing a project.
 
 ### Judges (stored in `judges` state, synced from Supabase `judges` table)
 ```js
-{ id, alias, projects: [pid, ...], joinedAt }
+{ id, alias, projects: [pid, ...], joinedAt, department_id }
 // alias = judge's chosen name e.g. "Judge3"
-// projects: array of ALL project IDs (every judge scores every project)
+// projects: array of project IDs for this judge's department (all projects in that dept)
+// department_id: UUID FK to departments table — set at registration
+// UNIQUE(department_id, alias) — same alias can exist across different departments
 ```
 
 ### Scores (stored in `scores` state as flat key-value object, synced from Supabase `scores` table)
@@ -377,7 +392,12 @@ delibReportCopied  // boolean — copy feedback for deliberation summary
 // Project management state (admin Projects tab)
 showAddProject     // boolean — show add project modal
 editingProject     // string | null — project ID being edited
-projForm           // { title, cat, grade, num } — form fields for add/edit
+projForm           // { title, cat, grade, num, department_id } — form fields for add/edit
+
+// Department state
+departments        // [{ id, name, max_judges, ord }] — synced from departments table
+regDept            // string — selected department ID on judge-register view
+deptMaxDrafts      // { [deptId]: string } — per-dept max judges draft input values
 ```
 
 ### Key functions
@@ -570,7 +590,9 @@ getAnomalies()              // Array of outlier objects where deviation > 8pts f
 isLinkLive()                // Boolean — is the public share link active and not expired?
 addLog(msg)                 // Append to human activity log + Supabase activity_log
 addItLog(level, module, event, detail, payload)  // Append structured IT log entry
-assignProjects(idx)         // Assign 4 project IDs to a judge based on their index (defined inside App(), uses dynamic projects state)
+assignProjects(deptId)      // Return ALL project IDs whose department_id === deptId (every judge in a dept scores every project in that dept)
+loadDepartments()           // Load/seed departments table; auto-seeds 3 defaults if empty on first run
+updateDeptMaxJudges(deptId, newMax)  // Update max_judges for a department (blocked if would be < current count)
 flushOfflineQueue()         // Sync any locally-queued scores to Supabase
 allowJudgeTransfer(alias)   // Admin approves one-time judge transfer for 10 minutes — uses custom PIN modal, not window.prompt
 confirmTransfer()           // Confirms the PIN in transfer modal and executes transfer
@@ -594,8 +616,9 @@ Supabase is **fully integrated and live**. Schema is applied at `supabase/schema
 ### Tables
 | Table | Purpose |
 |---|---|
-| `projects` | Dynamic project list (id, num, title, cat, grade, locked, created_at) |
-| `judges` | Registered judges (id, alias, projects JSON, joined_at) |
+| `departments` | Department definitions (id UUID PK, name UNIQUE, max_judges INT, ord INT) — seeded with Elementary/Middle School/High School on first run |
+| `projects` | Dynamic project list (id, num, title, cat, grade, locked, department_id FK→departments, created_at) |
+| `judges` | Registered judges (id, alias, projects JSON, department_id FK→departments, joined_at); UNIQUE(department_id, alias) |
 | `scores` | One row per judge+project pair; UNIQUE(judge_id, project_id) |
 | `activity_log` | Human-readable audit trail — never deleted |
 | `it_logs` | Structured diagnostic events |
@@ -642,6 +665,7 @@ Row Level Security is enabled on all tables with open anon policies (public read
 13. **Locked projects cannot be edited or removed.** The `locked` boolean on the `projects` table (and local state) must be checked before any update or delete operation. Only `toggleProjectLock()` can change the lock state.
 14. **Removing a project must cascade-delete all related data.** When `removeProject(pid)` runs, it must delete: scores with that `project_id`, deliberation notes with that `project_id`, final decisions for that project, and remove the project ID from all judge assignment arrays. No orphaned records.
 15. **Projects are NOT cleared on reset.** Projects are configuration data, not session data. `executeReset()` clears judges, scores, deliberation data, share links, and settings (including max_judges) — but never the projects table.
+15a. **Departments are NOT cleared on reset.** Like projects, departments are event configuration. `executeReset()` does not touch the `departments` table. Department max_judges and names persist across resets. Per-dept judge counts return to 0 after reset (judges table cleared), so max_judges becomes editable again for each department.
 16. **`CATEGORIES` constant defines allowed project categories.** Use this array for category dropdowns: `["Biology","Physics","Computer Sci.","Chemistry","Earth Science","Engineering","Math","Environmental Sci."]`.
 17. **Never use `window.prompt` or `window.confirm`.** Both are blocked in PWA/standalone mode on iOS and Android. Use the custom modal pattern (`modal-overlay` / `modal-box`) instead. The judge transfer flow and project deletion flow both already use custom modals.
 18. **Judges cannot re-score after validating.** The `proj-item` click handler checks `!judgeValidations[judge.id]` — validated judges see projects as non-clickable (cursor: not-allowed). Do not remove this gate.
