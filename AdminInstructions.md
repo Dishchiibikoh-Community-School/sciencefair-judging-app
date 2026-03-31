@@ -1,12 +1,12 @@
 # Admin Instructions — Science Fair Judging App
 
-## Welcome to the Admin Dashboard 🎛️
+## Welcome to the Admin Dashboard
 
 This guide covers everything an event organizer needs to know to run the digital judging platform smoothly, from pre-event setup through results publication.
 
 ---
 
-## 🔐 Admin Access
+## Admin Access
 
 **Password:** set by your deployment administrator (stored in `VITE_ADMIN_PASS` environment variable — never shared in docs)
 
@@ -18,13 +18,13 @@ This guide covers everything an event organizer needs to know to run the digital
 
 ---
 
-## ⚙️ Tab Overview
+## Tab Overview
 
 | Tab | Purpose |
 |---|---|
-| **Overview** | Stats, completion tracking, leaderboard, event settings |
-| **Judges** | Track judge registration and scoring progress |
-| **Projects** | Add, edit, remove, or lock projects |
+| **Overview** | Stats, completion tracking, per-department leaderboards, department settings |
+| **Judges** | Track judge registration and scoring progress, grouped by department |
+| **Projects** | Add, edit, remove, or lock projects — each assigned to a department |
 | **Activity** | Human-readable timeline of all system events |
 | **Alerts** | Anomaly detection and system status |
 | **Deliberation** | Validation workflow and award decisions |
@@ -33,23 +33,26 @@ This guide covers everything an event organizer needs to know to run the digital
 
 ---
 
-## 📋 Pre-Event Setup
+## Pre-Event Setup
 
-### 1. Configure Event Settings
+### 1. Configure Department Settings
+
+The app has three departments: **Elementary**, **Middle School**, and **High School**. Each department has its own judge pool, project list, and leaderboard.
 
 **On the Overview tab, before any judges register:**
 
-- **Set Max Judges** — How many judges will participate?
-  - Click on "Max Judges for This Event"
-  - Enter the number (e.g., 12, 15, 20)
-  - Click "Save"
-  - ⚠️ **Once the first judge registers, this setting locks** (prevents mid-event changes)
-  - To change again, you must Reset All Data (clears all scores/judges)
+- **Set Max Judges per Department** — Each department shows its own max judges setting
+  - Click the number next to a department's max judges field
+  - Enter the new number (e.g., 5, 8, 10)
+  - Click **"Save"**
+  - Default is **5 judges per department**
+  - Once the first judge registers in a department, that department's max locks
+  - Other departments remain editable until their first judge registers
 
 **Why this matters:**
-- Prevents accidental registration beyond your capacity
-- Ensures consistent event planning
-- Can be adjusted only before judging begins
+- Elementary, Middle School, and High School may have different judge counts
+- Each department is independent — locking one does not affect the others
+- After a reset, all department max judges become editable again
 
 ### 2. Add Projects
 
@@ -57,59 +60,68 @@ This guide covers everything an event organizer needs to know to run the digital
 
 1. Click **"+ Add Project"**
 2. Fill in the form:
+   - **Department** — Which department this project belongs to (Elementary, Middle School, or High School)
    - **Title** — Project name (e.g., "Solar Cell Efficiency Under Different Light Spectra")
    - **Category** — Choose from Biology, Physics, Computer Sci., Chemistry, Earth Science, Engineering, Math, Environmental Sci.
-   - **Grade** — Student grade level (e.g., 9, 10, 11, 12)
+   - **Grade** — Student grade level (e.g., 4, 6, 9, 11)
    - **Number** — Auto-generated, can edit (e.g., 001, 002, 003)
 3. Click **"Add Project"**
 
+**Important:** Judges only score projects in their own department. A judge registered under Elementary will only see Elementary projects.
+
 **Tips:**
-- Project numbers should be sequential or based on your system
-- Use descriptive titles judges can understand quickly
-- Grade levels help context for scoring (e.g., abstract required for grade 5+)
+- Assign every project to a department before judging begins
+- Projects without a department assigned will not appear in any judge's list
+- Use consistent numbering per department (e.g., Elementary: 001–020, Middle: 021–040)
 
 ### 3. Prepare Judge Credentials
 
-- **Judge names:** Judge1 through Judge[N] — where N is the Max Judges value you configured on the Overview tab
-- **Invite code:** provided at deployment — check your `VITE_INVITE_CODE` environment variable or ask your technical administrator
-- **Share this with judges** before the event so they know what to expect
+- **Judge names:** Judge1 through Judge[N] — where N is the Max Judges value configured per department
+  - Example: Elementary has 5 judges → Judge1–Judge5 in that department
+  - Middle School also has 5 judges → Judge1–Judge5 in that department (same names are fine — different departments)
+- **Invite code:** provided at deployment — check your `VITE_INVITE_CODE` environment variable
+- **Department:** Tell each judge which department they are assigned to before the event
 
 ---
 
-## 👥 During Judging
+## During Judging
 
 ### Overview Tab — Live Scorecard
 
-**Watch real-time progress:**
+**Per-department stats:**
 
-| Stat | What It Shows |
+Each department shows its own section with:
+- **Judge count** — registered vs max for that department (e.g., 3/5)
+- **Max Judges setting** — editable until first judge registers in that dept
+- **Leaderboard** — real-time ranked list of projects in that department
+
+| Leaderboard Column | What It Shows |
 |---|---|
-| **Judges** | Registration count vs max (e.g., 8/15) |
-| **Projects** | Total projects in the system |
-| **Scores In** | Count of completed scores across all judges |
-| **Completion %** | Overall scoring completion |
-| **Progress Bar** | Visual indicator of completion |
+| **#** | Rank within department (by current average) |
+| **Project** | Title |
+| **Category** | Subject area |
+| **Avg** | Current average score (out of 42) |
+| **Reviews** | How many judges have scored it |
 
-**Project Leaderboard:**
-- Shows real-time averages as judges score
-- **#** = Rank (by current average)
-- **Project** = Title
-- **Category** = Subject area
-- **Avg** = Current average score (out of 42)
-- **Reviews** = How many judges have scored it
+Unscored projects (no reviews yet) appear below a divider at reduced opacity.
 
 ### Judges Tab — Per-Judge Status
 
-- **Judge Name** — Who they are
-- **Projects Assigned** — Count they're responsible for
-- **Completed** — How many they've finished
-- **Progress %** — Visual completion indicator
-- **Status** — "Scoring" or "Validated" or "Pending"
+Judges are grouped by department with a section header for each.
+
+| Column | Meaning |
+|---|---|
+| **Judge Name** | Who they are |
+| **Department** | Which department they registered under |
+| **Projects Assigned** | Count they're responsible for |
+| **Completed** | How many they've finished |
+| **Progress %** | Visual completion indicator |
+| **Status** | "Scoring", "Validated", or "Pending" |
 
 **Use this to:**
-- Identify judges who are falling behind
+- Identify judges who are falling behind — within their department
+- Confirm all departments have enough judges registered
 - Contact slow judges for a nudge (off-app)
-- Confirm everyone has registered
 
 ### Device Transfer (Admin-Controlled)
 
@@ -120,7 +132,7 @@ If a judge's tablet fails and they need to continue on another device:
 3. Click **"Allow Transfer"**
 4. Enter the **IT PIN** to authorize transfer
 5. Approval stays active briefly (about 10 minutes, one-time use)
-6. Judge signs in on the new device with the same judge name + invite code
+6. Judge signs in on the new device with the same judge name + department + invite code
 
 **Important:**
 - Judges cannot self-transfer without admin approval
@@ -130,382 +142,256 @@ If a judge's tablet fails and they need to continue on another device:
 ### Projects Tab — Project Management
 
 **View all projects with:**
-- Number, Title, Category, Grade
+- Number, Title, Category, Grade, Department badge
 - **Rubric Breakdown** — How judges are scoring this project (expandable card)
 - **Actions:** Edit, Delete, Lock
 
 **Edit a Project:**
-1. Click **"✏️ Edit"**
-2. Change title, category, grade, or number
+1. Click **"Edit"**
+2. Change title, category, grade, number, or department
 3. Click **"Save Changes"**
 
 **Delete a Project:**
-1. Click **"🗑 Remove"**
+1. Click **"Remove"**
 2. Confirm the prompt
-3. ⚠️ **All scores, deliberation notes, and decisions for this project are deleted**
-4. ⚠️ **Locked projects cannot be deleted** — unlock first if needed
+3. All scores, deliberation notes, and decisions for this project are deleted
+4. Locked projects cannot be deleted — unlock first if needed
 
 **Lock a Project:**
-- Click **"🔒 Lock"** to prevent editing/removal (useful for final projects that must stay)
-- Click **"🔓 Unlock"** to allow changes again
-- Locked badge shows on locked projects
+- Click **"Lock"** to prevent editing/removal
+- Click **"Unlock"** to allow changes again
 
 **Rubric Breakdown (Expandable):**
 - Shows average score per criterion
 - Helps identify which rubric items judges are rating consistently high/low
-- Useful for spotting scoring patterns
 
 ### Alerts Tab — Quality Control
 
 **Anomaly Detection:**
 - Flags projects with unusual scoring patterns
 - Example: Judge1 gave Project 5 a score 15 points lower/higher than other judges
-- **Details:** Shows project, outlier scores, threshold, and recommendation
+- Details: project, outlier scores, threshold, and recommendation
 
 **System Status:**
-- Health indicators
-- Sync status with Supabase
-- Offline modes active
-- Real-time connection status
+- Health indicators and Supabase sync status
 
 ### Activity Tab — Audit Trail
 
-**Complete log of all events:**
-- Judge registered
-- Score submitted
-- Project added/removed
-- Lock toggled
-- Reset executed
-- Deliberation opened/closed
-- Results finalized
-
-**Use for:**
-- Verifying what happened when
-- Auditing judge accountability
-- Reviewing system changes over time
+Complete log of all events: judge registrations, score submissions, project changes, resets, deliberation events.
 
 ---
 
-## 🔍 Validation & Deliberation Workflow
+## Validation & Deliberation Workflow
 
 ### Step 1: Judges Validate Their Results
 
-**For each judge who completes scoring:**
-1. Judge goes to their "Judge Home" screen
-2. Sees a read-only ranked list of their projects (sorted by avg score)
-3. **Two options:**
-   - **"Approve Results"** → "Your results look good; I validate these rankings"
-   - **"Flag a Concern"** → "Something seems off; I have a concern" + optional comment
+After a judge completes scoring all projects in their department:
+1. Judge sees a read-only ranked list of their projects
+2. Two options:
+   - **"Approve Results"** — scores look good
+   - **"Flag a Concern"** — something seems off + optional comment
 
 ### Step 2: Admin Reviews Validations
 
 **On the Deliberation tab:**
-
-1. See a table of all judges' validation statuses:
-   - 🟢 **Approved** — Judge confirms scores are confident
-   - 🟡 **Concern** — Judge flagged an issue (with optional comment)
-   - ⚪ **Pending** — Judge hasn't validated yet
-
-2. Admin also validates themselves:
-   - **"Approve Results"** → All results are fair and accurate
-   - **"Flag a Concern"** → I have reservations (with optional comment)
-
-**Key point:** Both judges AND admin must approve for consensus.
+- See all judges' validation statuses across all departments
+- Green = Approved, Amber = Concern, Gray = Pending
+- Admin also validates themselves
 
 ### Step 3: Consensus Check
 
-**Green banner appears when:**
-- ✅ ALL judges who completed scoring have approved
-- ✅ Admin has approved
-
-**Until consensus:**
-- Deliberation may be needed for flagged concerns
-- Or judges may revise and re-validate
+Green banner appears when all completed judges have approved AND admin has approved.
 
 ### Step 4: Deliberation (Conditional)
 
-**Deliberation opens automatically if:**
-- **Tie detected** — Two or more projects have the exact same average score
-- **Admin manually opens it** — "Open Manually" button available anytime
-
-**What happens in deliberation:**
-1. Admin sees judge comments for each project
-2. Admin views recommendation breakdown (e.g., "3 judges: Award, 2 judges: Strong")
-3. Admin assigns final awards for each project
-4. Admin can flag specific projects for discussion
+Opens automatically on a tie, or admin can open manually. Admin assigns final awards per project.
 
 ### Step 5: Finalize Results
 
-**When ready:**
-1. Ensure consensus is reached (green banner)
+1. Ensure consensus is reached
 2. Close deliberation if opened
-3. Click **"Finalize Results"** button
-4. ✅ Results locked; Share tab now enabled
-
-**After finalization:**
-- Scores can't be changed by judges
-- Admin can still adjust awards/decisions
-- Public results link can be generated
+3. Click **"Finalize Results"**
+4. Share tab becomes enabled
 
 ---
 
-## 📊 Data Management
+## Data Management
 
 ### Reset All Data
 
-**⚠️ CAUTION — This is permanent:**
+**CAUTION — This is permanent:**
 
-1. Go to **IT Logs tab** (enter the 4-digit IT PIN set by your administrator)
-2. Click **"Reset All Data"** button
-3. Enter the IT PIN
-4. Confirm the prompt
-5. ✅ Cleared: Judges, scores, validation, deliberation, results, sharing link
-6. ✅ **Preserved:** Projects (configuration), activity log (audit trail)
+1. Go to **IT Logs tab** (enter the 4-digit IT PIN)
+2. Click **"Reset All Data"**
+3. Enter IT PIN and confirm
 
 **What resets:**
-- Max judges back to 15 (becomes editable again)
-- All judge registrations and sessions
+- All judge registrations and sessions (across all departments)
 - All scores
 - All deliberation notes and decisions
 - All validation entries
-- Judging lock status
 - Share link
+- Per-department judge counts return to 0 (max judges become editable again)
 
 **What is NOT reset:**
-- Projects (you keep your event project list)
+- Projects
+- Department definitions and max judges settings
 - Activity log (security audit trail is permanent)
 
 ### Lock Judging
 
-**Prevent judges from submitting new scores:**
-
 1. **Overview tab**
-2. Look for **"Lock Judging"** toggle (top area)
-3. Click to lock/unlock
-4. Red banner appears: "🔒 Judging LOCKED — judges cannot submit scores"
-5. Judges already scoring can finish, but can't submit new projects
-
-**Why lock?**
-- Deadline has passed
-- Prevent late entries
-- Prepare for deliberation
+2. Click **"Lock Judging"** toggle
+3. Red banner appears — judges cannot submit scores
+4. Affects all departments simultaneously
 
 ---
 
-## 🌐 Share Results
+## Share Results
 
 ### Prerequisites
 
-- ✅ All scoring complete
-- ✅ Consensus reached (all judges approved)
-- ✅ Deliberation closed (if it was opened)
-- ✅ Results finalized
+- All scoring complete
+- Consensus reached (all judges approved)
+- Deliberation closed (if it was opened)
+- Results finalized
 
 ### Generate Link
 
 **On the Share tab:**
 
-1. **Public Results Title** — What appears at top of results page (default: "Science Fair SY 2025-2026 — Final Results")
-2. **Show Rubric Breakdown** — Toggle to display individual criterion scores on results page
-3. **Link Expiry** — Choose:
-   - **1 Hour** — For live event display
-   - **24 Hours** — For day-after viewing
-   - **7 Days** — Full week of access
-   - **Never** — Permanent access
+1. **Public Results Title** — Appears at top of results page
+2. **Show Rubric Breakdown** — Toggle to display criterion scores
+3. **Link Expiry** — 1 Hour / 24 Hours / 7 Days / Never
 4. Click **"Generate Live Results Link"**
-5. Copy the URL (button provided)
-6. Share with participants, parents, school
+5. Copy and share the URL
 
 ### What the Public Sees
 
-**Public results page shows:**
-- 🏆 **Podium** (top 3 projects) — Visually featured with medals
-- 📋 **Full Ranked Table** — All projects sorted by average score
-- 🎖️ **Award Badges** — If awards assigned (1st Place, Best in Category, etc.)
-- 📊 **Optional Rubric Breakdown** — If enabled: scoring details per criterion
-- **Judge names: NEVER shown** — Scores only
+- Results are split by department — Elementary, Middle School, High School each have their own section
+- Each department shows a Podium (top 3) and full ranked table
+- Award badges if assigned
+- Optional rubric breakdown if enabled
+- Judge names are never shown
 
 ### Revoke Link
 
-- Click **"Revoke Link"** to make sharing URL expire immediately
-- Useful if link was shared by mistake or need to unpublish results
+Click **"Revoke Link"** to expire the URL immediately.
 
 ---
 
-## 🛠️ IT Diagnostics
+## IT Diagnostics
 
-### Access IT Logs Terminal
-
-**PIN:** set by your deployment administrator (stored in `VITE_IT_PIN` environment variable)
+**PIN:** stored in `VITE_IT_PIN` environment variable
 
 1. Go to **IT Logs tab**
-2. Click **"Unlock"** button
-3. Enter the 4-digit IT PIN
-4. Click **"Unlock"**
-5. Terminal opens showing detailed event logs
-
-### What You See
-
-**Columns:**
-- **Timestamp** — When event occurred
-- **Level** — ERROR, WARN, INFO, DEBUG
-- **Module** — AUTH, JUDGE, SCORE, ADMIN, SYSTEM, DB
-- **Event** — What happened (e.g., JUDGE_REGISTERED, SCORE_SUBMITTED)
-- **Detail** — Human-readable description
-- **Payload** — Raw data (JSON format)
+2. Click **"Unlock"** and enter PIN
+3. Terminal shows detailed event logs with timestamp, level, module, event, detail, payload
 
 **Common Events:**
 - `JUDGE_REGISTERED` — New judge signed in
-- `JUDGE_REMOVED` — Judge deleted/reset
 - `SCORE_SUBMITTED` — Score recorded
 - `PROJECT_ADDED/REMOVED` — Project management
-- `LINK_GENERATED/REVOKED` — Share link changes
+- `MAX_JUDGES_UPDATED` — Department max judges changed
 - `FULL_RESET` — All data cleared
-- `MAX_JUDGES_REACHED` — Registration limit hit
-- `MAX_JUDGES_UPDATED` — Setting changed
-
-### Filter Logs
-
-- **Event Filter** — Dropdown to search by type
-- **Clear filters** — Show all logs
-- Expand any row for full payload details
-
-### Export / Copy
-
-- Select a row and copy details for troubleshooting
-- Send to technical support if needed
 
 ---
 
-## 👁️ Activity Log
-
-**On the Activity tab:**
-
-- **Human-readable timeline** of all significant events
-- Shows: "Judge3 submitted score for Project #005"
-- Sorted newest first
-- ⚠️ **Never cleared** — Full audit trail of the event
-
-**Review to:**
-- Verify activity during event
-- Audit judge participation
-- Identify any system issues
-- Document for school records
-
----
-
-## 📱 Technical Considerations
+## Technical Considerations
 
 ### Offline Mode
 
 - Judges can score offline if internet drops
 - Scores sync automatically when connection returns
-- **Ensure browsers don't clear app data** (can lose cached entries)
 
 ### Multiple Devices
 
 - Admin can open dashboard on multiple screens (live updates across all)
 - Judges can only be logged in on one device at a time
-- If duplicate login detected, older session is kicked out
 
 ### Browser Compatibility
 
-- ✅ Works on tablets, phones, laptops
-- ✅ Chrome, Safari, Firefox, Edge
-- ✅ PWA installable (can install like app on home screen)
-
-### Data Persistence
-
-- All data stored in Supabase (cloud)
-- Activity log preserved forever (security/audit)
-- Can clear session, but online data persists
+- Works on tablets, phones, laptops
+- Chrome, Safari, Firefox, Edge
+- PWA installable (can install like app on home screen)
 
 ---
 
-## 🎯 Workflow Summary
+## Workflow Summary
 
 ### Pre-Event
-1. ✅ Set max judges
-2. ✅ Add all projects
-3. ✅ Prepare judge credentials (names, invite code)
+1. Set max judges per department (Elementary, Middle School, High School)
+2. Add all projects — assign each to the correct department
+3. Prepare judge credentials (names, department assignment, invite code)
 
 ### During Event
-1. ✅ Judges register and score all projects
-2. ✅ Monitor progress on Overview tab
-3. ✅ Lock judging when deadline passed
+1. Judges register — they select their department at sign-in
+2. Each judge scores only the projects in their department
+3. Monitor progress on Overview tab (per department)
+4. Lock judging when deadline passed
 
 ### Post-Scoring
-1. ✅ Judges validate their results
-2. ✅ Admin validates
-3. ✅ Review any flagged concerns
-4. ✅ Open deliberation if ties exist
-5. ✅ Finalize results
-6. ✅ Generate share link
-7. ✅ Share results with community
-
-### Archive
-- 📋 Review Activity Log
-- 📊 Download results if needed
-- 🔍 Check IT Logs for any issues
+1. Judges validate their results
+2. Admin validates
+3. Review any flagged concerns
+4. Open deliberation if ties exist
+5. Finalize results
+6. Generate share link — public page shows results split by department
+7. Share with community
 
 ---
 
-## ❓ Common Admin Tasks
+## Common Admin Tasks
 
-**Q: A judge registered twice. How do I remove them?**
-A: If this is a device issue, use **Allow Transfer** in the Judges tab (PIN required) so they can continue on the new device. Use Reset All Data only for full event reset scenarios.
+**Q: Can two judges have the same name in different departments?**
+A: Yes. Judge1 can exist in Elementary AND Middle School simultaneously — they are separate registrations in separate departments.
 
-**Q: Can I add judges beyond 15?**
-A: Yes! Before any judge registers, set Max Judges to higher number (e.g., 25) on Overview tab.
+**Q: A judge registered in the wrong department. What do I do?**
+A: Use Reset All Data only if nothing has been scored yet. Otherwise, use Allow Transfer so the judge can re-register on a new device — but they will still be in the same department. To switch departments, the admin must remove that judge (Reset) and have them re-register in the correct one. Plan department assignments carefully before the event.
 
-**Q: How many projects should we have?**
-A: Typically 8-50 projects. More projects = longer scoring time per judge. Plan ~3-5 min per project.
+**Q: Can I add judges beyond 5 per department?**
+A: Yes. Before any judge registers in that department, set its Max Judges higher (e.g., 10) on the Overview tab.
 
-**Q: Can judges change their scores after submitting?**
-A: Yes, until they validate results. After validation, they can't modify. Use deliberation to revisit if needed.
+**Q: What if a department has no projects?**
+A: Judges in that department will see an empty project list and cannot complete scoring. Always assign projects to departments before judging begins.
 
-**Q: What's the difference between "Appealing Results" and "Flagging a Concern"?**
-A: Judges approve results if they're confident. Flagging means they want it discussed (e.g., unusual tie, scoring inconsistency).
+**Q: Can judges see projects from other departments?**
+A: No. Each judge only sees and scores projects assigned to their department.
 
-**Q: Can I enter results manually or only via judges?**
-A: Only via judges. Admin provides oversight/decisions, but scores must come from registered judges.
-
-**Q: How long until results are official?**
-A: After "Finalize Results" is clicked. That's the official snapshot. Further changes only via admin award assignments, not score changes.
+**Q: Can I enter results manually?**
+A: Only via judges. Admin provides oversight and final award decisions, but scores must come from registered judges.
 
 ---
 
-## 📞 Troubleshooting
+## Troubleshooting
+
+### Scenario: Judge can't find their projects
+- Check: Is the judge registered in the correct department?
+- Check: Are projects assigned to that department in the Projects tab?
+- Check: Did the judge select the right department at registration?
 
 ### Scenario: Judges can't register
-- ❌ **Check:** Is max judges set? Are slots full?
-- ❌ **Check:** Are judges using correct invite code?
-- ❌ **Check:** Is their name already taken (logged in elsewhere)?
+- Check: Is that department's max judges already full?
+- Check: Are they using the correct invite code?
+- Check: Is their name already taken in that department?
 
 ### Scenario: Scores not showing up
-- ❌ **Check:** Judge completed all rubric fields?
-- ❌ **Check:** Did judge click "Submit"?
-- ❌ **Check:** Is internet connection stable?
-- ❌ **Check:** IT Logs for errors
+- Check: Did judge complete all rubric fields and click Submit?
+- Check: Is internet connection stable?
+- Check: IT Logs for errors
 
 ### Scenario: Can't finalize results
-- ❌ **Check:** Have ALL judges validated?
-- ❌ **Check:** Has admin validated?
-- ❌ **Check:** Is deliberation still open? Close it first.
-
-### Scenario: Offline judges losing data
-- ✅ **Ensure:** Judges don't clear browser cache/data
-- ✅ **Ensure:** Try sync manually by refreshing page
+- Check: Have ALL judges (across all departments) validated?
+- Check: Has admin validated?
+- Check: Is deliberation still open? Close it first.
 
 ---
 
 ## Summary
 
-1. ⚙️ Set max judges + add projects before judging
-2. 👥 Monitor judge registration and progress
-3. 🔍 Review validation status during deliberation
-4. 🎯 Finalize results when consensus reached
-5. 🌐 Generate share link for community
-6. 📋 Preserve activity log for audit trail
-
-**You're ready to run a smooth, fair, and professional science fair! 🎉**
+1. Set max judges per department + add projects (with department assigned) before judging
+2. Judges select their department at registration — they only score projects in their dept
+3. Monitor per-department progress on Overview tab
+4. Validate, deliberate if needed, finalize results
+5. Generate share link — public page splits results by department
+6. Preserve activity log for audit trail
