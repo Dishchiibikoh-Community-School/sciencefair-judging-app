@@ -650,7 +650,7 @@ const urlRegToken = typeof window !== "undefined"
 export default function App() {
   const [view,        setView]       = useState(urlRegToken ? "public-register" : "landing");
   const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
-  const [projects,    setProjects]   = useState(DEFAULT_PROJECTS);
+  const [projects,    setProjects]   = useState([]);
   const [judges,      setJudges]     = useState([]);
   const [scores,     setScores]  = useState({});
   const [log,        setLog]     = useState([]);
@@ -792,7 +792,7 @@ export default function App() {
   }
   async function loadProjects() {
     const { data } = await supabase.from("projects").select("*").order("created_at");
-    if (data && data.length > 0) {
+    if (data) {
       setProjects(data.map(r => ({ id: r.id, num: r.num, title: r.title, cat: r.cat, grade: r.grade, locked: r.locked || false, department_id: r.department_id || null })));
     }
   }
