@@ -212,7 +212,7 @@ const CSS = `
   .card{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:1.5rem;
     margin-bottom:.85rem;box-shadow:var(--shadow);}
   .lbl{font-size:.8rem;font-family:var(--ff-m);letter-spacing:.08em;color:var(--dim);text-transform:uppercase;margin-bottom:.5rem;}
-  input[type=text],input[type=password]{width:100%;background:var(--bg);border:1.5px solid var(--bd);
+  input[type=text],input[type=password],input[type=email]{width:100%;background:var(--bg);border:1.5px solid var(--bd);
     border-radius:8px;padding:.85rem 1rem;color:var(--text);font-family:var(--ff-b);font-size:1.05rem;outline:none;transition:border-color .2s;}
   input[type=text]:read-only{color:var(--navy);font-family:var(--ff-m);font-size:.9rem;letter-spacing:.03em;cursor:default;background:var(--s1);}
   input:focus{border-color:var(--navy);}
