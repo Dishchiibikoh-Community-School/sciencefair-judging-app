@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { studentEmail, studentName, regNumber, projectTitle, category, division } = req.body || {};
+  const { studentEmail, advisorEmail, studentName, regNumber, projectTitle, category, division } = req.body || {};
 
   if (!studentEmail || !studentName || !regNumber || !projectTitle) {
     return res.status(400).json({ error: "Missing required fields" });
@@ -140,6 +140,11 @@ export default async function handler(req, res) {
 </body>
 </html>`;
 
+  const recipients = [studentEmail];
+  if (advisorEmail && advisorEmail.toLowerCase() !== studentEmail.toLowerCase()) {
+    recipients.push(advisorEmail);
+  }
+
   try {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -149,7 +154,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         from: FROM,
-        to: [studentEmail],
+        to: recipients,
         subject: `Science Fair Registration Confirmed — ${regNumber}`,
         html,
       }),

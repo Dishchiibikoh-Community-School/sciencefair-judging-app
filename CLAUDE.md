@@ -19,7 +19,9 @@ Built as a single-file React component (`ScienceFairJudging.jsx`).
 **Live URL:** https://qritiko.com/ (also https://sciencefair-judging-app.vercel.app/ — redirects to qritiko.com)
 **Supabase project:** https://cjzuiimoamrggucvahjm.supabase.co
 
-> Last major update: 2026-04-02 — added Student Registration feature. Admin generates a shareable registration link from the Registration tab. Participants open the link, fill out a 6-section form, and their project is auto-saved to the projects list. A confirmation email with their registration number is sent via Resend API (`/api/send-registration-email.js`). Registration data stored in `registration_links` and `registration_submissions` tables. Custom domain `qritiko.com` configured via Cloudflare + Vercel.
+> Last major update: 2026-04-02 (session 2) — registration improvements: (1) registration project numbers now count only registration submissions (independent of admin-added projects, so first registration is always #001); (2) `generateRegNum` uses `projNum` directly so reg number suffix always matches project number; (3) delete button added to Submitted Registrations table (custom modal, no `window.confirm`); (4) Confirm Email field added to registration form with live match indicator and paste-prevention; (5) `input[type=email]` added to global CSS rule so email fields match design; (6) `exportRegCSV()` added — exports all 25 registration fields to a dated CSV file.
+>
+> Previous update: 2026-04-02 — added Student Registration feature. Admin generates a shareable registration link from the Registration tab. Participants open the link, fill out a 6-section form, and their project is auto-saved to the projects list. A confirmation email with their registration number is sent via Resend API (`/api/send-registration-email.js`). Registration data stored in `registration_links` and `registration_submissions` tables. Custom domain `qritiko.com` configured via Cloudflare + Vercel.
 >
 > Previous update: 2026-03-31 — added multi-department support (Elementary / Middle School / High School). Each department has its own judge pool, project list, leaderboard, and per-dept max-judges cap. Judges select their department at registration. Projects are assigned a department by admin. Public results page splits by department.
 >
@@ -402,6 +404,17 @@ projForm           // { title, cat, grade, num, department_id } — form fields 
 departments        // [{ id, name, max_judges, ord }] — synced from departments table
 regDept            // string — selected department ID on judge-register view
 deptMaxDrafts      // { [deptId]: string } — per-dept max judges draft input values
+
+// Registration state (admin Registration tab + public-register view)
+regLinks           // [{ id, token, active, expires_at, created_at }] — loaded on Registration tab open
+regSubmissions     // summary rows from registration_submissions (display columns only)
+deleteRegSub       // { id, reg_number, student_name } | null — submission pending delete modal
+regForm            // full registration form fields including emailConfirm for double-entry validation
+regFormErr         // string — validation error shown on registration form
+regSubmitting      // boolean — submission in progress
+regSuccess         // { regNumber, projectTitle, category } | null — shown on success screen
+regTokenData       // registration_links row | null — validated token from URL param
+regTokenChecked    // boolean — true once token validation has completed
 ```
 
 ### Key functions
@@ -573,6 +586,14 @@ closeDeliberation()         // Closes deliberation — persists to app_settings
 finalizeResults()           // Sets resultsFinalized=true, persists to app_settings, unlocks Share tab
 loadValidations()           // Load all rows from validations table into judgeValidations + adminValidation
 exportResultsCSV()          // Generate and download a CSV of ranked projects + awards (Share tab)
+exportRegCSV()              // Fetch all registration_submissions fields and download as dated CSV (Registration tab)
+
+// Registration management
+loadRegLinks()              // Load all registration_links rows into regLinks state
+loadRegSubmissions()        // Load summary columns from registration_submissions into regSubmissions state
+generateRegLink()           // Insert a new active token into registration_links
+generateRegNum(div,cat,projNum) // Return "{DivCode}-{CatCode}-{projNum}" string (synchronous)
+deleteRegSubmission(sub)    // Delete a registration_submissions row; updates local state + activity log
 
 // Deliberation helpers
 getDelibNotesForProject(pid) // Array of { judgeAlias, comment, recommendation, flagged }
@@ -735,3 +756,6 @@ Edit the `CATEGORIES` constant array. This affects the category dropdown in the 
 
 **Exporting results to CSV:**
 Call `exportResultsCSV()` from the Share tab (visible only when `resultsFinalized`). Generates a CSV with columns: Rank, Project #, Title, Category, Grade, Avg Score, Reviews, Award. Downloaded via `URL.createObjectURL`.
+
+**Exporting registration submissions to CSV:**
+Call `exportRegCSV()` from the Registration tab (Export CSV button, disabled when no submissions). Does a full `select("*")` on `registration_submissions` and downloads all 25 fields as `registrations_YYYY-MM-DD.csv`. Button is disabled when `regSubmissions.length === 0`.

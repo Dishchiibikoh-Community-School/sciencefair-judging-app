@@ -2080,6 +2080,7 @@ export default function App() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             studentEmail: f.studentEmail.trim(),
+            advisorEmail: f.advisorEmail.trim(),
             studentName:  f.studentName.trim(),
             regNumber,
             projectTitle: f.projectTitle.trim(),
