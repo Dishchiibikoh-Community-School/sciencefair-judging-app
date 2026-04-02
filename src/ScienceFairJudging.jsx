@@ -48,6 +48,12 @@ const DEFAULT_DEPARTMENTS = [
   { id: null, name: "High School",   max_judges: 5, ord: 2 },
 ];
 
+// ── REGISTRATION FORM CONSTANTS ──────────────────────────────
+const DIVISIONS     = ["Elementary", "Junior High School", "Senior High School"];
+const REG_CATEGORIES = ["Life Science", "Earth and Space Science", "Physical Science", "Engineering and Technology"];
+const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Senior High School": "SHS" };
+const CAT_CODES     = { "Life Science": "LF", "Earth and Space Science": "ESS", "Physical Science": "PS", "Engineering and Technology": "ET" };
+
 function uid()      { return Math.random().toString(36).slice(2, 10); }
 function genToken() { return Array.from({length:4}, () => Math.random().toString(36).slice(2,6).toUpperCase()).join("-"); }
 function fmt(ts)    { return new Date(ts).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }); }
@@ -558,6 +564,34 @@ const CSS = `
   .proj-form-grid.full{grid-template-columns:1fr;}
   .proj-lock-badge{display:inline-flex;align-items:center;gap:.25rem;font-size:.68rem;font-family:var(--ff-m);
     color:var(--amber);background:var(--amber-l);padding:.15rem .5rem;border-radius:100px;}
+
+  /* REGISTRATION FORM */
+  .reg-wrap{min-height:100vh;padding:2rem 1rem 3rem;background:linear-gradient(180deg,var(--s1) 0%,var(--bg) 30%);}
+  .reg-inner{max-width:680px;margin:0 auto;}
+  .reg-hero{text-align:center;padding:2rem 1rem 1.5rem;}
+  .reg-section{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:1.5rem;margin-bottom:1rem;box-shadow:var(--shadow);}
+  .reg-section-title{font-family:var(--ff-d);font-size:1.05rem;color:var(--navy);margin-bottom:1.1rem;padding-bottom:.6rem;border-bottom:1px solid var(--bd);}
+  .reg-field{margin-bottom:1rem;}
+  .reg-field:last-child{margin-bottom:0;}
+  .reg-req{color:var(--red);margin-left:.15rem;}
+  .reg-radio-group{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.35rem;}
+  .reg-radio-item{display:flex;align-items:center;gap:.4rem;padding:.5rem .85rem;border:1.5px solid var(--bd);border-radius:8px;cursor:pointer;transition:all .15s;font-size:.92rem;user-select:none;}
+  .reg-radio-item:hover{border-color:var(--navy-l);}
+  .reg-radio-item.sel{border-color:var(--navy);background:#1e3a5f08;color:var(--navy);font-weight:600;}
+  .reg-radio-item input{display:none;}
+  .reg-check-item{display:flex;align-items:flex-start;gap:.65rem;padding:.75rem;background:var(--s1);border:1px solid var(--bd);border-radius:8px;cursor:pointer;transition:background .15s;margin-top:.35rem;}
+  .reg-check-item:hover{background:var(--s2);}
+  .reg-check-item input[type=checkbox]{width:18px;height:18px;flex-shrink:0;margin-top:.1rem;accent-color:var(--navy);cursor:pointer;}
+  .reg-check-label{font-size:.88rem;color:var(--text);line-height:1.5;}
+  .reg-success{text-align:center;padding:2.5rem 1.5rem;}
+  .reg-success .ico{font-size:3.5rem;margin-bottom:1rem;}
+  .reg-success h2{font-family:var(--ff-d);font-size:1.5rem;color:var(--navy);margin-bottom:.4rem;}
+  .reg-number-wrap{background:var(--green-l);border:1px solid #05966930;border-radius:var(--r);padding:1.5rem;margin:1.25rem 0;text-align:center;}
+  .reg-number-display{font-family:var(--ff-m);font-size:2.2rem;font-weight:700;color:var(--navy);letter-spacing:.05em;margin:.35rem 0;}
+  .reg-invalid-banner{background:var(--red-l);border:1px solid #dc262630;border-radius:var(--r);padding:2rem;text-align:center;margin:2rem auto;max-width:480px;}
+  .reg-num-pill{font-family:var(--ff-m);font-size:.78rem;background:var(--blue-l);color:var(--blue);padding:.2rem .6rem;border-radius:100px;}
+  select.reg-select{width:100%;background:var(--bg);border:1.5px solid var(--bd);border-radius:8px;padding:.85rem 1rem;color:var(--text);font-family:var(--ff-b);font-size:1rem;outline:none;cursor:pointer;transition:border-color .2s;}
+  select.reg-select:focus{border-color:var(--navy);}
 `;
 
 // ─────────────────────────────────────────────
@@ -605,11 +639,16 @@ function finalDecisionsToMap(rows) {
   }, {});
 }
 
+// Registration link token from URL — computed once at module load
+const urlRegToken = typeof window !== "undefined"
+  ? new URLSearchParams(window.location.search).get("register")
+  : null;
+
 // ─────────────────────────────────────────────
 // APP
 // ─────────────────────────────────────────────
 export default function App() {
-  const [view,        setView]       = useState("landing");
+  const [view,        setView]       = useState(urlRegToken ? "public-register" : "landing");
   const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
   const [projects,    setProjects]   = useState(DEFAULT_PROJECTS);
   const [judges,      setJudges]     = useState([]);
@@ -710,6 +749,25 @@ export default function App() {
   const [projForm,           setProjForm]            = useState({ title:"", cat:"Biology", grade:"", num:"", department_id:"" });
   const [showDeleteConfirm,  setShowDeleteConfirm]   = useState(false);
   const [deleteProjectId,    setDeleteProjectId]     = useState(null);
+
+  // Registration feature state
+  const [regLinks,        setRegLinks]       = useState([]);
+  const [regSubmissions,  setRegSubmissions]  = useState([]);
+  const [regTokenData,    setRegTokenData]    = useState(null);
+  const [regTokenChecked, setRegTokenChecked] = useState(!urlRegToken);
+  const [regSubmitting,   setRegSubmitting]   = useState(false);
+  const [regSuccess,      setRegSuccess]      = useState(null);
+  const [regFormErr,      setRegFormErr]      = useState("");
+  const [regLinkCopied,   setRegLinkCopied]   = useState(false);
+  const [regForm,         setRegForm]         = useState({
+    studentName: "", gradeLevel: "", division: "Elementary", schoolName: "",
+    studentEmail: "", contactNumber: "",
+    projectTitle: "", category: "Life Science", projectType: "Individual", groupMembers: "",
+    advisorName: "", advisorEmail: "", schoolDepartment: "",
+    description: "", researchQuestion: "", hypothesis: "",
+    needsElectricity: false, specialEquipment: "", hasTrifold: true,
+    isOriginalWork: false, agreesToRules: false, guardianName: "", guardianSignature: "",
+  });
 
   const EXPIRY_MS = { "1h":3600000, "24h":86400000, "7d":604800000, "never":Infinity };
   const EXPIRY_OPTS = [{ val:"1h",label:"1 Hour" },{ val:"24h",label:"24 Hours" },{ val:"7d",label:"7 Days" },{ val:"never",label:"Never" }];
@@ -844,6 +902,18 @@ export default function App() {
   useEffect(() => {
     async function init() {
       const timeout = setTimeout(() => setLoading(false), 8000);
+      // Validate registration link token if present in URL
+      if (urlRegToken) {
+        try {
+          const { data } = await supabase.from("registration_links")
+            .select("*").eq("token", urlRegToken).single();
+          const isValid = data?.active && (!data.expires_at || new Date(data.expires_at) > new Date());
+          setRegTokenData(isValid ? data : null);
+        } catch {
+          setRegTokenData(null);
+        }
+        setRegTokenChecked(true);
+      }
       await Promise.all([loadDepartments(), loadProjects(), loadJudges(), loadScores(), loadLog(), loadItLogs(), loadShare(), loadSettings(), loadDelibNotes(), loadFinalDecisions(), loadValidations(), loadScoreBackups()]);
       clearTimeout(timeout);
       setLoading(false);
@@ -905,6 +975,7 @@ export default function App() {
 
   // ── INSTANT CACHE RESTORE (runs before Supabase loads) ────
   useEffect(() => {
+    if (urlRegToken) return; // Don't restore judge session when visiting a registration link
     const savedId   = localStorage.getItem("sf_judge_id");
     const savedData = localStorage.getItem("sf_judge_data");
     if (savedId && savedData) {
@@ -926,6 +997,7 @@ export default function App() {
   // Refresh judge from DB, or clear if admin has reset all data.
   useEffect(() => {
     if (loading) return;
+    if (urlRegToken) return; // Skip session sync on registration link
     const savedId = localStorage.getItem("sf_judge_id");
     if (!savedId) return;
     if (judges.length > 0) {
@@ -973,6 +1045,14 @@ export default function App() {
   useEffect(() => {
     if (isOnline) flushOfflineQueue();
   }, [isOnline]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── REGISTRATION TAB LAZY LOAD ───────────────────────────
+  useEffect(() => {
+    if (adminTab === "registration") {
+      loadRegLinks();
+      loadRegSubmissions();
+    }
+  }, [adminTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function flushOfflineQueue() {
     const queue = JSON.parse(localStorage.getItem("sf_offline_queue") || "[]");
@@ -1135,6 +1215,17 @@ export default function App() {
       setTimeout(() => setBackupSaved(false), 3000);
     }
     setSavingBackup(false);
+  }
+
+  async function loadRegLinks() {
+    const { data } = await supabase.from("registration_links").select("*").order("created_at", { ascending: false });
+    if (data) setRegLinks(data);
+  }
+  async function loadRegSubmissions() {
+    const { data } = await supabase.from("registration_submissions")
+      .select("id, reg_number, student_name, project_title, category, division, submitted_at")
+      .order("submitted_at", { ascending: false });
+    if (data) setRegSubmissions(data);
   }
 
   function exportJudgeScoresCSV() {
@@ -1831,6 +1922,132 @@ export default function App() {
       { projectId:pid, num:proj.num, title:proj.title, timestamp:fmtISO(Date.now()) });
   }
 
+  // ── REGISTRATION ACTIONS ──────────────────────────────────
+  async function generateRegNum(division, category) {
+    const divCode = DIV_CODES[division] || "UNK";
+    const catCode = CAT_CODES[category] || "OTH";
+    const prefix  = `${divCode}-${catCode}`;
+    const { count } = await supabase.from("registration_submissions")
+      .select("id", { count: "exact", head: true })
+      .like("reg_number", `${prefix}-%`);
+    return `${prefix}-${String((count || 0) + 1).padStart(3, "0")}`;
+  }
+
+  async function generateRegLink() {
+    const token = genToken();
+    const { error } = await supabase.from("registration_links").insert({ token, active: true });
+    if (!error) {
+      await loadRegLinks();
+      addLog("Admin generated a student registration link");
+      addItLog("INFO", "ADMIN", "REG_LINK_GENERATED", "Admin generated student registration link", { token });
+    }
+  }
+
+  async function deactivateRegLink(linkId) {
+    await supabase.from("registration_links").update({ active: false }).eq("id", linkId);
+    await loadRegLinks();
+    addLog("Admin deactivated student registration link");
+    addItLog("INFO", "ADMIN", "REG_LINK_DEACTIVATED", "Admin deactivated student registration link", { linkId });
+  }
+
+  async function handleRegSubmit() {
+    const f = regForm;
+    if (!f.studentName.trim() || !f.gradeLevel.trim() || !f.schoolName.trim()
+        || !f.studentEmail.trim() || !f.projectTitle.trim()
+        || !f.isOriginalWork || !f.agreesToRules) {
+      setRegFormErr("Please fill in all required fields (*) and check both consent boxes.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.studentEmail.trim())) {
+      setRegFormErr("Please enter a valid email address.");
+      return;
+    }
+    setRegSubmitting(true);
+    setRegFormErr("");
+    try {
+      const regNumber = await generateRegNum(f.division, f.category);
+      const projId    = "p_reg_" + uid();
+      const projNum   = nextProjectNum();
+
+      const { error: projErr } = await supabase.from("projects").insert({
+        id: projId, num: projNum,
+        title: f.projectTitle.trim(), cat: f.category,
+        grade: f.gradeLevel.trim(), locked: false,
+      });
+      if (projErr) {
+        setRegFormErr("Submission failed — could not save project. Please try again.");
+        setRegSubmitting(false);
+        return;
+      }
+
+      const { error: subErr } = await supabase.from("registration_submissions").insert({
+        project_id:        projId,
+        reg_number:        regNumber,
+        student_name:      f.studentName.trim(),
+        grade_level:       f.gradeLevel.trim(),
+        division:          f.division,
+        school_name:       f.schoolName.trim(),
+        student_email:     f.studentEmail.trim(),
+        contact_number:    f.contactNumber.trim(),
+        project_title:     f.projectTitle.trim(),
+        category:          f.category,
+        project_type:      f.projectType,
+        group_members:     f.groupMembers
+          ? f.groupMembers.split("\n").filter(Boolean).map(s => s.trim())
+          : [],
+        advisor_name:      f.advisorName.trim(),
+        advisor_email:     f.advisorEmail.trim(),
+        school_department: f.schoolDepartment.trim(),
+        description:       f.description.trim(),
+        research_question: f.researchQuestion.trim(),
+        hypothesis:        f.hypothesis.trim(),
+        needs_electricity: f.needsElectricity,
+        special_equipment: f.specialEquipment.trim(),
+        has_trifold:       f.hasTrifold,
+        is_original_work:  f.isOriginalWork,
+        agrees_to_rules:   f.agreesToRules,
+        guardian_name:     f.guardianName.trim(),
+        guardian_signature: f.guardianSignature.trim(),
+      });
+      if (subErr) {
+        await supabase.from("projects").delete().eq("id", projId);
+        setRegFormErr("Submission failed — please try again.");
+        setRegSubmitting(false);
+        return;
+      }
+
+      setProjects(p => [...p, { id: projId, num: projNum, title: f.projectTitle.trim(), cat: f.category, grade: f.gradeLevel.trim(), locked: false }]);
+      addLog(`New project registered online: "${f.projectTitle.trim()}" — ${regNumber}`);
+      addItLog("INFO", "ADMIN", "PROJECT_REGISTERED", "Project submitted via online registration form",
+        { regNumber, projectId: projId, title: f.projectTitle.trim(), category: f.category, division: f.division });
+
+      // Send confirmation email — non-critical, failure does not block submission
+      try {
+        await fetch("/api/send-registration-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            studentEmail: f.studentEmail.trim(),
+            studentName:  f.studentName.trim(),
+            regNumber,
+            projectTitle: f.projectTitle.trim(),
+            category:     f.category,
+            division:     f.division,
+          }),
+        });
+      } catch {
+        addItLog("WARN", "SYSTEM", "REG_EMAIL_FAILED", "Registration confirmation email could not be sent",
+          { regNumber, email: f.studentEmail.trim() });
+      }
+
+      setRegSuccess({ regNumber, projectTitle: f.projectTitle.trim(), category: f.category });
+    } catch (err) {
+      setRegFormErr("An unexpected error occurred. Please try again.");
+      addItLog("ERROR", "SYSTEM", "REG_SUBMIT_ERROR", "Registration form submission error", { error: err?.message });
+    }
+    setRegSubmitting(false);
+  }
+
   // ─── VIEWS ───
 
   /* LOADING */
@@ -2209,6 +2426,299 @@ export default function App() {
     );
   }
 
+  /* PUBLIC REGISTRATION FORM */
+  if (view === "public-register") {
+    if (loading || !regTokenChecked) return (
+      <div className="app"><style>{CSS}</style>
+        <div className="center">
+          <div style={{ textAlign:"center", color:"var(--dim)" }}>
+            <div style={{ fontSize:"2.5rem", marginBottom:"1rem" }}>⏳</div>
+            <div style={{ fontFamily:"var(--ff-m)", fontSize:".9rem", letterSpacing:".1em" }}>Loading…</div>
+          </div>
+        </div>
+      </div>
+    );
+
+    if (!regTokenData) return (
+      <div className="app"><style>{CSS}</style>
+        <div className="reg-wrap">
+          <div className="reg-inner">
+            <div className="reg-hero">
+              <img src="/logo.png" alt="Dishchiibikoh Community School" style={{ width:64, marginBottom:"1rem" }} />
+              <div className="school-name">Dishchiibikoh <span>Community School</span></div>
+            </div>
+            <div className="reg-invalid-banner">
+              <div style={{ fontSize:"2rem", marginBottom:".75rem" }}>🔗</div>
+              <h3 style={{ fontFamily:"var(--ff-d)", color:"var(--red)", marginBottom:".5rem" }}>Registration Link Invalid</h3>
+              <p style={{ color:"var(--dim)", fontSize:".92rem" }}>
+                This registration link is no longer active or does not exist. Please contact your event organizer for a new link.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+
+    if (regSuccess) return (
+      <div className="app"><style>{CSS}</style>
+        <div className="reg-wrap">
+          <div className="reg-inner">
+            <div className="reg-hero">
+              <img src="/logo.png" alt="Dishchiibikoh Community School" style={{ width:64, marginBottom:".75rem" }} />
+              <div className="school-name">Dishchiibikoh <span>Community School</span></div>
+            </div>
+            <div className="card reg-success">
+              <div className="ico">🎉</div>
+              <h2>Registration Successful!</h2>
+              <p style={{ color:"var(--dim)", fontSize:".95rem", marginBottom:"1.25rem" }}>
+                Your project has been registered for the Science Fair SY 2025-2026.
+              </p>
+              <div className="reg-number-wrap">
+                <div className="lbl" style={{ marginBottom:".35rem" }}>Your Registration Number</div>
+                <div className="reg-number-display">{regSuccess.regNumber}</div>
+                <div style={{ fontSize:".82rem", color:"var(--dim)", marginTop:".35rem" }}>
+                  Write this number on your project trifold board.
+                </div>
+              </div>
+              <div style={{ background:"var(--s1)", border:"1px solid var(--bd)", borderRadius:10, padding:"1rem", marginBottom:"1rem", textAlign:"left" }}>
+                <div className="lbl" style={{ marginBottom:".4rem" }}>Project Summary</div>
+                <div style={{ fontWeight:600, marginBottom:".2rem" }}>{regSuccess.projectTitle}</div>
+                <div style={{ fontSize:".88rem", color:"var(--dim)" }}>{regSuccess.category}</div>
+              </div>
+              <div className="val-tie-alert" style={{ marginBottom:"1rem" }}>
+                <span style={{ fontSize:"1.1rem" }}>📧</span>
+                <span style={{ fontSize:".9rem" }}>A confirmation email has been sent to your registered email address.</span>
+              </div>
+              <p style={{ fontSize:".82rem", color:"var(--dim)" }}>
+                Bring your trifold board with registration number <strong style={{ fontFamily:"var(--ff-m)" }}>{regSuccess.regNumber}</strong> to the science fair venue on event day.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+
+    return (
+      <div className="app"><style>{CSS}</style>
+        <div className="reg-wrap">
+          <div className="reg-inner">
+            <div className="reg-hero">
+              <img src="/logo.png" alt="Dishchiibikoh Community School" style={{ width:72, marginBottom:".75rem" }} />
+              <div className="school-name">Dishchiibikoh <span>Community School</span></div>
+              <h1 style={{ fontFamily:"var(--ff-d)", fontSize:"clamp(1.4rem,4vw,1.9rem)", color:"var(--navy)", margin:"1rem 0 .4rem" }}>Science Fair Registration</h1>
+              <p style={{ color:"var(--dim)", fontSize:".9rem" }}>SY 2025-2026 · Required fields are marked <span style={{ color:"var(--red)" }}>*</span></p>
+            </div>
+
+            {regFormErr && <div className="locked-banner" style={{ marginBottom:"1rem" }}>⚠ {regFormErr}</div>}
+
+            {/* Section 1 — Student Information */}
+            <div className="reg-section">
+              <div className="reg-section-title">👤 Student Information</div>
+              <div className="reg-field">
+                <div className="lbl">Full Name <span className="reg-req">*</span></div>
+                <input type="text" placeholder="e.g. Maria Santos" value={regForm.studentName}
+                  onChange={e => setRegForm(p => ({...p, studentName: e.target.value}))} />
+              </div>
+              <div className="reg-field">
+                <div className="lbl">Grade Level <span className="reg-req">*</span></div>
+                <input type="text" placeholder="e.g. 7, 10, 12" value={regForm.gradeLevel}
+                  onChange={e => setRegForm(p => ({...p, gradeLevel: e.target.value}))} />
+              </div>
+              <div className="reg-field">
+                <div className="lbl">Division <span className="reg-req">*</span></div>
+                <div className="reg-radio-group">
+                  {DIVISIONS.map(d => (
+                    <label key={d} className={`reg-radio-item${regForm.division === d ? " sel" : ""}`}>
+                      <input type="radio" name="division" value={d} checked={regForm.division === d}
+                        onChange={() => setRegForm(p => ({...p, division: d}))} />
+                      {d}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="reg-field">
+                <div className="lbl">School Name <span className="reg-req">*</span></div>
+                <input type="text" placeholder="e.g. Dishchiibikoh Community School" value={regForm.schoolName}
+                  onChange={e => setRegForm(p => ({...p, schoolName: e.target.value}))} />
+              </div>
+              <div className="reg-field">
+                <div className="lbl">Student Email Address <span className="reg-req">*</span></div>
+                <input type="text" placeholder="student@example.com" value={regForm.studentEmail}
+                  onChange={e => setRegForm(p => ({...p, studentEmail: e.target.value}))} />
+              </div>
+              <div className="reg-field">
+                <div className="lbl">Contact Number</div>
+                <input type="text" placeholder="e.g. 09XX-XXX-XXXX" value={regForm.contactNumber}
+                  onChange={e => setRegForm(p => ({...p, contactNumber: e.target.value}))} />
+              </div>
+            </div>
+
+            {/* Section 2 — Project Information */}
+            <div className="reg-section">
+              <div className="reg-section-title">🔬 Project Information</div>
+              <div className="reg-field">
+                <div className="lbl">Project Title <span className="reg-req">*</span></div>
+                <input type="text" placeholder="Enter your project title" value={regForm.projectTitle}
+                  onChange={e => setRegForm(p => ({...p, projectTitle: e.target.value}))} />
+              </div>
+              <div className="reg-field">
+                <div className="lbl">Category <span className="reg-req">*</span></div>
+                <div className="reg-radio-group">
+                  {REG_CATEGORIES.map(c => (
+                    <label key={c} className={`reg-radio-item${regForm.category === c ? " sel" : ""}`}>
+                      <input type="radio" name="category" value={c} checked={regForm.category === c}
+                        onChange={() => setRegForm(p => ({...p, category: c}))} />
+                      {c}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="reg-field">
+                <div className="lbl">Type of Project <span className="reg-req">*</span></div>
+                <div className="reg-radio-group">
+                  {["Individual","Group"].map(t => (
+                    <label key={t} className={`reg-radio-item${regForm.projectType === t ? " sel" : ""}`}>
+                      <input type="radio" name="projectType" value={t} checked={regForm.projectType === t}
+                        onChange={() => setRegForm(p => ({...p, projectType: t}))} />
+                      {t}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              {regForm.projectType === "Group" && (
+                <div className="reg-field">
+                  <div className="lbl">Group Members — one per line (name and grade)</div>
+                  <textarea rows={4} placeholder={"Maria Santos, Grade 9\nJuan Dela Cruz, Grade 9"}
+                    value={regForm.groupMembers}
+                    onChange={e => setRegForm(p => ({...p, groupMembers: e.target.value}))} />
+                </div>
+              )}
+            </div>
+
+            {/* Section 3 — Teacher/Advisor */}
+            <div className="reg-section">
+              <div className="reg-section-title">👩‍🏫 Teacher / Advisor Information</div>
+              <div className="reg-field">
+                <div className="lbl">Teacher/Advisor Name</div>
+                <input type="text" placeholder="e.g. Ms. Reyes" value={regForm.advisorName}
+                  onChange={e => setRegForm(p => ({...p, advisorName: e.target.value}))} />
+              </div>
+              <div className="reg-field">
+                <div className="lbl">Teacher/Advisor Email</div>
+                <input type="text" placeholder="advisor@school.edu" value={regForm.advisorEmail}
+                  onChange={e => setRegForm(p => ({...p, advisorEmail: e.target.value}))} />
+              </div>
+              <div className="reg-field">
+                <div className="lbl">School/Department</div>
+                <input type="text" placeholder="e.g. Science Department" value={regForm.schoolDepartment}
+                  onChange={e => setRegForm(p => ({...p, schoolDepartment: e.target.value}))} />
+              </div>
+            </div>
+
+            {/* Section 4 — Project Details */}
+            <div className="reg-section">
+              <div className="reg-section-title">📄 Project Details</div>
+              <div className="reg-field">
+                <div className="lbl">Brief Project Description (2–3 sentences)</div>
+                <textarea rows={3} placeholder="Describe your project briefly…"
+                  value={regForm.description}
+                  onChange={e => setRegForm(p => ({...p, description: e.target.value}))} />
+              </div>
+              <div className="reg-field">
+                <div className="lbl">Research Question or Problem Statement</div>
+                <textarea rows={2} placeholder="What question are you trying to answer?"
+                  value={regForm.researchQuestion}
+                  onChange={e => setRegForm(p => ({...p, researchQuestion: e.target.value}))} />
+              </div>
+              <div className="reg-field">
+                <div className="lbl">Hypothesis (if applicable)</div>
+                <textarea rows={2} placeholder="If [this], then [that] because [reason]…"
+                  value={regForm.hypothesis}
+                  onChange={e => setRegForm(p => ({...p, hypothesis: e.target.value}))} />
+              </div>
+            </div>
+
+            {/* Section 5 — Logistics */}
+            <div className="reg-section">
+              <div className="reg-section-title">🏗️ Logistics & Submission</div>
+              <div className="reg-field">
+                <div className="lbl">Do you require electricity for your display?</div>
+                <div className="reg-radio-group">
+                  {[{v:true,l:"Yes"},{v:false,l:"No"}].map(opt => (
+                    <label key={opt.l} className={`reg-radio-item${regForm.needsElectricity === opt.v ? " sel" : ""}`}>
+                      <input type="radio" name="needsElectricity" checked={regForm.needsElectricity === opt.v}
+                        onChange={() => setRegForm(p => ({...p, needsElectricity: opt.v}))} />
+                      {opt.l}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="reg-field">
+                <div className="lbl">Do you need special equipment or space?</div>
+                <input type="text" placeholder="Describe any special requirements (leave blank if none)"
+                  value={regForm.specialEquipment}
+                  onChange={e => setRegForm(p => ({...p, specialEquipment: e.target.value}))} />
+              </div>
+              <div className="reg-field">
+                <div className="lbl">Will you bring a trifold board?</div>
+                <div className="reg-radio-group">
+                  {[{v:true,l:"Yes"},{v:false,l:"No"}].map(opt => (
+                    <label key={opt.l} className={`reg-radio-item${regForm.hasTrifold === opt.v ? " sel" : ""}`}>
+                      <input type="radio" name="hasTrifold" checked={regForm.hasTrifold === opt.v}
+                        onChange={() => setRegForm(p => ({...p, hasTrifold: opt.v}))} />
+                      {opt.l}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Section 6 — Consent */}
+            <div className="reg-section">
+              <div className="reg-section-title">✅ Consent & Agreement</div>
+              <div className="reg-field">
+                <label className="reg-check-item">
+                  <input type="checkbox" checked={regForm.isOriginalWork}
+                    onChange={e => setRegForm(p => ({...p, isOriginalWork: e.target.checked}))} />
+                  <span className="reg-check-label">
+                    I confirm that this project is my/our original work. <span className="reg-req">*</span>
+                  </span>
+                </label>
+              </div>
+              <div className="reg-field">
+                <label className="reg-check-item">
+                  <input type="checkbox" checked={regForm.agreesToRules}
+                    onChange={e => setRegForm(p => ({...p, agreesToRules: e.target.checked}))} />
+                  <span className="reg-check-label">
+                    I agree to follow all science fair rules and guidelines. <span className="reg-req">*</span>
+                  </span>
+                </label>
+              </div>
+              <div className="reg-field">
+                <div className="lbl">Parent/Guardian Name</div>
+                <input type="text" placeholder="Full name of parent or guardian" value={regForm.guardianName}
+                  onChange={e => setRegForm(p => ({...p, guardianName: e.target.value}))} />
+              </div>
+              <div className="reg-field">
+                <div className="lbl">Parent/Guardian Signature (type full name)</div>
+                <input type="text" placeholder="Type full name as digital signature" value={regForm.guardianSignature}
+                  onChange={e => setRegForm(p => ({...p, guardianSignature: e.target.value}))} />
+              </div>
+            </div>
+
+            <button className="btn" onClick={handleRegSubmit}
+              disabled={regSubmitting || !regForm.isOriginalWork || !regForm.agreesToRules}>
+              {regSubmitting ? "Submitting…" : "Submit Registration →"}
+            </button>
+            <p style={{ textAlign:"center", fontSize:".75rem", color:"var(--dim)", marginTop:".75rem", marginBottom:"2rem" }}>
+              After submitting, you will receive a registration number and a confirmation email.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   /* ADMIN LOGIN */
   if (view === "admin-login") return (
     <div className="app"><style>{CSS}</style>{backdrop}
@@ -2250,6 +2760,7 @@ export default function App() {
       { id:"deliberation", ico:"🤝", label:`Validation${resultsFinalized ? " ✓" : consensusReached() ? " 🟢" : ""}` },
       { id:"share",    ico:"🔗", label:`Share${resultsFinalized ? " 🔗" : ""}` },
       { id:"export",   ico:"📦", label:"Score Export"  },
+      { id:"registration", ico:"📝", label:"Registration" },
       { id:"itlogs",   ico:"🖥️", label:"IT Logs"      },
     ];
 
@@ -3268,6 +3779,111 @@ export default function App() {
                 )}
               </div>
             </>}
+
+            {/* REGISTRATION */}
+            {adminTab==="registration" && (
+              <div>
+                <div className="adm-h1">📝 Registration</div>
+                <div className="adm-sub">Manage student project registration links and view submitted entries.</div>
+
+                {/* Link management card */}
+                <div className="card" style={{ marginBottom:"1.25rem" }}>
+                  <div className="sec-title">Registration Link</div>
+                  {(() => {
+                    const activeLink = regLinks.find(l => l.active);
+                    if (activeLink) {
+                      const regUrl = `${window.location.origin}?register=${activeLink.token}`;
+                      return (
+                        <>
+                          <div className="share-status on" style={{ marginBottom:"1rem" }}>
+                            <span style={{ fontSize:"1rem" }}>🟢</span>
+                            <span style={{ fontWeight:600 }}>Registration is open</span>
+                          </div>
+                          <div className="lbl">Registration URL — share this with participants</div>
+                          <div className="link-box" style={{ marginBottom:"1rem" }}>
+                            <input type="text" readOnly value={regUrl} />
+                            <button className={`copy-btn${regLinkCopied ? " copied" : ""}`} onClick={() => {
+                              navigator.clipboard.writeText(regUrl).catch(()=>{});
+                              setRegLinkCopied(true); setTimeout(() => setRegLinkCopied(false), 2000);
+                            }}>
+                              {regLinkCopied ? "Copied!" : "Copy"}
+                            </button>
+                          </div>
+                          <button className="btn danger sm" style={{ width:"auto" }} onClick={() => deactivateRegLink(activeLink.id)}>
+                            🔒 Deactivate Registration Link
+                          </button>
+                        </>
+                      );
+                    }
+                    return (
+                      <>
+                        <div className="share-status off" style={{ marginBottom:"1rem" }}>
+                          <span style={{ fontSize:"1rem" }}>⚫</span>
+                          <span>Registration is closed — no active link</span>
+                        </div>
+                        <p style={{ fontSize:".85rem", color:"var(--dim)", marginBottom:"1rem" }}>
+                          Generate a link and share it with participants. They will fill out a registration form and their project will be automatically added to the project list.
+                        </p>
+                        <button className="btn sm" style={{ width:"auto" }} onClick={generateRegLink}>
+                          🔗 Generate Registration Link
+                        </button>
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {/* Submissions table */}
+                <div className="card">
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"1rem" }}>
+                    <div className="sec-title" style={{ marginBottom:0 }}>
+                      Submitted Registrations
+                      {regSubmissions.length > 0 && <span className="badge bb" style={{ marginLeft:".5rem" }}>{regSubmissions.length}</span>}
+                    </div>
+                    <button className="btn sec sm" style={{ width:"auto" }} onClick={() => { loadRegLinks(); loadRegSubmissions(); }}>
+                      ↻ Refresh
+                    </button>
+                  </div>
+                  {regSubmissions.length === 0 ? (
+                    <div style={{ textAlign:"center", padding:"2rem 1rem", color:"var(--dim)", fontSize:".9rem" }}>
+                      No registrations submitted yet.
+                    </div>
+                  ) : (
+                    <div className="tbl-wrap">
+                      <table style={{ width:"100%", borderCollapse:"collapse", fontSize:".88rem" }}>
+                        <thead>
+                          <tr>
+                            <th style={{ fontFamily:"var(--ff-m)", fontSize:".72rem", color:"var(--dim)", textTransform:"uppercase", letterSpacing:".08em", padding:".5rem .75rem", borderBottom:"2px solid var(--bd)", textAlign:"left", whiteSpace:"nowrap" }}>Reg #</th>
+                            <th style={{ fontFamily:"var(--ff-m)", fontSize:".72rem", color:"var(--dim)", textTransform:"uppercase", letterSpacing:".08em", padding:".5rem .75rem", borderBottom:"2px solid var(--bd)", textAlign:"left" }}>Student Name</th>
+                            <th style={{ fontFamily:"var(--ff-m)", fontSize:".72rem", color:"var(--dim)", textTransform:"uppercase", letterSpacing:".08em", padding:".5rem .75rem", borderBottom:"2px solid var(--bd)", textAlign:"left" }}>Project Title</th>
+                            <th style={{ fontFamily:"var(--ff-m)", fontSize:".72rem", color:"var(--dim)", textTransform:"uppercase", letterSpacing:".08em", padding:".5rem .75rem", borderBottom:"2px solid var(--bd)", textAlign:"left" }}>Category</th>
+                            <th style={{ fontFamily:"var(--ff-m)", fontSize:".72rem", color:"var(--dim)", textTransform:"uppercase", letterSpacing:".08em", padding:".5rem .75rem", borderBottom:"2px solid var(--bd)", textAlign:"left", whiteSpace:"nowrap" }}>Division</th>
+                            <th style={{ fontFamily:"var(--ff-m)", fontSize:".72rem", color:"var(--dim)", textTransform:"uppercase", letterSpacing:".08em", padding:".5rem .75rem", borderBottom:"2px solid var(--bd)", textAlign:"left", whiteSpace:"nowrap" }}>Submitted</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {regSubmissions.map(s => (
+                            <tr key={s.id}>
+                              <td style={{ padding:".6rem .75rem", borderBottom:"1px solid var(--bd)" }}>
+                                <span className="reg-num-pill">{s.reg_number}</span>
+                              </td>
+                              <td style={{ padding:".6rem .75rem", borderBottom:"1px solid var(--bd)", fontWeight:600 }}>{s.student_name}</td>
+                              <td style={{ padding:".6rem .75rem", borderBottom:"1px solid var(--bd)", maxWidth:200 }}>{s.project_title}</td>
+                              <td style={{ padding:".6rem .75rem", borderBottom:"1px solid var(--bd)" }}>
+                                <span className="badge bb" style={{ fontSize:".7rem" }}>{s.category}</span>
+                              </td>
+                              <td style={{ padding:".6rem .75rem", borderBottom:"1px solid var(--bd)", fontSize:".82rem", color:"var(--dim)" }}>{s.division}</td>
+                              <td style={{ padding:".6rem .75rem", borderBottom:"1px solid var(--bd)", fontFamily:"var(--ff-m)", fontSize:".74rem", color:"var(--dim)", whiteSpace:"nowrap" }}>
+                                {fmtFull(s.submitted_at)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* IT LOGS */}
             {adminTab==="itlogs" && (()=>{
