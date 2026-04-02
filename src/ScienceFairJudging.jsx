@@ -589,6 +589,13 @@ const CSS = `
   .reg-number-wrap{background:var(--green-l);border:1px solid #05966930;border-radius:var(--r);padding:1.5rem;margin:1.25rem 0;text-align:center;}
   .reg-number-display{font-family:var(--ff-m);font-size:2.2rem;font-weight:700;color:var(--navy);letter-spacing:.05em;margin:.35rem 0;}
   .reg-invalid-banner{background:var(--red-l);border:1px solid #dc262630;border-radius:var(--r);padding:2rem;text-align:center;margin:2rem auto;max-width:480px;}
+  .reg-instructions{background:linear-gradient(135deg,#eef4ff,#f0fdf4);border:1.5px solid #2563eb30;border-radius:var(--r);padding:1.5rem;margin-bottom:1.25rem;}
+  .reg-instructions-title{font-family:var(--ff-d);font-size:1rem;color:var(--navy);font-weight:700;margin-bottom:.85rem;display:flex;align-items:center;gap:.5rem;}
+  .reg-instructions ol{margin:0;padding-left:1.4rem;}
+  .reg-instructions li{font-size:.88rem;color:var(--text);line-height:1.65;margin-bottom:.4rem;}
+  .reg-instructions li:last-child{margin-bottom:0;}
+  .reg-instructions li strong{color:var(--navy);}
+  .reg-instructions li em{color:var(--blue);font-style:normal;font-weight:600;}
   .reg-num-pill{font-family:var(--ff-m);font-size:.78rem;background:var(--blue-l);color:var(--blue);padding:.2rem .6rem;border-radius:100px;}
   select.reg-select{width:100%;background:var(--bg);border:1.5px solid var(--bd);border-radius:8px;padding:.85rem 1rem;color:var(--text);font-family:var(--ff-b);font-size:1rem;outline:none;cursor:pointer;transition:border-color .2s;}
   select.reg-select:focus{border-color:var(--navy);}
@@ -2562,6 +2569,21 @@ export default function App() {
               <p style={{ color:"var(--dim)", fontSize:".9rem" }}>SY 2025-2026 · Required fields are marked <span style={{ color:"var(--red)" }}>*</span></p>
             </div>
 
+            {/* Instructions */}
+            <div className="reg-instructions">
+              <div className="reg-instructions-title">📋 Online Registration Instructions</div>
+              <ol>
+                <li>Fill out the online registration form and provide all required details <strong>accurately</strong>.</li>
+                <li>Complete all fields marked with an <strong style={{ color:"var(--red)" }}>asterisk (*)</strong> as they are required in order to proceed.</li>
+                <li><strong>Review all information carefully</strong> before submitting the form.</li>
+                <li>If a student does not have an email address, you may <em>use the teacher's email instead</em>.</li>
+                <li>Ensure that the email address is <strong>written correctly</strong> to avoid any errors.</li>
+                <li>After submitting, you will receive an <strong>automatic confirmation email</strong> containing the student's registration number and assigned category.</li>
+                <li><strong>Save or keep the confirmation message</strong> for your records.</li>
+                <li>If you have any questions or need assistance, please feel free to ask.</li>
+              </ol>
+            </div>
+
             {regFormErr && <div className="locked-banner" style={{ marginBottom:"1rem" }}>⚠ {regFormErr}</div>}
 
             {/* Section 1 — Student Information */}
@@ -2599,7 +2621,7 @@ export default function App() {
                 <input type="email" placeholder="yourname@dishchiibikoh.org" value={regForm.studentEmail}
                   onChange={e => setRegForm(p => ({...p, studentEmail: e.target.value}))} />
                 <div style={{ fontSize:".78rem", color:"var(--dim)", marginTop:".3rem" }}>
-                  Use your school email (e.g. yourname@dishchiibikoh.org) if you have one.
+                  Use your school email (e.g. yourname@dishchiibikoh.org). If you don't have one, use your teacher's email address.
                 </div>
               </div>
               <div className="reg-field">
@@ -2675,7 +2697,7 @@ export default function App() {
               </div>
               <div className="reg-field">
                 <div className="lbl">Teacher/Advisor Email</div>
-                <input type="text" placeholder="advisor@school.edu" value={regForm.advisorEmail}
+                <input type="email" placeholder="advisor@dishchiibikoh.org" value={regForm.advisorEmail}
                   onChange={e => setRegForm(p => ({...p, advisorEmail: e.target.value}))} />
               </div>
               <div className="reg-field">
@@ -2776,6 +2798,10 @@ export default function App() {
               </div>
             </div>
 
+            {regFormErr && <div className="locked-banner" style={{ marginBottom:"1rem" }}>⚠ {regFormErr}</div>}
+            <p style={{ fontSize:".82rem", color:"var(--dim)", textAlign:"center", marginBottom:".75rem" }}>
+              Please review all information before submitting. You cannot edit your registration after submission.
+            </p>
             <button className="btn" onClick={handleRegSubmit}
               disabled={regSubmitting || !regForm.isOriginalWork || !regForm.agreesToRules}>
               {regSubmitting ? "Submitting…" : "Submit Registration →"}
