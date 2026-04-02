@@ -762,7 +762,7 @@ export default function App() {
   const [regLinkCopied,   setRegLinkCopied]   = useState(false);
   const [regForm,         setRegForm]         = useState({
     studentName: "", gradeLevel: "", division: "Elementary", schoolName: "",
-    studentEmail: "", contactNumber: "",
+    studentEmail: "", emailConfirm: "", contactNumber: "",
     projectTitle: "", category: "Life Science", projectType: "Individual", groupMembers: "",
     advisorName: "", advisorEmail: "", schoolDepartment: "",
     description: "", researchQuestion: "", hypothesis: "",
@@ -1965,6 +1965,10 @@ export default function App() {
       setRegFormErr("Please enter a valid email address.");
       return;
     }
+    if (f.studentEmail.trim().toLowerCase() !== f.emailConfirm.trim().toLowerCase()) {
+      setRegFormErr("Email addresses do not match. Please re-enter to confirm.");
+      return;
+    }
     setRegSubmitting(true);
     setRegFormErr("");
     try {
@@ -2546,8 +2550,25 @@ export default function App() {
               </div>
               <div className="reg-field">
                 <div className="lbl">Student Email Address <span className="reg-req">*</span></div>
-                <input type="text" placeholder="student@example.com" value={regForm.studentEmail}
+                <input type="email" placeholder="yourname@dishchiibikoh.org" value={regForm.studentEmail}
                   onChange={e => setRegForm(p => ({...p, studentEmail: e.target.value}))} />
+                <div style={{ fontSize:".78rem", color:"var(--dim)", marginTop:".3rem" }}>
+                  Use your school email (e.g. yourname@dishchiibikoh.org) if you have one.
+                </div>
+              </div>
+              <div className="reg-field">
+                <div className="lbl">Confirm Email Address <span className="reg-req">*</span></div>
+                <input type="email" placeholder="Re-enter email address" value={regForm.emailConfirm}
+                  onChange={e => setRegForm(p => ({...p, emailConfirm: e.target.value}))}
+                  onPaste={e => e.preventDefault()} />
+                {regForm.emailConfirm && regForm.studentEmail && (
+                  <div style={{ fontSize:".78rem", marginTop:".3rem",
+                    color: regForm.studentEmail.trim().toLowerCase() === regForm.emailConfirm.trim().toLowerCase()
+                      ? "var(--green)" : "var(--red)" }}>
+                    {regForm.studentEmail.trim().toLowerCase() === regForm.emailConfirm.trim().toLowerCase()
+                      ? "✓ Emails match" : "✗ Emails do not match"}
+                  </div>
+                )}
               </div>
               <div className="reg-field">
                 <div className="lbl">Contact Number</div>
