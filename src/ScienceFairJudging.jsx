@@ -1923,14 +1923,10 @@ export default function App() {
   }
 
   // ── REGISTRATION ACTIONS ──────────────────────────────────
-  async function generateRegNum(division, category) {
+  function generateRegNum(division, category, projNum) {
     const divCode = DIV_CODES[division] || "UNK";
     const catCode = CAT_CODES[category] || "OTH";
-    const prefix  = `${divCode}-${catCode}`;
-    const { count } = await supabase.from("registration_submissions")
-      .select("id", { count: "exact", head: true })
-      .like("reg_number", `${prefix}-%`);
-    return `${prefix}-${String((count || 0) + 1).padStart(3, "0")}`;
+    return `${divCode}-${catCode}-${projNum}`;
   }
 
   async function generateRegLink() {
@@ -1965,9 +1961,9 @@ export default function App() {
     setRegSubmitting(true);
     setRegFormErr("");
     try {
-      const regNumber = await generateRegNum(f.division, f.category);
       const projId    = "p_reg_" + uid();
       const projNum   = nextProjectNum();
+      const regNumber = generateRegNum(f.division, f.category, projNum);
 
       const { error: projErr } = await supabase.from("projects").insert({
         id: projId, num: projNum,
