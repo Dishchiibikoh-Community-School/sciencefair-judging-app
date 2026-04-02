@@ -770,7 +770,7 @@ export default function App() {
   const [regForm,         setRegForm]         = useState({
     studentName: "", gradeLevel: "", division: "Elementary", schoolName: "",
     studentEmail: "", emailConfirm: "", contactNumber: "",
-    projectTitle: "", category: "Life Science", projectType: "Individual", groupMembers: "",
+    projectTitle: "", category: "", projectType: "Individual", groupMembers: "",
     advisorName: "", advisorEmail: "", schoolDepartment: "",
     description: "", researchQuestion: "", hypothesis: "",
     needsElectricity: false, specialEquipment: "", hasTrifold: true,
@@ -2004,7 +2004,7 @@ export default function App() {
   async function handleRegSubmit() {
     const f = regForm;
     if (!f.studentName.trim() || !f.gradeLevel.trim() || !f.schoolName.trim()
-        || !f.studentEmail.trim() || !f.projectTitle.trim()
+        || !f.studentEmail.trim() || !f.projectTitle.trim() || !f.category
         || !f.isOriginalWork || !f.agreesToRules) {
       setRegFormErr("Please fill in all required fields (*) and check both consent boxes.");
       return;
