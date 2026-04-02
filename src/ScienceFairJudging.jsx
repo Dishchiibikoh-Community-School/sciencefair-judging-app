@@ -753,6 +753,7 @@ export default function App() {
   // Registration feature state
   const [regLinks,        setRegLinks]       = useState([]);
   const [regSubmissions,  setRegSubmissions]  = useState([]);
+  const [deleteRegSub,    setDeleteRegSub]    = useState(null); // submission pending delete
   const [regTokenData,    setRegTokenData]    = useState(null);
   const [regTokenChecked, setRegTokenChecked] = useState(!urlRegToken);
   const [regSubmitting,   setRegSubmitting]   = useState(false);
@@ -1929,6 +1930,12 @@ export default function App() {
     return `${divCode}-${catCode}-${projNum}`;
   }
 
+  async function deleteRegSubmission(sub) {
+    await supabase.from("registration_submissions").delete().eq("id", sub.id);
+    setRegSubmissions(prev => prev.filter(s => s.id !== sub.id));
+    addLog(`Admin deleted registration submission: ${sub.reg_number} — ${sub.student_name}`);
+  }
+
   async function generateRegLink() {
     const token = genToken();
     const { error } = await supabase.from("registration_links").insert({ token, active: true });
@@ -2905,6 +2912,23 @@ export default function App() {
             </div>
           )}
 
+          {/* ── DELETE REGISTRATION SUBMISSION MODAL ── */}
+          {deleteRegSub && (
+            <div className="modal-overlay" onClick={e => { if(e.target===e.currentTarget) setDeleteRegSub(null); }}>
+              <div className="modal-box">
+                <div className="ico">🗑️</div>
+                <h2>Delete Registration?</h2>
+                <p>Remove <strong>{deleteRegSub.reg_number}</strong> — <strong>{deleteRegSub.student_name}</strong> from the submissions log?</p>
+                <p style={{ color:"var(--dim)", fontSize:".85rem", marginTop:".5rem" }}>This only removes the registration record. The project entry is not affected.</p>
+                <p style={{ color:"var(--red)", fontSize:".85rem", marginTop:".25rem" }}>This cannot be undone.</p>
+                <div className="modal-btn-row" style={{ marginTop:"1.5rem" }}>
+                  <button className="btn sec" onClick={() => setDeleteRegSub(null)}>Cancel</button>
+                  <button className="btn danger sm" style={{ width:"auto" }} onClick={() => { deleteRegSubmission(deleteRegSub); setDeleteRegSub(null); }}>Delete</button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ── DELETE PROJECT MODAL ── */}
           {showDeleteConfirm && deleteProjectId && (() => {
             const proj = projects.find(p => p.id === deleteProjectId);
@@ -3854,6 +3878,7 @@ export default function App() {
                             <th style={{ fontFamily:"var(--ff-m)", fontSize:".72rem", color:"var(--dim)", textTransform:"uppercase", letterSpacing:".08em", padding:".5rem .75rem", borderBottom:"2px solid var(--bd)", textAlign:"left" }}>Category</th>
                             <th style={{ fontFamily:"var(--ff-m)", fontSize:".72rem", color:"var(--dim)", textTransform:"uppercase", letterSpacing:".08em", padding:".5rem .75rem", borderBottom:"2px solid var(--bd)", textAlign:"left", whiteSpace:"nowrap" }}>Division</th>
                             <th style={{ fontFamily:"var(--ff-m)", fontSize:".72rem", color:"var(--dim)", textTransform:"uppercase", letterSpacing:".08em", padding:".5rem .75rem", borderBottom:"2px solid var(--bd)", textAlign:"left", whiteSpace:"nowrap" }}>Submitted</th>
+                            <th style={{ borderBottom:"2px solid var(--bd)", padding:".5rem .75rem" }}></th>
                           </tr>
                         </thead>
                         <tbody>
@@ -3870,6 +3895,12 @@ export default function App() {
                               <td style={{ padding:".6rem .75rem", borderBottom:"1px solid var(--bd)", fontSize:".82rem", color:"var(--dim)" }}>{s.division}</td>
                               <td style={{ padding:".6rem .75rem", borderBottom:"1px solid var(--bd)", fontFamily:"var(--ff-m)", fontSize:".74rem", color:"var(--dim)", whiteSpace:"nowrap" }}>
                                 {fmtFull(s.submitted_at)}
+                              </td>
+                              <td style={{ padding:".6rem .75rem", borderBottom:"1px solid var(--bd)", whiteSpace:"nowrap" }}>
+                                <button className="proj-act-btn" style={{ color:"var(--red)" }}
+                                  onClick={() => setDeleteRegSub(s)}>
+                                  🗑
+                                </button>
                               </td>
                             </tr>
                           ))}
