@@ -1229,6 +1229,47 @@ export default function App() {
     if (data) setRegSubmissions(data);
   }
 
+  async function exportRegCSV() {
+    const { data } = await supabase.from("registration_submissions")
+      .select("*").order("submitted_at", { ascending: true });
+    if (!data || data.length === 0) return;
+    const esc = v => {
+      if (v === null || v === undefined) return "";
+      const s = Array.isArray(v) ? v.join("; ") : String(v);
+      return s.includes(",") || s.includes('"') || s.includes("\n")
+        ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const headers = [
+      "Reg #","Student Name","Grade Level","Division","School Name",
+      "Student Email","Contact Number","Project Title","Category","Project Type",
+      "Group Members","Advisor Name","Advisor Email","School Department",
+      "Description","Research Question","Hypothesis",
+      "Needs Electricity","Special Equipment","Has Trifold",
+      "Is Original Work","Agrees to Rules","Guardian Name","Guardian Signature",
+      "Submitted At"
+    ];
+    const rows = data.map(s => [
+      s.reg_number, s.student_name, s.grade_level, s.division, s.school_name,
+      s.student_email, s.contact_number, s.project_title, s.category, s.project_type,
+      Array.isArray(s.group_members) ? s.group_members.join("; ") : (s.group_members || ""),
+      s.advisor_name, s.advisor_email, s.school_department,
+      s.description, s.research_question, s.hypothesis,
+      s.needs_electricity ? "Yes" : "No",
+      s.special_equipment, s.has_trifold ? "Yes" : "No",
+      s.is_original_work ? "Yes" : "No", s.agrees_to_rules ? "Yes" : "No",
+      s.guardian_name, s.guardian_signature,
+      s.submitted_at ? new Date(s.submitted_at).toLocaleString() : ""
+    ].map(esc).join(","));
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `registrations_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    addLog("Admin exported registration submissions as CSV.");
+  }
+
   function exportJudgeScoresCSV() {
     const header = [
       "Judge","Project #","Project Title","Category","Grade",
@@ -1973,7 +2014,11 @@ export default function App() {
     setRegFormErr("");
     try {
       const projId    = "p_reg_" + uid();
-      const projNum   = nextProjectNum();
+      // Count only registration-submitted projects so numbering starts at 001
+      // regardless of how many admin-added projects exist
+      const { count: regCount } = await supabase.from("registration_submissions")
+        .select("id", { count: "exact", head: true });
+      const projNum   = String((regCount || 0) + 1).padStart(3, "0");
       const regNumber = generateRegNum(f.division, f.category, projNum);
 
       const { error: projErr } = await supabase.from("projects").insert({
@@ -3880,9 +3925,14 @@ export default function App() {
                       Submitted Registrations
                       {regSubmissions.length > 0 && <span className="badge bb" style={{ marginLeft:".5rem" }}>{regSubmissions.length}</span>}
                     </div>
-                    <button className="btn sec sm" style={{ width:"auto" }} onClick={() => { loadRegLinks(); loadRegSubmissions(); }}>
-                      ↻ Refresh
-                    </button>
+                    <div style={{ display:"flex", gap:".5rem" }}>
+                      <button className="btn sec sm" style={{ width:"auto" }} onClick={exportRegCSV} disabled={regSubmissions.length === 0}>
+                        ⬇ Export CSV
+                      </button>
+                      <button className="btn sec sm" style={{ width:"auto" }} onClick={() => { loadRegLinks(); loadRegSubmissions(); }}>
+                        ↻ Refresh
+                      </button>
+                    </div>
                   </div>
                   {regSubmissions.length === 0 ? (
                     <div style={{ textAlign:"center", padding:"2rem 1rem", color:"var(--dim)", fontSize:".9rem" }}>
