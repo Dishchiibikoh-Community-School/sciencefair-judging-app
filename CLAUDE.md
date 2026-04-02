@@ -16,10 +16,12 @@ Built as a single-file React component (`ScienceFairJudging.jsx`).
 **Rubric:** Northeast AZ Regional Science and Engineering Fair scoring sheet (10 criteria, 42 pts max).
 **Target scale:** Flexible — supports 1–100+ judges, 1–150+ projects (configurable).
 **Target devices:** Tablets (primary), phones, laptops, Chromebooks — fully responsive.
-**Live URL:** https://sciencefair-judging-app.vercel.app/
+**Live URL:** https://qritiko.com/ (also https://sciencefair-judging-app.vercel.app/ — redirects to qritiko.com)
 **Supabase project:** https://cjzuiimoamrggucvahjm.supabase.co
 
-> Last major update: 2026-03-31 — added multi-department support (Elementary / Middle School / High School). Each department has its own judge pool, project list, leaderboard, and per-dept max-judges cap. Judges select their department at registration. Projects are assigned a department by admin. Public results page splits by department.
+> Last major update: 2026-04-02 — added Student Registration feature. Admin generates a shareable registration link from the Registration tab. Participants open the link, fill out a 6-section form, and their project is auto-saved to the projects list. A confirmation email with their registration number is sent via Resend API (`/api/send-registration-email.js`). Registration data stored in `registration_links` and `registration_submissions` tables. Custom domain `qritiko.com` configured via Cloudflare + Vercel.
+>
+> Previous update: 2026-03-31 — added multi-department support (Elementary / Middle School / High School). Each department has its own judge pool, project list, leaderboard, and per-dept max-judges cap. Judges select their department at registration. Projects are assigned a department by admin. Public results page splits by department.
 >
 > Previous update: 2026-03-27 — added Score Export admin tab: per-judge CSV export and persistent score backups saved to `score_backups` table.
 
@@ -156,8 +158,10 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 | Admin dashboard | `VITE_ADMIN_PASS` env var |
 | IT Logs tab | `VITE_IT_PIN` env var (4-digit PIN) |
 | Reset All Data | `VITE_IT_PIN` env var (same PIN, separate modal) |
+| Registration email | `RESEND_API_KEY` + `EMAIL_FROM` env vars (server-side, Vercel only) |
 
 > **Note:** Credentials are no longer hardcoded. Set them in `.env` locally and in Vercel environment variables for production. See `.env.example` for the required variable names.
+> `RESEND_API_KEY` and `EMAIL_FROM` are server-side only (used by `/api/send-registration-email.js`) — do NOT prefix with `VITE_`.
 
 ### Security model
 - **Judges are identified by number** — they sign in as `Judge1`–`Judge[N]` where N equals `maxJudges`. The alias IS their username.
@@ -628,6 +632,8 @@ Supabase is **fully integrated and live**. Schema is applied at `supabase/schema
 | `final_decisions` | Admin award decisions per project |
 | `validations` | Judge + admin validation entries — `judge_id` is judge UUID or `'admin'` |
 | `score_backups` | Admin-saved score snapshots — full JSONB of all judge+project scores at a point in time |
+| `registration_links` | Admin-generated registration tokens (active/inactive, optional expiry) |
+| `registration_submissions` | Full form submissions — one per student; linked to `projects` via `project_id` |
 
 ### Realtime
 All tables are subscribed via a single `supabase.channel("app-realtime")` — changes propagate live across all open tabs/devices.

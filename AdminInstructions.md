@@ -25,6 +25,7 @@ This guide covers everything an event organizer needs to know to run the digital
 | **Overview** | Stats, completion tracking, per-department leaderboards, department settings |
 | **Judges** | Track judge registration and scoring progress, grouped by department |
 | **Projects** | Add, edit, remove, or lock projects — each assigned to a department |
+| **Registration** | Generate/deactivate student registration link; view all submitted registrations |
 | **Activity** | Human-readable timeline of all system events |
 | **Alerts** | Anomaly detection and system status |
 | **Deliberation** | Validation workflow and award decisions |
@@ -178,6 +179,62 @@ If a judge's tablet fails and they need to continue on another device:
 ### Activity Tab — Audit Trail
 
 Complete log of all events: judge registrations, score submissions, project changes, resets, deliberation events.
+
+---
+
+## Student Registration
+
+### Overview
+
+Before the event, admin generates a registration link and shares it with participants. Students fill out a form and their project is automatically added to the project list — no manual admin entry needed.
+
+### Generate a Registration Link
+
+1. Go to **Registration tab**
+2. Click **Generate Registration Link**
+3. Copy the URL and share it with participants (post on school website, group chat, or print on flyer)
+4. The same link works for all participants — one link, unlimited submissions
+
+### What Participants See
+
+Students fill out a 6-section form:
+1. **Student Info** — name, grade, division, school, email, contact number
+2. **Project Info** — title, category, type (Individual/Group), group members if any
+3. **Teacher/Advisor** — advisor name, email, department
+4. **Project Details** — description, research question, hypothesis
+5. **Logistics** — electricity needs, special equipment, trifold board
+6. **Consent** — original work declaration, rules agreement, guardian signature
+
+On submission:
+- Project is auto-saved to the Projects list
+- Student receives a **confirmation email** with their registration number (e.g. `Elem-LF-001`)
+- Registration number format: `{Division}-{Category}-{NNN}`
+
+### Registration Number Format
+
+| Division | Code | Category | Code |
+|---|---|---|---|
+| Elementary | `Elem` | Life Science | `LF` |
+| Junior High School | `JHS` | Earth and Space Science | `ESS` |
+| Senior High School | `SHS` | Physical Science | `PS` |
+| | | Engineering and Technology | `ET` |
+
+Example: `JHS-PS-003` = 3rd Junior High School Physical Science entry
+
+### View Submitted Registrations
+
+The **Submitted Registrations** table on the Registration tab shows:
+- Registration number, student name, project title, category, division, submission date
+
+### Close Registration
+
+Click **Deactivate Registration Link** when registration period ends. The link stops working immediately. All previously submitted records are preserved.
+
+### Notes
+
+- Deactivating a link and generating a new one does **not** affect existing submissions
+- Registration submissions and links are **not cleared** by Reset All Data
+- To delete registration data, remove rows directly in the Supabase dashboard
 
 ---
 
