@@ -1169,6 +1169,88 @@ export default function App() {
     addItLog("WARN","SHARE","PROJ_LIST_LINK_REVOKED","Admin revoked project list share link", {});
   }
 
+  function exportProjListPDF() {
+    const deptColor = (name) => {
+      const n = (name||"").toLowerCase();
+      return n.includes("elem") ? "#059669" : n.includes("middle") ? "#d97706" : n.includes("high") ? "#2563eb" : "#7c3aed";
+    };
+    const grouped = departments.filter(d => d.id).map(d => ({
+      dept: d,
+      projs: projects.filter(p => p.department_id === d.id).sort((a,b) => a.num.localeCompare(b.num)),
+    })).filter(g => g.projs.length > 0);
+    const unassigned = projects.filter(p => !p.department_id).sort((a,b) => a.num.localeCompare(b.num));
+    const dateStr = new Date().toLocaleDateString([], { year:"numeric", month:"long", day:"numeric" });
+
+    const rows = (projs) => projs.map(p => `
+      <tr>
+        <td style="font-family:monospace;color:#1e3a5f;white-space:nowrap">#${p.num}</td>
+        <td style="font-weight:600">${p.title}</td>
+        <td style="color:#64748b">${p.cat}</td>
+        <td style="color:#64748b;text-align:center">${p.grade||"—"}</td>
+      </tr>`).join("");
+
+    const sections = grouped.map(({ dept, projs }) => `
+      <div style="margin-bottom:1.5rem">
+        <div style="display:inline-block;background:${deptColor(dept.name)}18;color:${deptColor(dept.name)};
+          border:1px solid ${deptColor(dept.name)}40;border-radius:6px;padding:.25rem .75rem;
+          font-size:.8rem;font-weight:600;margin-bottom:.6rem">${dept.name}</div>
+        <table style="width:100%;border-collapse:collapse;font-size:.88rem">
+          <thead>
+            <tr style="border-bottom:2px solid #e2e8f0;color:#64748b;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em">
+              <th style="text-align:left;padding:.4rem .5rem;width:60px">#</th>
+              <th style="text-align:left;padding:.4rem .5rem">Project Title</th>
+              <th style="text-align:left;padding:.4rem .5rem;width:160px">Category</th>
+              <th style="text-align:center;padding:.4rem .5rem;width:60px">Grade</th>
+            </tr>
+          </thead>
+          <tbody>${rows(projs)}</tbody>
+        </table>
+      </div>`).join("");
+
+    const unassignedSection = unassigned.length ? `
+      <div style="margin-bottom:1.5rem">
+        <div style="display:inline-block;background:#fee2e218;color:#dc2626;
+          border:1px solid #dc262640;border-radius:6px;padding:.25rem .75rem;
+          font-size:.8rem;font-weight:600;margin-bottom:.6rem">Unassigned</div>
+        <table style="width:100%;border-collapse:collapse;font-size:.88rem">
+          <thead>
+            <tr style="border-bottom:2px solid #e2e8f0;color:#64748b;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em">
+              <th style="text-align:left;padding:.4rem .5rem;width:60px">#</th>
+              <th style="text-align:left;padding:.4rem .5rem">Project Title</th>
+              <th style="text-align:left;padding:.4rem .5rem;width:160px">Category</th>
+              <th style="text-align:center;padding:.4rem .5rem;width:60px">Grade</th>
+            </tr>
+          </thead>
+          <tbody>${rows(unassigned)}</tbody>
+        </table>
+      </div>` : "";
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+      <title>Science Fair — Project List</title>
+      <style>
+        body{font-family:"Segoe UI",Arial,sans-serif;color:#1e293b;margin:0;padding:2rem 2.5rem;font-size:.9rem}
+        table td{padding:.45rem .5rem;border-bottom:1px solid #f1f5f9;vertical-align:top}
+        @media print{body{padding:1rem 1.5rem}button{display:none!important}}
+      </style>
+    </head><body>
+      <div style="display:flex;align-items:center;gap:1rem;margin-bottom:.25rem">
+        <img src="/logo.png" style="height:48px;border-radius:6px" onerror="this.style.display='none'">
+        <div>
+          <div style="font-size:1.3rem;font-weight:800;color:#1e3a5f">Science Fair — Project List</div>
+          <div style="color:#64748b;font-size:.8rem">Generated ${dateStr} · ${projects.length} project${projects.length!==1?"s":""}</div>
+        </div>
+      </div>
+      <hr style="border:none;border-top:2px solid #e2e8f0;margin:1rem 0 1.5rem">
+      ${sections}${unassignedSection}
+      <div style="text-align:center;margin-top:2rem">
+        <button onclick="window.print()" style="padding:.5rem 1.5rem;background:#1e3a5f;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.88rem">🖨 Print / Save as PDF</button>
+      </div>
+    </body></html>`;
+
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(html); w.document.close(); }
+  }
+
   async function updateMaxJudges(newMax) {
     const numMax = parseInt(newMax) || 15;
     if (isNaN(numMax) || numMax < 1) {
@@ -3503,47 +3585,13 @@ export default function App() {
                 </div>
               )}
 
-              {/* Share Project List */}
+              {/* Export Project List */}
               <div style={{marginTop:"2rem",borderTop:"1px solid var(--bd)",paddingTop:"1.5rem"}}>
-                <div style={{display:"flex",alignItems:"center",gap:".6rem",marginBottom:".25rem"}}>
-                  <div className="adm-h1" style={{margin:0}}>Share Project List</div>
-                  {projListToken && <span className="badge bg" style={{fontSize:".68rem"}}>LIVE</span>}
-                </div>
-                <div className="adm-sub" style={{marginBottom:"1rem"}}>Generate a read-only link for teachers to review the project list — no login required.</div>
-                <div className={`share-status ${projListToken?"on":"off"}`} style={{marginBottom:"1rem"}}>
-                  <span style={{fontSize:"1.2rem"}}>{projListToken?"🟢":"⚫"}</span>
-                  <div>
-                    <div style={{fontWeight:500,fontSize:".88rem"}}>{projListToken?"Project list link is LIVE":"Project list link is disabled"}</div>
-                    <div style={{fontSize:".78rem",opacity:.7}}>{projListToken?"Anyone with the link can view the project list.":"Generate a link below to share with teachers."}</div>
-                  </div>
-                </div>
-                {projListToken && (
-                  <div className="card" style={{marginBottom:"1rem"}}>
-                    <div className="lbl" style={{marginBottom:".6rem"}}>Project List URL</div>
-                    <div className="link-box" style={{marginBottom:".75rem"}}>
-                      <input type="text" readOnly value={projListUrl()} />
-                      <button className={`copy-btn ${projListCopied?"copied":""}`} onClick={() => {
-                        navigator.clipboard.writeText(projListUrl());
-                        setProjListCopied(true);
-                        setTimeout(() => setProjListCopied(false), 2000);
-                      }}>
-                        {projListCopied ? "✓ Copied!" : "📋 Copy"}
-                      </button>
-                    </div>
-                    <div style={{display:"flex",alignItems:"center",gap:".75rem",flexWrap:"wrap",marginBottom:"1rem"}}>
-                      <span className="token-pill">🔑 {projListToken}</span>
-                    </div>
-                    <div className="btn-row">
-                      <button className="btn purple sm" onClick={() => window.open(projListUrl(), "_blank")}>👁 Preview Page</button>
-                      <button className="btn danger sm" onClick={revokeProjListLink}>🚫 Revoke Link</button>
-                    </div>
-                  </div>
-                )}
-                {!projListToken && (
-                  <button className="btn sm" style={{width:"auto"}} onClick={generateProjListLink}>
-                    🔗 Generate Project List Link
-                  </button>
-                )}
+                <div className="adm-h1" style={{marginBottom:".25rem"}}>Export Project List</div>
+                <div className="adm-sub" style={{marginBottom:"1rem"}}>Generate a printable PDF of all projects grouped by department — share with teachers or print for the event.</div>
+                <button className="btn sm" style={{width:"auto"}} onClick={exportProjListPDF} disabled={projects.length === 0}>
+                  🖨 Export Project List PDF
+                </button>
               </div>
             </>}
 
