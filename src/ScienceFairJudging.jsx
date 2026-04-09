@@ -3377,7 +3377,7 @@ export default function App() {
                       <div style={{flex:1}}>
                         <div style={{display:"flex",alignItems:"center",gap:".5rem",marginBottom:".2rem",flexWrap:"wrap"}}>
                           <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",color:"var(--navy)"}}>#{p.num} · {p.cat}</span>
-                          {(() => { const d = departments.find(d => d.id === p.department_id); return d ? <span className="badge bp" style={{fontSize:".68rem"}}>{d.name}</span> : <span className="badge br" style={{fontSize:".68rem"}}>Unassigned</span>; })()}
+                          {(() => { const d = departments.find(d => d.id === p.department_id); if (!d) return <span className="badge br" style={{fontSize:".68rem"}}>Unassigned</span>; const dc = d.name.toLowerCase().includes("elem") ? "bg" : d.name.toLowerCase().includes("middle") ? "ba" : d.name.toLowerCase().includes("high") ? "bb" : "bp"; return <span className={`badge ${dc}`} style={{fontSize:".68rem"}}>{d.name}</span>; })()}
                           {p.locked && <span className="proj-lock-badge">🔒 Locked</span>}
                         </div>
                         <div style={{fontWeight:600,marginBottom:".2rem",lineHeight:1.3}}>{p.title}</div>
