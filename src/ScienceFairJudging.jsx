@@ -994,6 +994,7 @@ export default function App() {
   // ── INSTANT CACHE RESTORE (runs before Supabase loads) ────
   useEffect(() => {
     if (urlRegToken) return; // Don't restore judge session when visiting a registration link
+    if (urlProjListToken) return; // Don't restore judge session when visiting a project list link
     const savedId   = localStorage.getItem("sf_judge_id");
     const savedData = localStorage.getItem("sf_judge_data");
     if (savedId && savedData) {
@@ -1016,6 +1017,7 @@ export default function App() {
   useEffect(() => {
     if (loading) return;
     if (urlRegToken) return; // Skip session sync on registration link
+    if (urlProjListToken) return; // Skip session sync on project list link
     const savedId = localStorage.getItem("sf_judge_id");
     if (!savedId) return;
     if (judges.length > 0) {
@@ -4287,7 +4289,7 @@ export default function App() {
 
   /* PUBLIC PROJECT LIST */
   if (view === "public-projects") {
-    const isValid = !loading && projListToken && urlProjListToken === projListToken;
+    const isValid = !loading && projListToken !== "";
 
     if (loading) return (
       <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
