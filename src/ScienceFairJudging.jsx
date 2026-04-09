@@ -1181,13 +1181,24 @@ export default function App() {
     const unassigned = projects.filter(p => !p.department_id).sort((a,b) => a.num.localeCompare(b.num));
     const dateStr = new Date().toLocaleDateString([], { year:"numeric", month:"long", day:"numeric" });
 
-    const rows = (projs) => projs.map(p => `
+    const rows = (projs) => projs.map(p => {
+      const sub = regSubmissions.find(s => s.project_id === p.id);
+      const adviser = sub?.advisor_name || "";
+      const members = sub?.group_members
+        ? (Array.isArray(sub.group_members) ? sub.group_members.join(", ") : sub.group_members)
+        : "";
+      const meta = [adviser ? `<span style="color:#1e293b;font-weight:500">Adviser:</span> ${adviser}` : "", members ? `<span style="color:#1e293b;font-weight:500">Members:</span> ${members}` : ""].filter(Boolean).join(" &nbsp;·&nbsp; ");
+      return `
       <tr>
-        <td style="font-family:monospace;color:#1e3a5f;white-space:nowrap">#${p.num}</td>
-        <td style="font-weight:600">${p.title}</td>
-        <td style="color:#64748b">${p.cat}</td>
-        <td style="color:#64748b;text-align:center">${p.grade||"—"}</td>
-      </tr>`).join("");
+        <td style="font-family:monospace;color:#1e3a5f;white-space:nowrap;vertical-align:top">#${p.num}</td>
+        <td>
+          <div style="font-weight:600">${p.title}</div>
+          ${meta ? `<div style="font-size:.8rem;color:#64748b;margin-top:.2rem">${meta}</div>` : ""}
+        </td>
+        <td style="color:#64748b;vertical-align:top">${p.cat}</td>
+        <td style="color:#64748b;text-align:center;vertical-align:top">${p.grade||"—"}</td>
+      </tr>`;
+    }).join("");
 
     const sections = grouped.map(({ dept, projs }) => `
       <div style="margin-bottom:1.5rem">
