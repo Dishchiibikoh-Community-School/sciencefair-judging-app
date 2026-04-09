@@ -3519,7 +3519,7 @@ export default function App() {
                       <span className="token-pill">🔑 {projListToken}</span>
                     </div>
                     <div className="btn-row">
-                      <button className="btn purple sm" onClick={() => setView("public-projects")}>👁 Preview Page</button>
+                      <button className="btn purple sm" onClick={() => window.open(projListUrl(), "_blank")}>👁 Preview Page</button>
                       <button className="btn danger sm" onClick={revokeProjListLink}>🚫 Revoke Link</button>
                     </div>
                   </div>
