@@ -2066,12 +2066,17 @@ export default function App() {
       const membersArr = group_members
         ? group_members.split(",").map(s => s.trim()).filter(Boolean)
         : [];
-      await supabase.from("registration_submissions")
+      const { error: regSubErr } = await supabase.from("registration_submissions")
         .update({ advisor_name: advisor_name.trim(), group_members: membersArr })
         .eq("id", regSub.id);
-      setRegSubmissions(prev => prev.map(s => s.id === regSub.id
-        ? { ...s, advisor_name: advisor_name.trim(), group_members: membersArr }
-        : s));
+      if (regSubErr) {
+        addItLog("ERROR","ADMIN","REG_SUB_UPDATE_FAILED","Failed to update registration submission adviser/members",
+          { submissionId: regSub.id, projectId: pid, error: regSubErr.message });
+      } else {
+        setRegSubmissions(prev => prev.map(s => s.id === regSub.id
+          ? { ...s, advisor_name: advisor_name.trim(), group_members: membersArr }
+          : s));
+      }
     }
     addLog(`Admin updated project #${updated.num}: ${updated.title}`);
     addItLog("INFO","ADMIN","PROJECT_UPDATED","Admin updated project details",
