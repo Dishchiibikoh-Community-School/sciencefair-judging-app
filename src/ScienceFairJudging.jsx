@@ -651,11 +651,16 @@ const urlRegToken = typeof window !== "undefined"
   ? new URLSearchParams(window.location.search).get("register")
   : null;
 
+// Project list share token from URL — computed once at module load
+const urlProjListToken = typeof window !== "undefined"
+  ? new URLSearchParams(window.location.search).get("projects")
+  : null;
+
 // ─────────────────────────────────────────────
 // APP
 // ─────────────────────────────────────────────
 export default function App() {
-  const [view,        setView]       = useState(urlRegToken ? "public-register" : "landing");
+  const [view,        setView]       = useState(urlRegToken ? "public-register" : urlProjListToken ? "public-projects" : "landing");
   const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
   const [projects,    setProjects]   = useState([]);
   const [judges,      setJudges]     = useState([]);
@@ -702,6 +707,10 @@ export default function App() {
   const [shareShowRubric, setShareShowRubric] = useState(true);
   const [shareTitle,      setShareTitle]      = useState("Science Fair SY 2025-2026 — Final Results");
   const [copied,          setCopied]          = useState(false);
+
+  // Project list share state
+  const [projListToken,   setProjListToken]   = useState("");
+  const [projListCopied,  setProjListCopied]  = useState(false);
 
   // IT logs state
   const [activityFilter, setActivityFilter] = useState("");
@@ -850,6 +859,7 @@ export default function App() {
       } catch {
         setTransferAllowances({});
       }
+      setProjListToken(map.project_list_token || "");
       // Note: judge/admin validations are loaded separately by loadValidations()
       // from the validations table — not from app_settings.
     }
@@ -1125,6 +1135,23 @@ export default function App() {
     addItLog("WARN","SHARE","LINK_REVOKED","Admin revoked public results link",{ token:shareToken, wasExpiry:shareExpiry });
     setShareEnabled(false); setShareToken(""); setShareCreated(null);
     addLog("Admin revoked public results link");
+  }
+
+  function projListUrl() { return `${window.location.origin}?projects=${projListToken}`; }
+
+  async function generateProjListLink() {
+    const t = genToken();
+    await supabase.from("app_settings").upsert({ key: "project_list_token", value: t });
+    setProjListToken(t);
+    addLog(`Admin generated project list share link — token: ${t}`);
+    addItLog("INFO","SHARE","PROJ_LIST_LINK_GENERATED","Admin generated project list share link", { token: t });
+  }
+
+  async function revokeProjListLink() {
+    await supabase.from("app_settings").upsert({ key: "project_list_token", value: "" });
+    setProjListToken("");
+    addLog("Admin revoked project list share link");
+    addItLog("WARN","SHARE","PROJ_LIST_LINK_REVOKED","Admin revoked project list share link", {});
   }
 
   async function updateMaxJudges(newMax) {
@@ -3460,6 +3487,49 @@ export default function App() {
                   <div style={{fontSize:".82rem",color:"var(--dim)",marginTop:".25rem"}}>Click "Add Project" to get started.</div>
                 </div>
               )}
+
+              {/* Share Project List */}
+              <div style={{marginTop:"2rem",borderTop:"1px solid var(--bd)",paddingTop:"1.5rem"}}>
+                <div style={{display:"flex",alignItems:"center",gap:".6rem",marginBottom:".25rem"}}>
+                  <div className="adm-h1" style={{margin:0}}>Share Project List</div>
+                  {projListToken && <span className="badge bg" style={{fontSize:".68rem"}}>LIVE</span>}
+                </div>
+                <div className="adm-sub" style={{marginBottom:"1rem"}}>Generate a read-only link for teachers to review the project list — no login required.</div>
+                <div className={`share-status ${projListToken?"on":"off"}`} style={{marginBottom:"1rem"}}>
+                  <span style={{fontSize:"1.2rem"}}>{projListToken?"🟢":"⚫"}</span>
+                  <div>
+                    <div style={{fontWeight:500,fontSize:".88rem"}}>{projListToken?"Project list link is LIVE":"Project list link is disabled"}</div>
+                    <div style={{fontSize:".78rem",opacity:.7}}>{projListToken?"Anyone with the link can view the project list.":"Generate a link below to share with teachers."}</div>
+                  </div>
+                </div>
+                {projListToken && (
+                  <div className="card" style={{marginBottom:"1rem"}}>
+                    <div className="lbl" style={{marginBottom:".6rem"}}>Project List URL</div>
+                    <div className="link-box" style={{marginBottom:".75rem"}}>
+                      <input type="text" readOnly value={projListUrl()} />
+                      <button className={`copy-btn ${projListCopied?"copied":""}`} onClick={() => {
+                        navigator.clipboard.writeText(projListUrl());
+                        setProjListCopied(true);
+                        setTimeout(() => setProjListCopied(false), 2000);
+                      }}>
+                        {projListCopied ? "✓ Copied!" : "📋 Copy"}
+                      </button>
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:".75rem",flexWrap:"wrap",marginBottom:"1rem"}}>
+                      <span className="token-pill">🔑 {projListToken}</span>
+                    </div>
+                    <div className="btn-row">
+                      <button className="btn purple sm" onClick={() => setView("public-projects")}>👁 Preview Page</button>
+                      <button className="btn danger sm" onClick={revokeProjListLink}>🚫 Revoke Link</button>
+                    </div>
+                  </div>
+                )}
+                {!projListToken && (
+                  <button className="btn sm" style={{width:"auto"}} onClick={generateProjListLink}>
+                    🔗 Generate Project List Link
+                  </button>
+                )}
+              </div>
             </>}
 
             {/* ACTIVITY */}
@@ -4209,6 +4279,110 @@ export default function App() {
               </div>;
             })()}
 
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* PUBLIC PROJECT LIST */
+  if (view === "public-projects") {
+    const isValid = !loading && projListToken && urlProjListToken === projListToken;
+
+    if (loading) return (
+      <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <div style={{textAlign:"center",color:"var(--dim)"}}>
+          <div style={{fontSize:"2rem",marginBottom:".75rem"}}>📋</div>
+          <div style={{fontFamily:"var(--ff-b)"}}>Loading project list…</div>
+        </div>
+      </div>
+    );
+
+    if (!isValid) return (
+      <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}}>
+        <div className="card" style={{maxWidth:"400px",width:"100%",textAlign:"center",padding:"2rem"}}>
+          <div style={{fontSize:"2.5rem",marginBottom:".75rem"}}>🔗</div>
+          <div style={{fontWeight:700,fontSize:"1.1rem",marginBottom:".5rem"}}>Link Unavailable</div>
+          <div style={{color:"var(--dim)",fontSize:".88rem"}}>This project list link is invalid or has been revoked by the administrator.</div>
+        </div>
+      </div>
+    );
+
+    const deptBadgeClass = (name) => {
+      const n = (name||"").toLowerCase();
+      return n.includes("elem") ? "bg" : n.includes("middle") ? "ba" : n.includes("high") ? "bb" : "bp";
+    };
+
+    return (
+      <div className="pub-wrap">
+        <div className="pub-inner">
+          <div className="pub-hero">
+            <img src="/logo.png" alt="School logo" style={{height:"60px",marginBottom:"1rem",borderRadius:"8px"}} onError={e => e.target.style.display="none"} />
+            <div style={{fontFamily:"var(--ff-d)",fontSize:"1.6rem",fontWeight:900,color:"var(--navy)",marginBottom:".35rem"}}>
+              Science Fair — Project List
+            </div>
+            <div style={{color:"var(--dim)",fontSize:".88rem"}}>{projects.length} project{projects.length!==1?"s":""} registered</div>
+          </div>
+
+          {departments.filter(d => d.id).map(dept => {
+            const deptProjects = projects.filter(p => p.department_id === dept.id).sort((a,b) => a.num.localeCompare(b.num));
+            if (deptProjects.length === 0) return null;
+            return (
+              <div key={dept.id} style={{marginBottom:"1.75rem"}}>
+                <div style={{display:"flex",alignItems:"center",gap:".6rem",marginBottom:".75rem"}}>
+                  <span className={`badge ${deptBadgeClass(dept.name)}`} style={{fontSize:".78rem",padding:".25rem .75rem"}}>{dept.name}</span>
+                  <span style={{fontSize:".78rem",color:"var(--dim)"}}>{deptProjects.length} project{deptProjects.length!==1?"s":""}</span>
+                </div>
+                <div className="card" style={{padding:0,overflow:"hidden"}}>
+                  {deptProjects.map((p, i) => (
+                    <div key={p.id} style={{padding:".85rem 1.1rem",borderBottom: i < deptProjects.length-1 ? "1px solid var(--bd)" : "none"}}>
+                      <div style={{display:"flex",alignItems:"flex-start",gap:".75rem"}}>
+                        <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",color:"var(--navy)",flexShrink:0,paddingTop:".15rem"}}>#{p.num}</span>
+                        <div style={{flex:1}}>
+                          <div style={{fontWeight:600,fontSize:".95rem",lineHeight:1.3,marginBottom:".2rem"}}>{p.title}</div>
+                          <div style={{fontSize:".75rem",color:"var(--dim)"}}>
+                            {p.cat}{p.grade ? ` · Grade ${p.grade}` : ""}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Unassigned projects */}
+          {(() => {
+            const unassigned = projects.filter(p => !p.department_id).sort((a,b) => a.num.localeCompare(b.num));
+            if (unassigned.length === 0) return null;
+            return (
+              <div style={{marginBottom:"1.75rem"}}>
+                <div style={{display:"flex",alignItems:"center",gap:".6rem",marginBottom:".75rem"}}>
+                  <span className="badge br" style={{fontSize:".78rem",padding:".25rem .75rem"}}>Unassigned</span>
+                  <span style={{fontSize:".78rem",color:"var(--dim)"}}>{unassigned.length} project{unassigned.length!==1?"s":""}</span>
+                </div>
+                <div className="card" style={{padding:0,overflow:"hidden"}}>
+                  {unassigned.map((p, i) => (
+                    <div key={p.id} style={{padding:".85rem 1.1rem",borderBottom: i < unassigned.length-1 ? "1px solid var(--bd)" : "none"}}>
+                      <div style={{display:"flex",alignItems:"flex-start",gap:".75rem"}}>
+                        <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",color:"var(--navy)",flexShrink:0,paddingTop:".15rem"}}>#{p.num}</span>
+                        <div style={{flex:1}}>
+                          <div style={{fontWeight:600,fontSize:".95rem",lineHeight:1.3,marginBottom:".2rem"}}>{p.title}</div>
+                          <div style={{fontSize:".75rem",color:"var(--dim)"}}>
+                            {p.cat}{p.grade ? ` · Grade ${p.grade}` : ""}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          <div style={{textAlign:"center",marginTop:"2rem",fontSize:".75rem",color:"var(--dim)"}}>
+            Powered by Dishchiibikoh Community School · Science Fair Judging System
           </div>
         </div>
       </div>
