@@ -711,6 +711,8 @@ export default function App() {
   // Project list share state
   const [projListToken,   setProjListToken]   = useState("");
   const [projListCopied,  setProjListCopied]  = useState(false);
+  const [projListValid,   setProjListValid]   = useState(false);
+  const [projListChecked, setProjListChecked] = useState(!urlProjListToken);
 
   // IT logs state
   const [activityFilter, setActivityFilter] = useState("");
@@ -931,6 +933,17 @@ export default function App() {
           setRegTokenData(null);
         }
         setRegTokenChecked(true);
+      }
+      // Validate project list token if present in URL
+      if (urlProjListToken) {
+        try {
+          const { data } = await supabase.from("app_settings")
+            .select("value").eq("key", "project_list_token").single();
+          setProjListValid(!!data?.value && data.value !== "");
+        } catch {
+          setProjListValid(false);
+        }
+        setProjListChecked(true);
       }
       await Promise.all([loadDepartments(), loadProjects(), loadJudges(), loadScores(), loadLog(), loadItLogs(), loadShare(), loadSettings(), loadDelibNotes(), loadFinalDecisions(), loadValidations(), loadScoreBackups()]);
       clearTimeout(timeout);
@@ -4289,9 +4302,7 @@ export default function App() {
 
   /* PUBLIC PROJECT LIST */
   if (view === "public-projects") {
-    const isValid = !loading && projListToken !== "";
-
-    if (loading) return (
+    if (!projListChecked) return (
       <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
         <div style={{textAlign:"center",color:"var(--dim)"}}>
           <div style={{fontSize:"2rem",marginBottom:".75rem"}}>📋</div>
@@ -4300,7 +4311,7 @@ export default function App() {
       </div>
     );
 
-    if (!isValid) return (
+    if (!projListValid) return (
       <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}}>
         <div className="card" style={{maxWidth:"400px",width:"100%",textAlign:"center",padding:"2rem"}}>
           <div style={{fontSize:"2.5rem",marginBottom:".75rem"}}>🔗</div>
