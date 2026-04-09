@@ -753,7 +753,7 @@ export default function App() {
   // Project management state
   const [showAddProject,     setShowAddProject]      = useState(false);
   const [editingProject,     setEditingProject]      = useState(null); // project id being edited
-  const [projForm,           setProjForm]            = useState({ title:"", cat:"Biology", grade:"", num:"", department_id:"" });
+  const [projForm,           setProjForm]            = useState({ title:"", cat:"Biology", grade:"", num:"", department_id:"", advisor_name:"", group_members:"" });
   const [showDeleteConfirm,  setShowDeleteConfirm]   = useState(false);
   const [deleteProjectId,    setDeleteProjectId]     = useState(null);
 
@@ -1060,6 +1060,9 @@ export default function App() {
       loadRegLinks();
       loadRegSubmissions();
     }
+    if (adminTab === "projects") {
+      loadRegSubmissions();
+    }
   }, [adminTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function flushOfflineQueue() {
@@ -1231,7 +1234,7 @@ export default function App() {
   }
   async function loadRegSubmissions() {
     const { data } = await supabase.from("registration_submissions")
-      .select("id, reg_number, student_name, project_title, category, division, submitted_at")
+      .select("id, reg_number, student_name, project_title, category, division, submitted_at, project_id, group_members, advisor_name")
       .order("submitted_at", { ascending: false });
     if (data) setRegSubmissions(data);
   }
@@ -1917,16 +1920,29 @@ export default function App() {
   async function updateProject(pid) {
     const existing = projects.find(p => p.id === pid);
     if (!existing || existing.locked) return;
-    const { title, cat, grade, num, department_id } = projForm;
+    const { title, cat, grade, num, department_id, advisor_name, group_members } = projForm;
     if (!title.trim()) return;
     const updated = { ...existing, title: title.trim(), cat, grade, num: num.trim() || existing.num, department_id: department_id || null };
     setProjects(p => p.map(pp => pp.id === pid ? updated : pp));
     await supabase.from("projects").update({ title: updated.title, cat: updated.cat, grade: updated.grade, num: updated.num, department_id: updated.department_id }).eq("id", pid);
+    // If project came from registration, also update advisor + members there
+    const regSub = regSubmissions.find(s => s.project_id === pid);
+    if (regSub) {
+      const membersArr = group_members
+        ? group_members.split(",").map(s => s.trim()).filter(Boolean)
+        : [];
+      await supabase.from("registration_submissions")
+        .update({ advisor_name: advisor_name.trim(), group_members: membersArr })
+        .eq("id", regSub.id);
+      setRegSubmissions(prev => prev.map(s => s.id === regSub.id
+        ? { ...s, advisor_name: advisor_name.trim(), group_members: membersArr }
+        : s));
+    }
     addLog(`Admin updated project #${updated.num}: ${updated.title}`);
     addItLog("INFO","ADMIN","PROJECT_UPDATED","Admin updated project details",
       { projectId:pid, title:updated.title, num:updated.num, timestamp:fmtISO(Date.now()) });
     setEditingProject(null);
-    setProjForm({ title:"", cat:"Biology", grade:"", num:"", department_id:"" });
+    setProjForm({ title:"", cat:"Biology", grade:"", num:"", department_id:"", advisor_name:"", group_members:"" });
   }
 
   async function removeProject(pid) {
@@ -3272,7 +3288,7 @@ export default function App() {
                   <div className="adm-sub">Manage projects, view rubric breakdown, and control project access</div>
                 </div>
                 <button className="btn sm" style={{width:"auto"}} onClick={() => {
-                  setProjForm({ title:"", cat:"Biology", grade:"", num:nextProjectNum(), department_id:"" });
+                  setProjForm({ title:"", cat:"Biology", grade:"", num:nextProjectNum(), department_id:"", advisor_name:"", group_members:"" });
                   setShowAddProject(true); setEditingProject(null);
                 }}>
                   + Add Project
@@ -3305,7 +3321,7 @@ export default function App() {
                       <div className="lbl">Category</div>
                       <select className="delib-rec-select" value={projForm.cat}
                         onChange={e => setProjForm(f => ({...f, cat:e.target.value}))}>
-                        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        {REG_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                   </div>
@@ -3321,6 +3337,20 @@ export default function App() {
                         onChange={e => setProjForm(f => ({...f, num:e.target.value}))} />
                     </div>
                   </div>
+                  {editingProject && regSubmissions.find(s => s.project_id === editingProject) && (
+                    <div className="proj-form-grid" style={{marginTop:".5rem"}}>
+                      <div>
+                        <div className="lbl">Adviser Name</div>
+                        <input type="text" placeholder="Adviser name..." value={projForm.advisor_name}
+                          onChange={e => setProjForm(f => ({...f, advisor_name:e.target.value}))} />
+                      </div>
+                      <div>
+                        <div className="lbl">Group Members <span style={{fontWeight:400,textTransform:"none",letterSpacing:0,fontSize:".7rem"}}>(comma-separated)</span></div>
+                        <input type="text" placeholder="e.g. Juan, Maria, Pedro" value={projForm.group_members}
+                          onChange={e => setProjForm(f => ({...f, group_members:e.target.value}))} />
+                      </div>
+                    </div>
+                  )}
                   <div style={{marginTop:".5rem",display:"flex",gap:".5rem"}}>
                     <button className="btn sm" style={{width:"auto"}}
                       disabled={!projForm.title.trim()}
@@ -3328,7 +3358,7 @@ export default function App() {
                       {editingProject ? "Save Changes" : "Add Project"}
                     </button>
                     <button className="btn sec sm" style={{width:"auto"}}
-                      onClick={() => { setShowAddProject(false); setEditingProject(null); setProjForm({ title:"", cat:"Biology", grade:"", num:"", department_id:"" }); }}>
+                      onClick={() => { setShowAddProject(false); setEditingProject(null); setProjForm({ title:"", cat:"Biology", grade:"", num:"", department_id:"", advisor_name:"", group_members:"" }); }}>
                       Cancel
                     </button>
                   </div>
@@ -3340,6 +3370,7 @@ export default function App() {
                 const hits = Object.entries(scores).filter(([k]) => k.endsWith(`_${p.id}`));
                 const avg  = projAvg(p.id);
                 const assignedJudges = judges.filter(j => j.projects.includes(p.id));
+                const regSub = regSubmissions.find(s => s.project_id === p.id);
                 return (
                   <div className={`proj-mgmt-card ${p.locked?"is-locked":""}`} key={p.id}>
                     <div className="proj-mgmt-head">
@@ -3354,6 +3385,16 @@ export default function App() {
                           Grade {p.grade} · {hits.length} review{hits.length!==1?"s":""}
                           {assignedJudges.length > 0 && ` · ${assignedJudges.length} judge${assignedJudges.length!==1?"s":""} assigned`}
                         </div>
+                        {regSub && (
+                          <div style={{fontSize:".74rem",color:"var(--dim)",marginTop:".3rem",display:"flex",flexWrap:"wrap",gap:".5rem 1rem"}}>
+                            {regSub.advisor_name && (
+                              <span><span style={{color:"var(--text)",fontWeight:500}}>Adviser:</span> {regSub.advisor_name}</span>
+                            )}
+                            {regSub.group_members && regSub.group_members.length > 0 && (
+                              <span><span style={{color:"var(--text)",fontWeight:500}}>Members:</span> {Array.isArray(regSub.group_members) ? regSub.group_members.join(", ") : regSub.group_members}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div style={{display:"flex",alignItems:"flex-start",gap:"1rem"}}>
                         <div className="proj-mgmt-actions">
@@ -3367,7 +3408,13 @@ export default function App() {
                               <button className="proj-act-btn edit"
                                 onClick={() => {
                                   setEditingProject(p.id);
-                                  setProjForm({ title:p.title, cat:p.cat, grade:p.grade, num:p.num, department_id:p.department_id||"" });
+                                  setProjForm({
+                                    title:p.title, cat:p.cat, grade:p.grade, num:p.num, department_id:p.department_id||"",
+                                    advisor_name: regSub?.advisor_name || "",
+                                    group_members: regSub?.group_members
+                                      ? (Array.isArray(regSub.group_members) ? regSub.group_members.join(", ") : regSub.group_members)
+                                      : "",
+                                  });
                                   setShowAddProject(false);
                                 }}
                                 title="Edit project">
