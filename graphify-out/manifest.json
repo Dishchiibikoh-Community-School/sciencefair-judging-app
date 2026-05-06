@@ -1,0 +1,66 @@
+{
+  "D:\\Desktop\\sciencefair-judging-app\\eslint.config.js": {
+    "mtime": 1774419107.5148296,
+    "hash": "c15fd0f45c689a8b77c8ff6fe6fada9b"
+  },
+  "D:\\Desktop\\sciencefair-judging-app\\vite.config.js": {
+    "mtime": 1774421612.1903765,
+    "hash": "ee56e87f3eb44159980d7886bf257b22"
+  },
+  "D:\\Desktop\\sciencefair-judging-app\\api\\send-registration-email.js": {
+    "mtime": 1775225316.281631,
+    "hash": "06bd7cdd4e94a750616d71b34814d943"
+  },
+  "D:\\Desktop\\sciencefair-judging-app\\src\\main.jsx": {
+    "mtime": 1774423432.300607,
+    "hash": "0db5ffdfdae08c9adca8b7a0bc2911ae"
+  },
+  "D:\\Desktop\\sciencefair-judging-app\\src\\ScienceFairJudging.jsx": {
+    "mtime": 1778043677.9243457,
+    "hash": "a459e2d7417b348abe25c8d0d4cfb0e0"
+  },
+  "D:\\Desktop\\sciencefair-judging-app\\src\\supabaseClient.js": {
+    "mtime": 1774419107.538437,
+    "hash": "2b22cb129d509bdc2b352c125bd8a455"
+  },
+  "D:\\Desktop\\sciencefair-judging-app\\supabase\\registration-migration.sql": {
+    "mtime": 1775225316.2832198,
+    "hash": "882a111ec90c6cfae0b5da6591a65a40"
+  },
+  "D:\\Desktop\\sciencefair-judging-app\\supabase\\schema.sql": {
+    "mtime": 1774941959.1907969,
+    "hash": "a9181043029fd4a62924ddd6780c217b"
+  },
+  "D:\\Desktop\\sciencefair-judging-app\\AdminInstructions.md": {
+    "mtime": 1775225316.2796233,
+    "hash": "30637eed955da7e27ddc387d50e2bc95"
+  },
+  "D:\\Desktop\\sciencefair-judging-app\\CLAUDE.md": {
+    "mtime": 1778043677.9233465,
+    "hash": "eac5ce91a4b63e7fe9ab2da82f1c6453"
+  },
+  "D:\\Desktop\\sciencefair-judging-app\\index.html": {
+    "mtime": 1774421319.9959555,
+    "hash": "20f1eb991ba511a54a01e0dba855e051"
+  },
+  "D:\\Desktop\\sciencefair-judging-app\\JudgeInstructions.md": {
+    "mtime": 1774944598.568074,
+    "hash": "e8b5ae798ee8a2fa5d6c628f8a756ff1"
+  },
+  "D:\\Desktop\\sciencefair-judging-app\\QA_ASSESSMENT.md": {
+    "mtime": 1774583047.2203789,
+    "hash": "129e7e8867f2ec13cadfb1070e080ff5"
+  },
+  "D:\\Desktop\\sciencefair-judging-app\\public\\favicon.svg": {
+    "mtime": 1774419107.5163355,
+    "hash": "7e840862161341271697daa99a40d76b"
+  },
+  "D:\\Desktop\\sciencefair-judging-app\\public\\icons.svg": {
+    "mtime": 1774419107.5163355,
+    "hash": "21c7473c592c67dc87223d49892c8f0a"
+  },
+  "D:\\Desktop\\sciencefair-judging-app\\public\\logo.png": {
+    "mtime": 1774419107.537431,
+    "hash": "91fa9ebe68bb676b410c36a5523abb92"
+  }
+}

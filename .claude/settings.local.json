@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($py = \"C:\\\\Users\\\\Cerus\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe\"; & $py -c \"import graphify; print\\('ok'\\)\"; & $py -c \"import sys; open\\('.graphify_python', 'w'\\).write\\(sys.executable\\)\")",
+      "PowerShell($base = \"C:\\\\Users\\\\Cerus\\\\OneDrive\\\\Documents\\\\Obsidian Vault\\\\graphify\"; Get-ChildItem -Path $base -Recurse -Filter \"GRAPH_REPORT.md\" | ForEach-Object { $newName = \"GRAPH_REPORT_$\\($_.Directory.Name\\).md\"; Rename-Item -Path $_.FullName -NewName $newName; \"Renamed: $\\($_.Directory.Name\\)\\\\$\\($_.Name\\) -> $newName\" })",
+      "Read(//c/Users/Cerus/OneDrive/Documents/Obsidian Vault/**)",
+      "Read(//c/Users/Cerus/.claude/**)",
+      "Read(//c/Users/Cerus/.claude/skills/project-init/**)"
+    ],
+    "additionalDirectories": [
+      "D:\\Desktop\\sciencefair-judging-app\\graphify-out",
+      "C:\\Users\\Cerus\\OneDrive\\Documents\\Obsidian Vault\\projects"
+    ]
+  }
+}
