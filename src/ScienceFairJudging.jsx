@@ -4,13 +4,15 @@ import { supabase } from "./supabaseClient";
 // ─────────────────────────────────────────────
 // CONSTANTS & MOCK DATA
 // ─────────────────────────────────────────────
-const INVITE_CODE  = import.meta.env.VITE_INVITE_CODE;
-const ADMIN_PASS   = import.meta.env.VITE_ADMIN_PASS;
-const IT_PIN       = import.meta.env.VITE_IT_PIN;
 const JUDGE_NAMES  = Array.from({ length: 100 }, (_, i) => `Judge${i + 1}`);
 
+// School slug from URL path: app.qritiko.com/s/school-slug
+const urlSchoolSlug = typeof window !== "undefined"
+  ? (window.location.pathname.split("/s/")[1]?.split("/")[0] || null)
+  : null;
 
-const RUBRIC = [
+
+const DEFAULT_RUBRIC = [
   { id:"presentation", label:"Presentation",          desc:"Display Board and Project Data Book: Elements are aesthetically pleasing, organized, and creative. Is the information easy to understand?",                                                                                      max:6, steps:[0,2,4,6] },
   { id:"testable_q",   label:"Testable Question",     desc:"References a cause and effect relationship and a measurable change.",                                                                                                                                                           max:3, steps:[0,1,2,3] },
   { id:"background",   label:"Background Research",   desc:"Is diverse; multiple sources are cited and are complete.",                                                                                                                                                                     max:3, steps:[0,1,2,3] },
@@ -22,7 +24,8 @@ const RUBRIC = [
   { id:"conclusion",   label:"Conclusion",            desc:"Based on the analysis of the data; acceptance or rejection of hypothesis or success of solution/invention; suggestions for further efforts.",                                                                                   max:3, steps:[0,1,2,3] },
   { id:"abstract",     label:"Abstract",              desc:"Required for projects 5th–High School. Concisely sums up the project explaining the test, the outcome, and the conclusion. Not to exceed 250 words.",                                                                          max:6, steps:[0,2,4,6] },
 ];
-/// Scoring guide: 0=not present, 1/2=partial, 2/4=complete, 3/6=exceptional
+// Scoring guide: 0=not present, 1/2=partial, 2/4=complete, 3/6=exceptional
+// DEFAULT_RUBRIC is used as the fallback if no custom rubric is defined for the school.
 
 const DEFAULT_PROJECTS = [
   { id:"p1", num:"001", title:"Effect of Microplastics on Aquatic Plant Growth",          cat:"Biology",       grade:"9"  },
@@ -599,6 +602,27 @@ const CSS = `
   .reg-num-pill{font-family:var(--ff-m);font-size:.78rem;background:var(--blue-l);color:var(--blue);padding:.2rem .6rem;border-radius:100px;}
   select.reg-select{width:100%;background:var(--bg);border:1.5px solid var(--bd);border-radius:8px;padding:.85rem 1rem;color:var(--text);font-family:var(--ff-b);font-size:1rem;outline:none;cursor:pointer;transition:border-color .2s;}
   select.reg-select:focus{border-color:var(--navy);}
+
+  /* RUBRIC EDITOR */
+  .rub-editor-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.6rem;}
+  @media(max-width:640px){.rub-editor-row{grid-template-columns:1fr;}}
+  .rub-editor-card{background:var(--bg);border:1.5px solid var(--bd);border-radius:var(--r);padding:1rem;margin-bottom:.6rem;transition:border-color .15s;}
+  .rub-editor-card:focus-within{border-color:var(--navy);}
+  .rub-editor-head{display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem;}
+  .rub-editor-num{font-family:var(--ff-m);font-size:.72rem;color:var(--dim);background:var(--s2);padding:.2rem .55rem;border-radius:100px;flex-shrink:0;}
+  .rub-editor-actions{display:flex;gap:.3rem;margin-left:auto;flex-shrink:0;}
+  .rub-move-btn{padding:.3rem .55rem;border-radius:6px;border:1px solid var(--bd);background:var(--bg);font-size:.78rem;cursor:pointer;color:var(--dim);}
+  .rub-move-btn:hover:not(:disabled){border-color:var(--navy);color:var(--navy);}
+  .rub-move-btn:disabled{opacity:.3;cursor:default;}
+  .rub-del-btn{padding:.3rem .55rem;border-radius:6px;border:1px solid var(--red)30;background:var(--bg);font-size:.78rem;cursor:pointer;color:var(--red);}
+  .rub-del-btn:hover{background:var(--red-l);}
+  .rub-view-table{width:100%;border-collapse:collapse;font-size:.88rem;}
+  .rub-view-table th{text-align:left;font-family:var(--ff-m);font-size:.72rem;color:var(--dim);padding:.5rem .75rem;border-bottom:1px solid var(--bd);font-weight:400;text-transform:uppercase;letter-spacing:.05em;}
+  .rub-view-table td{padding:.65rem .75rem;border-bottom:1px solid var(--s2);vertical-align:top;}
+  .rub-view-table tr:last-child td{border-bottom:none;}
+  .rub-total-row{display:flex;align-items:center;justify-content:space-between;padding:.85rem 1rem;background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);margin-top:.75rem;}
+  .rub-total-pts{font-family:var(--ff-m);font-size:1.1rem;color:var(--navy);font-weight:700;}
+  .rub-steps-pill{display:inline-block;font-family:var(--ff-m);font-size:.72rem;background:var(--s2);color:var(--dim);padding:.2rem .55rem;border-radius:100px;}
 `;
 
 // ─────────────────────────────────────────────
@@ -615,13 +639,11 @@ function dbToItLog(row) {
 }
 function scoresToMap(rows) {
   return rows.reduce((acc, row) => {
+    // v2: scores stored as JSONB criteria object { [criterion_id]: value }
     acc[`${row.judge_id}_${row.project_id}`] = {
-      presentation: row.presentation, testable_q: row.testable_q,
-      background: row.background, hypothesis: row.hypothesis,
-      variables: row.variables, materials: row.materials,
-      data: row.data, analysis: row.analysis,
-      conclusion: row.conclusion, abstract: row.abstract,
-      notes: row.notes || "", time: new Date(row.submitted_at).getTime(),
+      criteria: row.criteria || {},
+      notes: row.notes || "",
+      time: new Date(row.submitted_at).getTime(),
     };
     return acc;
   }, {});
@@ -660,7 +682,31 @@ const urlProjListToken = typeof window !== "undefined"
 // APP
 // ─────────────────────────────────────────────
 export default function App() {
-  const [view,        setView]       = useState(urlRegToken ? "public-register" : urlProjListToken ? "public-projects" : "landing");
+  // ── SCHOOL / AUTH STATE ───────────────────────────────────
+  const [session,       setSession]       = useState(null);   // Supabase Auth session
+  const [currentSchool, setCurrentSchool] = useState(null);   // { id, name, slug, invite_code, admin_pin? }
+  const [schoolLoading, setSchoolLoading] = useState(!!urlSchoolSlug); // true while resolving slug
+
+  // ── RUBRIC STATE ─────────────────────────────────────────
+  const [rubric,        setRubric]        = useState(DEFAULT_RUBRIC);  // loaded from rubrics table
+  const [rubricId,      setRubricId]      = useState(null);            // active rubric UUID
+  const [editingRubric, setEditingRubric] = useState(false);           // rubric editor open
+  const [rubricDraft,   setRubricDraft]   = useState([]);              // draft criteria during edit
+  const [rubricSaving,  setRubricSaving]  = useState(false);
+
+  // ── SCHOOL REGISTRATION STATE ────────────────────────────
+  const [schoolForm, setSchoolForm] = useState({ name:"", slug:"", email:"", password:"", confirmPass:"" });
+  const [schoolFormErr, setSchoolFormErr] = useState("");
+  const [schoolRegistering, setSchoolRegistering] = useState(false);
+
+  // ── ADMIN EMAIL (for v2 Supabase Auth login) ─────────────
+  const [adminEmail, setAdminEmail] = useState("");
+
+  const [view,        setView]       = useState(
+    urlRegToken      ? "public-register"  :
+    urlProjListToken ? "public-projects"  :
+    urlSchoolSlug    ? "landing"          : "school-select"
+  );
   const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
   const [projects,    setProjects]   = useState([]);
   const [judges,      setJudges]     = useState([]);
@@ -793,46 +839,60 @@ export default function App() {
   const backdrop = null;
 
   // ── SUPABASE LOADERS ──────────────────────────────────────
-  async function loadDepartments() {
-    const { data } = await supabase.from("departments").select("*").order("ord");
+  async function loadDepartments(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
+    const { data } = await supabase.from("departments").select("*").eq("school_id", schoolId).order("ord");
     if (data && data.length > 0) {
       setDepartments(data.map(r => ({ id: r.id, name: r.name, max_judges: r.max_judges, ord: r.ord })));
     } else {
-      // Seed defaults on first run (table empty)
+      // Seed defaults on first run (table empty for this school)
       const defaults = [
-        { name: "Elementary",    max_judges: 5, ord: 0 },
-        { name: "Middle School", max_judges: 5, ord: 1 },
-        { name: "High School",   max_judges: 5, ord: 2 },
+        { school_id: schoolId, name: "Elementary",    max_judges: 5, ord: 0 },
+        { school_id: schoolId, name: "Middle School", max_judges: 5, ord: 1 },
+        { school_id: schoolId, name: "High School",   max_judges: 5, ord: 2 },
       ];
       const { data: seeded } = await supabase.from("departments").insert(defaults).select();
       if (seeded) setDepartments(seeded.map(r => ({ id: r.id, name: r.name, max_judges: r.max_judges, ord: r.ord })));
     }
   }
-  async function loadProjects() {
-    const { data } = await supabase.from("projects").select("*").order("created_at");
+  async function loadProjects(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
+    const { data } = await supabase.from("projects").select("*").eq("school_id", schoolId).order("created_at");
     if (data) {
       setProjects(data.map(r => ({ id: r.id, num: r.num, title: r.title, cat: r.cat, grade: r.grade, locked: r.locked || false, department_id: r.department_id || null })));
     }
   }
-  async function loadJudges() {
-    const { data } = await supabase.from("judges").select("*").order("joined_at");
+  async function loadJudges(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
+    const { data } = await supabase.from("judges").select("*").eq("school_id", schoolId).order("joined_at");
     if (data) setJudges(data.map(dbToJudge));
   }
-  async function loadScores() {
-    const { data } = await supabase.from("scores").select("*");
+  async function loadScores(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
+    const { data } = await supabase.from("scores").select("*").eq("school_id", schoolId);
     if (data) setScores(scoresToMap(data));
   }
-  async function loadLog() {
-    const { data } = await supabase.from("activity_log").select("*").order("created_at", { ascending: false });
+  async function loadLog(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
+    const { data } = await supabase.from("activity_log").select("*").eq("school_id", schoolId).order("created_at", { ascending: false });
     if (data) setLog(data.map(dbToLog));
   }
-  async function loadItLogs() {
-    const { data } = await supabase.from("it_logs").select("*").order("created_at", { ascending: false });
+  async function loadItLogs(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
+    const { data } = await supabase.from("it_logs").select("*").eq("school_id", schoolId).order("created_at", { ascending: false });
     if (data) setItLogs(data.map(dbToItLog));
   }
-  async function loadShare() {
+  async function loadShare(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
     const { data } = await supabase
-      .from("share_links").select("*").is("revoked_at", null)
+      .from("share_links").select("*").eq("school_id", schoolId).is("revoked_at", null)
       .order("created_at", { ascending: false }).limit(1);
     if (data?.length) {
       const link = data[0];
@@ -843,8 +903,10 @@ export default function App() {
       setShareToken(""); setShareEnabled(false); setShareCreated(null);
     }
   }
-  async function loadSettings() {
-    const { data } = await supabase.from("app_settings").select("*");
+  async function loadSettings(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
+    const { data } = await supabase.from("app_settings").select("*").eq("school_id", schoolId);
     if (data) {
       const map = Object.fromEntries(data.map(r => [r.key, r.value]));
       setLocked(map.locked === "true");
@@ -869,7 +931,7 @@ export default function App() {
 
   async function saveTransferAllowances(next) {
     setTransferAllowances(next);
-    await supabase.from("app_settings").upsert({ key: "judge_transfer_allowances", value: JSON.stringify(next) });
+    await supabase.from("app_settings").upsert({ school_id: currentSchool.id, key: "judge_transfer_allowances", value: JSON.stringify(next) });
   }
 
   function allowJudgeTransfer(alias) {
@@ -880,7 +942,7 @@ export default function App() {
   }
 
   async function confirmTransfer() {
-    if (transferPin !== IT_PIN) {
+    if (transferPin !== currentSchool?.admin_pin) {
       setTransferPinErr("Incorrect PIN. Transfer approval denied.");
       addItLog("WARN","AUTH","JUDGE_TRANSFER_PIN_FAILED","Transfer approval denied due to incorrect PIN",{ alias: transferPinAlias, timestamp: fmtISO(Date.now()) });
       setTimeout(() => setTransferPin(""), 600);
@@ -895,8 +957,10 @@ export default function App() {
     setTransferPin("");
     setTransferPinErr("");
   }
-  async function loadValidations() {
-    const { data } = await supabase.from("validations").select("*");
+  async function loadValidations(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
+    const { data } = await supabase.from("validations").select("*").eq("school_id", schoolId);
     if (data) {
       const jv = {};
       let av = null;
@@ -909,24 +973,118 @@ export default function App() {
       if (av) setAdminValidation(av);
     }
   }
-  async function loadDelibNotes() {
-    const { data } = await supabase.from("deliberation_notes").select("*");
+  async function loadDelibNotes(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
+    const { data } = await supabase.from("deliberation_notes").select("*").eq("school_id", schoolId);
     if (data) setDeliberationNotes(delibNotesToMap(data));
   }
-  async function loadFinalDecisions() {
-    const { data } = await supabase.from("final_decisions").select("*");
+  async function loadFinalDecisions(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
+    const { data } = await supabase.from("final_decisions").select("*").eq("school_id", schoolId);
     if (data) setFinalDecisions(finalDecisionsToMap(data));
+  }
+  async function loadRubric(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
+    const { data } = await supabase.from("rubrics").select("*").eq("school_id", schoolId).eq("is_active", true).single();
+    if (data) { setRubric(data.criteria); setRubricId(data.id); }
+    else setRubric(DEFAULT_RUBRIC);
+  }
+
+  async function saveRubric(criteria) {
+    if (!currentSchool?.id) return;
+    setRubricSaving(true);
+    if (rubricId) {
+      await supabase.from("rubrics").update({ criteria }).eq("id", rubricId);
+    } else {
+      const { data } = await supabase.from("rubrics")
+        .insert({ school_id: currentSchool.id, name: "Custom Rubric", criteria, is_active: true })
+        .select("id").single();
+      if (data) setRubricId(data.id);
+    }
+    setRubric(criteria);
+    setEditingRubric(false);
+    setRubricSaving(false);
+    addLog("Admin updated the scoring rubric");
+    addItLog("INFO","ADMIN","RUBRIC_UPDATED","Admin saved updated scoring rubric",
+      { criteriaCount: criteria.length, totalMax: criteria.reduce((s,c) => s + c.max, 0) });
+  }
+
+  function rubricDraftMove(idx, dir) {
+    setRubricDraft(prev => {
+      const next = [...prev];
+      const swap = idx + dir;
+      if (swap < 0 || swap >= next.length) return prev;
+      [next[idx], next[swap]] = [next[swap], next[idx]];
+      return next;
+    });
+  }
+
+  function rubricDraftUpdate(idx, field, value) {
+    setRubricDraft(prev => prev.map((c, i) => i === idx ? { ...c, [field]: value } : c));
+  }
+
+  function rubricDraftDelete(idx) {
+    setRubricDraft(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  function rubricDraftAdd() {
+    setRubricDraft(prev => [...prev, { id: "c_" + uid(), label: "", desc: "", max: 3, steps: [0,1,2,3] }]);
+  }
+
+  function parseSteps(raw, max) {
+    const nums = raw.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n >= 0 && n <= max);
+    const sorted = [...new Set(nums)].sort((a,b) => a-b);
+    return sorted.length >= 2 ? sorted : null;
   }
 
   // ── INITIAL LOAD + REALTIME SUBSCRIPTIONS ─────────────────
   useEffect(() => {
-    async function init() {
+    // ── Step 1: Resolve school from URL slug ─────────────────
+    async function resolveSchool() {
+      if (!urlSchoolSlug) { setSchoolLoading(false); return; }
+      const { data } = await supabase.from("schools")
+        .select("id, name, slug, invite_code")
+        .eq("slug", urlSchoolSlug).single();
+      if (data) setCurrentSchool(data);
+      setSchoolLoading(false);
+      return data;
+    }
+
+    // ── Step 2: Auth state listener ──────────────────────────
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (event, sess) => {
+      setSession(sess);
+      if (sess) {
+        // Load school with admin_pin after auth
+        const { data: sa } = await supabase.from("school_admins")
+          .select("school_id").eq("user_id", sess.user.id).single();
+        if (sa) {
+          const { data: school } = await supabase.from("schools")
+            .select("*").eq("id", sa.school_id).single();
+          if (school) setCurrentSchool(school);
+        }
+      } else {
+        // If admin logs out, reload public-only school info (no admin_pin)
+        if (urlSchoolSlug) {
+          const { data } = await supabase.from("schools")
+            .select("id, name, slug, invite_code").eq("slug", urlSchoolSlug).single();
+          if (data) setCurrentSchool(data);
+        }
+      }
+    });
+
+    // ── Step 3: Load all school data ─────────────────────────
+    async function init(school) {
+      const sid = school?.id;
+      if (!sid) { setLoading(false); return; }
       const timeout = setTimeout(() => setLoading(false), 8000);
       // Validate registration link token if present in URL
       if (urlRegToken) {
         try {
           const { data } = await supabase.from("registration_links")
-            .select("*").eq("token", urlRegToken).single();
+            .select("*").eq("token", urlRegToken).eq("school_id", sid).single();
           const isValid = data?.active && (!data.expires_at || new Date(data.expires_at) > new Date());
           setRegTokenData(isValid ? data : null);
         } catch {
@@ -938,70 +1096,89 @@ export default function App() {
       if (urlProjListToken) {
         try {
           const { data } = await supabase.from("app_settings")
-            .select("value").eq("key", "project_list_token").single();
+            .select("value").eq("school_id", sid).eq("key", "project_list_token").single();
           setProjListValid(!!data?.value && data.value !== "");
         } catch {
           setProjListValid(false);
         }
         setProjListChecked(true);
       }
-      await Promise.all([loadDepartments(), loadProjects(), loadJudges(), loadScores(), loadLog(), loadItLogs(), loadShare(), loadSettings(), loadDelibNotes(), loadFinalDecisions(), loadValidations(), loadScoreBackups()]);
+      await Promise.all([
+        loadDepartments(sid), loadProjects(sid), loadJudges(sid), loadScores(sid),
+        loadLog(sid), loadItLogs(sid), loadShare(sid), loadSettings(sid),
+        loadDelibNotes(sid), loadFinalDecisions(sid), loadValidations(sid),
+        loadScoreBackups(sid), loadRubric(sid),
+      ]);
       clearTimeout(timeout);
       setLoading(false);
     }
-    init();
 
-    const channel = supabase.channel("app-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "departments" }, loadDepartments)
-      .on("postgres_changes", { event: "*", schema: "public", table: "projects" }, loadProjects)
-      .on("postgres_changes", { event: "*", schema: "public", table: "judges" }, ({ eventType, new: row }) => {
-        if (eventType === "INSERT") setJudges(prev => [...prev, dbToJudge(row)].sort((a,b) => a.joinedAt - b.joinedAt));
-        else if (eventType === "UPDATE") setJudges(prev => prev.map(j => j.id === row.id ? dbToJudge(row) : j));
-        else loadJudges(); // DELETE (reset)
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "scores" }, ({ eventType, new: row }) => {
-        if (eventType === "INSERT" || eventType === "UPDATE") {
-          const key = `${row.judge_id}_${row.project_id}`;
-          setScores(prev => ({ ...prev, [key]: { presentation:row.presentation, testable_q:row.testable_q, background:row.background, hypothesis:row.hypothesis, variables:row.variables, materials:row.materials, data:row.data, analysis:row.analysis, conclusion:row.conclusion, abstract:row.abstract, notes:row.notes||"", time:new Date(row.submitted_at).getTime() } }));
-        } else {
-          loadScores(); // DELETE (reset or project removal)
-        }
-      })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "activity_log" }, ({ new: row }) => {
-        setLog(prev => [dbToLog(row), ...prev]);
-      })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "it_logs" }, ({ new: row }) => {
-        setItLogs(prev => [dbToItLog(row), ...prev]);
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "share_links" },  loadShare)
-      .on("postgres_changes", { event: "*", schema: "public", table: "app_settings" }, loadSettings)
-      .on("postgres_changes", { event: "*", schema: "public", table: "deliberation_notes" }, ({ eventType, new: row }) => {
-        if (eventType === "INSERT" || eventType === "UPDATE") {
-          const key = `${row.judge_id}_${row.project_id}`;
-          setDeliberationNotes(prev => ({ ...prev, [key]: { comment:row.comment, recommendation:row.recommendation, flagged:row.flagged, submittedAt:new Date(row.submitted_at).getTime() } }));
-        } else {
-          loadDelibNotes(); // DELETE
-        }
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "final_decisions" }, ({ eventType, new: row }) => {
-        if (eventType === "INSERT" || eventType === "UPDATE") {
-          setFinalDecisions(prev => ({ ...prev, [row.project_id]: { award:row.award, adminNotes:row.admin_notes||"", finalized:row.finalized, finalizedAt:row.finalized_at ? new Date(row.finalized_at).getTime() : null } }));
-        } else {
-          loadFinalDecisions(); // DELETE
-        }
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "validations" }, ({ eventType, new: row }) => {
-        if (eventType === "INSERT" || eventType === "UPDATE") {
-          const entry = { approved:row.approved, comment:row.comment, validatedAt:new Date(row.validated_at).getTime() };
-          if (row.judge_id === "admin") setAdminValidation(entry);
-          else setJudgeValidations(prev => ({ ...prev, [row.judge_id]: entry }));
-        } else {
-          loadValidations(); // DELETE (reset)
-        }
-      })
-      .subscribe();
+    // ── Step 4: School-scoped realtime ───────────────────────
+    let channel;
+    const setupChannel = (sid) => {
+      if (!sid) return;
+      const f = (table) => `school_id=eq.${sid}`;
+      channel = supabase.channel(`school-${sid}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "departments", filter: f("departments") }, loadDepartments)
+        .on("postgres_changes", { event: "*", schema: "public", table: "projects",    filter: f("projects")    }, loadProjects)
+        .on("postgres_changes", { event: "*", schema: "public", table: "judges",      filter: f("judges") }, ({ eventType, new: row }) => {
+          if (eventType === "INSERT") setJudges(prev => [...prev, dbToJudge(row)].sort((a,b) => a.joinedAt - b.joinedAt));
+          else if (eventType === "UPDATE") setJudges(prev => prev.map(j => j.id === row.id ? dbToJudge(row) : j));
+          else loadJudges(sid);
+        })
+        .on("postgres_changes", { event: "*", schema: "public", table: "scores", filter: f("scores") }, ({ eventType, new: row }) => {
+          if (eventType === "INSERT" || eventType === "UPDATE") {
+            const key = `${row.judge_id}_${row.project_id}`;
+            setScores(prev => ({ ...prev, [key]: { criteria: row.criteria || {}, notes: row.notes||"", time: new Date(row.submitted_at).getTime() } }));
+          } else {
+            loadScores(sid);
+          }
+        })
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "activity_log",  filter: f("activity_log") }, ({ new: row }) => {
+          setLog(prev => [dbToLog(row), ...prev]);
+        })
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "it_logs", filter: f("it_logs") }, ({ new: row }) => {
+          setItLogs(prev => [dbToItLog(row), ...prev]);
+        })
+        .on("postgres_changes", { event: "*", schema: "public", table: "share_links",   filter: f("share_links")   }, () => loadShare(sid))
+        .on("postgres_changes", { event: "*", schema: "public", table: "app_settings",  filter: f("app_settings")  }, () => loadSettings(sid))
+        .on("postgres_changes", { event: "*", schema: "public", table: "deliberation_notes", filter: f("deliberation_notes") }, ({ eventType, new: row }) => {
+          if (eventType === "INSERT" || eventType === "UPDATE") {
+            const key = `${row.judge_id}_${row.project_id}`;
+            setDeliberationNotes(prev => ({ ...prev, [key]: { comment:row.comment, recommendation:row.recommendation, flagged:row.flagged, submittedAt:new Date(row.submitted_at).getTime() } }));
+          } else {
+            loadDelibNotes(sid);
+          }
+        })
+        .on("postgres_changes", { event: "*", schema: "public", table: "final_decisions", filter: f("final_decisions") }, ({ eventType, new: row }) => {
+          if (eventType === "INSERT" || eventType === "UPDATE") {
+            setFinalDecisions(prev => ({ ...prev, [row.project_id]: { award:row.award, adminNotes:row.admin_notes||"", finalized:row.finalized, finalizedAt:row.finalized_at ? new Date(row.finalized_at).getTime() : null } }));
+          } else {
+            loadFinalDecisions(sid);
+          }
+        })
+        .on("postgres_changes", { event: "*", schema: "public", table: "validations", filter: f("validations") }, ({ eventType, new: row }) => {
+          if (eventType === "INSERT" || eventType === "UPDATE") {
+            const entry = { approved:row.approved, comment:row.comment, validatedAt:new Date(row.validated_at).getTime() };
+            if (row.judge_id === "admin") setAdminValidation(entry);
+            else setJudgeValidations(prev => ({ ...prev, [row.judge_id]: entry }));
+          } else {
+            loadValidations(sid);
+          }
+        })
+        .subscribe();
+    };
 
-    return () => supabase.removeChannel(channel);
+    // Resolve school once, then init data + realtime together
+    resolveSchool().then(school => {
+      init(school);
+      if (school?.id) setupChannel(school.id);
+    });
+
+    return () => {
+      authSub.unsubscribe();
+      if (channel) supabase.removeChannel(channel);
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── INSTANT CACHE RESTORE (runs before Supabase loads) ────
@@ -1136,7 +1313,7 @@ export default function App() {
   async function generateLink() {
     const t = genToken();
     const { error } = await supabase.from("share_links").insert({
-      token: t, expiry: shareExpiry, show_rubric: shareShowRubric, title: shareTitle,
+      school_id: currentSchool.id, token: t, expiry: shareExpiry, show_rubric: shareShowRubric, title: shareTitle,
     });
     if (!error) {
       setShareToken(t); setShareEnabled(true); setShareCreated(Date.now());
@@ -1146,7 +1323,7 @@ export default function App() {
   }
 
   async function revokeLink() {
-    await supabase.from("share_links").update({ revoked_at: new Date().toISOString() }).eq("token", shareToken);
+    await supabase.from("share_links").update({ revoked_at: new Date().toISOString() }).eq("school_id", currentSchool.id).eq("token", shareToken);
     addItLog("WARN","SHARE","LINK_REVOKED","Admin revoked public results link",{ token:shareToken, wasExpiry:shareExpiry });
     setShareEnabled(false); setShareToken(""); setShareCreated(null);
     addLog("Admin revoked public results link");
@@ -1156,14 +1333,14 @@ export default function App() {
 
   async function generateProjListLink() {
     const t = genToken();
-    await supabase.from("app_settings").upsert({ key: "project_list_token", value: t });
+    await supabase.from("app_settings").upsert({ school_id: currentSchool.id, key: "project_list_token", value: t });
     setProjListToken(t);
     addLog(`Admin generated project list share link — token: ${t}`);
     addItLog("INFO","SHARE","PROJ_LIST_LINK_GENERATED","Admin generated project list share link", { token: t });
   }
 
   async function revokeProjListLink() {
-    await supabase.from("app_settings").upsert({ key: "project_list_token", value: "" });
+    await supabase.from("app_settings").upsert({ school_id: currentSchool.id, key: "project_list_token", value: "" });
     setProjListToken("");
     addLog("Admin revoked project list share link");
     addItLog("WARN","SHARE","PROJ_LIST_LINK_REVOKED","Admin revoked project list share link", {});
@@ -1273,7 +1450,7 @@ export default function App() {
       return;
     }
     try {
-      await supabase.from("app_settings").update({ value: String(numMax) }).eq("key", "max_judges");
+      await supabase.from("app_settings").update({ value: String(numMax) }).eq("school_id", currentSchool.id).eq("key", "max_judges");
       setMaxJudges(numMax);
       setMaxJudgesDraft(String(numMax));
       setMaxJudgesErr("");
@@ -1295,7 +1472,7 @@ export default function App() {
       setDeptMaxDrafts(p => ({ ...p, [deptId]: String(dept.max_judges) }));
       return;
     }
-    await supabase.from("departments").update({ max_judges: num }).eq("id", deptId);
+    await supabase.from("departments").update({ max_judges: num }).eq("school_id", currentSchool.id).eq("id", deptId);
     setDepartments(prev => prev.map(d => d.id === deptId ? { ...d, max_judges: num } : d));
     addLog(`Admin set max judges for ${dept.name} to ${num}`);
     addItLog("INFO","ADMIN","MAX_JUDGES_UPDATED","Admin updated max judges for department",{ dept: dept.name, newMax: num, currentCount });
@@ -1306,8 +1483,10 @@ export default function App() {
     setCopied(true); setTimeout(() => setCopied(false), 2000);
   }
 
-  async function loadScoreBackups() {
-    const { data } = await supabase.from("score_backups").select("id, label, created_at").order("created_at", { ascending: false });
+  async function loadScoreBackups(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
+    const { data } = await supabase.from("score_backups").select("id, label, created_at").eq("school_id", schoolId).order("created_at", { ascending: false });
     if (data) setScoreBackups(data);
   }
 
@@ -1352,7 +1531,7 @@ export default function App() {
       entries,
     };
     const label = `Backup — ${new Date().toLocaleString()}`;
-    const { data, error } = await supabase.from("score_backups").insert({ label, snapshot }).select("id, label, created_at").single();
+    const { data, error } = await supabase.from("score_backups").insert({ school_id: currentSchool.id, label, snapshot }).select("id, label, created_at").single();
     if (!error && data) {
       setScoreBackups(prev => [data, ...prev]);
       addLog(`Admin saved score backup (${entries.length} entries)`);
@@ -1364,12 +1543,15 @@ export default function App() {
   }
 
   async function loadRegLinks() {
-    const { data } = await supabase.from("registration_links").select("*").order("created_at", { ascending: false });
+    if (!currentSchool?.id) return;
+    const { data } = await supabase.from("registration_links").select("*").eq("school_id", currentSchool.id).order("created_at", { ascending: false });
     if (data) setRegLinks(data);
   }
   async function loadRegSubmissions() {
+    if (!currentSchool?.id) return;
     const { data } = await supabase.from("registration_submissions")
       .select("id, reg_number, student_name, project_title, category, division, submitted_at, project_id, group_members, advisor_name")
+      .eq("school_id", currentSchool.id)
       .order("submitted_at", { ascending: false });
     if (data) setRegSubmissions(data);
   }
@@ -1504,13 +1686,13 @@ export default function App() {
   // Realtime subscriptions handle cross-client sync.
   function addLog(msg) {
     setLog(p => [{ time: Date.now(), msg }, ...p]);
-    supabase.from("activity_log").insert({ message: msg });
+    supabase.from("activity_log").insert({ school_id: currentSchool?.id, message: msg });
   }
 
   function addItLog(level, module, event, detail, payload = {}) {
     const entry = { id: itId(), ts: Date.now(), level, module, event, detail, payload };
     setItLogs(p => [entry, ...p]);
-    supabase.from("it_logs").insert({ id: entry.id, level, module, event, detail, payload });
+    supabase.from("it_logs").insert({ school_id: currentSchool?.id, id: entry.id, level, module, event, detail, payload });
   }
 
   function buildReport(logs) {
@@ -1588,19 +1770,20 @@ export default function App() {
   async function executeReset() {
     addItLog("WARN","ADMIN","FULL_RESET","Admin performed a full data reset of the application",{ judgesCleared:judges.length, scoresCleared:Object.keys(scores).length, delibNotesCleared:Object.keys(deliberationNotes).length, decisionsCleared:Object.keys(finalDecisions).length, maxJudgesResetTo:15, timestamp:fmtISO(Date.now()) });
     // Delete all transient data. activity_log is intentionally excluded (security audit trail).
+    const sid = currentSchool.id;
     await Promise.all([
-      supabase.from("scores").delete().not("id", "is", null),
-      supabase.from("judges").delete().neq("id", ""),
-      supabase.from("share_links").delete().not("id", "is", null),
-      supabase.from("app_settings").update({ value: "false" }).eq("key", "locked"),
-      supabase.from("deliberation_notes").delete().not("id", "is", null),
-      supabase.from("final_decisions").delete().not("id", "is", null),
-      supabase.from("app_settings").update({ value: "false" }).eq("key", "deliberation_open"),
-      supabase.from("app_settings").update({ value: "15" }).eq("key", "max_judges"),
-      supabase.from("app_settings").upsert({ key: "judge_transfer_allowances", value: "{}" }),
-      supabase.from("app_settings").upsert({ key: "results_finalized", value: "false" }),
-      supabase.from("validations").delete().neq("judge_id", ""),
-      supabase.from("app_settings").upsert({ key: "deliberation_reason", value: "" }),
+      supabase.from("scores").delete().eq("school_id", sid),
+      supabase.from("judges").delete().eq("school_id", sid),
+      supabase.from("share_links").delete().eq("school_id", sid),
+      supabase.from("deliberation_notes").delete().eq("school_id", sid),
+      supabase.from("final_decisions").delete().eq("school_id", sid),
+      supabase.from("validations").delete().eq("school_id", sid),
+      supabase.from("app_settings").update({ value: "false" }).eq("school_id", sid).eq("key", "locked"),
+      supabase.from("app_settings").update({ value: "false" }).eq("school_id", sid).eq("key", "deliberation_open"),
+      supabase.from("app_settings").update({ value: "15"    }).eq("school_id", sid).eq("key", "max_judges"),
+      supabase.from("app_settings").upsert({ school_id: sid, key: "judge_transfer_allowances", value: "{}" }),
+      supabase.from("app_settings").upsert({ school_id: sid, key: "results_finalized",         value: "false" }),
+      supabase.from("app_settings").upsert({ school_id: sid, key: "deliberation_reason",       value: "" }),
     ]);
     setJudges([]);
     setScores({});
@@ -1627,7 +1810,7 @@ export default function App() {
 
   async function handleToggleLock() {
     const next = !locked;
-    await supabase.from("app_settings").update({ value: String(next) }).eq("key", "locked");
+    await supabase.from("app_settings").update({ value: String(next) }).eq("school_id", currentSchool.id).eq("key", "locked");
     setLocked(next);
     addLog(next ? "Admin locked judging" : "Admin unlocked judging");
     addItLog(next?"WARN":"INFO","ADMIN", next?"JUDGING_LOCKED":"JUDGING_UNLOCKED",
@@ -1635,7 +1818,10 @@ export default function App() {
       { lockedBy:"admin", timestamp:fmtISO(Date.now()) });
   }
 
-  function getTotal(s) { return RUBRIC.reduce((t, r) => t + (Number(s[r.id]) || 0), 0); }
+  function getTotal(s) {
+    const crit = s?.criteria || s || {};
+    return rubric.reduce((t, r) => t + (Number(crit[r.id]) || 0), 0);
+  }
 
   function projAvg(pid) {
     const hits = Object.entries(scores).filter(([k]) => k.endsWith(`_${pid}`));
@@ -1646,7 +1832,7 @@ export default function App() {
   function rubAvg(pid, rid) {
     const hits = Object.entries(scores).filter(([k]) => k.endsWith(`_${pid}`));
     if (!hits.length) return null;
-    return (hits.reduce((s,[,v]) => s + (v[rid]||0), 0) / hits.length).toFixed(1);
+    return (hits.reduce((s,[,v]) => s + (v.criteria?.[rid] || 0), 0) / hits.length).toFixed(1);
   }
 
   function rankedProjects() {
@@ -1665,18 +1851,21 @@ export default function App() {
   function possible()     { return judges.reduce((s,j) => s + j.projects.length, 0); }
   function draftTotal() {
     const proj = projects.find(p => p.id === scoringPid);
-    return RUBRIC.reduce((s,r) => {
+    return rubric.reduce((s,r) => {
       if (r.id === "abstract" && proj && !requiresAbstract(proj)) return s;
       return s + (Number(draftSc[r.id])||0);
     }, 0);
   }
   function maxDraftScore() {
     const proj = projects.find(p => p.id === scoringPid);
-    return requiresAbstract(proj) ? 42 : 36;
+    return rubric.reduce((s,r) => {
+      if (r.id === "abstract" && proj && !requiresAbstract(proj)) return s;
+      return s + r.max;
+    }, 0);
   }
   function allMoved() {
     const proj = projects.find(p => p.id === scoringPid);
-    return RUBRIC.every(r => {
+    return rubric.every(r => {
       if (r.id === "abstract" && proj && !requiresAbstract(proj)) return true;
       return draftSc[r.id] !== undefined;
     });
@@ -1684,7 +1873,7 @@ export default function App() {
   function hasZeroScore() {
     const proj = projects.find(p => p.id === scoringPid);
     if (!proj || !requiresAbstract(proj)) return false;
-    return RUBRIC.some(r => draftSc[r.id] === 0);
+    return rubric.some(r => draftSc[r.id] === 0);
   }
 
   function getAnomalies() {
@@ -1815,7 +2004,7 @@ export default function App() {
       return;
     }
 
-    if (regCode.trim().toUpperCase() !== INVITE_CODE) {
+    if (regCode.trim().toUpperCase() !== (currentSchool?.invite_code || "").toUpperCase()) {
       setRegErr("Invalid invite code.");
       addItLog("WARN","AUTH","INVALID_INVITE_CODE","Failed registration attempt with wrong invite code",{ attemptedCode: regCode.trim(), name, dept: dept.name, timestamp: fmtISO(Date.now()) });
       return;
@@ -1854,7 +2043,7 @@ export default function App() {
     }
 
     const j = { id:"j_"+uid(), alias:name, projects:assignProjects(dept.id), joinedAt:Date.now(), department_id:dept.id };
-    const { error } = await supabase.from("judges").insert({ id: j.id, alias: j.alias, projects: j.projects, department_id: j.department_id });
+    const { error } = await supabase.from("judges").insert({ school_id: currentSchool.id, id: j.id, alias: j.alias, projects: j.projects, department_id: j.department_id });
     if (error) { setRegErr("Registration failed. Please try again."); return; }
     setJudges(p => [...p, j]); setJudge(j);
     localStorage.setItem("sf_judge_id",   j.id);
@@ -1864,50 +2053,55 @@ export default function App() {
     setRegName(""); setRegCode(""); setRegDept(""); setRegErr(""); setView("judge-home");
   }
 
-  function handleAdminLogin() {
+  async function handleAdminLogin() {
     if (adminLockoutUntil && Date.now() < adminLockoutUntil) {
       const secs = Math.ceil((adminLockoutUntil - Date.now()) / 1000);
       setAdminErr(`Too many failed attempts. Try again in ${secs}s.`);
       return;
     }
-    if (adminPass === ADMIN_PASS) {
+    const { error } = await supabase.auth.signInWithPassword({ email: adminEmail.trim(), password: adminPass });
+    if (!error) {
       setAdminLoginAttempts(0);
       setAdminLockoutUntil(null);
-      addItLog("INFO","AUTH","ADMIN_LOGIN_SUCCESS","Admin authenticated successfully",{ sessionToken:"adm_***masked***" });
-      setView("admin-home"); setAdminPass(""); setAdminErr("");
+      addItLog("INFO","AUTH","ADMIN_LOGIN_SUCCESS","Admin authenticated via Supabase Auth",{ email: adminEmail.trim() });
+      setView("admin-home"); setAdminPass(""); setAdminEmail(""); setAdminErr("");
     } else {
       const next = adminLoginAttempts + 1;
       setAdminLoginAttempts(next);
-      addItLog("WARN","AUTH","ADMIN_LOGIN_FAILED","Admin login attempted with incorrect password",{ attempt: next });
+      addItLog("WARN","AUTH","ADMIN_LOGIN_FAILED","Admin login failed",{ attempt: next, error: error.message });
       if (next >= 5) {
         const until = Date.now() + 30000;
         setAdminLockoutUntil(until);
         setAdminLoginAttempts(0);
         setAdminErr("Too many failed attempts. Locked for 30 seconds.");
       } else {
-        setAdminErr(`Incorrect password. ${5 - next} attempt${5 - next !== 1 ? "s" : ""} remaining.`);
+        setAdminErr(`Login failed: ${error.message}`);
       }
     }
+  }
+
+  async function handleAdminLogout() {
+    await supabase.auth.signOut();
+    setSession(null);
+    setView("landing");
+    addItLog("INFO","AUTH","ADMIN_LOGOUT","Admin signed out",{});
   }
 
   function startScoring(pid) {
     setScoringPid(pid);
     const ex = scores[`${judge.id}_${pid}`];
-    if (ex) { const {notes,time,...rs} = ex; setDraftSc(rs); setDraftNotes(notes||""); }
+    if (ex) { setDraftSc({ ...ex.criteria }); setDraftNotes(ex.notes||""); }
     else { setDraftSc({}); setDraftNotes(""); }
     setView("judge-scoring");
   }
 
   async function submitScore() {
     const total = draftTotal();
-    setScores(p => ({ ...p, [`${judge.id}_${scoringPid}`]: { ...draftSc, notes:draftNotes, time:Date.now() } }));
+    setScores(p => ({ ...p, [`${judge.id}_${scoringPid}`]: { criteria: { ...draftSc }, notes:draftNotes, time:Date.now() } }));
     const payload = {
+      school_id: currentSchool.id,
       judge_id: judge.id, project_id: scoringPid,
-      presentation: draftSc.presentation||0, testable_q: draftSc.testable_q||0,
-      background: draftSc.background||0, hypothesis: draftSc.hypothesis||0,
-      variables: draftSc.variables||0, materials: draftSc.materials||0,
-      data: draftSc.data||0, analysis: draftSc.analysis||0,
-      conclusion: draftSc.conclusion||0, abstract: draftSc.abstract||0,
+      criteria: { ...draftSc },
       notes: draftNotes,
     };
     const { error } = await supabase.from("scores").upsert(payload, { onConflict: "judge_id,project_id" });
@@ -1935,7 +2129,7 @@ export default function App() {
     const entry = { comment: delibDraftComment, recommendation: delibDraftRec, flagged: delibDraftFlagged, submittedAt: Date.now() };
     setDeliberationNotes(p => ({ ...p, [key]: entry }));
     await supabase.from("deliberation_notes").upsert({
-      judge_id: judge.id, project_id: pid,
+      school_id: currentSchool.id, judge_id: judge.id, project_id: pid,
       comment: delibDraftComment, recommendation: delibDraftRec, flagged: delibDraftFlagged,
     }, { onConflict: "judge_id,project_id" });
     const proj = projects.find(p => p.id === pid);
@@ -1948,9 +2142,10 @@ export default function App() {
   async function openDeliberation(reason) {
     setDeliberationOpen(true);
     setDeliberationReason(reason);
+    const sid = currentSchool.id;
     await Promise.all([
-      supabase.from("app_settings").upsert({ key: "deliberation_open", value: "true" }),
-      supabase.from("app_settings").upsert({ key: "deliberation_reason", value: reason }),
+      supabase.from("app_settings").upsert({ school_id: sid, key: "deliberation_open",  value: "true" }),
+      supabase.from("app_settings").upsert({ school_id: sid, key: "deliberation_reason", value: reason }),
     ]);
     const msg = reason === "tie" ? "Deliberation triggered due to tied scores" : "Admin manually opened deliberation";
     addLog(msg);
@@ -1959,9 +2154,10 @@ export default function App() {
   async function closeDeliberation() {
     setDeliberationOpen(false);
     setDeliberationReason(null);
+    const sid = currentSchool.id;
     await Promise.all([
-      supabase.from("app_settings").upsert({ key: "deliberation_open", value: "false" }),
-      supabase.from("app_settings").upsert({ key: "deliberation_reason", value: "" }),
+      supabase.from("app_settings").upsert({ school_id: sid, key: "deliberation_open",  value: "false" }),
+      supabase.from("app_settings").upsert({ school_id: sid, key: "deliberation_reason", value: "" }),
     ]);
     addLog("Admin closed deliberation phase");
     addItLog("INFO","ADMIN","DELIBERATION_CLOSED","Admin closed deliberation phase",{ timestamp:fmtISO(Date.now()) });
@@ -1970,8 +2166,8 @@ export default function App() {
     const entry = { approved, comment: valComment, validatedAt: Date.now() };
     setJudgeValidations(p => ({ ...p, [judge.id]: entry }));
     await supabase.from("validations").upsert(
-      { judge_id: judge.id, approved, comment: valComment, validated_at: new Date().toISOString() },
-      { onConflict: "judge_id" }
+      { school_id: currentSchool.id, judge_id: judge.id, approved, comment: valComment, validated_at: new Date().toISOString() },
+      { onConflict: "school_id,judge_id" }
     );
     addLog(`${judge.alias} ${approved ? "validated" : "raised a concern about"} the computed results`);
     addItLog(approved?"INFO":"WARN","JUDGE", approved?"RESULTS_VALIDATED":"RESULTS_CONCERN",
@@ -1983,8 +2179,8 @@ export default function App() {
     const entry = { approved, comment: valComment, validatedAt: Date.now() };
     setAdminValidation(entry);
     await supabase.from("validations").upsert(
-      { judge_id: "admin", approved, comment: valComment, validated_at: new Date().toISOString() },
-      { onConflict: "judge_id" }
+      { school_id: currentSchool.id, judge_id: "admin", approved, comment: valComment, validated_at: new Date().toISOString() },
+      { onConflict: "school_id,judge_id" }
     );
     addLog(`Admin ${approved ? "validated" : "flagged concerns with"} the computed results`);
     addItLog(approved?"INFO":"WARN","ADMIN", approved?"ADMIN_RESULTS_VALIDATED":"ADMIN_RESULTS_CONCERN",
@@ -1995,11 +2191,12 @@ export default function App() {
   async function finalizeResults() {
     setResultsFinalized(true);
     if (deliberationOpen) { setDeliberationOpen(false); setDeliberationReason(null); }
+    const sid = currentSchool.id;
     await Promise.all([
-      supabase.from("app_settings").upsert({ key: "results_finalized", value: "true" }),
+      supabase.from("app_settings").upsert({ school_id: sid, key: "results_finalized", value: "true" }),
       ...(deliberationOpen ? [
-        supabase.from("app_settings").upsert({ key: "deliberation_open", value: "false" }),
-        supabase.from("app_settings").upsert({ key: "deliberation_reason", value: "" }),
+        supabase.from("app_settings").upsert({ school_id: sid, key: "deliberation_open",  value: "false" }),
+        supabase.from("app_settings").upsert({ school_id: sid, key: "deliberation_reason", value: "" }),
       ] : []),
     ]);
     addLog("Admin finalized results — public sharing now available");
@@ -2011,9 +2208,9 @@ export default function App() {
     const entry = { award, adminNotes, finalized: isFinalize, finalizedAt: isFinalize ? Date.now() : null };
     setFinalDecisions(p => ({ ...p, [pid]: entry }));
     await supabase.from("final_decisions").upsert({
-      project_id: pid, award, admin_notes: adminNotes,
+      school_id: currentSchool.id, project_id: pid, award, admin_notes: adminNotes,
       finalized: isFinalize, finalized_at: isFinalize ? new Date().toISOString() : null,
-    }, { onConflict: "project_id" });
+    }, { onConflict: "school_id,project_id" });
     const proj = projects.find(p => p.id === pid);
     addLog(`Admin ${isFinalize ? "finalized" : "updated"} decision for Project #${proj.num}: ${award}`);
     addItLog("INFO","ADMIN", isFinalize?"DECISION_FINALIZED":"DECISION_UPDATED",
@@ -2023,7 +2220,7 @@ export default function App() {
 
   async function reviseDecision(pid) {
     setFinalDecisions(p => ({ ...p, [pid]: { ...p[pid], finalized: false, finalizedAt: null } }));
-    await supabase.from("final_decisions").update({ finalized: false, finalized_at: null }).eq("project_id", pid);
+    await supabase.from("final_decisions").update({ finalized: false, finalized_at: null }).eq("school_id", currentSchool.id).eq("project_id", pid);
     const proj = projects.find(p => p.id === pid);
     addLog(`Admin reopened decision for Project #${proj.num} for revision`);
     addItLog("INFO","ADMIN","DECISION_REVISED","Admin reopened award decision for revision",
@@ -2041,8 +2238,8 @@ export default function App() {
     if (!title.trim()) return;
     const id = "p_" + uid();
     const finalNum = num.trim() || nextProjectNum();
-    const proj = { id, num: finalNum, title: title.trim(), cat, grade, locked: false, department_id: department_id || null };
-    setProjects(p => [...p, proj]);
+    const proj = { id, num: finalNum, title: title.trim(), cat, grade, locked: false, department_id: department_id || null, school_id: currentSchool.id };
+    setProjects(p => [...p, { ...proj, school_id: undefined }]);
     await supabase.from("projects").insert(proj);
     const deptName = departments.find(d => d.id === department_id)?.name || "Unassigned";
     addLog(`Admin added project: ${proj.title} (#${finalNum}) — ${deptName}`);
@@ -2059,7 +2256,7 @@ export default function App() {
     if (!title.trim()) return;
     const updated = { ...existing, title: title.trim(), cat, grade, num: num.trim() || existing.num, department_id: department_id || null };
     setProjects(p => p.map(pp => pp.id === pid ? updated : pp));
-    await supabase.from("projects").update({ title: updated.title, cat: updated.cat, grade: updated.grade, num: updated.num, department_id: updated.department_id }).eq("id", pid);
+    await supabase.from("projects").update({ title: updated.title, cat: updated.cat, grade: updated.grade, num: updated.num, department_id: updated.department_id }).eq("school_id", currentSchool.id).eq("id", pid);
     // If project came from registration, also update advisor + members there
     const regSub = regSubmissions.find(s => s.project_id === pid);
     if (regSub) {
@@ -2097,17 +2294,18 @@ export default function App() {
     if (relatedDelibKeys.length) setDeliberationNotes(p => { const n = {...p}; relatedDelibKeys.forEach(k => delete n[k]); return n; });
     setFinalDecisions(p => { const n = {...p}; delete n[pid]; return n; });
     // Remove from Supabase
+    const sid = currentSchool.id;
     await Promise.all([
-      supabase.from("scores").delete().eq("project_id", pid),
-      supabase.from("deliberation_notes").delete().eq("project_id", pid),
-      supabase.from("final_decisions").delete().eq("project_id", pid),
-      supabase.from("projects").delete().eq("id", pid),
+      supabase.from("scores").delete().eq("school_id", sid).eq("project_id", pid),
+      supabase.from("deliberation_notes").delete().eq("school_id", sid).eq("project_id", pid),
+      supabase.from("final_decisions").delete().eq("school_id", sid).eq("project_id", pid),
+      supabase.from("projects").delete().eq("school_id", sid).eq("id", pid),
     ]);
     // Remove from judge assignments (clean orphaned refs)
     for (const j of judges) {
       if (j.projects.includes(pid)) {
         const newProjs = j.projects.filter(id => id !== pid);
-        await supabase.from("judges").update({ projects: newProjs }).eq("id", j.id);
+        await supabase.from("judges").update({ projects: newProjs }).eq("school_id", sid).eq("id", j.id);
       }
     }
     addLog(`Admin removed project #${proj.num}: ${proj.title}`);
@@ -2120,7 +2318,7 @@ export default function App() {
     if (!proj) return;
     const next = !proj.locked;
     setProjects(p => p.map(pp => pp.id === pid ? { ...pp, locked: next } : pp));
-    await supabase.from("projects").update({ locked: next }).eq("id", pid);
+    await supabase.from("projects").update({ locked: next }).eq("school_id", currentSchool.id).eq("id", pid);
     addLog(`Admin ${next ? "locked" : "unlocked"} project #${proj.num}`);
     addItLog("INFO","ADMIN", next ? "PROJECT_LOCKED" : "PROJECT_UNLOCKED",
       `Admin ${next ? "locked" : "unlocked"} project`,
@@ -2135,14 +2333,14 @@ export default function App() {
   }
 
   async function deleteRegSubmission(sub) {
-    await supabase.from("registration_submissions").delete().eq("id", sub.id);
+    await supabase.from("registration_submissions").delete().eq("school_id", currentSchool.id).eq("id", sub.id);
     setRegSubmissions(prev => prev.filter(s => s.id !== sub.id));
     addLog(`Admin deleted registration submission: ${sub.reg_number} — ${sub.student_name}`);
   }
 
   async function generateRegLink() {
     const token = genToken();
-    const { error } = await supabase.from("registration_links").insert({ token, active: true });
+    const { error } = await supabase.from("registration_links").insert({ school_id: currentSchool.id, token, active: true });
     if (!error) {
       await loadRegLinks();
       addLog("Admin generated a student registration link");
@@ -2151,7 +2349,7 @@ export default function App() {
   }
 
   async function deactivateRegLink(linkId) {
-    await supabase.from("registration_links").update({ active: false }).eq("id", linkId);
+    await supabase.from("registration_links").update({ active: false }).eq("school_id", currentSchool.id).eq("id", linkId);
     await loadRegLinks();
     addLog("Admin deactivated student registration link");
     addItLog("INFO", "ADMIN", "REG_LINK_DEACTIVATED", "Admin deactivated student registration link", { linkId });
@@ -2179,12 +2377,14 @@ export default function App() {
       const projId    = "p_reg_" + uid();
       // Count only registration-submitted projects so numbering starts at 001
       // regardless of how many admin-added projects exist
+      const schoolId = regTokenData?.school_id || currentSchool?.id;
       const { count: regCount } = await supabase.from("registration_submissions")
-        .select("id", { count: "exact", head: true });
+        .select("id", { count: "exact", head: true }).eq("school_id", schoolId);
       const projNum   = String((regCount || 0) + 1).padStart(3, "0");
       const regNumber = generateRegNum(f.division, f.category, projNum);
 
       const { error: projErr } = await supabase.from("projects").insert({
+        school_id: regTokenData?.school_id || currentSchool?.id,
         id: projId, num: projNum,
         title: f.projectTitle.trim(), cat: f.category,
         grade: f.gradeLevel.trim(), locked: false,
@@ -2196,6 +2396,7 @@ export default function App() {
       }
 
       const { error: subErr } = await supabase.from("registration_submissions").insert({
+        school_id:         regTokenData?.school_id || currentSchool?.id,
         project_id:        projId,
         reg_number:        regNumber,
         student_name:      f.studentName.trim(),
@@ -2225,7 +2426,7 @@ export default function App() {
         guardian_signature: f.guardianSignature.trim(),
       });
       if (subErr) {
-        await supabase.from("projects").delete().eq("id", projId);
+        await supabase.from("projects").delete().eq("school_id", regTokenData?.school_id || currentSchool?.id).eq("id", projId);
         setRegFormErr("Submission failed — please try again.");
         setRegSubmitting(false);
         return;
@@ -2278,17 +2479,38 @@ export default function App() {
     </div>
   );
 
+  /* SCHOOL LOADING GATE */
+  if (urlSchoolSlug && schoolLoading) return (
+    <div className="app"><style>{CSS}</style>
+      <div className="center"><div style={{ textAlign:"center", color:"var(--dim)" }}>Loading school…</div></div>
+    </div>
+  );
+
+  /* SCHOOL NOT FOUND */
+  if (urlSchoolSlug && !schoolLoading && !currentSchool) return (
+    <div className="app"><style>{CSS}</style>
+      <div className="center"><div className="inner">
+        <div className="card" style={{ textAlign:"center" }}>
+          <div style={{ fontSize:"3rem", marginBottom:".75rem" }}>🏫</div>
+          <h2 style={{ fontFamily:"var(--ff-d)", color:"var(--navy)", marginBottom:".4rem" }}>School Not Found</h2>
+          <p style={{ color:"var(--dim)", marginBottom:"1.25rem" }}>No school is registered at <code>/s/{urlSchoolSlug}</code>.</p>
+          <button className="btn" onClick={() => window.location.href = "/"}>← Back to Home</button>
+        </div>
+      </div></div>
+    </div>
+  );
+
   /* LANDING */
   if (view === "landing") return (
     <div className="app"><style>{CSS}</style>{backdrop}
       <div className="glow" />
       <div className="center" style={{ position:"relative" }}>
         <div className="school-banner">
-          <img src="/logo.png" alt="Dishchiibikoh Community School" />
-          <div className="school-name">Dishchiibikoh <span>Community School</span></div>
+          <img src="/logo.png" alt={currentSchool?.name || "Science Fair"} />
+          <div className="school-name">{currentSchool?.name || <span>Science Fair</span>}</div>
           <div className="school-div" />
         </div>
-        <div className="land-badge">🔬 Science Fair SY 2025-2026 · Digital Judging</div>
+        <div className="land-badge">🔬 Digital Judging Platform</div>
         <h1 className="land-h1">Judging <span>Portal</span></h1>
         <p className="land-p">A secure, anonymous, and digital evaluation platform for fair and accurate scoring of student science projects.</p>
         <div className="role-grid">
@@ -2449,7 +2671,7 @@ export default function App() {
                 {myVal.comment && <div style={{fontSize:".82rem",color:"var(--dim)",marginTop:".5rem"}}>Your note: "{myVal.comment}"</div>}
                 <button className="btn sec sm" style={{marginTop:"1rem",width:"auto"}} onClick={() => {
                   setJudgeValidations(p => { const n={...p}; delete n[judge.id]; return n; });
-                  supabase.from("validations").delete().eq("judge_id", judge.id);
+                  supabase.from("validations").delete().eq("school_id", currentSchool?.id).eq("judge_id", judge.id);
                   setShowValForm(false); setValComment("");
                 }}>Revise my validation</button>
               </div>
@@ -2537,7 +2759,7 @@ export default function App() {
                         const entry = { comment: d.comment, recommendation: d.rec, flagged: d.flagged||false, submittedAt: Date.now() };
                         setDeliberationNotes(p => ({...p, [noteKey]: entry}));
                         await supabase.from("deliberation_notes").upsert({
-                          judge_id: judge.id, project_id: proj.id,
+                          school_id: currentSchool?.id, judge_id: judge.id, project_id: proj.id,
                           comment: d.comment, recommendation: d.rec, flagged: d.flagged||false,
                         }, { onConflict: "judge_id,project_id" });
                         addLog(`${judge.alias} submitted deliberation note for Project #${proj.num}`);
@@ -2599,7 +2821,7 @@ export default function App() {
               <h2>{proj.title}</h2>
               <div style={{ fontSize:".78rem", color:"var(--dim)", marginTop:".35rem" }}>{proj.cat} · Grade {proj.grade} · {getDivision(proj.grade)}</div>
             </div>
-            {RUBRIC.map(r => {
+            {rubric.map(r => {
               if (r.id === "abstract" && !requiresAbstract(proj)) return null;
               return (
                 <div className="rub-item" key={r.id}>
@@ -2971,16 +3193,164 @@ export default function App() {
     );
   }
 
+  /* SCHOOL SELECT — no slug in URL */
+  if (view === "school-select") return (
+    <div className="app"><style>{CSS}</style>{backdrop}
+      <div className="glow" />
+      <div className="center" style={{ position:"relative" }}>
+        <div className="inner">
+          <div style={{ textAlign:"center", marginBottom:"2rem" }}>
+            <div style={{ fontSize:"3.5rem", marginBottom:".75rem" }}>⚗️</div>
+            <h1 style={{ fontFamily:"var(--ff-d)", fontSize:"clamp(1.6rem,4vw,2.2rem)", color:"var(--navy)", marginBottom:".5rem" }}>Science Fair Judging</h1>
+            <p style={{ color:"var(--dim)", fontSize:"1rem" }}>A digital judging platform for school science fairs.</p>
+          </div>
+
+          <div className="card" style={{ marginBottom:"1rem" }}>
+            <div style={{ fontFamily:"var(--ff-d)", fontSize:"1rem", color:"var(--navy)", marginBottom:"1rem", fontWeight:700 }}>Go to your school</div>
+            <div style={{ display:"flex", gap:".5rem" }}>
+              <span style={{ padding:".75rem .9rem", background:"var(--s2)", border:"1.5px solid var(--bd)", borderRadius:"10px 0 0 10px", color:"var(--dim)", fontSize:".88rem", whiteSpace:"nowrap" }}>
+                {window.location.origin}/s/
+              </span>
+              <input style={{ borderRadius:"0 10px 10px 0", borderLeft:"none" }}
+                placeholder="your-school-slug"
+                value={schoolForm.slug}
+                onChange={e => setSchoolForm(f => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,"") }))}
+                onKeyDown={e => { if (e.key === "Enter" && schoolForm.slug.trim()) window.location.href = `/s/${schoolForm.slug.trim()}`; }}
+              />
+            </div>
+            <button className="btn" style={{ marginTop:".75rem" }} onClick={() => { if (schoolForm.slug.trim()) window.location.href = `/s/${schoolForm.slug.trim()}`; }}>
+              Go →
+            </button>
+          </div>
+
+          <div className="card">
+            <div style={{ fontFamily:"var(--ff-d)", fontSize:"1rem", color:"var(--navy)", marginBottom:".4rem", fontWeight:700 }}>Register your school</div>
+            <p style={{ color:"var(--dim)", fontSize:".9rem", marginBottom:"1rem" }}>Set up a free account and run your science fair digitally.</p>
+            <button className="btn sec" onClick={() => setView("school-register")}>
+              Create school account →
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  /* SCHOOL REGISTER */
+  if (view === "school-register") return (
+    <div className="app"><style>{CSS}</style>{backdrop}
+      <div className="center"><div className="inner">
+        <button className="back" onClick={() => setView("school-select")}>← Back</button>
+        <div className="card">
+          <div style={{ textAlign:"center", marginBottom:"1.5rem" }}>
+            <div style={{ fontSize:"2.5rem", marginBottom:".5rem" }}>🏫</div>
+            <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.5rem", color:"var(--navy)", marginBottom:".4rem" }}>Register Your School</h2>
+            <p style={{ color:"var(--dim)", fontSize:".92rem" }}>Set up a free science fair account for your school.</p>
+          </div>
+          <div style={{ marginBottom:"1rem" }}>
+            <div className="lbl">School Name</div>
+            <input placeholder="Dishchiibikoh Community School" value={schoolForm.name}
+              onChange={e => {
+                const n = e.target.value;
+                const slug = n.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+                setSchoolForm(f => ({ ...f, name: n, slug }));
+              }} />
+          </div>
+          <div style={{ marginBottom:"1rem" }}>
+            <div className="lbl">School URL</div>
+            <div style={{ display:"flex", gap:".5rem" }}>
+              <span style={{ padding:".75rem .9rem", background:"var(--s2)", border:"1.5px solid var(--bd)", borderRadius:"10px 0 0 10px", color:"var(--dim)", fontSize:".9rem", whiteSpace:"nowrap" }}>
+                {window.location.origin}/s/
+              </span>
+              <input style={{ borderRadius:"0 10px 10px 0", borderLeft:"none" }}
+                placeholder="my-school"
+                value={schoolForm.slug}
+                onChange={e => setSchoolForm(f => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,"") }))} />
+            </div>
+          </div>
+          <div style={{ marginBottom:"1rem" }}>
+            <div className="lbl">Admin Email</div>
+            <input type="email" placeholder="admin@myschool.edu" value={schoolForm.email}
+              onChange={e => setSchoolForm(f => ({ ...f, email: e.target.value }))} />
+          </div>
+          <div style={{ marginBottom:"1rem" }}>
+            <div className="lbl">Password</div>
+            <input type="password" placeholder="At least 8 characters" value={schoolForm.password}
+              onChange={e => setSchoolForm(f => ({ ...f, password: e.target.value }))} />
+          </div>
+          <div style={{ marginBottom:"1.25rem" }}>
+            <div className="lbl">Confirm Password</div>
+            <input type="password" placeholder="Re-enter password" value={schoolForm.confirmPass}
+              onChange={e => setSchoolForm(f => ({ ...f, confirmPass: e.target.value }))} />
+          </div>
+          {schoolFormErr && <div className="err" style={{ marginBottom:"1rem" }}>⚠ {schoolFormErr}</div>}
+          <button className="btn" disabled={schoolRegistering} onClick={async () => {
+            const { name, slug, email, password, confirmPass } = schoolForm;
+            if (!name.trim() || !slug.trim() || !email.trim() || !password) {
+              setSchoolFormErr("Please fill in all fields."); return;
+            }
+            if (password !== confirmPass) {
+              setSchoolFormErr("Passwords do not match."); return;
+            }
+            if (password.length < 8) {
+              setSchoolFormErr("Password must be at least 8 characters."); return;
+            }
+            setSchoolRegistering(true); setSchoolFormErr("");
+            // 1. Create auth user
+            const { data: { user }, error: signUpErr } = await supabase.auth.signUp({ email: email.trim(), password });
+            if (signUpErr) { setSchoolFormErr(signUpErr.message); setSchoolRegistering(false); return; }
+            // 2. Create school row
+            const inviteCode = genToken().slice(0,8).toUpperCase();
+            const { data: school, error: schoolErr } = await supabase.from("schools")
+              .insert({ name: name.trim(), slug: slug.trim(), invite_code: inviteCode, admin_pin: "0000" })
+              .select().single();
+            if (schoolErr) { setSchoolFormErr(schoolErr.message || "Failed to create school."); setSchoolRegistering(false); return; }
+            // 3. Link admin
+            await supabase.from("school_admins").insert({ school_id: school.id, user_id: user.id, role: "owner" });
+            // 4. Seed app_settings
+            await supabase.from("app_settings").insert([
+              { school_id: school.id, key: "locked",           value: "false" },
+              { school_id: school.id, key: "deliberation_open",value: "false" },
+              { school_id: school.id, key: "max_judges",       value: "15"    },
+              { school_id: school.id, key: "results_finalized",value: "false" },
+            ]);
+            // 5. Seed departments
+            await supabase.from("departments").insert([
+              { school_id: school.id, name: "Elementary",   max_judges: 5, ord: 0 },
+              { school_id: school.id, name: "Middle School",max_judges: 5, ord: 1 },
+              { school_id: school.id, name: "High School",  max_judges: 5, ord: 2 },
+            ]);
+            // 6. Seed default rubric
+            await supabase.from("rubrics").insert({
+              school_id: school.id, name: "Default (Northeast AZ Regional)", criteria: DEFAULT_RUBRIC, is_active: true,
+            });
+            setSchoolRegistering(false);
+            window.location.href = `/s/${school.slug}`;
+          }}>
+            {schoolRegistering ? "Creating account…" : "Create School Account →"}
+          </button>
+        </div>
+      </div></div>
+    </div>
+  );
+
   /* ADMIN LOGIN */
   if (view === "admin-login") return (
     <div className="app"><style>{CSS}</style>{backdrop}
       <div className="center"><div className="inner">
-        <button className="back" onClick={() => { setView("landing"); setAdminErr(""); setAdminPass(""); }}>← Back</button>
+        <button className="back" onClick={() => { setView("landing"); setAdminErr(""); setAdminPass(""); setAdminEmail(""); }}>← Back</button>
         <div className="card">
           <div style={{ textAlign:"center", marginBottom:"1.5rem" }}>
             <div style={{ fontSize:"2.5rem", marginBottom:".5rem" }}>🛡️</div>
             <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.5rem", marginBottom:".4rem", color:"var(--navy)" }}>Admin Access</h2>
-            <p style={{ color:"var(--dim)", fontSize:".95rem" }}>Restricted to authorized science fair coordinators.</p>
+            <p style={{ color:"var(--dim)", fontSize:".95rem" }}>
+              {currentSchool ? currentSchool.name : "Restricted to authorized science fair coordinators."}
+            </p>
+          </div>
+          <div style={{ marginBottom:"1rem" }}>
+            <div className="lbl">Email</div>
+            <input type="email" placeholder="admin@yourschool.edu" value={adminEmail}
+              onChange={e => { setAdminEmail(e.target.value); setAdminErr(""); }}
+              onKeyDown={e => e.key==="Enter" && handleAdminLogin()} />
           </div>
           <div style={{ marginBottom:"1rem" }}>
             <div className="lbl">Password</div>
@@ -3013,6 +3383,7 @@ export default function App() {
       { id:"share",    ico:"🔗", label:`Share${resultsFinalized ? " 🔗" : ""}` },
       { id:"export",   ico:"📦", label:"Score Export"  },
       { id:"registration", ico:"📝", label:"Registration" },
+      { id:"rubric",   ico:"📐", label:"Rubric"        },
       { id:"itlogs",   ico:"🖥️", label:"IT Logs"      },
     ];
 
@@ -3021,6 +3392,11 @@ export default function App() {
         <div className="admin-wrap">
           <div className="adm-side">
             <div className="adm-brand">⚗️ Admin Panel</div>
+            {currentSchool && (
+              <div style={{ padding:".4rem 1rem .75rem", fontSize:".78rem", color:"#6b8ab5", fontFamily:"var(--ff-m)", borderBottom:"1px solid #1c2e4a", marginBottom:".25rem" }}>
+                {currentSchool.name}
+              </div>
+            )}
             {navItems.map(n => (
               <div key={n.id} className={`nav-it ${adminTab===n.id?"act":""}`} onClick={() => setAdminTab(n.id)}>
                 <span>{n.ico}</span><span>{n.label}</span>
@@ -3035,6 +3411,9 @@ export default function App() {
               <span>{locked?"🔒":"🔓"}</span><span>{locked?"Unlock":"Lock"} Judging</span>
             </div>
             <div className="nav-it" onClick={() => setView("landing")}><span>←</span><span>Exit</span></div>
+            {session && (
+              <div className="nav-it" style={{ color:"#fca5a5" }} onClick={handleAdminLogout}><span>🚪</span><span>Sign Out</span></div>
+            )}
             <div className="nav-it reset" onClick={() => { setShowReset(true); setResetPin(""); setResetPinErr(""); setResetDone(false); }}>
               <span>⚠️</span><span>Reset All Data</span>
             </div>
@@ -3093,7 +3472,7 @@ export default function App() {
                           setResetPin(val);
                           setResetPinErr("");
                           if (val.length === 4) {
-                            if (val === IT_PIN) {
+                            if (val === currentSchool?.admin_pin) {
                               executeReset();
                             } else {
                               setResetPinErr("Incorrect PIN.");
@@ -3576,8 +3955,8 @@ export default function App() {
                     </div>
                     {hits.length > 0 && (
                       <div style={{marginTop:".75rem",borderTop:"1px solid var(--bd)",paddingTop:".75rem"}}>
-                        {RUBRIC.map(r => {
-                          const avgR = hits.reduce((s,[,sc]) => s+(sc[r.id]||0),0) / hits.length;
+                        {rubric.map(r => {
+                          const avgR = hits.reduce((s,[,sc]) => s+(sc.criteria?.[r.id]||0),0) / hits.length;
                           return (
                             <div key={r.id} style={{display:"flex",alignItems:"center",gap:".65rem",marginBottom:".35rem"}}>
                               <span style={{fontSize:".73rem",color:"var(--dim)",width:"125px",flexShrink:0}}>{r.label}</span>
@@ -3681,7 +4060,7 @@ export default function App() {
                       <div style={{fontWeight:700,fontSize:".95rem"}}>Results are finalized</div>
                       <div style={{fontSize:".78rem",opacity:.8}}>Public sharing is now available from the Share tab.</div>
                     </div>
-                    <button className="btn danger sm" style={{width:"auto",marginLeft:"auto"}} onClick={async () => { setResultsFinalized(false); await supabase.from("app_settings").upsert({ key: "results_finalized", value: "false" }); addLog("Admin reopened results for revision"); }}>Reopen</button>
+                    <button className="btn danger sm" style={{width:"auto",marginLeft:"auto"}} onClick={async () => { setResultsFinalized(false); await supabase.from("app_settings").upsert({ school_id: currentSchool?.id, key: "results_finalized", value: "false" }); addLog("Admin reopened results for revision"); }}>Reopen</button>
                   </div>
                 )}
 
@@ -4206,6 +4585,160 @@ export default function App() {
               </div>
             )}
 
+            {/* RUBRIC */}
+            {adminTab==="rubric" && (() => {
+              const draftTotal = rubricDraft.reduce((s,c) => s + (Number(c.max)||0), 0);
+              const hasScores  = Object.keys(scores).length > 0;
+
+              if (editingRubric) return (
+                <div>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1.25rem", flexWrap:"wrap", gap:".75rem" }}>
+                    <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.2rem", color:"var(--navy)" }}>Edit Rubric</h2>
+                    <div style={{ display:"flex", gap:".5rem" }}>
+                      <button className="btn sec sm" style={{ width:"auto" }} onClick={() => { setEditingRubric(false); setRubricDraft([]); }}>Cancel</button>
+                      <button className="btn sm" style={{ width:"auto" }} disabled={rubricSaving || rubricDraft.length === 0}
+                        onClick={() => {
+                          // Validate all rows have a label and valid steps
+                          for (const c of rubricDraft) {
+                            if (!c.label.trim()) { alert("All criteria need a label."); return; }
+                            if (!c.steps || c.steps.length < 2) { alert(`"${c.label}" needs at least 2 step values.`); return; }
+                          }
+                          saveRubric(rubricDraft);
+                        }}>
+                        {rubricSaving ? "Saving…" : "Save Rubric"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {hasScores && (
+                    <div style={{ background:"var(--amber-l)", border:"1px solid #d9770630", borderRadius:"var(--r)", padding:".85rem 1rem", marginBottom:"1rem", fontSize:".88rem", color:"var(--amber)" }}>
+                      ⚠️ Scores already exist for this event. Changing the rubric will not retroactively update existing scores. Criteria IDs must stay consistent.
+                    </div>
+                  )}
+
+                  {rubricDraft.map((c, idx) => (
+                    <div className="rub-editor-card" key={c.id}>
+                      <div className="rub-editor-head">
+                        <span className="rub-editor-num">#{idx + 1}</span>
+                        <span style={{ fontSize:".88rem", color:"var(--dim)", fontFamily:"var(--ff-m)", fontSize:".72rem" }}>{c.id}</span>
+                        <div className="rub-editor-actions">
+                          <button className="rub-move-btn" disabled={idx === 0} onClick={() => rubricDraftMove(idx, -1)}>↑</button>
+                          <button className="rub-move-btn" disabled={idx === rubricDraft.length - 1} onClick={() => rubricDraftMove(idx, 1)}>↓</button>
+                          <button className="rub-del-btn" onClick={() => rubricDraftDelete(idx)}>✕</button>
+                        </div>
+                      </div>
+                      <div className="rub-editor-row">
+                        <div>
+                          <div className="lbl" style={{ marginBottom:".35rem" }}>Label</div>
+                          <input value={c.label} placeholder="e.g. Presentation"
+                            onChange={e => rubricDraftUpdate(idx, "label", e.target.value)} />
+                        </div>
+                        <div>
+                          <div className="lbl" style={{ marginBottom:".35rem" }}>Max Points</div>
+                          <input type="number" min="1" max="20" value={c.max}
+                            onChange={e => {
+                              const max = parseInt(e.target.value) || 1;
+                              const steps = [...new Set([0, ...c.steps.filter(s => s <= max)])].sort((a,b)=>a-b);
+                              rubricDraftUpdate(idx, "max", max);
+                              rubricDraftUpdate(idx, "steps", steps);
+                            }} />
+                        </div>
+                      </div>
+                      <div style={{ marginBottom:".65rem" }}>
+                        <div className="lbl" style={{ marginBottom:".35rem" }}>Description</div>
+                        <input value={c.desc} placeholder="What are judges evaluating?"
+                          onChange={e => rubricDraftUpdate(idx, "desc", e.target.value)} />
+                      </div>
+                      <div>
+                        <div className="lbl" style={{ marginBottom:".35rem" }}>Allowed Step Values <span style={{ color:"var(--dim)", fontWeight:400 }}>(comma-separated, must include 0 and max)</span></div>
+                        <input
+                          defaultValue={c.steps.join(", ")}
+                          placeholder={`e.g. 0, 1, 2, ${c.max}`}
+                          onBlur={e => {
+                            const parsed = parseSteps(e.target.value, c.max);
+                            if (parsed) rubricDraftUpdate(idx, "steps", parsed);
+                            else e.target.value = c.steps.join(", ");
+                          }} />
+                        <div style={{ fontSize:".78rem", color:"var(--dim)", marginTop:".3rem" }}>
+                          Current: {c.steps.map(s => <span key={s} className="rub-steps-pill" style={{ marginRight:".25rem" }}>{s}</span>)}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  <button className="btn sec" style={{ marginTop:".5rem" }} onClick={rubricDraftAdd}>
+                    + Add Criterion
+                  </button>
+
+                  <div className="rub-total-row" style={{ marginTop:"1rem" }}>
+                    <span style={{ color:"var(--dim)", fontSize:".9rem" }}>Total max points</span>
+                    <span className="rub-total-pts">{draftTotal} pts</span>
+                  </div>
+                </div>
+              );
+
+              // ── VIEW MODE ─────────────────────────────────────────
+              return (
+                <div>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1.25rem", flexWrap:"wrap", gap:".75rem" }}>
+                    <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.2rem", color:"var(--navy)" }}>Scoring Rubric</h2>
+                    <div style={{ display:"flex", gap:".5rem" }}>
+                      <button className="btn sec sm" style={{ width:"auto" }} onClick={() => {
+                        setRubricDraft(rubric.map(c => ({ ...c })));
+                        setEditingRubric(true);
+                      }}>
+                        Edit Rubric
+                      </button>
+                      <button className="btn sec sm" style={{ width:"auto", color:"var(--amber)", borderColor:"var(--amber)" }}
+                        onClick={() => {
+                          if (Object.keys(scores).length > 0 && !window.confirm("Existing scores may be incompatible with the default rubric. Continue?")) return;
+                          saveRubric(DEFAULT_RUBRIC);
+                        }}>
+                        Reset to Default
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="card" style={{ padding:0, overflow:"hidden", marginBottom:"1rem" }}>
+                    <table className="rub-view-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Criterion</th>
+                          <th>Max</th>
+                          <th>Steps</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rubric.map((r, i) => (
+                          <tr key={r.id}>
+                            <td style={{ color:"var(--dim)", fontFamily:"var(--ff-m)", fontSize:".78rem" }}>{i + 1}</td>
+                            <td>
+                              <div style={{ fontWeight:600, marginBottom:".2rem" }}>{r.label}</div>
+                              <div style={{ fontSize:".8rem", color:"var(--dim)", lineHeight:1.5 }}>{r.desc}</div>
+                            </td>
+                            <td style={{ fontFamily:"var(--ff-m)", fontWeight:700, color:"var(--navy)" }}>{r.max}</td>
+                            <td>{r.steps.map(s => <span key={s} className="rub-steps-pill" style={{ marginRight:".25rem" }}>{s}</span>)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="rub-total-row">
+                    <span style={{ color:"var(--dim)", fontSize:".9rem" }}>Total max points</span>
+                    <span className="rub-total-pts">{rubric.reduce((s,r) => s + r.max, 0)} pts</span>
+                  </div>
+
+                  {rubricId && (
+                    <div style={{ marginTop:".75rem", fontSize:".78rem", color:"var(--dim)", fontFamily:"var(--ff-m)" }}>
+                      Rubric ID: {rubricId}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* IT LOGS */}
             {adminTab==="itlogs" && (()=>{
               // ── PIN GATE ──
@@ -4232,7 +4765,7 @@ export default function App() {
                         setItPin(val);
                         setItPinErr("");
                         if (val.length === 4) {
-                          if (val === IT_PIN) {
+                          if (val === currentSchool?.admin_pin) {
                             setItUnlocked(true);
                             setItPin("");
                             addItLog("INFO","AUTH","IT_ACCESS_GRANTED","IT diagnostic logs accessed with correct PIN",{ timestamp:fmtISO(Date.now()) });
@@ -4522,7 +5055,7 @@ export default function App() {
                   <div className="res-meta">{p.cat} · Grade {p.grade} · {p.revs} review{p.revs!==1?"s":""}</div>
                   {shareShowRubric && (
                     <div className="rub-chips">
-                      {RUBRIC.map(r => {
+                      {rubric.map(r => {
                         const avg = rubAvg(p.id, r.id);
                         if (!avg) return null;
                         return <span key={r.id} className="rub-chip">{r.label.split(" ")[0]}: {avg}/{r.max}</span>;

@@ -5,7 +5,10 @@
       "PowerShell($base = \"C:\\\\Users\\\\Cerus\\\\OneDrive\\\\Documents\\\\Obsidian Vault\\\\graphify\"; Get-ChildItem -Path $base -Recurse -Filter \"GRAPH_REPORT.md\" | ForEach-Object { $newName = \"GRAPH_REPORT_$\\($_.Directory.Name\\).md\"; Rename-Item -Path $_.FullName -NewName $newName; \"Renamed: $\\($_.Directory.Name\\)\\\\$\\($_.Name\\) -> $newName\" })",
       "Read(//c/Users/Cerus/OneDrive/Documents/Obsidian Vault/**)",
       "Read(//c/Users/Cerus/.claude/**)",
-      "Read(//c/Users/Cerus/.claude/skills/project-init/**)"
+      "Read(//c/Users/Cerus/.claude/skills/project-init/**)",
+      "Bash(npm run *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ],
     "additionalDirectories": [
       "D:\\Desktop\\sciencefair-judging-app\\graphify-out",

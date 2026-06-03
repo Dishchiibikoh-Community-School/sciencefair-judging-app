@@ -11,7 +11,7 @@ export default defineConfig({
       manifest: {
         name: 'Science Fair Judging',
         short_name: 'SF Judging',
-        description: 'Digital judging platform for the Dishchiibikoh Community School Science Fair',
+        description: 'Multi-school digital judging platform for science fairs',
         theme_color: '#1e3a5f',
         background_color: '#ffffff',
         display: 'standalone',
