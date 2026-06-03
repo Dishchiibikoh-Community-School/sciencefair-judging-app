@@ -8,7 +8,8 @@
       "Read(//c/Users/Cerus/.claude/skills/project-init/**)",
       "Bash(npm run *)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ],
     "additionalDirectories": [
       "D:\\Desktop\\sciencefair-judging-app\\graphify-out",

@@ -8,30 +8,32 @@
 
 ## 🧭 Project Overview
 
-A **secure, digital judging platform** for school science fairs at Dishchiibikoh Community School.
+A **multi-tenant SaaS judging platform** for school science fairs. Any school can self-register and run their own fair independently. Each school has isolated data, custom rubrics, and their own admin login.
 Built as a single-file React component (`ScienceFairJudging.jsx`).
-**Supabase is fully connected** — PostgreSQL + Realtime powers all data persistence.
+**Supabase is fully connected** — PostgreSQL + Realtime + Auth powers all data persistence and admin login.
 **PWA-enabled** — installable on tablets/phones, works offline with local backup.
 
-**Rubric:** Northeast AZ Regional Science and Engineering Fair scoring sheet (10 criteria, 42 pts max).
-**Target scale:** Flexible — supports 1–100+ judges, 1–150+ projects (configurable).
+**Default Rubric:** Northeast AZ Regional Science and Engineering Fair scoring sheet (10 criteria, 42 pts max) — customizable per school via the admin Rubric tab.
+**Target scale:** Flexible — supports 1–100+ judges, 1–150+ projects per school (configurable).
 **Target devices:** Tablets (primary), phones, laptops, Chromebooks — fully responsive.
-**Live URL:** https://qritiko.com/ (also https://sciencefair-judging-app.vercel.app/ — redirects to qritiko.com)
-**Supabase project:** https://cjzuiimoamrggucvahjm.supabase.co
 
-> Last major update: 2026-04-09 (session 3) — fixed adviser/members not persisting after save: the `update` call on `registration_submissions` was silently failing due to a missing UPDATE RLS policy on that table (it was added after the initial schema with only SELECT/INSERT/DELETE policies). Fix: capture `{ error: regSubErr }` from the Supabase update and log it via `addItLog("ERROR","ADMIN","REG_SUB_UPDATE_FAILED",...)` if it fails; only update local `regSubmissions` state on success. Required a one-time SQL migration in Supabase: `CREATE POLICY "reg_submissions_update" ON registration_submissions FOR UPDATE USING (true)`. Also updated `exportProjListPDF()` to include adviser name and group members under each project title in the PDF output (looks up matching `regSubmissions` entry by `project_id`).
->
-> Previous update: 2026-04-09 (session 2) — replaced broken Project List Share link feature with `exportProjListPDF()`: opens a new browser tab with a print-ready HTML page of all projects grouped by department (number, title, category, grade), with a "Print / Save as PDF" button. Admin clicks "Export Project List PDF" in the Projects tab. No tokens, no DB, no routing needed. The previous token-based `public-projects` view and related state (`projListToken`, `projListValid`, `projListChecked`, `urlProjListToken`) remain in the code but are unused — the UI section was replaced. Function: `exportProjListPDF()` builds an HTML string from current `projects` + `departments` state and writes it to a new window.
->
-> Previous update: 2026-04-09 — three admin Projects tab improvements: (1) project category dropdown now uses `REG_CATEGORIES` (Life Science / Earth and Space Science / Physical Science / Engineering and Technology) instead of the old 8-item `CATEGORIES` list, keeping categories consistent with the registration form; (2) adviser name and group members from `registration_submissions` are now displayed on each project card in the admin Projects tab (admin-only, never shown to judges), and are editable via the edit form — saving updates the `registration_submissions` row directly; `loadRegSubmissions` now also fetches `project_id`, `group_members`, `advisor_name` and is triggered when `adminTab === "projects"`; (3) department badge colors on project cards are now color-coded — Elementary = green (`.bg`), Middle School = amber (`.ba`), High School = blue (`.bb`), others = purple (`.bp`) — matched by `d.name.toLowerCase()` substring check.
->
-> Previous update: 2026-04-02 (session 2) — registration improvements: (1) registration project numbers now count only registration submissions (independent of admin-added projects, so first registration is always #001); (2) `generateRegNum` uses `projNum` directly so reg number suffix always matches project number; (3) delete button added to Submitted Registrations table (custom modal, no `window.confirm`); (4) Confirm Email field added to registration form with live match indicator and paste-prevention; (5) `input[type=email]` added to global CSS rule so email fields match design; (6) `exportRegCSV()` added — exports all 25 registration fields to a dated CSV file.
->
-> Previous update: 2026-04-02 — added Student Registration feature. Admin generates a shareable registration link from the Registration tab. Participants open the link, fill out a 6-section form, and their project is auto-saved to the projects list. A confirmation email with their registration number is sent via Resend API (`/api/send-registration-email.js`). Registration data stored in `registration_links` and `registration_submissions` tables. Custom domain `qritiko.com` configured via Cloudflare + Vercel.
->
-> Previous update: 2026-03-31 — added multi-department support (Elementary / Middle School / High School). Each department has its own judge pool, project list, leaderboard, and per-dept max-judges cap. Judges select their department at registration. Projects are assigned a department by admin. Public results page splits by department.
->
-> Previous update: 2026-03-27 — added Score Export admin tab: per-judge CSV export and persistent score backups saved to `score_backups` table.
+**v1 (single-school, legacy):**
+- **Live URL:** https://qritiko.com/
+- **Supabase project:** https://cjzuiimoamrggucvahjm.supabase.co
+- **Do not modify** — v1 is live for Dishchiibikoh Community School events
+
+**v2 (multi-tenant SaaS — active development):**
+- **Live URL:** https://app.qritiko.com/ (school-select) → https://app.qritiko.com/s/{slug} (per-school)
+- **Supabase project:** https://evruppqnhgrfltfhafeyyj.supabase.co
+- **Schema:** `supabase/schema-v2.sql` (applied to v2 Supabase project)
+- **Vercel project:** `sciencefair-v2` (separate from v1, same GitHub repo)
+- **Deploy:** Push to `main` → both Vercel projects auto-deploy from the same repo
+
+> Last major update: 2026-06-02 — completed full v2 multi-tenant migration. Phases 2, 3, 5, 7 done:
+> - Phase 2: Full `ScienceFairJudging.jsx` rewrite — Supabase Auth login, school slug resolution, all queries scoped by `school_id`, JSONB scoring criteria, new `school-select` / `school-register` views, dynamic rubric from DB
+> - Phase 3: `vercel.json` rewrite rules for `/s/:slug` → `index.html`
+> - Phase 5: Admin Rubric tab — view/edit/reorder/delete criteria, save to `rubrics` table, reset to default
+> - Phase 7: New Supabase v2 project, `schema-v2.sql` applied, new Vercel deployment, `app.qritiko.com` domain via Cloudflare CNAME
 
 ## 🐛 Bug Fix Log
 
@@ -89,20 +91,22 @@ For end-user instructions, see:
 ```
 /
 ├── src/
-│   ├── ScienceFairJudging.jsx   ← Entire app (single file, ~3100+ lines)
+│   ├── ScienceFairJudging.jsx   ← Entire app (single file, ~4700+ lines) — v2 multi-tenant
 │   ├── supabaseClient.js        ← Supabase client init (reads from .env)
 │   └── main.jsx                 ← React root + PWA service worker registration
 ├── supabase/
-│   └── schema.sql               ← Full DB schema (already applied to Supabase)
+│   ├── schema.sql               ← v1 DB schema (applied to cjzuiimoamrggucvahjm — DO NOT TOUCH)
+│   └── schema-v2.sql            ← v2 multi-tenant schema (applied to evruppqnhgrfltfhafeyyj)
 ├── public/
 │   ├── favicon.svg
 │   ├── logo.png                 ← School logo (also used as PWA icon)
 │   └── icons.svg
 ├── index.html                   ← PWA meta tags (apple-touch-icon, theme-color, manifest)
 ├── vite.config.js               ← Vite + vite-plugin-pwa config
+├── vercel.json                  ← Rewrites /s/:slug → index.html for SPA routing
 ├── .env                         ← Local only, gitignored — holds Supabase credentials
-├── .env.example                 ← Template for .env
-├── .npmrc                        ← legacy-peer-deps=true (needed for vite-plugin-pwa on Vite 8)
+├── .env.example                 ← Template for .env (v2: only SUPABASE_URL + ANON_KEY needed)
+├── .npmrc                       ← legacy-peer-deps=true (needed for vite-plugin-pwa on Vite 8)
 ├── CLAUDE.md                    ← AI development context (this file)
 ├── JudgeInstructions.md         ← User guide for judges
 └── AdminInstructions.md         ← User guide for administrators
@@ -119,7 +123,22 @@ There are no separate `.css` files, no Tailwind, no CSS modules.
 - **One default export:** `App()` in `ScienceFairJudging.jsx`
 - **No routing library** — view switching via a `view` state string
 - **No external state management** — plain `useState` throughout
-- **Supabase realtime** subscriptions keep all clients in sync live
+- **Supabase realtime** subscriptions keep all clients in sync live (school-scoped channel)
+
+### v2 School Resolution (on mount)
+1. `urlSchoolSlug` reads `window.location.pathname.split("/s/")[1]` at module load
+2. If no slug → initial view is `"school-select"` (platform homepage)
+3. If slug present → `schoolLoading = true`, fetch `schools` row by slug (anon, public columns only)
+4. School found → `setCurrentSchool(data)`, load all data for that school, subscribe to realtime
+5. School not found → show "School Not Found" error screen
+6. `vercel.json` rewrites `/s/:slug` → `index.html` so the SPA handles the path at runtime
+
+### v2 Auth Flow
+- `supabase.auth.onAuthStateChange` listener set up on mount
+- Admin logs in via `handleAdminLogin()` → `supabase.auth.signInWithPassword({ email, password })`
+- On auth success → load `school_admins` to find `school_id` → reload `schools` row with full fields including `admin_pin`
+- On logout → `handleAdminLogout()` → `supabase.auth.signOut()`, strip `admin_pin` from `currentSchool`
+- Admin sidebar shows school name + Sign Out button when `session` is non-null
 
 ### AnimatedBackdrop (canvas animation)
 - Rendered on all views except `judge-scoring` via `const backdrop = view === "judge-scoring" ? null : <AnimatedBackdrop />`
@@ -132,11 +151,13 @@ The app renders different screens based on `const [view, setView] = useState("la
 
 | `view` value | Screen |
 |---|---|
-| `"landing"` | Landing page — choose Judge or Admin |
-| `"judge-register"` | Judge sign-in (name + invite code) |
+| `"school-select"` | Platform homepage — enter slug or register a new school (shown when no `/s/` slug in URL) |
+| `"school-register"` | School sign-up form — creates auth user, school row, seeds settings/departments/rubric |
+| `"landing"` | Per-school landing — Judge / Admin buttons (shown at `/s/:slug`) |
+| `"judge-register"` | Judge sign-in (name + invite code from `currentSchool.invite_code`) |
 | `"judge-home"` | Judge's project list + progress + validation |
 | `"judge-scoring"` | Scoring form for one project |
-| `"admin-login"` | Admin password gate |
+| `"admin-login"` | Admin email + password gate (Supabase Auth) |
 | `"admin-home"` | Full admin dashboard (tabbed) |
 | `"public-results"` | Public results page (no login needed) |
 
@@ -152,23 +173,28 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 | `"alerts"` | Anomaly detection + system status |
 | `"deliberation"` | **Validation & Deliberation workflow** (see section below) |
 | `"share"` | Generate/revoke public results link — **locked until results finalized** |
-| `"itlogs"` | IT diagnostic terminal (PIN-gated) |
+| `"export"` | Per-judge CSV export + score backups |
+| `"registration"` | Student registration links + submissions |
+| `"rubric"` | View/edit school's scoring rubric — criteria, max pts, steps; save to `rubrics` table |
+| `"itlogs"` | IT diagnostic terminal (PIN-gated via `currentSchool.admin_pin`) |
 
 ---
 
 ## 🔐 Security & Access Control
 
-### Credentials
+### v2 Credentials (per-school, stored in Supabase DB)
 | Access | Credential |
 |---|---|
-| Judge sign-in name | `Judge1` through `Judge[N]` — N is `maxJudges` (default 15, configurable) |
-| Judge invite code | `VITE_INVITE_CODE` env var |
-| Admin dashboard | `VITE_ADMIN_PASS` env var |
-| IT Logs tab | `VITE_IT_PIN` env var (4-digit PIN) |
-| Reset All Data | `VITE_IT_PIN` env var (same PIN, separate modal) |
+| Judge sign-in name | `Judge1` through `Judge[N]` — N is `maxJudges` (default 15, configurable per school) |
+| Judge invite code | `schools.invite_code` — set at school registration, changeable by admin |
+| Admin dashboard | Supabase Auth email + password — set at school registration via `school-register` view |
+| IT Logs tab | `schools.admin_pin` — 4-digit PIN stored in DB, default `0000` at registration |
+| Reset All Data | `schools.admin_pin` — same PIN, separate modal |
 | Registration email | `RESEND_API_KEY` + `EMAIL_FROM` env vars (server-side, Vercel only) |
 
-> **Note:** Credentials are no longer hardcoded. Set them in `.env` locally and in Vercel environment variables for production. See `.env.example` for the required variable names.
+> **v2 has NO `VITE_INVITE_CODE`, `VITE_ADMIN_PASS`, or `VITE_IT_PIN` env vars.**
+> All credentials live in the `schools` table. Admin login uses Supabase Auth (`supabase.auth.signInWithPassword`).
+> `admin_pin` is only returned after the admin authenticates — the public anon slug query returns only `id, name, slug, invite_code`.
 > `RESEND_API_KEY` and `EMAIL_FROM` are server-side only (used by `/api/send-registration-email.js`) — do NOT prefix with `VITE_`.
 
 ### Security model
@@ -678,6 +704,14 @@ Row Level Security is enabled on all tables with open anon policies (public read
 ---
 
 ## 🚫 Critical Rules — Do NOT Break These
+
+0. **Every Supabase query must be scoped by `school_id`.** All loaders accept a `sid` param (`sid || currentSchool?.id`). All inserts include `school_id: currentSchool.id`. All updates/deletes include `.eq("school_id", ...)`. This is the core multi-tenant isolation guarantee — missing a scope leaks data across schools.
+0a. **`app_settings` PK is `(school_id, key)`.** All upserts must include `school_id`. Never use `.eq("key", x)` alone — always chain `.eq("school_id", currentSchool.id).eq("key", x)`.
+0b. **`validations` conflict is `(school_id, judge_id)`.** Upsert must specify `onConflict: "school_id,judge_id"`.
+0c. **`final_decisions` conflict is `(school_id, project_id)`.** Upsert must specify `onConflict: "school_id,project_id"`.
+0d. **Admin login is Supabase Auth** — `supabase.auth.signInWithPassword({ email, password })`. There is no `VITE_ADMIN_PASS`. Never revert to env-var password comparison.
+0e. **Scoring criteria are JSONB** — `scores.criteria = { [criterion_id]: value }`. There are no fixed columns (presentation, testable_q, etc.) in v2. `getTotal(s)` reads `s.criteria`, `rubAvg` reads `s.criteria?.[rid]`, `submitScore` sends `{ criteria: {...draftSc} }`.
+0f. **`rubric` state is dynamic** — loaded from `rubrics` table per school. Never hardcode `RUBRIC` constant references in scoring logic. Use `rubric` (the state variable) everywhere. `DEFAULT_RUBRIC` is only a fallback/seed value.
 
 1. **Never clear the activity log (`log` state) on reset.** Preserved for security purposes. `executeReset()` resets: judges, scores, locked, share*, deliberationNotes, finalDecisions, validations table rows, resultsFinalized (`app_settings`), deliberationOpen, maxJudges. It does NOT clear projects or the activity log.
 2. **Judge names must never appear on the public results page.** The `view === "public-results"` page is visible without login — keep it score + project data only.
