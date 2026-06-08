@@ -623,6 +623,71 @@ const CSS = `
   .rub-total-row{display:flex;align-items:center;justify-content:space-between;padding:.85rem 1rem;background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);margin-top:.75rem;}
   .rub-total-pts{font-family:var(--ff-m);font-size:1.1rem;color:var(--navy);font-weight:700;}
   .rub-steps-pill{display:inline-block;font-family:var(--ff-m);font-size:.72rem;background:var(--s2);color:var(--dim);padding:.2rem .55rem;border-radius:100px;}
+
+  /* ADMIN SETUP GUIDE */
+  .setup-guide{background:linear-gradient(135deg,#f0f9ff 0%,#f8faff 100%);border:1.5px solid #2563eb20;border-radius:var(--r);padding:1.25rem 1.5rem;margin-bottom:.9rem;}
+  .setup-guide-title{font-family:var(--ff-d);font-size:1rem;color:var(--navy);font-weight:700;margin-bottom:.25rem;}
+  .setup-guide-sub{font-size:.85rem;color:var(--dim);margin-bottom:1.1rem;line-height:1.5;}
+  .setup-checklist{display:flex;flex-direction:column;gap:.5rem;margin-bottom:1.1rem;}
+  .setup-item{display:flex;align-items:center;gap:.65rem;}
+  .setup-check{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;flex-shrink:0;font-weight:700;}
+  .setup-check.done{background:var(--green-l);color:var(--green);}
+  .setup-check.todo{background:var(--s2);border:1.5px solid var(--bd);}
+  .setup-item-text{font-size:.9rem;color:var(--text);}
+  .setup-item-text.done{color:var(--dim);text-decoration:line-through;}
+  .setup-item-note{font-size:.8rem;color:var(--dim);margin-left:auto;font-family:var(--ff-m);}
+  .setup-share{background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:1rem;}
+  .setup-share-lbl{font-family:var(--ff-m);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin-bottom:.65rem;}
+  .setup-share-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem;}
+  .setup-share-row:last-child{margin-bottom:0;}
+  .setup-share-key{font-size:.8rem;color:var(--dim);width:88px;flex-shrink:0;}
+  .setup-share-val{flex:1;font-family:var(--ff-m);font-size:.82rem;color:var(--navy);background:var(--s1);padding:.32rem .65rem;border-radius:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+  .setup-copy-btn{font-family:var(--ff-m);font-size:.72rem;padding:.3rem .65rem;border-radius:6px;border:1px solid var(--bd);background:var(--bg);color:var(--dim);cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0;}
+  .setup-copy-btn:hover{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .setup-copy-btn.copied{background:var(--green-l);color:var(--green);border-color:#05966930;}
+
+  /* SCHOOL-SELECT MARKETING PAGE */
+  .mkt-page{display:flex;flex-direction:column;}
+  .mkt-nav{display:flex;align-items:center;justify-content:space-between;padding:1.1rem 2rem;max-width:1100px;margin:0 auto;width:100%;}
+  .mkt-nav-brand{display:flex;align-items:center;gap:.6rem;font-family:var(--ff-d);font-size:1.05rem;font-weight:700;color:var(--navy);}
+  .mkt-nav-brand .mkt-ico{font-size:1.35rem;}
+  .mkt-hero{text-align:center;padding:4rem 1.5rem 3rem;max-width:760px;margin:0 auto;width:100%;}
+  .mkt-hero-badge{display:inline-block;font-family:var(--ff-m);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);background:var(--blue-l);border:1px solid #2563eb30;padding:.35rem .9rem;border-radius:100px;margin-bottom:1.5rem;}
+  .mkt-h1{font-family:var(--ff-d);font-size:clamp(2rem,5vw,3rem);color:var(--navy);line-height:1.2;margin-bottom:1rem;font-weight:900;}
+  .mkt-h1 span{color:var(--blue);}
+  .mkt-hero-sub{font-size:1.05rem;color:var(--dim);max-width:540px;margin:0 auto 2rem;line-height:1.75;}
+  .mkt-hero-ctas{display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap;margin-bottom:2.5rem;}
+  .mkt-hero-ctas .btn{width:auto;padding:.85rem 1.75rem;font-size:1rem;}
+  .mkt-slug-wrap{text-align:center;}
+  .mkt-slug-label{font-family:var(--ff-m);font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);margin-bottom:.6rem;}
+  .mkt-slug-row{display:inline-flex;max-width:420px;width:100%;border-radius:10px;overflow:hidden;border:1.5px solid var(--bd);box-shadow:var(--shadow);}
+  .mkt-slug-row:focus-within{border-color:var(--navy);}
+  .mkt-slug-pre{padding:.72rem .9rem;background:var(--s2);color:var(--dim);font-size:.82rem;white-space:nowrap;display:flex;align-items:center;flex-shrink:0;border-right:1px solid var(--bd);}
+  .mkt-slug-field{flex:1;border:none !important;border-radius:0 !important;outline:none !important;box-shadow:none !important;padding:.72rem .75rem;font-family:var(--ff-b);font-size:.95rem;background:var(--bg);color:var(--text);min-width:0;}
+  .mkt-slug-go{padding:.72rem 1.1rem;background:var(--navy);color:#fff;border:none;border-left:1px solid #1e3a5f30;cursor:pointer;font-family:var(--ff-b);font-size:.92rem;font-weight:600;white-space:nowrap;transition:background .15s;flex-shrink:0;}
+  .mkt-slug-go:hover{background:var(--navy-l);}
+  .mkt-divider{border:none;border-top:1px solid var(--bd);margin:0 2rem;}
+  .mkt-section{padding:3rem 1.5rem;max-width:1000px;margin:0 auto;width:100%;}
+  .mkt-section-title{font-family:var(--ff-d);font-size:1.35rem;color:var(--navy);font-weight:700;text-align:center;margin-bottom:.4rem;}
+  .mkt-section-sub{text-align:center;color:var(--dim);font-size:.92rem;margin-bottom:2rem;}
+  .mkt-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;}
+  @media(max-width:640px){.mkt-steps{grid-template-columns:1fr;}}
+  .mkt-step{background:var(--bg);border:1.5px solid var(--bd);border-radius:var(--r);padding:1.5rem;text-align:center;box-shadow:var(--shadow);}
+  .mkt-step-num{font-family:var(--ff-m);font-size:.7rem;color:var(--blue);background:var(--blue-l);padding:.22rem .65rem;border-radius:100px;display:inline-block;margin-bottom:1rem;letter-spacing:.05em;text-transform:uppercase;}
+  .mkt-step-ico{font-size:2rem;margin-bottom:.65rem;}
+  .mkt-step h3{font-family:var(--ff-d);font-size:.95rem;color:var(--navy);margin-bottom:.4rem;}
+  .mkt-step p{font-size:.85rem;color:var(--dim);line-height:1.6;}
+  .mkt-feats{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem;}
+  @media(max-width:640px){.mkt-feats{grid-template-columns:1fr;}}
+  .mkt-feat{background:var(--bg);border:1.5px solid var(--bd);border-radius:var(--r);padding:1.25rem 1.5rem;box-shadow:var(--shadow);display:flex;gap:1rem;align-items:flex-start;}
+  .mkt-feat-ico{font-size:1.5rem;flex-shrink:0;}
+  .mkt-feat h4{font-family:var(--ff-d);font-size:.9rem;color:var(--navy);margin-bottom:.3rem;}
+  .mkt-feat p{font-size:.83rem;color:var(--dim);line-height:1.55;}
+  .mkt-bottom{background:linear-gradient(135deg,#1e3a5f 0%,#2d5a8e 100%);padding:3.5rem 1.5rem;text-align:center;}
+  .mkt-bottom h2{font-family:var(--ff-d);font-size:1.5rem;color:#fff;margin-bottom:.5rem;}
+  .mkt-bottom p{color:#93c5fd;font-size:.95rem;margin-bottom:1.5rem;line-height:1.6;}
+  .mkt-bottom-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;background:#fff;color:var(--navy);border:none;border-radius:8px;padding:.9rem 2rem;font-family:var(--ff-b);font-size:1rem;font-weight:600;cursor:pointer;transition:all .2s;box-shadow:0 4px 12px rgba(0,0,0,.15);}
+  .mkt-bottom-btn:hover{background:var(--s1);transform:translateY(-1px);}
 `;
 
 // ─────────────────────────────────────────────
@@ -757,6 +822,7 @@ export default function App() {
   // Project list share state
   const [projListToken,   setProjListToken]   = useState("");
   const [projListCopied,  setProjListCopied]  = useState(false);
+  const [setupCopied,     setSetupCopied]     = useState(null); // null | "url" | "code"
   const [projListValid,   setProjListValid]   = useState(false);
   const [projListChecked, setProjListChecked] = useState(!urlProjListToken);
 
@@ -2515,7 +2581,7 @@ export default function App() {
         <p className="land-p">A secure, anonymous, and digital evaluation platform for fair and accurate scoring of student science projects.</p>
         <div className="role-grid">
           <div className="role-card" onClick={() => setView("judge-register")}>
-            <div className="ico">🧑‍⚖️</div><h3>I'm a Judge</h3><p>Score assigned projects with the guided rubric</p>
+            <div className="ico">🧑‍⚖️</div><h3>I'm a Judge</h3><p>You'll need your assigned judge name (e.g. Judge1) and the invite code from your coordinator</p>
           </div>
           <div className="role-card adm" onClick={() => setView("admin-login")}>
             <div className="ico">🛡️</div><h3>Admin</h3><p>Monitor progress and manage the event</p>
@@ -2544,7 +2610,7 @@ export default function App() {
           <div style={{ textAlign:"center", marginBottom:"1.5rem" }}>
             <div style={{ fontSize:"2.5rem", marginBottom:".5rem" }}>🔐</div>
             <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.5rem", marginBottom:".4rem", color:"var(--navy)" }}>Judge Sign In</h2>
-            <p style={{ color:"var(--dim)", fontSize:".95rem" }}>Select your department, then enter your judge name and invite code.</p>
+            <p style={{ color:"var(--dim)", fontSize:".95rem" }}>Your coordinator will give you your judge name and invite code before the event starts.</p>
           </div>
           <div style={{ marginBottom:"1rem" }}>
             <div className="lbl">Department</div>
@@ -2574,6 +2640,9 @@ export default function App() {
               onChange={e => { setRegName(e.target.value.trim()); setRegErr(""); }}
               onKeyDown={e => e.key==="Enter" && handleRegister()}
               style={{ textAlign:"center", fontFamily:"var(--ff-m)", fontSize:"1.1rem" }} />
+            <p style={{ fontSize:".78rem", color:"var(--dim)", marginTop:".35rem" }}>
+              Your coordinator assigned you a name like <strong>Judge1</strong>, <strong>Judge2</strong>, etc.
+            </p>
           </div>
           <div style={{ marginBottom:"1rem" }}>
             <div className="lbl">Invite Code</div>
@@ -2581,11 +2650,14 @@ export default function App() {
               onChange={e => { setRegCode(e.target.value.toUpperCase()); setRegErr(""); }}
               onKeyDown={e => e.key==="Enter" && handleRegister()}
               style={{ textAlign:"center", letterSpacing:".18em", fontFamily:"var(--ff-m)", fontSize:"1.1rem" }} />
+            <p style={{ fontSize:".78rem", color:"var(--dim)", marginTop:".35rem" }}>
+              Get this from your event coordinator or administrator.
+            </p>
             {regErr && <div className="err">⚠ {regErr}</div>}
           </div>
           <button className="btn" onClick={handleRegister}>Enter as Judge →</button>
-          <p style={{ textAlign:"center", fontSize:".72rem", color:"var(--dim)", marginTop:".9rem" }}>
-            🔒 Judge names are Judge1 – Judge5 per department. Get your invite code from the administrator.
+          <p style={{ textAlign:"center", fontSize:".72rem", color:"var(--dim)", marginTop:".9rem", lineHeight:1.5 }}>
+            🔒 Your session is saved to this device — you can close and reopen the browser without losing your progress.
           </p>
         </div>
       </div></div>
@@ -2630,6 +2702,15 @@ export default function App() {
             </div>
             <div className="pbar" style={{ height:"7px" }}><div className="pfill" style={{ width:`${pct}%`, height:"7px" }} /></div>
           </div>
+          {done === 0 && myProj.length > 0 && (
+            <div style={{ background:"var(--blue-l)", border:"1px solid #2563eb20", borderRadius:"var(--r)", padding:".85rem 1.1rem", marginBottom:".85rem", display:"flex", alignItems:"center", gap:".75rem" }}>
+              <span style={{ fontSize:"1.3rem" }}>👆</span>
+              <div>
+                <div style={{ fontWeight:600, fontSize:".9rem", color:"var(--navy)", marginBottom:".1rem" }}>Tap a project to start scoring</div>
+                <div style={{ fontSize:".8rem", color:"var(--dim)" }}>Score each criterion using the button options, then submit when done.</div>
+              </div>
+            </div>
+          )}
           <div className="card proj-list">
             {myProj.map(proj => {
               const scored = hasScored(proj.id);
@@ -3195,42 +3276,134 @@ export default function App() {
 
   /* SCHOOL SELECT — no slug in URL */
   if (view === "school-select") return (
-    <div className="app"><style>{CSS}</style>{backdrop}
+    <div className="app mkt-page"><style>{CSS}</style>{backdrop}
       <div className="glow" />
-      <div className="center" style={{ position:"relative" }}>
-        <div className="inner">
-          <div style={{ textAlign:"center", marginBottom:"2rem" }}>
-            <div style={{ fontSize:"3.5rem", marginBottom:".75rem" }}>⚗️</div>
-            <h1 style={{ fontFamily:"var(--ff-d)", fontSize:"clamp(1.6rem,4vw,2.2rem)", color:"var(--navy)", marginBottom:".5rem" }}>Science Fair Judging</h1>
-            <p style={{ color:"var(--dim)", fontSize:"1rem" }}>A digital judging platform for school science fairs.</p>
-          </div>
 
-          <div className="card" style={{ marginBottom:"1rem" }}>
-            <div style={{ fontFamily:"var(--ff-d)", fontSize:"1rem", color:"var(--navy)", marginBottom:"1rem", fontWeight:700 }}>Go to your school</div>
-            <div style={{ display:"flex", gap:".5rem" }}>
-              <span style={{ padding:".75rem .9rem", background:"var(--s2)", border:"1.5px solid var(--bd)", borderRadius:"10px 0 0 10px", color:"var(--dim)", fontSize:".88rem", whiteSpace:"nowrap" }}>
-                {window.location.origin}/s/
-              </span>
-              <input style={{ borderRadius:"0 10px 10px 0", borderLeft:"none" }}
-                placeholder="your-school-slug"
-                value={schoolForm.slug}
-                onChange={e => setSchoolForm(f => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,"") }))}
-                onKeyDown={e => { if (e.key === "Enter" && schoolForm.slug.trim()) window.location.href = `/s/${schoolForm.slug.trim()}`; }}
-              />
-            </div>
-            <button className="btn" style={{ marginTop:".75rem" }} onClick={() => { if (schoolForm.slug.trim()) window.location.href = `/s/${schoolForm.slug.trim()}`; }}>
-              Go →
-            </button>
-          </div>
+      {/* NAV */}
+      <nav className="mkt-nav">
+        <div className="mkt-nav-brand">
+          <span className="mkt-ico">⚗️</span> Science Fair Judging
+        </div>
+        <button className="btn sm" onClick={() => setView("school-register")}>Register Free →</button>
+      </nav>
 
-          <div className="card">
-            <div style={{ fontFamily:"var(--ff-d)", fontSize:"1rem", color:"var(--navy)", marginBottom:".4rem", fontWeight:700 }}>Register your school</div>
-            <p style={{ color:"var(--dim)", fontSize:".9rem", marginBottom:"1rem" }}>Set up a free account and run your science fair digitally.</p>
-            <button className="btn sec" onClick={() => setView("school-register")}>
-              Create school account →
-            </button>
+      {/* HERO */}
+      <div className="mkt-hero">
+        <div className="mkt-hero-badge">Free for schools</div>
+        <h1 className="mkt-h1">Run your science fair,<br /><span>fully digital.</span></h1>
+        <p className="mkt-hero-sub">
+          From project scoring to final results — one platform built for judges on tablets.
+          Works offline. Real-time sync. No spreadsheets.
+        </p>
+        <div className="mkt-hero-ctas">
+          <button className="btn" style={{ width:"auto", padding:".85rem 1.75rem" }} onClick={() => setView("school-register")}>
+            Register your school →
+          </button>
+        </div>
+        <div className="mkt-slug-wrap">
+          <div className="mkt-slug-label">Already registered? Go to your school</div>
+          <div className="mkt-slug-row">
+            <span className="mkt-slug-pre">{window.location.origin}/s/</span>
+            <input
+              type="text"
+              className="mkt-slug-field"
+              placeholder="your-school-slug"
+              value={schoolForm.slug}
+              onChange={e => setSchoolForm(f => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,"") }))}
+              onKeyDown={e => { if (e.key === "Enter" && schoolForm.slug.trim()) window.location.href = `/s/${schoolForm.slug.trim()}`; }}
+            />
+            <button className="mkt-slug-go" onClick={() => { if (schoolForm.slug.trim()) window.location.href = `/s/${schoolForm.slug.trim()}`; }}>Go →</button>
           </div>
         </div>
+      </div>
+
+      <hr className="mkt-divider" />
+
+      {/* HOW IT WORKS */}
+      <div className="mkt-section">
+        <div className="mkt-section-title">How it works</div>
+        <div className="mkt-section-sub">Set up your fair in minutes, run it with confidence.</div>
+        <div className="mkt-steps">
+          <div className="mkt-step">
+            <div className="mkt-step-num">Step 1</div>
+            <div className="mkt-step-ico">🏫</div>
+            <h3>Register your school</h3>
+            <p>Create a free account. Your school gets its own private URL and admin dashboard instantly.</p>
+          </div>
+          <div className="mkt-step">
+            <div className="mkt-step-num">Step 2</div>
+            <div className="mkt-step-ico">📋</div>
+            <h3>Set up your event</h3>
+            <p>Add projects, configure judge slots, and customize your scoring rubric — all from the admin panel.</p>
+          </div>
+          <div className="mkt-step">
+            <div className="mkt-step-num">Step 3</div>
+            <div className="mkt-step-ico">🏆</div>
+            <h3>Score and share results</h3>
+            <p>Judges score on any device. Averages calculate automatically. Share a live results link when done.</p>
+          </div>
+        </div>
+      </div>
+
+      <hr className="mkt-divider" />
+
+      {/* FEATURES */}
+      <div className="mkt-section">
+        <div className="mkt-section-title">Everything you need</div>
+        <div className="mkt-section-sub">Built for real science fairs, tested in the field.</div>
+        <div className="mkt-feats">
+          <div className="mkt-feat">
+            <div className="mkt-feat-ico">📡</div>
+            <div>
+              <h4>Real-time sync</h4>
+              <p>All judges see live score updates. The admin dashboard refreshes automatically — no manual refresh needed.</p>
+            </div>
+          </div>
+          <div className="mkt-feat">
+            <div className="mkt-feat-ico">📱</div>
+            <div>
+              <h4>Offline-ready PWA</h4>
+              <p>Judges can score without internet. Scores queue locally and sync the moment connection returns.</p>
+            </div>
+          </div>
+          <div className="mkt-feat">
+            <div className="mkt-feat-ico">📊</div>
+            <div>
+              <h4>Smart results workflow</h4>
+              <p>Automatic averages, tie detection, deliberation workflow, and award assignments — all built in.</p>
+            </div>
+          </div>
+          <div className="mkt-feat">
+            <div className="mkt-feat-ico">🔒</div>
+            <div>
+              <h4>Secure by design</h4>
+              <p>PIN-gated admin access, per-judge validation, full audit logs, and isolated data per school.</p>
+            </div>
+          </div>
+          <div className="mkt-feat">
+            <div className="mkt-feat-ico">📐</div>
+            <div>
+              <h4>Custom rubrics</h4>
+              <p>Start with the Northeast AZ Regional scoring sheet or build your own criteria from scratch.</p>
+            </div>
+          </div>
+          <div className="mkt-feat">
+            <div className="mkt-feat-ico">🎓</div>
+            <div>
+              <h4>Student registration</h4>
+              <p>Share registration links with students. Submissions are linked to projects automatically.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* BOTTOM CTA */}
+      <div className="mkt-bottom">
+        <h2>Ready to go digital?</h2>
+        <p>Free for schools. No credit card required. Set up in minutes.</p>
+        <button className="mkt-bottom-btn" onClick={() => setView("school-register")}>
+          Create school account →
+        </button>
       </div>
     </div>
   );
@@ -3583,6 +3756,71 @@ export default function App() {
               <div className="adm-h1">Dashboard Overview</div>
               <div className="adm-sub">Live judging progress · Science Fair SY 2025-2026</div>
               {locked && <div className="locked-banner">🔒 Judging LOCKED — judges cannot submit scores</div>}
+
+              {/* SETUP GUIDE — visible only before the first judge registers */}
+              {judges.length === 0 && (
+                <div className="setup-guide">
+                  <div className="setup-guide-title">🚀 Get started</div>
+                  <div className="setup-guide-sub">Complete these steps before inviting judges to your fair.</div>
+                  <div className="setup-checklist">
+                    <div className="setup-item">
+                      <div className={`setup-check ${projects.length > 0 ? "done" : "todo"}`}>
+                        {projects.length > 0 ? "✓" : ""}
+                      </div>
+                      <span className={`setup-item-text ${projects.length > 0 ? "done" : ""}`}>
+                        Add your projects
+                      </span>
+                      {projects.length > 0
+                        ? <span className="setup-item-note">{projects.length} added</span>
+                        : <button className="btn sm" style={{ marginLeft:"auto", width:"auto", padding:".3rem .8rem", fontSize:".8rem" }} onClick={() => setAdminTab("projects")}>
+                            Go to Projects →
+                          </button>
+                      }
+                    </div>
+                    <div className="setup-item">
+                      <div className="setup-check done">✓</div>
+                      <span className="setup-item-text done">Admin account created</span>
+                    </div>
+                    <div className="setup-item">
+                      <div className={`setup-check ${projects.length > 0 ? "done" : "todo"}`}>
+                        {projects.length > 0 ? "✓" : ""}
+                      </div>
+                      <span className={`setup-item-text ${projects.length > 0 ? "done" : ""}`}>
+                        Share school URL &amp; invite code with judges
+                      </span>
+                    </div>
+                  </div>
+                  <div className="setup-share">
+                    <div className="setup-share-lbl">Share with judges</div>
+                    <div className="setup-share-row">
+                      <span className="setup-share-key">School URL</span>
+                      <span className="setup-share-val">{window.location.origin}/s/{currentSchool?.slug}</span>
+                      <button
+                        className={`setup-copy-btn ${setupCopied === "url" ? "copied" : ""}`}
+                        onClick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}/s/${currentSchool?.slug}`);
+                          setSetupCopied("url");
+                          setTimeout(() => setSetupCopied(null), 2000);
+                        }}>
+                        {setupCopied === "url" ? "Copied!" : "Copy"}
+                      </button>
+                    </div>
+                    <div className="setup-share-row">
+                      <span className="setup-share-key">Invite Code</span>
+                      <span className="setup-share-val">{currentSchool?.invite_code}</span>
+                      <button
+                        className={`setup-copy-btn ${setupCopied === "code" ? "copied" : ""}`}
+                        onClick={() => {
+                          navigator.clipboard.writeText(currentSchool?.invite_code || "");
+                          setSetupCopied("code");
+                          setTimeout(() => setSetupCopied(null), 2000);
+                        }}>
+                        {setupCopied === "code" ? "Copied!" : "Copy"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="card" style={{ marginBottom:".9rem" }}>
                 <div className="lbl">Sync Health (This Device)</div>
                 <div style={{fontSize:".9rem", color: offlineQueue.length > 0 ? "var(--amber)" : "var(--green)", fontWeight:600, marginBottom:".2rem"}}>

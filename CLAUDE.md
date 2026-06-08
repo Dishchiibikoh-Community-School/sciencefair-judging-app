@@ -29,7 +29,13 @@ Built as a single-file React component (`ScienceFairJudging.jsx`).
 - **Vercel project:** `sciencefair-v2` (separate from v1, same GitHub repo)
 - **Deploy:** Push to `main` → both Vercel projects auto-deploy from the same repo
 
-> Last major update: 2026-06-02 — completed full v2 multi-tenant migration. Phases 2, 3, 5, 7 done:
+> Last major update: 2026-06-08 — UX onboarding improvements (Phases 1–3):
+> - Phase 1: `school-select` view rebuilt as a full marketing/product page — nav bar, hero with slug input, "How it works" 3-step grid, 6-feature grid, bottom CTA strip. New CSS classes: `.mkt-*`
+> - Phase 2: Admin Overview tab — "Get started" setup guide card (`judges.length === 0` gate) with project checklist, one-click copy buttons for school URL and invite code. New state: `setupCopied`. New CSS classes: `.setup-*`
+> - Phase 3: Judge UX clarity — landing judge card describes what's needed; judge sign-in has inline helper text under each field and improved bottom note; judge home shows a "Tap a project to start scoring" banner until first score is submitted
+>
+> Previous update: 2026-06-02 — completed full v2 multi-tenant migration. Phases 2, 3, 5, 7 done:
+>
 > - Phase 2: Full `ScienceFairJudging.jsx` rewrite — Supabase Auth login, school slug resolution, all queries scoped by `school_id`, JSONB scoring criteria, new `school-select` / `school-register` views, dynamic rubric from DB
 > - Phase 3: `vercel.json` rewrite rules for `/s/:slug` → `index.html`
 > - Phase 5: Admin Rubric tab — view/edit/reorder/delete criteria, save to `rubrics` table, reset to default
