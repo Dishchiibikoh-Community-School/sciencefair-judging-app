@@ -24,7 +24,7 @@ Built as a single-file React component (`ScienceFairJudging.jsx`).
 
 **v2 (multi-tenant SaaS — active development):**
 - **Live URL:** https://app.qritiko.com/ (school-select) → https://app.qritiko.com/s/{slug} (per-school)
-- **Supabase project:** https://evruppqnhgrfltfhafeyyj.supabase.co
+- **Supabase project:** https://evrupqnhgrfltfhafeyj.supabase.co
 - **Schema:** `supabase/schema-v2.sql` (applied to v2 Supabase project)
 - **Vercel project:** `sciencefair-v2` (separate from v1, same GitHub repo)
 - **Deploy:** Push to `main` → both Vercel projects auto-deploy from the same repo
@@ -102,7 +102,7 @@ For end-user instructions, see:
 │   └── main.jsx                 ← React root + PWA service worker registration
 ├── supabase/
 │   ├── schema.sql               ← v1 DB schema (applied to cjzuiimoamrggucvahjm — DO NOT TOUCH)
-│   └── schema-v2.sql            ← v2 multi-tenant schema (applied to evruppqnhgrfltfhafeyyj)
+│   └── schema-v2.sql            ← v2 multi-tenant schema (applied to evrupqnhgrfltfhafeyj)
 ├── public/
 │   ├── favicon.svg
 │   ├── logo.png                 ← School logo (also used as PWA icon)
