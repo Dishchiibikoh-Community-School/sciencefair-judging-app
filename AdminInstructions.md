@@ -8,13 +8,21 @@ This guide covers everything an event organizer needs to know to run the digital
 
 ## Admin Access
 
-**Password:** set by your deployment administrator (stored in `VITE_ADMIN_PASS` environment variable — never shared in docs)
+Your fair lives at its own address: **`https://app.qritiko.com/s/your-school`**. Everything below happens there — a plain `app.qritiko.com` is the platform homepage, not your fair.
+
+**Login:** the **email and password** you chose when you registered the school (Supabase Auth). There is no shared admin password.
 
 **To enter admin mode:**
-1. Open the app
+1. Open your school's link
 2. Click **"I'm an Admin"**
-3. Enter the admin password
+3. Enter your admin email and password
 4. You'll see the full dashboard with tabs
+
+Five failed attempts locks login for 30 seconds. Every failure is written to the IT log.
+
+**Your 4-digit PIN** (separate from the password) guards the IT Logs tab, Reset All Data, and judge device transfers. It defaults to **`0000`** when the school is created — **change it before your event.**
+
+> **First time signing in?** If you just registered the school, confirm your email first. Departments and the default rubric finish setting themselves up automatically on your first successful admin sign-in.
 
 ---
 
@@ -30,7 +38,25 @@ This guide covers everything an event organizer needs to know to run the digital
 | **Alerts** | Anomaly detection and system status |
 | **Deliberation** | Validation workflow and award decisions |
 | **Share** | Generate live results link (after results finalized) |
+| **Score Export** | Per-judge CSV export and score backups |
+| **Rubric** | View and edit your school's scoring criteria |
 | **IT Logs** | Diagnostic terminal for troubleshooting (PIN-gated) |
+
+---
+
+## Pre-Event Checklist
+
+Run through this a few days before, not on the morning of.
+
+- [ ] **Check the app is awake.** Open `https://app.qritiko.com/s/your-school`. The free Supabase tier pauses a project after ~7 days with no traffic, and a paused project takes the whole app down. If anything fails to load, resume it from the Supabase dashboard and re-check.
+- [ ] **Change the admin PIN** from the default `0000` (IT Logs tab).
+- [ ] **Confirm departments exist** — the Overview tab should list Elementary / Middle School / High School. If it does not, sign out and back in; they re-seed on admin sign-in.
+- [ ] **Set max judges per department** (locks per department once its first judge registers).
+- [ ] **Enter every project/team**, each assigned to a department, with adviser and members.
+- [ ] **Print the project list** (Projects tab) and check advisers/members appear.
+- [ ] **Do a dry run:** sign in as Judge1 on a spare tablet, score one project, confirm it shows in Overview, then Reset All Data.
+- [ ] **Write down** the school link, invite code, and which judge name each judge gets.
+- [ ] **Save a score backup** (Score Export tab) at the halfway point on event day.
 
 ---
 
@@ -55,6 +81,21 @@ The app has three departments: **Elementary**, **Middle School**, and **High Sch
 - Each department is independent — locking one does not affect the others
 - After a reset, all department max judges become editable again
 
+### ⚠️ Order matters: add ALL projects BEFORE judges sign in
+
+A judge's project list is built when they sign in. The app now pushes newly added
+projects out to judges who have already registered — but the safest sequence is still:
+
+1. Set each department's max judges
+2. Enter **every** project/team
+3. *Then* hand out the judge name + invite code
+
+If you must add a late entry after judging has started, it is pushed to the judges in
+that department automatically. Ask them to pull-to-refresh, and check the Judges tab —
+their "Projects Assigned" count should go up by one.
+
+---
+
 ### 2. Add Projects
 
 **On the Projects tab:**
@@ -63,12 +104,31 @@ The app has three departments: **Elementary**, **Middle School**, and **High Sch
 2. Fill in the form:
    - **Department** — Which department this project belongs to (Elementary, Middle School, or High School)
    - **Title** — Project name (e.g., "Solar Cell Efficiency Under Different Light Spectra")
-   - **Category** — Choose from Biology, Physics, Computer Sci., Chemistry, Earth Science, Engineering, Math, Environmental Sci.
+   - **Category** — Life Science · Earth and Space Science · Physical Science · Engineering and Technology
    - **Grade** — Student grade level (e.g., 4, 6, 9, 11)
    - **Number** — Auto-generated, can edit (e.g., 001, 002, 003)
-3. Click **"Add Project"**
+3. Fill in **Adviser Name** and **Group Members** (comma-separated) if it is a team entry
+4. Click **"Add Project"**
 
 **Important:** Judges only score projects in their own department. A judge registered under Elementary will only see Elementary projects.
+
+#### Registering teams yourself (2026-27 workflow)
+
+When organisers enter the teams rather than students self-registering, the Projects tab is
+your only data-entry path. Adviser and group members are stored **on the project**, so they
+appear on the project rows and on the printed project list PDF.
+
+| Field | Notes |
+|---|---|
+| Department | Required — a project with no department is scored by nobody |
+| Title | The project name |
+| Category | One of the four official categories |
+| Grade | Drives the abstract rule — grades below 5 skip the Abstract criterion and are scored out of 36 |
+| Number | Auto-filled; edit if you use your own numbering |
+| Adviser Name | Teacher/coach — optional but appears on the project list |
+| Group Members | Comma-separated, e.g. `Juan, Maria, Pedro` — leave blank for individual entries |
+
+You do **not** need to generate a registration link at all this year. Leave it deactivated.
 
 **Tips:**
 - Assign every project to a department before judging begins
@@ -80,7 +140,7 @@ The app has three departments: **Elementary**, **Middle School**, and **High Sch
 - **Judge names:** Judge1 through Judge[N] — where N is the Max Judges value configured per department
   - Example: Elementary has 5 judges → Judge1–Judge5 in that department
   - Middle School also has 5 judges → Judge1–Judge5 in that department (same names are fine — different departments)
-- **Invite code:** provided at deployment — check your `VITE_INVITE_CODE` environment variable
+- **Invite code:** shown on your admin Overview tab ("Get started" card). Judges type this to sign in.
 - **Department:** Tell each judge which department they are assigned to before the event
 
 ---
@@ -183,6 +243,11 @@ Complete log of all events: judge registrations, score submissions, project chan
 ---
 
 ## Student Registration
+
+> **Not using this?** If organisers are entering the teams themselves (the 2026-27 workflow),
+> skip this whole section. Leave the registration link deactivated and add projects directly in
+> the Projects tab. Nothing else depends on it. The tab still shows any submissions from
+> previous years.
 
 ### Overview
 
@@ -287,7 +352,7 @@ Opens automatically on a tie, or admin can open manually. Admin assigns final aw
 - All scores
 - All deliberation notes and decisions
 - All validation entries
-- Share link
+- Share link (public results **and** project list links)
 - Per-department judge counts return to 0 (max judges become editable again)
 
 **What is NOT reset:**
@@ -323,6 +388,12 @@ Opens automatically on a tie, or admin can open manually. Admin assigns final aw
 4. Click **"Generate Live Results Link"**
 5. Copy and share the URL
 
+The link looks like `https://app.qritiko.com/s/your-school?token=…`. Anyone with it sees the
+results page directly. If you **Revoke** it, or it expires, the link shows "Link Unavailable".
+
+> Note: while a link is live, a "● LIVE RESULTS" card also appears on your school's landing
+> page for anyone who visits it. Revoke the link when you want results off the public page.
+
 ### What the Public Sees
 
 - Results are split by department — Elementary, Middle School, High School each have their own section
@@ -339,7 +410,7 @@ Click **"Revoke Link"** to expire the URL immediately.
 
 ## IT Diagnostics
 
-**PIN:** stored in `VITE_IT_PIN` environment variable
+**PIN:** your school's 4-digit PIN (defaults to `0000` — change it before the event). The same PIN guards Reset All Data and judge device transfers.
 
 1. Go to **IT Logs tab**
 2. Click **"Unlock"** and enter PIN

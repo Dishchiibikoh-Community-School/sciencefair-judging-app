@@ -29,7 +29,14 @@ Built as a single-file React component (`ScienceFairJudging.jsx`).
 - **Vercel project:** `sciencefair-v2` (separate from v1, same GitHub repo)
 - **Deploy:** Push to `main` → both Vercel projects auto-deploy from the same repo
 
-> Last major update: 2026-06-08 — UX onboarding improvements (Phases 1–3):
+> Last major update: 2026-09-25 — **Full architecture audit: 19 defects fixed** (see Bug Fix Log).
+> Highlights: score backups/CSV exports were silently empty under the v2 JSONB schema; projects
+> added after a judge signed in were invisible to them; the public results link was dead; the
+> judging lock and both share tokens were unenforced. Also adds adviser + group members to the
+> `projects` table for admin-entered teams — **requires running
+> `supabase/migration-2026-09-project-adviser.sql`**.
+>
+> Previous update: 2026-06-08 — UX onboarding improvements (Phases 1–3):
 > - Phase 1: `school-select` view rebuilt as a full marketing/product page — nav bar, hero with slug input, "How it works" 3-step grid, 6-feature grid, bottom CTA strip. New CSS classes: `.mkt-*`
 > - Phase 2: Admin Overview tab — "Get started" setup guide card (`judges.length === 0` gate) with project checklist, one-click copy buttons for school URL and invite code. New state: `setupCopied`. New CSS classes: `.setup-*`
 > - Phase 3: Judge UX clarity — landing judge card describes what's needed; judge sign-in has inline helper text under each field and improved bottom note; judge home shows a "Tap a project to start scoring" banner until first score is submitted
@@ -42,6 +49,151 @@ Built as a single-file React component (`ScienceFairJudging.jsx`).
 > - Phase 7: New Supabase v2 project, `schema-v2.sql` applied, new Vercel deployment, `app.qritiko.com` domain via Cloudflare CNAME
 
 ## 🐛 Bug Fix Log
+
+### 2026-09-25 — Full architecture audit: 19 findings fixed
+
+A senior-dev audit of the whole app surfaced 19 defects across data integrity, tenant
+isolation, access control and scoring logic. All are fixed in this change set.
+**Requires a DB migration:** `supabase/migration-2026-09-project-adviser.sql`.
+
+**P0 — data loss / event-blocking**
+
+1. **Score backups and both CSV exports contained no scores.**
+   `saveScoreBackup()`, `exportJudgeScoresCSV()` and `downloadBackupCSV()` all read the
+   **v1 flat columns** (`sc.presentation`, `sc.testable_q`, …). v2 stores scores as
+   `sc.criteria.<id>` JSONB (rule 0e), so every criterion serialised as `undefined` —
+   only `total` survived, because `getTotal()` reads `.criteria` correctly. Backups
+   taken before this fix hold totals but no per-criterion data.
+   *Fix:* new module helper `critVal(scoreOrEntry, rid)` reads `.criteria` with a
+   legacy flat-field fallback. All three paths are now rubric-driven: columns come
+   from the live `rubric` state instead of the hardcoded Northeast AZ 10.
+   `saveScoreBackup()` now stores `criteria: {...}` **and a copy of the rubric**, so an
+   old snapshot still renders correctly after a school edits its criteria.
+
+2. **Projects added after a judge signed in were invisible to that judge forever.**
+   `assignProjects()` snapshots project IDs into `judges.projects` at registration and
+   `addProject()` never updated existing judges — so late entries were scored by nobody,
+   and a judge who registered before data entry finished got a permanently empty list.
+   *Fix:* new `syncJudgeAssignments(deptIds, projectList)` pushes the current roster to
+   every judge in the affected departments. Called from `addProject()` and, for both the
+   old and new department, from `updateProject()` when a project changes department.
+   `assignProjects(deptId, projectList)` takes an optional roster because `projects`
+   state has not flushed yet at the call site.
+
+3. **The public results link was dead.** `shareUrl()` returned
+   `${origin}?token=…` — it omitted the `/s/{slug}` path, and **nothing ever parsed
+   `?token=`**. Recipients landed on the platform marketing homepage.
+   *Fix:* new `urlShareToken` module constant; the token is validated in `init()`
+   against a `share_links` row for this school that is neither revoked nor expired;
+   `public-results` is now part of the initial-view expression (matching how
+   `public-register` / `public-projects` already worked); an invalid, revoked or
+   expired token renders a "Link Unavailable" card. `shareUrl()`, `projListUrl()` and
+   the registration URL are all school-scoped now.
+
+**P1 — security / access control**
+
+4. **Project-list token was never actually checked.** `setProjListValid(!!data?.value
+   && data.value !== "")` accepted *any* non-empty stored token, so `?projects=anything`
+   opened the list. *Fix:* compares against `urlProjListToken`.
+5. **"Lock Judging" was UI-only.** The gate lived on the project tile's `onClick`;
+   `submitScore()` had no check, so a judge already inside the scoring form could still
+   submit. *Fix:* `submitScore()` now rejects when `locked`, and also when the judge has
+   already validated (rule 18 was likewise only enforced in the UI). Both log to IT.
+6. **Cross-school session bleed.** `sf_judge_id` / `sf_judge_data` / `sf_scores_cache`
+   are origin-global and every school shares one origin, so a session from school A was
+   restored while visiting school B whenever B had no judges yet. *Fix:* new
+   `sf_judge_slug` localStorage key, stamped at registration and compared against
+   `urlSchoolSlug` in both the instant-restore and session-sync effects.
+7. **Auth listener could point writes at the wrong tenant.** `onAuthStateChange`
+   overwrote `currentSchool` with the logged-in admin's school while data and realtime
+   stayed bound to the URL slug's school — reads from B, writes to A. *Fix:* the admin's
+   school is adopted only when `school.slug === urlSchoolSlug`.
+8. **`exportRegCSV()` had no `school_id` scope** — a rule 0 violation that would export
+   every school's registration submissions. *Fix:* scoped, and guarded on `currentSchool`.
+
+**P2 — logic errors**
+
+9. **`hasTie()` compared averages across departments**, so an Elementary and a High
+   School project both averaging 35.0 fired the tie alert and forced deliberation.
+   *Fix:* new `rankedProjectsIn(deptId)`; ties are detected per department (plus an
+   "unassigned" group). Also switched `.filter(p => p.avg)` to `p.avg !== null`.
+10. **`judgeComp()` divided by zero** for a judge with no assigned projects, yielding
+    `NaN%` in the Judges tab. *Fix:* returns `pct: 0` when `total === 0`, and
+    `completedJudges()` now requires `total > 0` so a judge with nothing to score can
+    never silently satisfy consensus.
+11. **Hardcoded `/42` throughout** despite per-school custom rubrics (rule 0f).
+    *Fix:* new `rubricMax()` and `projectMax(proj)` helpers (the latter honours the
+    grade <5 abstract exemption) replace every hardcoded denominator.
+12. **Global `maxJudges` was dead code with live plumbing** — loaded, reset and
+    persisted, but registration only ever enforced `departments.max_judges`.
+    *Fix:* removed `maxJudges`, `maxJudgesDraft`, `maxJudgesErr` state and
+    `updateMaxJudges()`; reset no longer writes `app_settings.max_judges`.
+13. **`projForm.cat` defaulted to `"Biology"`**, which is not in `REG_CATEGORIES` —
+    any project added without touching the dropdown saved an orphan category.
+    *Fix:* defaults to `REG_CATEGORIES[0]` at all 5 reset sites.
+14. **`executeReset()` left the project-list share link live**, still serving the old
+    roster. *Fix:* clears `project_list_token` in DB and state.
+15. **`getAnomalies()` matched judges with `key.startsWith(j.id)`** — prefix collision
+    risk. *Fix:* exact id match derived via `lastIndexOf`.
+
+**P3 — robustness**
+
+16. **No concurrency guard on `flushOfflineQueue()`.** *Fix:* `flushingRef` guard; the
+    body moved to `runOfflineFlush(queue)` and the flag is cleared via `.finally()`.
+    ⚠️ **Deliberately not `try/finally`** — see the "React Compiler bailout" note below.
+17. **CSV formula injection.** Titles/notes beginning `=`, `+`, `-` or `@` executed as
+    formulas in Excel. *Fix:* new `csvCell()` escaper quotes every cell and prefixes a
+    dangerous leading character with an apostrophe. Used by all four CSV exports.
+18. **School registration failed silently.** None of the six inserts checked `error`.
+    With email confirmation enabled, `signUp()` returns a user but **no session**, so
+    the RLS-protected `departments` and `rubrics` inserts were rejected — leaving a
+    school with no departments, which blocks judge sign-in entirely. (Confirmed live:
+    the one school registered 2026-08-15 had `app_settings` rows but zero departments
+    and zero rubrics.) *Fix:* every insert checks its error; a failed `school_admins`
+    link aborts with a clear message; and new `ensureSeedData(schoolId)` re-seeds
+    departments + rubric on the first authenticated admin load, so a half-created
+    school repairs itself.
+19. **`DEFAULT_PROJECTS` dead code removed** (8 demo rows, zero references).
+
+**⚠️ React Compiler bailout — do not reintroduce `try/finally`**
+
+A `try/finally` block anywhere inside the `App` component makes the React Compiler bail
+out, which **silently disables the `react-hooks/purity` and `react-hooks/immutability`
+ESLint rules for the entire file** (41 findings disappeared from the lint report without
+a single line of them being fixed). Verified by toggling the construct in isolation.
+Use `.finally()` on a promise instead, as `flushOfflineQueue()` does.
+
+**Known gaps left in place (pre-existing, not introduced here):**
+`projListUrl()`, `generateProjListLink()` and `revokeProjListLink()` have no UI callers —
+the `public-projects` view can only be reached if a `project_list_token` is written by
+other means. `submitDelibNote()` and `reviseDecision()` are likewise defined but
+unreferenced. These are flagged by ESLint `no-unused-vars` and were left alone to keep
+this change set to audit fixes.
+
+**Files changed:** `src/ScienceFairJudging.jsx`, `supabase/schema-v2.sql`,
+`supabase/migration-2026-09-project-adviser.sql` (new), `CLAUDE.md`,
+`AdminInstructions.md`, `JudgeInstructions.md`.
+
+### 2026-09-25 — Feature: adviser + group members on admin-entered projects
+
+**Problem:** adviser name and group members lived **only** in `registration_submissions`,
+the table the student self-registration form writes to. The add/edit form gated those two
+fields behind `editingProject && regSubmissions.find(...)`, so they never rendered for an
+admin-created project; `addProject()` dropped them entirely; and `exportProjListPDF()` read
+them from `regSubmissions`. For the 2026-27 workflow — **organisers register the teams, not
+students** — that made adviser and team names impossible to enter and blank on the printed
+project list.
+
+**Fix:** `projects` gains `advisor_name TEXT` and `group_members JSONB` (migration
+`supabase/migration-2026-09-project-adviser.sql`, which also backfills from existing
+submissions). The form fields are always shown; `addProject()` and `updateProject()` write
+them; the project rows, edit form and PDF export read the project columns first and fall
+back to `registration_submissions` for student-registered entries.
+
+**Migration safety:** `writeProjectRow()` detects a missing-column error (`42703` /
+`PGRST204`) and transparently retries without the two new fields, logging
+`PROJECT_ADVISER_COLS_MISSING`. A deployment that has not run the migration keeps working
+instead of failing every project insert.
 
 ### 2026-03-30 — Fix: Judge validation concurrent overwrite (Bug #1)
 **Problem:** `submitJudgeValidation` and `submitAdminValidation` were writing validations as a
@@ -147,7 +299,7 @@ There are no separate `.css` files, no Tailwind, no CSS modules.
 - Admin sidebar shows school name + Sign Out button when `session` is non-null
 
 ### AnimatedBackdrop (canvas animation)
-- Rendered on all views except `judge-scoring` via `const backdrop = view === "judge-scoring" ? null : <AnimatedBackdrop />`
+- **Currently DISABLED.** The render path is hardcoded to `const backdrop = null;` — the component is defined but never mounted (switched off for input latency on tablets). The notes below apply only if it is re-enabled.
 - Runs a `requestAnimationFrame` loop **capped at ~30fps** (`if (timestamp - lastFrame < 33) return`) to avoid burning CPU
 - Max **36 atoms** (down from 72) — the O(n²) bond-drawing loop runs on the main thread; more atoms = direct UI lag
 - **Do not raise these limits** — higher atom counts or uncapped FPS caused measurable input lag on tablets
@@ -165,7 +317,9 @@ The app renders different screens based on `const [view, setView] = useState("la
 | `"judge-scoring"` | Scoring form for one project |
 | `"admin-login"` | Admin email + password gate (Supabase Auth) |
 | `"admin-home"` | Full admin dashboard (tabbed) |
-| `"public-results"` | Public results page (no login needed) |
+| `"public-results"` | Public results page — reached via a valid `?token=` share link, the landing "LIVE RESULTS" card, or the admin preview button |
+| `"public-register"` | Student self-registration form — entered via `?register=<token>` (initial view only) |
+| `"public-projects"` | Public project list — entered via `?projects=<token>` (initial view only). ⚠️ No admin UI currently generates this token |
 
 ### Admin dashboard tabs
 Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
@@ -211,7 +365,7 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 - **Admin-controlled judge transfer** — if a judge's device fails, transfer to a new device is only allowed after admin approval in the Judges tab (PIN-gated via custom modal — not `window.prompt`).
 - **Project locking** — admin can lock individual projects to prevent editing or removal. Locked projects show a lock badge in the UI.
 - **IT Logs tab** is PIN-gated (`itUnlocked` state). Wrong PIN logs `IT_ACCESS_DENIED`.
-- **Reset modal** requires `VITE_IT_PIN`. Wrong PIN logs `RESET_PIN_FAILED`.
+- **Reset modal** requires `schools.admin_pin` (per-school, from the DB). Wrong PIN logs `RESET_PIN_FAILED`.
 - **Activity log is NEVER cleared on reset** — preserved for security audit. This is intentional.
 - **Judging can be locked** by admin (`locked` state) — blocks all judge score submissions.
 - **Public results page never shows judge names** — score + project data only.
@@ -222,7 +376,7 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 - Lockout state is in-memory only (resets on page reload)
 
 ### Judge sign-in flow
-1. Judge enters their name (`Judge1`–`Judge[N]`) and the invite code (from `VITE_INVITE_CODE`)
+1. Judge enters their name (`Judge1`–`Judge[N]`), selects their **department**, and enters the invite code (from `schools.invite_code`)
 2. App validates:
    - Name is in valid range (based on configured `maxJudges`)
   - If name is already active, transfer is allowed only when admin pre-approves transfer for that judge
@@ -251,8 +405,8 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 
 ### Projects (dynamic — `projects` state, synced from Supabase `projects` table)
 ```js
-{ id, num, title, cat, grade, locked, department_id }
-// id: "p1", "p2", ... or "p_abc123" for admin-added projects
+{ id, num, title, cat, grade, locked, department_id, advisor_name, group_members }
+// id: "p_abc123" for admin-added projects (legacy rows may use "p1", "p2", …)
 // num: display number e.g. "001"
 // cat values: "Biology", "Physics", "Computer Sci.", "Chemistry", "Earth Science", "Engineering", "Math", "Environmental Sci."
 // locked: boolean — locked projects cannot be edited or removed by admin
@@ -485,6 +639,7 @@ finalizeResults()                // sets resultsFinalized=true, unlocks Share ta
 | `sf_scores_cache` | This judge's scores (JSON) for offline access |
 | `sf_offline_queue` | Array of score payloads pending sync to Supabase |
 | `sf_last_sync_at` | Timestamp of last successful sync to Supabase |
+| `sf_judge_slug` | School slug the cached session belongs to — prevents a session from school A being restored at school B (all schools share one origin) |
 
 ### Offline flow
 1. On mount, app instantly restores judge session + scores from `localStorage` (before Supabase loads)
@@ -601,10 +756,15 @@ The public results page (`view === "public-results"`) shows:
 
 ```js
 // Scoring
-getTotal(scoreObj)          // Sum all rubric scores → number (max 42)
+getTotal(scoreObj)          // Sum all rubric scores → number (reads scoreObj.criteria)
+rubricMax()                 // Total points available under the ACTIVE rubric — use instead of hardcoding 42
+projectMax(proj)            // Points available for one project (excludes abstract when grade < 5)
+critVal(scoreOrEntry, rid)  // Module helper — reads a criterion from .criteria, falling back to legacy flat fields
+csvCell(v)                  // Module helper — quotes a CSV cell and neutralises =/+/-/@ formula injection
 projAvg(pid)                // Average total score across all judges for a project → "xx.x" | null
 rubAvg(pid, rid)            // Average of one rubric criterion for a project → "xx.x" | null
-rankedProjects()            // All projects sorted by avg score descending
+rankedProjects()            // All projects sorted by avg score descending (cross-department — rarely what you want)
+rankedProjectsIn(deptId)    // Projects ranked WITHIN one department (pass null for unassigned). Use this for ties, results and exports
 judgeComp(judge)            // { done, total, pct } completion stats for a judge
 hasScored(pid)              // Boolean — has the current judge scored this project?
 totalScored()               // Count of all score entries
@@ -653,7 +813,10 @@ getAnomalies()              // Array of outlier objects where deviation > 8pts f
 isLinkLive()                // Boolean — is the public share link active and not expired?
 addLog(msg)                 // Append to human activity log + Supabase activity_log
 addItLog(level, module, event, detail, payload)  // Append structured IT log entry
-assignProjects(deptId)      // Return ALL project IDs whose department_id === deptId (every judge in a dept scores every project in that dept)
+assignProjects(deptId, projectList?)  // ALL project IDs in that dept (every judge in a dept scores every project in it). Pass projectList when `projects` state has not flushed yet
+syncJudgeAssignments(deptIds, projectList?)  // Push the current roster to every judge in the given department(s) — MUST be called after any project add / department change, or the project is invisible to already-registered judges
+ensureSeedData(schoolId)    // Re-seed departments + rubric if the signup flow could not (runs on first authenticated admin load)
+writeProjectRow(mode, row, pid)  // Insert/update a project, transparently retrying without advisor_name/group_members if the migration has not been run
 loadDepartments()           // Load/seed departments table; auto-seeds 3 defaults if empty on first run
 updateDeptMaxJudges(deptId, newMax)  // Update max_judges for a department (blocked if would be < current count)
 flushOfflineQueue()         // Sync any locally-queued scores to Supabase
@@ -661,7 +824,7 @@ allowJudgeTransfer(alias)   // Admin approves one-time judge transfer for 10 min
 confirmTransfer()           // Confirms the PIN in transfer modal and executes transfer
 buildDelibReport()          // Generate formatted deliberation summary string for copy
 buildSnapshot()             // Generate current system state snapshot string
-executeReset()              // Reset all data EXCEPT activity log and projects — requires VITE_IT_PIN
+executeReset()              // Reset all data EXCEPT activity log, projects and departments — requires schools.admin_pin
 
 // Deliberation actions
 submitDelibNote(pid)         // Upsert judge's deliberation note to Supabase, logs to both
@@ -721,13 +884,13 @@ Row Level Security is enabled on all tables with open anon policies (public read
 
 1. **Never clear the activity log (`log` state) on reset.** Preserved for security purposes. `executeReset()` resets: judges, scores, locked, share*, deliberationNotes, finalDecisions, validations table rows, resultsFinalized (`app_settings`), deliberationOpen, maxJudges. It does NOT clear projects or the activity log.
 2. **Judge names must never appear on the public results page.** The `view === "public-results"` page is visible without login — keep it score + project data only.
-3. **IT Logs tab, Reset modal, and Judge Transfer approval all use `VITE_IT_PIN`.** They share the same PIN but have separate flows/states.
+3. **IT Logs tab, Reset modal, and Judge Transfer approval all use `schools.admin_pin`.** They share the same per-school PIN (fetched only after admin auth) but have separate flows/states. There is no `VITE_IT_PIN` in v2.
 4. **All CSS is inline** in the `CSS` template literal. Do not create external `.css` files.
 5. **No routing library.** All navigation uses `setView(...)`. Do not introduce React Router.
 6. **The score key format is `${judgeId}_${projectId}`** — used throughout for lookups. Do not change it.
 7. **Rubric has 10 criteria summing to 42 pts max.** See rubric table above. Do NOT revert to the old 6-criteria/100-pt rubric. Each criterion uses discrete `steps` values — do not replace with continuous sliders.
-8. **Judge names are configurable.** The `JUDGE_NAMES` constant generates Judge1 through JudgeN (default 15). **HOWEVER, `maxJudges` is now the source of truth** — it's stored in `app_settings` so admins can configure it pre-event via UI. Do not hardcode judge limits; respect `maxJudges` state in registration validation.
-9. **Max judges is configurable and event-locked.** Admin sets `maxJudges` on Overview tab before judging begins. Once first judge registers, it locks (becomes read-only) to prevent mid-event changes. Resets to 15 when data is reset. Stored in `app_settings` table as `max_judges`.
+8. **Judge names are configurable.** `JUDGE_NAMES` pre-generates Judge1–Judge100. The enforced limit is **`departments.max_judges`, per department** — a judge registering in Elementary must be Judge1–Judge{Elementary.max_judges}. Do not hardcode judge limits.
+9. **Max judges is per-department and event-locked.** Admin sets each department's cap on the Overview tab via `updateDeptMaxJudges()`; it locks once the first judge registers **in that department** (others stay editable). Stored in `departments.max_judges`. ⚠️ The old global `app_settings.max_judges` / `maxJudges` state was **removed 2026-09-25** — it was never enforced. Do not reintroduce it.
 10. **Every judge scores every project.** `assignProjects()` returns ALL project IDs, not a subset. This ensures:
     - Each project gets comprehensive scoring (N judges × 1 project = N scores per project)
     - Robust averages (not dependent on random assignment)
@@ -744,6 +907,15 @@ Row Level Security is enabled on all tables with open anon policies (public read
 18. **Judges cannot re-score after validating.** The `proj-item` click handler checks `!judgeValidations[judge.id]` — validated judges see projects as non-clickable (cursor: not-allowed). Do not remove this gate.
 19. **`submitDelibNote` is gated on `deliberationOpen`.** It returns early if deliberation is closed. Do not allow judges to submit deliberation notes outside an active deliberation session.
 20. **Leaderboard always separates scored vs unscored projects.** `rankedProjects()` returns all projects, but the Overview leaderboard renders scored (avg !== null) first, then a divider row, then unscored projects at 50% opacity. Do not mix them.
+
+21. **Any project change must re-sync judge assignments.** `judges.projects` is a snapshot taken at registration. `addProject()` and a department change in `updateProject()` MUST call `syncJudgeAssignments()`, otherwise the project is invisible to every judge who already signed in. `removeProject()` does its own removal pass.
+22. **Never hardcode the max score.** Use `rubricMax()` (whole rubric) or `projectMax(proj)` (respects the grade <5 abstract exemption). Rubrics are per-school and editable, so a literal `42` is always a bug.
+23. **Score reads go through `.criteria`.** v2 stores `scores.criteria` as JSONB. Use `getTotal()` / `critVal()` — never `score.presentation` and friends, which are v1 columns that no longer exist. This silently broke backups and CSV exports for months.
+24. **Ranking and tie detection are per-department.** Use `rankedProjectsIn(deptId)`. Projects in different departments do not compete, so a cross-department tie is meaningless and will force spurious deliberation.
+25. **Enforce gates in the handler, not just the UI.** `locked` and "judge already validated" are checked inside `submitScore()`, not only on the project tile's `onClick`. RLS is permissive on `scores`, so the handler is the real gate.
+26. **All four share/registration URLs must include `/s/{slug}`.** `shareUrl()`, `projListUrl()` and the registration URL build from `${origin}/s/${currentSchool.slug}`. A bare origin lands on the platform homepage and the link appears broken.
+27. **Never use `try/finally` inside the `App` component.** It makes the React Compiler bail out, which silently disables the `react-hooks/purity` and `react-hooks/immutability` lint rules for the whole file (41 findings vanished when this was introduced accidentally). Use `.finally()` on a promise — see `flushOfflineQueue()`.
+28. **Every CSV cell goes through `csvCell()`.** It quotes the value and neutralises leading `=`, `+`, `-`, `@` so a project title cannot execute as a spreadsheet formula.
 
 ---
 
@@ -768,9 +940,10 @@ Row Level Security is enabled on all tables with open anon policies (public read
 Call `addItLog(level, module, event, detail, payload)` anywhere in the code.
 
 **Changing credentials:**
-- Judge invite code: set `VITE_INVITE_CODE` in `.env` / Vercel
-- Admin password: set `VITE_ADMIN_PASS` in `.env` / Vercel
-- IT/Reset/Transfer PIN: set `VITE_IT_PIN` in `.env` / Vercel
+All credentials are per-school rows in the database — v2 has no credential env vars:
+- Judge invite code: `schools.invite_code` (admin can change it)
+- Admin login: Supabase Auth email + password (set at school registration)
+- IT/Reset/Transfer PIN: `schools.admin_pin` (4 digits, defaults to `0000` — change it before an event)
 
 **Adding more judges (beyond 15):**
 Admin configures max judges via the UI on the Overview tab before judging begins. `JUDGE_NAMES` is now `Array.from({ length: 100 }, (_, i) => \`Judge${i + 1}\`)` — 100 slots pre-generated. `maxJudges` state (loaded from `app_settings`) is the actual enforced limit. Set it to any value up to 100 via the UI; no code changes needed.

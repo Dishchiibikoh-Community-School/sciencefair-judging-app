@@ -63,6 +63,11 @@ CREATE TABLE projects (
   grade         TEXT        NOT NULL DEFAULT '',
   locked        BOOLEAN     NOT NULL DEFAULT FALSE,
   department_id UUID        REFERENCES departments(id) ON DELETE SET NULL,
+  -- Adviser + team members live on the project so admin-entered teams (organisers
+  -- registering on behalf of students) can carry them. Student-registered projects
+  -- fall back to registration_submissions. Added by migration-2026-09-project-adviser.sql.
+  advisor_name  TEXT        NOT NULL DEFAULT '',
+  group_members JSONB       NOT NULL DEFAULT '[]',
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (id, school_id)
 );

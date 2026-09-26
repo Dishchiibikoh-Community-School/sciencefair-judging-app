@@ -9,9 +9,10 @@ This guide will walk you through how to use the app to score science fair projec
 ## Before You Start
 
 **You'll need:**
+- **Your school's app link** — it looks like `https://app.qritiko.com/s/your-school`. Your organizer will give you the exact address. Bookmark it.
 - Your judge name: **Judge1** through **Judge[N]** — provided by your event organizer
 - Your **department**: Elementary, Middle School, or High School — your organizer will tell you which one
-- Invite code: **provided by your event organizer**
+- Invite code: **provided by your event organizer** (a short code set by your school)
 - A tablet, phone, or laptop with internet access
 - About 30–45 minutes to score all projects
 
@@ -19,7 +20,7 @@ This guide will walk you through how to use the app to score science fair projec
 
 ## Step 1: Sign In as a Judge
 
-1. **Open the app** at https://sciencefair-judging-app.vercel.app/
+1. **Open your school's link** — `https://app.qritiko.com/s/your-school` (ask your organizer for the exact address; a plain `app.qritiko.com` will NOT show your fair)
 2. **Click "I'm a Judge"**
 3. **Select your department** — tap the button for Elementary, Middle School, or High School
 4. **Enter your judge name** (e.g., "Judge1", "Judge2", etc.)
@@ -77,6 +78,8 @@ Each criterion shows **discrete buttons** (not a slider). Tap the score button y
 | 3 or 6 | Exceptional (exceeds expectations) |
 
 ### Scoring Rubric (10 Criteria, 42 Points Max)
+
+> Your school can customise its rubric, so the criteria and the maximum below may differ. The app always shows the live total at the top of the scoring form — trust that over this page.
 
 Based on the Northeast AZ Regional Science and Engineering Fair scoring sheet.
 
@@ -171,7 +174,7 @@ If internet drops:
 A: Only projects assigned to your department (Elementary, Middle School, or High School). You will not see projects from other departments.
 
 **Q: Can I change a score after submitting?**
-A: Yes — go back to the project and tap it again. Scores are editable until you validate results.
+A: Yes — go back to the project and tap it again. Scores are editable until you validate results, or until the admin locks judging. Once you validate, or once judging is locked, submissions are refused.
 
 **Q: What if I registered in the wrong department?**
 A: Contact your admin immediately. They may need to reset your registration so you can re-register in the correct department.

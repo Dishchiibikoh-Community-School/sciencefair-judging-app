@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabaseClient";
 
 // ─────────────────────────────────────────────
@@ -27,16 +27,8 @@ const DEFAULT_RUBRIC = [
 // Scoring guide: 0=not present, 1/2=partial, 2/4=complete, 3/6=exceptional
 // DEFAULT_RUBRIC is used as the fallback if no custom rubric is defined for the school.
 
-const DEFAULT_PROJECTS = [
-  { id:"p1", num:"001", title:"Effect of Microplastics on Aquatic Plant Growth",          cat:"Biology",       grade:"9"  },
-  { id:"p2", num:"002", title:"Solar Cell Efficiency Under Different Light Spectra",       cat:"Physics",       grade:"10" },
-  { id:"p3", num:"003", title:"ML Model for Early Detection of Crop Disease",              cat:"Computer Sci.", grade:"11" },
-  { id:"p4", num:"004", title:"Biodegradable Packaging from Seaweed Polymers",            cat:"Chemistry",     grade:"10" },
-  { id:"p5", num:"005", title:"Urban Heat Island Effect in City Neighborhoods",            cat:"Earth Science", grade:"9"  },
-  { id:"p6", num:"006", title:"CRISPR Simulation: Targeting Antibiotic Resistance Genes", cat:"Biology",       grade:"12" },
-  { id:"p7", num:"007", title:"Acoustic Levitation for Contactless Drug Delivery",        cat:"Physics",       grade:"11" },
-  { id:"p8", num:"008", title:"Sentiment Analysis of Social Media in Climate Disasters",  cat:"Computer Sci.", grade:"10" },
-];
+// (DEFAULT_PROJECTS seed array removed 2026-09 — unused dead code since projects
+//  have been loaded exclusively from the per-school `projects` table.)
 
 const MEDALS = ["🥇","🥈","🥉"];
 
@@ -72,6 +64,23 @@ function getDivision(grade) {
   return "HS";
 }
 function requiresAbstract(proj) { return (parseInt(proj?.grade) || 0) >= 5; }
+
+// CSV cell escaper. Always quotes, doubles inner quotes, and neutralises
+// spreadsheet formula injection by prefixing a leading = + - @ with an apostrophe.
+function csvCell(v) {
+  if (v === null || v === undefined) return '""';
+  const s = Array.isArray(v) ? v.join("; ") : String(v);
+  const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
+
+// Read a criterion value from a score row. v2 stores { criteria: {...} };
+// legacy v1 rows / backups stored the criterion ids as flat top-level fields.
+function critVal(scoreOrEntry, rid) {
+  const src = scoreOrEntry?.criteria || scoreOrEntry || {};
+  const v = src[rid];
+  return v === undefined || v === null ? "" : v;
+}
 
 // IT log levels + modules
 const IT_LEVELS  = ["ERROR","WARN","INFO","DEBUG"];
@@ -738,6 +747,12 @@ const urlRegToken = typeof window !== "undefined"
   ? new URLSearchParams(window.location.search).get("register")
   : null;
 
+// Public results share token from URL (?token=…) — computed once at module load.
+// Validated against the share_links table in init(); see shareUrl().
+const urlShareToken = typeof window !== "undefined"
+  ? new URLSearchParams(window.location.search).get("token")
+  : null;
+
 // Project list share token from URL — computed once at module load
 const urlProjListToken = typeof window !== "undefined"
   ? new URLSearchParams(window.location.search).get("projects")
@@ -770,6 +785,7 @@ export default function App() {
   const [view,        setView]       = useState(
     urlRegToken      ? "public-register"  :
     urlProjListToken ? "public-projects"  :
+    urlShareToken    ? "public-results"   :
     urlSchoolSlug    ? "landing"          : "school-select"
   );
   const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
@@ -778,13 +794,13 @@ export default function App() {
   const [scores,     setScores]  = useState({});
   const [log,        setLog]     = useState([]);
   const [locked,     setLocked]  = useState(false);
-  const [maxJudges,  setMaxJudges] = useState(15);
   const [loading,    setLoading] = useState(true);
   const [judge,      setJudge]   = useState(null);
   const [isOnline,   setIsOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
   const [offlineQueue, setOfflineQueue] = useState(() => {
     try { return JSON.parse(localStorage.getItem("sf_offline_queue") || "[]"); } catch { return []; }
   });
+  const flushingRef = useRef(false); // guards against concurrent offline-queue flushes
   const [lastSyncAt, setLastSyncAt] = useState(() => {
     try {
       const raw = localStorage.getItem("sf_last_sync_at");
@@ -805,8 +821,6 @@ export default function App() {
   const [adminErr,          setAdminErr]          = useState("");
   const [adminLoginAttempts, setAdminLoginAttempts] = useState(0);
   const [adminLockoutUntil,  setAdminLockoutUntil]  = useState(null);
-  const [maxJudgesErr, setMaxJudgesErr] = useState("");
-  const [maxJudgesDraft, setMaxJudgesDraft] = useState("15");
   const [deptMaxDrafts, setDeptMaxDrafts] = useState({});  // { [deptId]: string }
   const [adminTab,   setAdminTab]    = useState("overview");
 
@@ -820,6 +834,8 @@ export default function App() {
   const [copied,          setCopied]          = useState(false);
 
   // Project list share state
+  const [shareTokenValid,   setShareTokenValid]   = useState(false);
+  const [shareTokenChecked, setShareTokenChecked] = useState(!urlShareToken);
   const [projListToken,   setProjListToken]   = useState("");
   const [projListCopied,  setProjListCopied]  = useState(false);
   const [setupCopied,     setSetupCopied]     = useState(null); // null | "url" | "code"
@@ -876,7 +892,7 @@ export default function App() {
   // Project management state
   const [showAddProject,     setShowAddProject]      = useState(false);
   const [editingProject,     setEditingProject]      = useState(null); // project id being edited
-  const [projForm,           setProjForm]            = useState({ title:"", cat:"Biology", grade:"", num:"", department_id:"", advisor_name:"", group_members:"" });
+  const [projForm,           setProjForm]            = useState({ title:"", cat:REG_CATEGORIES[0], grade:"", num:"", department_id:"", advisor_name:"", group_members:"" });
   const [showDeleteConfirm,  setShowDeleteConfirm]   = useState(false);
   const [deleteProjectId,    setDeleteProjectId]     = useState(null);
 
@@ -927,7 +943,13 @@ export default function App() {
     if (!schoolId) return;
     const { data } = await supabase.from("projects").select("*").eq("school_id", schoolId).order("created_at");
     if (data) {
-      setProjects(data.map(r => ({ id: r.id, num: r.num, title: r.title, cat: r.cat, grade: r.grade, locked: r.locked || false, department_id: r.department_id || null })));
+      setProjects(data.map(r => ({
+        id: r.id, num: r.num, title: r.title, cat: r.cat, grade: r.grade,
+        locked: r.locked || false, department_id: r.department_id || null,
+        // Present only after migration-2026-09-project-adviser.sql has been applied.
+        advisor_name: r.advisor_name || "",
+        group_members: Array.isArray(r.group_members) ? r.group_members : [],
+      })));
     }
   }
   async function loadJudges(sid) {
@@ -979,9 +1001,6 @@ export default function App() {
       setDeliberationOpen(map.deliberation_open === "true");
       setDeliberationReason(map.deliberation_reason || null);
       setResultsFinalized(map.results_finalized === "true");
-      const loadedMax = map.max_judges ? parseInt(map.max_judges) : 15;
-      setMaxJudges(loadedMax);
-      setMaxJudgesDraft(String(loadedMax));
       try {
         const raw = map.judge_transfer_allowances || "{}";
         const parsed = JSON.parse(raw);
@@ -1059,6 +1078,46 @@ export default function App() {
     else setRubric(DEFAULT_RUBRIC);
   }
 
+  // The school-registration flow fires its seed inserts immediately after signUp(),
+  // but when email confirmation is enabled Supabase returns a user with NO session —
+  // so the RLS-protected departments/rubrics inserts are rejected and silently lost,
+  // leaving a school with no departments (which blocks judge sign-in entirely).
+  // Re-seed here once a genuine admin session exists so such a school self-repairs.
+  async function ensureSeedData(schoolId) {
+    const sid = schoolId || currentSchool?.id;
+    if (!sid) return;
+
+    const { data: depts } = await supabase.from("departments")
+      .select("id").eq("school_id", sid).limit(1);
+    if (!depts || depts.length === 0) {
+      const { data: seeded, error } = await supabase.from("departments").insert([
+        { school_id: sid, name: "Elementary",    max_judges: 5, ord: 0 },
+        { school_id: sid, name: "Middle School", max_judges: 5, ord: 1 },
+        { school_id: sid, name: "High School",   max_judges: 5, ord: 2 },
+      ]).select();
+      if (!error && seeded) {
+        setDepartments(seeded.map(r => ({ id: r.id, name: r.name, max_judges: r.max_judges, ord: r.ord })));
+        addItLog("WARN","SYSTEM","DEPARTMENTS_RESEEDED",
+          "Departments were missing for this school and have been re-seeded", { schoolId: sid });
+      }
+    }
+
+    const { data: rubs } = await supabase.from("rubrics")
+      .select("id").eq("school_id", sid).eq("is_active", true).limit(1);
+    if (!rubs || rubs.length === 0) {
+      const { data: r, error } = await supabase.from("rubrics").insert({
+        school_id: sid, name: "Default (Northeast AZ Regional)",
+        criteria: DEFAULT_RUBRIC, is_active: true,
+      }).select("id").single();
+      if (!error && r) {
+        setRubricId(r.id);
+        setRubric(DEFAULT_RUBRIC);
+        addItLog("WARN","SYSTEM","RUBRIC_RESEEDED",
+          "Active rubric was missing for this school and has been re-seeded", { schoolId: sid });
+      }
+    }
+  }
+
   async function saveRubric(criteria) {
     if (!currentSchool?.id) return;
     setRubricSaving(true);
@@ -1129,7 +1188,13 @@ export default function App() {
         if (sa) {
           const { data: school } = await supabase.from("schools")
             .select("*").eq("id", sa.school_id).single();
-          if (school) setCurrentSchool(school);
+          // Only adopt the admin's school when it IS the school in the URL.
+          // Otherwise the page would read school B's data while writing to school A.
+          if (school && (!urlSchoolSlug || school.slug === urlSchoolSlug)) {
+            setCurrentSchool(school);
+            // Seed anything the signup flow could not create without a session.
+            ensureSeedData(school.id);
+          }
         }
       } else {
         // If admin logs out, reload public-only school info (no admin_pin)
@@ -1144,7 +1209,16 @@ export default function App() {
     // ── Step 3: Load all school data ─────────────────────────
     async function init(school) {
       const sid = school?.id;
-      if (!sid) { setLoading(false); return; }
+      if (!sid) {
+        // No school resolved (e.g. a legacy bare-origin ?token=… link with no /s/ slug).
+        // Mark the token checks done so the UI shows "Link Unavailable" instead of
+        // spinning on a loading screen forever.
+        if (urlShareToken)    setShareTokenChecked(true);
+        if (urlProjListToken) setProjListChecked(true);
+        if (urlRegToken)      setRegTokenChecked(true);
+        setLoading(false);
+        return;
+      }
       const timeout = setTimeout(() => setLoading(false), 8000);
       // Validate registration link token if present in URL
       if (urlRegToken) {
@@ -1158,16 +1232,36 @@ export default function App() {
         }
         setRegTokenChecked(true);
       }
-      // Validate project list token if present in URL
+      // Validate project list token if present in URL.
+      // The stored token must MATCH the one in the URL — previously any non-empty
+      // value granted access, so ?projects=anything opened the list.
       if (urlProjListToken) {
         try {
           const { data } = await supabase.from("app_settings")
             .select("value").eq("school_id", sid).eq("key", "project_list_token").single();
-          setProjListValid(!!data?.value && data.value !== "");
+          setProjListValid(!!data?.value && data.value === urlProjListToken);
         } catch {
           setProjListValid(false);
         }
         setProjListChecked(true);
+      }
+      // Validate the public results token if present in URL. Must match a
+      // share_links row for this school that is neither revoked nor expired.
+      if (urlShareToken) {
+        try {
+          const { data } = await supabase.from("share_links")
+            .select("*").eq("school_id", sid).eq("token", urlShareToken)
+            .is("revoked_at", null).single();
+          const expiryMs = { "1h":3600000, "24h":86400000, "7d":604800000, "never":Infinity }[data?.expiry] ?? 0;
+          const createdMs = data?.created_at ? new Date(data.created_at).getTime() : 0;
+          const live = !!data && (data.expiry === "never" || (Date.now() - createdMs) < expiryMs);
+          setShareTokenValid(live);
+          // The view is already "public-results" from the initial state; the render
+          // gate below decides between the results page and "Link Unavailable".
+        } catch {
+          setShareTokenValid(false);
+        }
+        setShareTokenChecked(true);
       }
       await Promise.all([
         loadDepartments(sid), loadProjects(sid), loadJudges(sid), loadScores(sid),
@@ -1251,8 +1345,13 @@ export default function App() {
   useEffect(() => {
     if (urlRegToken) return; // Don't restore judge session when visiting a registration link
     if (urlProjListToken) return; // Don't restore judge session when visiting a project list link
+    if (urlShareToken) return; // Don't restore judge session when visiting a results link
     const savedId   = localStorage.getItem("sf_judge_id");
     const savedData = localStorage.getItem("sf_judge_data");
+    // localStorage is per-origin and every school shares one origin, so a session
+    // saved at school A must not be restored while visiting school B.
+    const savedSlug = localStorage.getItem("sf_judge_slug");
+    if (savedSlug && savedSlug !== urlSchoolSlug) return;
     if (savedId && savedData) {
       try {
         const cachedJudge  = JSON.parse(savedData);
@@ -1264,6 +1363,7 @@ export default function App() {
         localStorage.removeItem("sf_judge_id");
         localStorage.removeItem("sf_judge_data");
         localStorage.removeItem("sf_scores_cache");
+        localStorage.removeItem("sf_judge_slug");
       }
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1274,8 +1374,12 @@ export default function App() {
     if (loading) return;
     if (urlRegToken) return; // Skip session sync on registration link
     if (urlProjListToken) return; // Skip session sync on project list link
+    if (urlShareToken) return; // Skip session sync on results link
     const savedId = localStorage.getItem("sf_judge_id");
     if (!savedId) return;
+    // Never reconcile a session that belongs to a different school (see restore above).
+    const savedSlug = localStorage.getItem("sf_judge_slug");
+    if (savedSlug && savedSlug !== urlSchoolSlug) return;
     if (judges.length > 0) {
       const found = judges.find(j => j.id === savedId);
       if (found) {
@@ -1288,6 +1392,7 @@ export default function App() {
         localStorage.removeItem("sf_judge_data");
         localStorage.removeItem("sf_scores_cache");
         localStorage.removeItem("sf_offline_queue");
+        localStorage.removeItem("sf_judge_slug");
         setJudge(null); setView("landing");
       }
     }
@@ -1334,8 +1439,20 @@ export default function App() {
   }, [adminTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function flushOfflineQueue() {
+    // Guard against overlapping flushes (rapid online/offline flapping, or a manual
+    // "Sync Now" landing on top of the automatic flush) — two concurrent passes
+    // would race on the same localStorage key.
+    if (flushingRef.current) return;
     const queue = JSON.parse(localStorage.getItem("sf_offline_queue") || "[]");
     if (!queue.length) return;
+    flushingRef.current = true;
+    // NOTE: .finally() rather than a try/finally block on purpose — a try/finally
+    // anywhere in this component makes the React Compiler bail out, which silently
+    // disables the react-hooks/purity and /immutability lint rules for the whole file.
+    await runOfflineFlush(queue).finally(() => { flushingRef.current = false; });
+  }
+
+  async function runOfflineFlush(queue) {
     const flushedKeys = new Set();
     const failedKeys  = new Set();
     for (const item of queue) {
@@ -1363,9 +1480,43 @@ export default function App() {
     }
   }
 
-  function assignProjects(deptId) {
-    // Every judge scores every project in their department
-    return projects.filter(p => p.department_id === deptId).map(p => p.id);
+  function assignProjects(deptId, projectList) {
+    // Every judge scores every project in their department.
+    // projectList lets callers pass a freshly-computed roster when `projects`
+    // state has not flushed yet (e.g. immediately after addProject).
+    const list = projectList || projects;
+    return list.filter(p => (p.department_id || null) === (deptId || null)).map(p => p.id);
+  }
+
+  // Judges snapshot their project list at registration, so any project added,
+  // removed, or moved between departments afterwards must be pushed out to the
+  // judges of the affected departments — otherwise a late-added project is
+  // invisible to everyone who already signed in.
+  async function syncJudgeAssignments(deptIds, projectList) {
+    if (!currentSchool?.id) return;
+    const targets = [...new Set((Array.isArray(deptIds) ? deptIds : [deptIds]).filter(Boolean))];
+    if (!targets.length) return;
+    const list = projectList || projects;
+    const updates = [];
+    judges.forEach(j => {
+      if (!targets.includes(j.department_id)) return;
+      const next = assignProjects(j.department_id, list);
+      const cur  = j.projects || [];
+      const same = next.length === cur.length && next.every(pid => cur.includes(pid));
+      if (!same) updates.push({ id: j.id, alias: j.alias, projects: next });
+    });
+    if (!updates.length) return;
+    setJudges(prev => prev.map(j => {
+      const u = updates.find(x => x.id === j.id);
+      return u ? { ...j, projects: u.projects } : j;
+    }));
+    for (const u of updates) {
+      await supabase.from("judges").update({ projects: u.projects })
+        .eq("school_id", currentSchool.id).eq("id", u.id);
+    }
+    addItLog("INFO","ADMIN","JUDGE_ASSIGNMENTS_SYNCED",
+      "Judge project assignments re-synced after a project change",
+      { judgesUpdated: updates.length, aliases: updates.map(u => u.alias) });
   }
 
   function isLinkLive() {
@@ -1374,7 +1525,14 @@ export default function App() {
     return shareCreated && (Date.now() - shareCreated) < EXPIRY_MS[shareExpiry];
   }
 
-  function shareUrl() { return `${window.location.origin}?token=${shareToken}`; }
+  // Must include the school path — a bare origin lands on the platform homepage,
+  // not this school's results.
+  function shareUrl() {
+    const base = currentSchool?.slug
+      ? `${window.location.origin}/s/${currentSchool.slug}`
+      : window.location.origin;
+    return `${base}?token=${shareToken}`;
+  }
 
   async function generateLink() {
     const t = genToken();
@@ -1395,7 +1553,13 @@ export default function App() {
     addLog("Admin revoked public results link");
   }
 
-  function projListUrl() { return `${window.location.origin}?projects=${projListToken}`; }
+  // School-scoped, same as shareUrl() — a bare origin would hit the platform homepage.
+  function projListUrl() {
+    const base = currentSchool?.slug
+      ? `${window.location.origin}/s/${currentSchool.slug}`
+      : window.location.origin;
+    return `${base}?projects=${projListToken}`;
+  }
 
   async function generateProjListLink() {
     const t = genToken();
@@ -1426,10 +1590,10 @@ export default function App() {
 
     const rows = (projs) => projs.map(p => {
       const sub = regSubmissions.find(s => s.project_id === p.id);
-      const adviser = sub?.advisor_name || "";
-      const members = sub?.group_members
-        ? (Array.isArray(sub.group_members) ? sub.group_members.join(", ") : sub.group_members)
-        : "";
+      // Project-level values win; registration submission is the legacy fallback.
+      const adviser = p.advisor_name || sub?.advisor_name || "";
+      const rawMembers = (p.group_members && p.group_members.length) ? p.group_members : sub?.group_members;
+      const members = Array.isArray(rawMembers) ? rawMembers.join(", ") : (rawMembers || "");
       const meta = [adviser ? `<span style="color:#1e293b;font-weight:500">Adviser:</span> ${adviser}` : "", members ? `<span style="color:#1e293b;font-weight:500">Members:</span> ${members}` : ""].filter(Boolean).join(" &nbsp;·&nbsp; ");
       return `
       <tr>
@@ -1505,28 +1669,9 @@ export default function App() {
     if (w) { w.document.write(html); w.document.close(); }
   }
 
-  async function updateMaxJudges(newMax) {
-    const numMax = parseInt(newMax) || 15;
-    if (isNaN(numMax) || numMax < 1) {
-      setMaxJudgesErr("Max judges must be at least 1.");
-      return;
-    }
-    if (numMax < judges.length) {
-      setMaxJudgesErr(`Cannot lower limit below current judges (${judges.length}). Remove judges first.`);
-      return;
-    }
-    try {
-      await supabase.from("app_settings").update({ value: String(numMax) }).eq("school_id", currentSchool.id).eq("key", "max_judges");
-      setMaxJudges(numMax);
-      setMaxJudgesDraft(String(numMax));
-      setMaxJudgesErr("");
-      addLog(`Admin set max judges to ${numMax}`);
-      addItLog("INFO","ADMIN","MAX_JUDGES_UPDATED","Admin updated max judges setting",{ newMax: numMax, currentCount: judges.length });
-    } catch (err) {
-      setMaxJudgesErr("Failed to update setting. Try again.");
-      addItLog("ERROR","ADMIN","MAX_JUDGES_UPDATE_FAILED","Failed to update max judges setting",{ error: err?.message, attempted: numMax });
-    }
-  }
+  // (updateMaxJudges removed 2026-09 — the global app_settings.max_judges cap was
+  //  never enforced; per-department departments.max_judges is the only limit.
+  //  See updateDeptMaxJudges below.)
 
   async function updateDeptMaxJudges(deptId, newMax) {
     const num = parseInt(newMax);
@@ -1568,21 +1713,15 @@ export default function App() {
         entries.push({
           judgeId:   judge.id,
           judgeAlias: judge.alias,
+          department: departments.find(d => d.id === judge.department_id)?.name || "Unassigned",
           projectId:  pid,
           projectNum: proj?.num ?? "",
           projectTitle: proj?.title ?? "",
           category:   proj?.cat ?? "",
           grade:      proj?.grade ?? "",
-          presentation: sc.presentation,
-          testable_q:   sc.testable_q,
-          background:   sc.background,
-          hypothesis:   sc.hypothesis,
-          variables:    sc.variables,
-          materials:    sc.materials,
-          data:         sc.data,
-          analysis:     sc.analysis,
-          conclusion:   sc.conclusion,
-          abstract:     sc.abstract,
+          // v2 stores every criterion under `criteria` — copy the whole object so the
+          // snapshot survives rubric changes and can be restored criterion-by-criterion.
+          criteria:   { ...(sc.criteria || {}) },
           total:        getTotal(sc),
           notes:        sc.notes || "",
           submittedAt:  sc.time ? new Date(sc.time).toISOString() : "",
@@ -1594,6 +1733,9 @@ export default function App() {
       judgeCount:    judges.length,
       projectCount:  projects.length,
       scoreCount:    entries.length,
+      // Snapshot the rubric too, so an old backup can still be rendered correctly
+      // after the school edits its criteria.
+      rubric,
       entries,
     };
     const label = `Backup — ${new Date().toLocaleString()}`;
@@ -1623,15 +1765,11 @@ export default function App() {
   }
 
   async function exportRegCSV() {
+    if (!currentSchool?.id) return;
     const { data } = await supabase.from("registration_submissions")
-      .select("*").order("submitted_at", { ascending: true });
+      .select("*").eq("school_id", currentSchool.id).order("submitted_at", { ascending: true });
     if (!data || data.length === 0) return;
-    const esc = v => {
-      if (v === null || v === undefined) return "";
-      const s = Array.isArray(v) ? v.join("; ") : String(v);
-      return s.includes(",") || s.includes('"') || s.includes("\n")
-        ? `"${s.replace(/"/g, '""')}"` : s;
-    };
+    const esc = csvCell;
     const headers = [
       "Reg #","Student Name","Grade Level","Division","School Name",
       "Student Email","Contact Number","Project Title","Category","Project Type",
@@ -1653,7 +1791,7 @@ export default function App() {
       s.guardian_name, s.guardian_signature,
       s.submitted_at ? new Date(s.submitted_at).toLocaleString() : ""
     ].map(esc).join(","));
-    const csv = [headers.join(","), ...rows].join("\n");
+    const csv = [headers.map(csvCell).join(","), ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -1664,29 +1802,32 @@ export default function App() {
   }
 
   function exportJudgeScoresCSV() {
+    // Columns are driven by the live rubric — a school with a custom rubric
+    // gets its own criteria, not the hardcoded Northeast AZ 10.
+    const maxTotal = rubric.reduce((s, r) => s + (Number(r.max) || 0), 0);
     const header = [
-      "Judge","Project #","Project Title","Category","Grade",
-      "Presentation (6)","Testable Q (3)","Background (3)","Hypothesis (3)",
-      "Variables (3)","Materials (3)","Data (6)","Analysis (6)",
-      "Conclusion (3)","Abstract (6)","Total (42)","Notes","Submitted"
+      "Judge","Department","Project #","Project Title","Category","Grade",
+      ...rubric.map(r => `${r.label} (${r.max})`),
+      `Total (${maxTotal})`,"Notes","Submitted"
     ];
-    const rows = [header];
+    const rows = [header.map(csvCell)];
     for (const judge of [...judges].sort((a,b) => a.alias.localeCompare(b.alias))) {
+      const deptName = departments.find(d => d.id === judge.department_id)?.name || "Unassigned";
       for (const proj of [...projects].sort((a,b) => (a.num||"").localeCompare(b.num||""))) {
         const sc = scores[`${judge.id}_${proj.id}`];
         if (!sc) continue;
         rows.push([
           judge.alias,
+          deptName,
           proj.num,
-          `"${(proj.title||"").replace(/"/g,'""')}"`,
+          proj.title || "",
           proj.cat,
           proj.grade,
-          sc.presentation, sc.testable_q, sc.background, sc.hypothesis,
-          sc.variables, sc.materials, sc.data, sc.analysis, sc.conclusion, sc.abstract,
+          ...rubric.map(r => critVal(sc, r.id)),
           getTotal(sc),
-          `"${(sc.notes||"").replace(/"/g,'""')}"`,
+          sc.notes || "",
           sc.time ? new Date(sc.time).toISOString() : "",
-        ]);
+        ].map(csvCell));
       }
     }
     const csv = rows.map(r => r.join(",")).join("\n");
@@ -1700,22 +1841,27 @@ export default function App() {
   function downloadBackupCSV(backup) {
     const entries = backup?.snapshot?.entries;
     if (!entries?.length) return;
+    // Prefer the rubric captured inside the backup; fall back to the live one for
+    // older snapshots that predate rubric capture.
+    const snapRubric = backup?.snapshot?.rubric?.length ? backup.snapshot.rubric : rubric;
+    const maxTotal = snapRubric.reduce((s, r) => s + (Number(r.max) || 0), 0);
     const header = [
-      "Judge","Project #","Project Title","Category","Grade",
-      "Presentation (6)","Testable Q (3)","Background (3)","Hypothesis (3)",
-      "Variables (3)","Materials (3)","Data (6)","Analysis (6)",
-      "Conclusion (3)","Abstract (6)","Total (42)","Notes","Submitted"
+      "Judge","Department","Project #","Project Title","Category","Grade",
+      ...snapRubric.map(r => `${r.label} (${r.max})`),
+      `Total (${maxTotal})`,"Notes","Submitted"
     ];
-    const rows = [header, ...entries.map(e => [
-      e.judgeAlias, e.projectNum,
-      `"${(e.projectTitle||"").replace(/"/g,'""')}"`,
+    const rows = [header.map(csvCell), ...entries.map(e => [
+      e.judgeAlias,
+      e.department || "",
+      e.projectNum,
+      e.projectTitle || "",
       e.category, e.grade,
-      e.presentation, e.testable_q, e.background, e.hypothesis,
-      e.variables, e.materials, e.data, e.analysis, e.conclusion, e.abstract,
+      // critVal handles both v2 ({criteria:{...}}) and legacy flat-field entries.
+      ...snapRubric.map(r => critVal(e, r.id)),
       e.total,
-      `"${(e.notes||"").replace(/"/g,'""')}"`,
+      e.notes || "",
       e.submittedAt,
-    ])];
+    ].map(csvCell))];
     const csv = rows.map(r => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -1725,21 +1871,28 @@ export default function App() {
   }
 
   function exportResultsCSV() {
-    const ranked = rankedProjects();
+    // Rank within each department — projects are only comparable inside their own dept.
     const rows = [
-      ["Rank","Project #","Title","Category","Grade","Avg Score","Reviews","Award"],
-      ...ranked.map((p, i) => {
+      ["Department","Rank","Project #","Title","Category","Grade",`Avg Score (of ${rubricMax()})`,"Reviews","Award"].map(csvCell),
+    ];
+    const deptGroups = [
+      ...departments.filter(d => d.id).map(d => ({ name: d.name, projs: rankedProjectsIn(d.id) })),
+      { name: "Unassigned", projs: rankedProjectsIn(null) },
+    ];
+    deptGroups.forEach(g => {
+      g.projs.forEach((p, i) => {
         const decision = finalDecisions[p.id];
-        return [
+        rows.push([
+          g.name,
           i + 1, p.num,
-          `"${(p.title || "").replace(/"/g, '""')}"`,
+          p.title || "",
           p.cat, p.grade,
           p.avg ?? "",
           p.revs,
           decision?.finalized ? decision.award : "Pending"
-        ];
-      })
-    ];
+        ].map(csvCell));
+      });
+    });
     const csv = rows.map(r => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -1834,7 +1987,7 @@ export default function App() {
   }
 
   async function executeReset() {
-    addItLog("WARN","ADMIN","FULL_RESET","Admin performed a full data reset of the application",{ judgesCleared:judges.length, scoresCleared:Object.keys(scores).length, delibNotesCleared:Object.keys(deliberationNotes).length, decisionsCleared:Object.keys(finalDecisions).length, maxJudgesResetTo:15, timestamp:fmtISO(Date.now()) });
+    addItLog("WARN","ADMIN","FULL_RESET","Admin performed a full data reset of the application",{ judgesCleared:judges.length, scoresCleared:Object.keys(scores).length, delibNotesCleared:Object.keys(deliberationNotes).length, decisionsCleared:Object.keys(finalDecisions).length, timestamp:fmtISO(Date.now()) });
     // Delete all transient data. activity_log is intentionally excluded (security audit trail).
     const sid = currentSchool.id;
     await Promise.all([
@@ -1846,21 +1999,23 @@ export default function App() {
       supabase.from("validations").delete().eq("school_id", sid),
       supabase.from("app_settings").update({ value: "false" }).eq("school_id", sid).eq("key", "locked"),
       supabase.from("app_settings").update({ value: "false" }).eq("school_id", sid).eq("key", "deliberation_open"),
-      supabase.from("app_settings").update({ value: "15"    }).eq("school_id", sid).eq("key", "max_judges"),
       supabase.from("app_settings").upsert({ school_id: sid, key: "judge_transfer_allowances", value: "{}" }),
       supabase.from("app_settings").upsert({ school_id: sid, key: "results_finalized",         value: "false" }),
       supabase.from("app_settings").upsert({ school_id: sid, key: "deliberation_reason",       value: "" }),
+      // Revoke the project-list share link too — it previously survived a reset
+      // and kept serving the old roster.
+      supabase.from("app_settings").upsert({ school_id: sid, key: "project_list_token",        value: "" }),
     ]);
     setJudges([]);
     setScores({});
     addLog("Admin performed a full data reset — activity log preserved for security review");
     setLocked(false);
-    setMaxJudges(15);
     setShareEnabled(false);
     setShareToken("");
     setShareCreated(null);
     setShareExpiry("never");
     setShareTitle("Science Fair SY 2025-2026 — Final Results");
+    setProjListToken("");
     setDeliberationNotes({});
     setFinalDecisions({});
     setDeliberationOpen(false);
@@ -1901,15 +2056,36 @@ export default function App() {
     return (hits.reduce((s,[,v]) => s + (v.criteria?.[rid] || 0), 0) / hits.length).toFixed(1);
   }
 
+  // Total points available under the active rubric (replaces the hardcoded 42).
+  function rubricMax() {
+    return rubric.reduce((s, r) => s + (Number(r.max) || 0), 0);
+  }
+  // Points available for one project — grades below 5 are exempt from the abstract.
+  function projectMax(proj) {
+    return rubric.reduce((s, r) => {
+      if (r.id === "abstract" && proj && !requiresAbstract(proj)) return s;
+      return s + (Number(r.max) || 0);
+    }, 0);
+  }
+
   function rankedProjects() {
     return projects
       .map(p => ({ ...p, avg: projAvg(p.id), revs: Object.keys(scores).filter(k => k.endsWith(`_${p.id}`)).length }))
       .sort((a,b) => (Number(b.avg)||0) - (Number(a.avg)||0));
   }
 
+  // Ranked projects within a single department. Pass null for unassigned projects.
+  // Projects are only comparable inside their own department — never rank across depts.
+  function rankedProjectsIn(deptId) {
+    return rankedProjects().filter(p => (p.department_id || null) === (deptId || null));
+  }
+
   function judgeComp(j) {
-    const done = j.projects.filter(pid => scores[`${j.id}_${pid}`]).length;
-    return { done, total: j.projects.length, pct: Math.round((done/j.projects.length)*100) };
+    const total = j.projects?.length || 0;
+    const done = (j.projects || []).filter(pid => scores[`${j.id}_${pid}`]).length;
+    // Guard against 0 assigned projects (judge registered before projects were
+    // added to their department) — 0/0 previously produced NaN%.
+    return { done, total, pct: total === 0 ? 0 : Math.round((done/total)*100) };
   }
 
   function hasScored(pid) { return !!scores[`${judge?.id}_${pid}`]; }
@@ -1952,8 +2128,11 @@ export default function App() {
       hits.forEach(([key,s]) => {
         const t = getTotal(s);
         if (Math.abs(t - avg) > 8) {
-          const jj = judges.find(j => key.startsWith(j.id));
-          out.push({ project: p.title, judge: jj?.alias || "Unknown", score: t, avg: avg.toFixed(1) });
+          // Exact id match — startsWith() could pick the wrong judge if one id
+          // happened to be a prefix of another.
+          const judgeId = key.slice(0, key.lastIndexOf(`_${p.id}`));
+          const jj = judges.find(j => j.id === judgeId);
+          out.push({ project: p.title, judge: jj?.alias || "Unknown", score: t, avg: avg.toFixed(1), max: projectMax(p) });
         }
       });
     });
@@ -1983,14 +2162,24 @@ export default function App() {
 
   // Validation helpers
   function completedJudges() {
-    return judges.filter(j => judgeComp(j).pct === 100);
+    // A judge with zero assigned projects has nothing to complete and must not
+    // count as "done" — otherwise consensus could pass without any real scoring.
+    return judges.filter(j => judgeComp(j).total > 0 && judgeComp(j).pct === 100);
   }
+  // Ties only matter inside a department — two projects in different departments
+  // sharing an average are not competing with each other.
   function hasTie() {
-    const scored = rankedProjects().filter(p => p.avg);
-    for (let i = 0; i < scored.length - 1; i++) {
-      if (scored[i].avg === scored[i + 1].avg) return true;
-    }
-    return false;
+    const groups = [
+      ...departments.filter(d => d.id).map(d => d.id),
+      null, // unassigned projects form their own group
+    ];
+    return groups.some(deptId => {
+      const scored = rankedProjectsIn(deptId).filter(p => p.avg !== null);
+      for (let i = 0; i < scored.length - 1; i++) {
+        if (scored[i].avg === scored[i + 1].avg) return true;
+      }
+      return false;
+    });
   }
   function consensusReached() {
     const done = completedJudges();
@@ -2033,7 +2222,7 @@ export default function App() {
       const breakdown = getRecBreakdown(p.id);
       const flags = getFlagCount(p.id);
       lines.push(`#${i+1} — ${p.title} (${p.cat}, Grade ${p.grade})`);
-      lines.push(`  Avg Score: ${p.avg ?? "N/A"} / 42  |  Reviews: ${p.revs}`);
+      lines.push(`  Avg Score: ${p.avg ?? "N/A"} / ${rubricMax()}  |  Reviews: ${p.revs}`);
       lines.push(`  Award Decision: ${decision?.award || "Pending"}${decision?.finalized ? " [FINALIZED]" : ""}`);
       if (decision?.adminNotes) lines.push(`  Admin Notes: ${decision.adminNotes}`);
       lines.push(`  Recommendations: ${RECOMMENDATIONS.map(r => `${r}: ${breakdown[r]}`).join(", ")}`);
@@ -2088,6 +2277,7 @@ export default function App() {
       setJudge(existingJudge);
       localStorage.setItem("sf_judge_id", existingJudge.id);
       localStorage.setItem("sf_judge_data", JSON.stringify(existingJudge));
+      localStorage.setItem("sf_judge_slug", currentSchool.slug);
       const nextAllow = { ...transferAllowances };
       delete nextAllow[`${dept.id}:${name}`];
       delete nextAllow[name]; // clean up legacy key too
@@ -2114,6 +2304,7 @@ export default function App() {
     setJudges(p => [...p, j]); setJudge(j);
     localStorage.setItem("sf_judge_id",   j.id);
     localStorage.setItem("sf_judge_data", JSON.stringify(j));
+    localStorage.setItem("sf_judge_slug", currentSchool.slug);
     addLog(`${j.alias} joined as a judge (${dept.name})`);
     addItLog("INFO","AUTH","JUDGE_REGISTERED","Judge registered with valid credentials",{ judgeId:j.id, alias:j.alias, dept:dept.name, assignedProjects:j.projects });
     setRegName(""); setRegCode(""); setRegDept(""); setRegErr(""); setView("judge-home");
@@ -2162,6 +2353,20 @@ export default function App() {
   }
 
   async function submitScore() {
+    // Lock is enforced here, not just on the project tile — a judge already inside
+    // the scoring form when the admin locks must not be able to submit.
+    if (locked) {
+      addItLog("WARN","SCORE","SCORE_BLOCKED_LOCKED","Score submission rejected — judging is locked",
+        { judgeId: judge?.id, alias: judge?.alias, projectId: scoringPid });
+      setView("judge-home");
+      return;
+    }
+    if (judgeValidations[judge?.id]) {
+      addItLog("WARN","SCORE","SCORE_BLOCKED_VALIDATED","Score submission rejected — judge already validated results",
+        { judgeId: judge?.id, alias: judge?.alias, projectId: scoringPid });
+      setView("judge-home");
+      return;
+    }
     const total = draftTotal();
     setScores(p => ({ ...p, [`${judge.id}_${scoringPid}`]: { criteria: { ...draftSc }, notes:draftNotes, time:Date.now() } }));
     const payload = {
@@ -2294,24 +2499,69 @@ export default function App() {
   }
 
   // ── PROJECT MANAGEMENT ──────────────────────────────────────
+  // advisor_name / group_members were added to `projects` in the 2026-09 migration
+  // (supabase/migration-2026-09-project-adviser.sql). If a deployment has not run
+  // that migration yet, Postgres rejects the unknown columns — detect that and retry
+  // without them so project management keeps working on the old schema.
+  const MISSING_COL = (err) =>
+    err && (err.code === "42703" || err.code === "PGRST204" || /column .* does not exist/i.test(err.message || ""));
+
+  async function writeProjectRow(mode, row, pid) {
+    const attempt = (payload) => mode === "insert"
+      ? supabase.from("projects").insert(payload)
+      : supabase.from("projects").update(payload).eq("school_id", currentSchool.id).eq("id", pid);
+    let { error } = await attempt(row);
+    if (MISSING_COL(error)) {
+      /* eslint-disable no-unused-vars */
+      const { advisor_name, group_members, ...legacy } = row;
+      /* eslint-enable no-unused-vars */
+      ({ error } = await attempt(legacy));
+      if (!error) {
+        addItLog("WARN","DB","PROJECT_ADVISER_COLS_MISSING",
+          "projects.advisor_name/group_members missing — run migration-2026-09-project-adviser.sql",
+          { projectId: pid || row.id });
+      }
+    }
+    return error;
+  }
+
   function nextProjectNum() {
     const nums = projects.map(p => parseInt(p.num) || 0);
     return String(Math.max(0, ...nums) + 1).padStart(3, "0");
   }
 
   async function addProject() {
-    const { title, cat, grade, num, department_id } = projForm;
+    const { title, cat, grade, num, department_id, advisor_name, group_members } = projForm;
     if (!title.trim()) return;
     const id = "p_" + uid();
     const finalNum = num.trim() || nextProjectNum();
-    const proj = { id, num: finalNum, title: title.trim(), cat, grade, locked: false, department_id: department_id || null, school_id: currentSchool.id };
-    setProjects(p => [...p, { ...proj, school_id: undefined }]);
-    await supabase.from("projects").insert(proj);
+    const members = group_members
+      ? group_members.split(",").map(s => s.trim()).filter(Boolean)
+      : [];
+    const proj = {
+      id, num: finalNum, title: title.trim(), cat, grade, locked: false,
+      department_id: department_id || null,
+      advisor_name: (advisor_name || "").trim(),
+      group_members: members,
+      school_id: currentSchool.id,
+    };
+    const localProj = { ...proj, school_id: undefined };
+    const nextProjects = [...projects, localProj];
+    setProjects(nextProjects);
+    const error = await writeProjectRow("insert", proj);
+    if (error) {
+      // Roll back the optimistic insert so the UI never shows a project the DB rejected.
+      setProjects(projects);
+      addItLog("ERROR","ADMIN","PROJECT_ADD_FAILED","Failed to insert project",{ projectId:id, error:error.message });
+      return;
+    }
     const deptName = departments.find(d => d.id === department_id)?.name || "Unassigned";
     addLog(`Admin added project: ${proj.title} (#${finalNum}) — ${deptName}`);
     addItLog("INFO","ADMIN","PROJECT_ADDED","Admin added a new project",
       { projectId:id, num:finalNum, title:proj.title, cat, grade, dept:deptName, timestamp:fmtISO(Date.now()) });
-    setProjForm({ title:"", cat:"Biology", grade:"", num:"", department_id:"" });
+    // Push the new project out to judges already registered in this department.
+    await syncJudgeAssignments(department_id, nextProjects);
+    setProjForm({ title:"", cat:REG_CATEGORIES[0], grade:"", num:"", department_id:"", advisor_name:"", group_members:"" });
     setShowAddProject(false);
   }
 
@@ -2320,24 +2570,41 @@ export default function App() {
     if (!existing || existing.locked) return;
     const { title, cat, grade, num, department_id, advisor_name, group_members } = projForm;
     if (!title.trim()) return;
-    const updated = { ...existing, title: title.trim(), cat, grade, num: num.trim() || existing.num, department_id: department_id || null };
-    setProjects(p => p.map(pp => pp.id === pid ? updated : pp));
-    await supabase.from("projects").update({ title: updated.title, cat: updated.cat, grade: updated.grade, num: updated.num, department_id: updated.department_id }).eq("school_id", currentSchool.id).eq("id", pid);
-    // If project came from registration, also update advisor + members there
+    const membersArrProj = group_members
+      ? group_members.split(",").map(s => s.trim()).filter(Boolean)
+      : [];
+    const prevDept = existing.department_id || null;
+    const updated = {
+      ...existing,
+      title: title.trim(), cat, grade,
+      num: num.trim() || existing.num,
+      department_id: department_id || null,
+      advisor_name: (advisor_name || "").trim(),
+      group_members: membersArrProj,
+    };
+    const nextProjects = projects.map(pp => pp.id === pid ? updated : pp);
+    setProjects(nextProjects);
+    await writeProjectRow("update", {
+      title: updated.title, cat: updated.cat, grade: updated.grade, num: updated.num,
+      department_id: updated.department_id,
+      advisor_name: updated.advisor_name, group_members: updated.group_members,
+    }, pid);
+    // A department change moves the project between judge pools — resync both sides.
+    if (prevDept !== updated.department_id) {
+      await syncJudgeAssignments([prevDept, updated.department_id], nextProjects);
+    }
+    // If project came from registration, keep the submission record in step too.
     const regSub = regSubmissions.find(s => s.project_id === pid);
     if (regSub) {
-      const membersArr = group_members
-        ? group_members.split(",").map(s => s.trim()).filter(Boolean)
-        : [];
       const { error: regSubErr } = await supabase.from("registration_submissions")
-        .update({ advisor_name: advisor_name.trim(), group_members: membersArr })
-        .eq("id", regSub.id);
+        .update({ advisor_name: updated.advisor_name, group_members: membersArrProj })
+        .eq("school_id", currentSchool.id).eq("id", regSub.id);
       if (regSubErr) {
         addItLog("ERROR","ADMIN","REG_SUB_UPDATE_FAILED","Failed to update registration submission adviser/members",
           { submissionId: regSub.id, projectId: pid, error: regSubErr.message });
       } else {
         setRegSubmissions(prev => prev.map(s => s.id === regSub.id
-          ? { ...s, advisor_name: advisor_name.trim(), group_members: membersArr }
+          ? { ...s, advisor_name: updated.advisor_name, group_members: membersArrProj }
           : s));
       }
     }
@@ -2345,7 +2612,7 @@ export default function App() {
     addItLog("INFO","ADMIN","PROJECT_UPDATED","Admin updated project details",
       { projectId:pid, title:updated.title, num:updated.num, timestamp:fmtISO(Date.now()) });
     setEditingProject(null);
-    setProjForm({ title:"", cat:"Biology", grade:"", num:"", department_id:"", advisor_name:"", group_members:"" });
+    setProjForm({ title:"", cat:REG_CATEGORIES[0], grade:"", num:"", department_id:"", advisor_name:"", group_members:"" });
   }
 
   async function removeProject(pid) {
@@ -3468,35 +3735,57 @@ export default function App() {
               setSchoolFormErr("Password must be at least 8 characters."); return;
             }
             setSchoolRegistering(true); setSchoolFormErr("");
-            // 1. Create auth user
-            const { data: { user }, error: signUpErr } = await supabase.auth.signUp({ email: email.trim(), password });
+            // 1. Create auth user. NOTE: when "Confirm email" is enabled in Supabase,
+            //    signUp() returns a user but NO session — every insert below then runs
+            //    as anonymous and the RLS-protected ones (departments, rubrics) fail.
+            //    We detect that, warn the admin, and self-heal on first sign-in via
+            //    ensureSeedData().
+            const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({ email: email.trim(), password });
             if (signUpErr) { setSchoolFormErr(signUpErr.message); setSchoolRegistering(false); return; }
+            const user = signUpData?.user;
+            const hasSession = !!signUpData?.session;
+            if (!user) { setSchoolFormErr("Sign-up did not return a user. Please try again."); setSchoolRegistering(false); return; }
             // 2. Create school row
             const inviteCode = genToken().slice(0,8).toUpperCase();
             const { data: school, error: schoolErr } = await supabase.from("schools")
               .insert({ name: name.trim(), slug: slug.trim(), invite_code: inviteCode, admin_pin: "0000" })
               .select().single();
             if (schoolErr) { setSchoolFormErr(schoolErr.message || "Failed to create school."); setSchoolRegistering(false); return; }
-            // 3. Link admin
-            await supabase.from("school_admins").insert({ school_id: school.id, user_id: user.id, role: "owner" });
+            // 3. Link admin — without this the account can never administer the school.
+            const { error: adminErr2 } = await supabase.from("school_admins")
+              .insert({ school_id: school.id, user_id: user.id, role: "owner" });
+            if (adminErr2) {
+              setSchoolFormErr(`School created but the admin link failed: ${adminErr2.message}. Contact support before continuing.`);
+              setSchoolRegistering(false);
+              return;
+            }
             // 4. Seed app_settings
-            await supabase.from("app_settings").insert([
+            const { error: settingsErr } = await supabase.from("app_settings").insert([
               { school_id: school.id, key: "locked",           value: "false" },
               { school_id: school.id, key: "deliberation_open",value: "false" },
-              { school_id: school.id, key: "max_judges",       value: "15"    },
               { school_id: school.id, key: "results_finalized",value: "false" },
             ]);
             // 5. Seed departments
-            await supabase.from("departments").insert([
+            const { error: deptErr } = await supabase.from("departments").insert([
               { school_id: school.id, name: "Elementary",   max_judges: 5, ord: 0 },
               { school_id: school.id, name: "Middle School",max_judges: 5, ord: 1 },
               { school_id: school.id, name: "High School",  max_judges: 5, ord: 2 },
             ]);
             // 6. Seed default rubric
-            await supabase.from("rubrics").insert({
+            const { error: rubricErr } = await supabase.from("rubrics").insert({
               school_id: school.id, name: "Default (Northeast AZ Regional)", criteria: DEFAULT_RUBRIC, is_active: true,
             });
             setSchoolRegistering(false);
+            if (deptErr || rubricErr || settingsErr) {
+              // Almost always the no-session case above. Tell the admin exactly what to do
+              // instead of dropping them into a school with no departments.
+              setSchoolFormErr(
+                hasSession
+                  ? "School created, but some setup data could not be saved. Sign in as admin and it will finish automatically."
+                  : "School created. Please confirm your email, then sign in as admin — setup will finish automatically on first sign-in."
+              );
+              return;
+            }
             window.location.href = `/s/${school.slug}`;
           }}>
             {schoolRegistering ? "Creating account…" : "Create School Account →"}
@@ -4045,7 +4334,7 @@ export default function App() {
                   <div className="adm-sub">Manage projects, view rubric breakdown, and control project access</div>
                 </div>
                 <button className="btn sm" style={{width:"auto"}} onClick={() => {
-                  setProjForm({ title:"", cat:"Biology", grade:"", num:nextProjectNum(), department_id:"", advisor_name:"", group_members:"" });
+                  setProjForm({ title:"", cat:REG_CATEGORIES[0], grade:"", num:nextProjectNum(), department_id:"", advisor_name:"", group_members:"" });
                   setShowAddProject(true); setEditingProject(null);
                 }}>
                   + Add Project
@@ -4094,20 +4383,20 @@ export default function App() {
                         onChange={e => setProjForm(f => ({...f, num:e.target.value}))} />
                     </div>
                   </div>
-                  {editingProject && regSubmissions.find(s => s.project_id === editingProject) && (
-                    <div className="proj-form-grid" style={{marginTop:".5rem"}}>
-                      <div>
-                        <div className="lbl">Adviser Name</div>
-                        <input type="text" placeholder="Adviser name..." value={projForm.advisor_name}
-                          onChange={e => setProjForm(f => ({...f, advisor_name:e.target.value}))} />
-                      </div>
-                      <div>
-                        <div className="lbl">Group Members <span style={{fontWeight:400,textTransform:"none",letterSpacing:0,fontSize:".7rem"}}>(comma-separated)</span></div>
-                        <input type="text" placeholder="e.g. Juan, Maria, Pedro" value={projForm.group_members}
-                          onChange={e => setProjForm(f => ({...f, group_members:e.target.value}))} />
-                      </div>
+                  {/* Always available — admin-entered teams have no registration row
+                      to carry the adviser/member names, so these must be editable here. */}
+                  <div className="proj-form-grid" style={{marginTop:".5rem"}}>
+                    <div>
+                      <div className="lbl">Adviser Name</div>
+                      <input type="text" placeholder="Adviser name..." value={projForm.advisor_name}
+                        onChange={e => setProjForm(f => ({...f, advisor_name:e.target.value}))} />
                     </div>
-                  )}
+                    <div>
+                      <div className="lbl">Group Members <span style={{fontWeight:400,textTransform:"none",letterSpacing:0,fontSize:".7rem"}}>(comma-separated)</span></div>
+                      <input type="text" placeholder="e.g. Juan, Maria, Pedro" value={projForm.group_members}
+                        onChange={e => setProjForm(f => ({...f, group_members:e.target.value}))} />
+                    </div>
+                  </div>
                   <div style={{marginTop:".5rem",display:"flex",gap:".5rem"}}>
                     <button className="btn sm" style={{width:"auto"}}
                       disabled={!projForm.title.trim()}
@@ -4115,7 +4404,7 @@ export default function App() {
                       {editingProject ? "Save Changes" : "Add Project"}
                     </button>
                     <button className="btn sec sm" style={{width:"auto"}}
-                      onClick={() => { setShowAddProject(false); setEditingProject(null); setProjForm({ title:"", cat:"Biology", grade:"", num:"", department_id:"", advisor_name:"", group_members:"" }); }}>
+                      onClick={() => { setShowAddProject(false); setEditingProject(null); setProjForm({ title:"", cat:REG_CATEGORIES[0], grade:"", num:"", department_id:"", advisor_name:"", group_members:"" }); }}>
                       Cancel
                     </button>
                   </div>
@@ -4142,16 +4431,21 @@ export default function App() {
                           Grade {p.grade} · {hits.length} review{hits.length!==1?"s":""}
                           {assignedJudges.length > 0 && ` · ${assignedJudges.length} judge${assignedJudges.length!==1?"s":""} assigned`}
                         </div>
-                        {regSub && (
-                          <div style={{fontSize:".74rem",color:"var(--dim)",marginTop:".3rem",display:"flex",flexWrap:"wrap",gap:".5rem 1rem"}}>
-                            {regSub.advisor_name && (
-                              <span><span style={{color:"var(--text)",fontWeight:500}}>Adviser:</span> {regSub.advisor_name}</span>
-                            )}
-                            {regSub.group_members && regSub.group_members.length > 0 && (
-                              <span><span style={{color:"var(--text)",fontWeight:500}}>Members:</span> {Array.isArray(regSub.group_members) ? regSub.group_members.join(", ") : regSub.group_members}</span>
-                            )}
-                          </div>
-                        )}
+                        {(() => {
+                          // Prefer the values stored on the project itself (admin-entered);
+                          // fall back to the registration submission for student-registered ones.
+                          const adviser = p.advisor_name || regSub?.advisor_name || "";
+                          const rawMembers = (p.group_members && p.group_members.length)
+                            ? p.group_members : regSub?.group_members;
+                          const members = Array.isArray(rawMembers) ? rawMembers.join(", ") : (rawMembers || "");
+                          if (!adviser && !members) return null;
+                          return (
+                            <div style={{fontSize:".74rem",color:"var(--dim)",marginTop:".3rem",display:"flex",flexWrap:"wrap",gap:".5rem 1rem"}}>
+                              {adviser && <span><span style={{color:"var(--text)",fontWeight:500}}>Adviser:</span> {adviser}</span>}
+                              {members && <span><span style={{color:"var(--text)",fontWeight:500}}>Members:</span> {members}</span>}
+                            </div>
+                          );
+                        })()}
                       </div>
                       <div style={{display:"flex",alignItems:"flex-start",gap:"1rem"}}>
                         <div className="proj-mgmt-actions">
@@ -4167,10 +4461,12 @@ export default function App() {
                                   setEditingProject(p.id);
                                   setProjForm({
                                     title:p.title, cat:p.cat, grade:p.grade, num:p.num, department_id:p.department_id||"",
-                                    advisor_name: regSub?.advisor_name || "",
-                                    group_members: regSub?.group_members
-                                      ? (Array.isArray(regSub.group_members) ? regSub.group_members.join(", ") : regSub.group_members)
-                                      : "",
+                                    advisor_name: p.advisor_name || regSub?.advisor_name || "",
+                                    group_members: (() => {
+                                      const raw = (p.group_members && p.group_members.length)
+                                        ? p.group_members : regSub?.group_members;
+                                      return Array.isArray(raw) ? raw.join(", ") : (raw || "");
+                                    })(),
                                   });
                                   setShowAddProject(false);
                                 }}
@@ -4187,7 +4483,7 @@ export default function App() {
                         </div>
                         <div style={{textAlign:"right",flexShrink:0}}>
                           <div style={{fontFamily:"var(--ff-d)",fontSize:"1.8rem",color:avg?"var(--navy)":"var(--dim)"}}>{avg??"—"}</div>
-                          <div style={{fontSize:".7rem",color:"var(--dim)"}}>avg / {requiresAbstract(p)?42:36}</div>
+                          <div style={{fontSize:".7rem",color:"var(--dim)"}}>avg / {projectMax(p)}</div>
                         </div>
                       </div>
                     </div>
@@ -4266,7 +4562,7 @@ export default function App() {
                       <div className="alert-ico">⚠️</div>
                       <div className="alert-msg">
                         <strong>Score Outlier — Review Recommended</strong>
-                        <span><strong>{a.judge}</strong> scored <strong>{a.score}/42</strong> — group avg is <strong>{a.avg}</strong>. Deviation &gt; 8 pts.</span>
+                        <span><strong>{a.judge}</strong> scored <strong>{a.score}/{a.max ?? rubricMax()}</strong> — group avg is <strong>{a.avg}</strong>. Deviation &gt; 8 pts.</span>
                       </div>
                     </div>
                   ))
@@ -4417,7 +4713,7 @@ export default function App() {
                             </div>
                             <div style={{textAlign:"right",flexShrink:0}}>
                               <div style={{fontFamily:"var(--ff-d)",fontSize:"1.5rem",color:"var(--navy)"}}>{p.avg ?? "—"}</div>
-                              <div style={{fontSize:".65rem",color:"var(--dim)"}}>avg / 42</div>
+                              <div style={{fontSize:".65rem",color:"var(--dim)"}}>avg / {rubricMax()}</div>
                             </div>
                           </div>
                           {/* Per-judge score breakdown */}
@@ -4436,9 +4732,9 @@ export default function App() {
                                       <div style={{display:"flex",alignItems:"center",gap:".6rem",marginBottom:".2rem"}}>
                                         <span style={{fontFamily:"var(--ff-m)",fontSize:".75rem",color:"var(--dim)",width:"60px",flexShrink:0}}>{alias}</span>
                                         <div className="pbar" style={{flex:1,height:"5px"}}>
-                                          <div className="pfill" style={{width:`${(total/42)*100}%`,height:"5px"}} />
+                                          <div className="pfill" style={{width:`${(total/rubricMax())*100}%`,height:"5px"}} />
                                         </div>
-                                        <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",fontWeight:600,width:"42px",textAlign:"right",color:"var(--navy)"}}>{total}/42</span>
+                                        <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",fontWeight:600,width:"42px",textAlign:"right",color:"var(--navy)"}}>{total}/{rubricMax()}</span>
                                       </div>
                                       {sc.notes && sc.notes.trim() && (
                                         <div style={{marginLeft:"68px",fontSize:".78rem",color:"var(--dim)",fontStyle:"italic",lineHeight:1.5,borderLeft:"2px solid var(--bd)",paddingLeft:".5rem"}}>
@@ -4718,7 +5014,8 @@ export default function App() {
                   {(() => {
                     const activeLink = regLinks.find(l => l.active);
                     if (activeLink) {
-                      const regUrl = `${window.location.origin}?register=${activeLink.token}`;
+                      // School-scoped so the link resolves to this school, not the platform homepage.
+                      const regUrl = `${window.location.origin}${currentSchool?.slug ? `/s/${currentSchool.slug}` : ""}?register=${activeLink.token}`;
                       return (
                         <>
                           <div className="share-status on" style={{ marginBottom:"1rem" }}>
@@ -5239,6 +5536,29 @@ export default function App() {
 
   /* PUBLIC RESULTS */
   if (view === "public-results") {
+    // A ?token= link must resolve to a live, unrevoked share_links row. Visitors who
+    // arrived from the school landing card (isLinkLive) or an authenticated admin
+    // previewing the page are allowed through without a token.
+    if (urlShareToken && !shareTokenChecked) return (
+      <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <div style={{textAlign:"center",color:"var(--dim)"}}>
+          <div style={{fontSize:"2rem",marginBottom:".75rem"}}>🏆</div>
+          <div style={{fontFamily:"var(--ff-b)"}}>Loading results…</div>
+        </div>
+      </div>
+    );
+    if (urlShareToken && !shareTokenValid) return (
+      <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}}>
+        <div className="card" style={{maxWidth:"400px",width:"100%",textAlign:"center",padding:"2rem"}}>
+          <div style={{fontSize:"2.5rem",marginBottom:".75rem"}}>🔗</div>
+          <div style={{fontWeight:700,fontSize:"1.1rem",marginBottom:".5rem"}}>Link Unavailable</div>
+          <div style={{color:"var(--dim)",fontSize:".88rem"}}>
+            This results link is invalid, has expired, or was revoked by the administrator.
+          </div>
+        </div>
+      </div>
+    );
+
     const podCols = ["var(--amber)","#64748b","#b45309"];
 
     // Helper: render podium + ranked table for a given set of projects
@@ -5257,7 +5577,7 @@ export default function App() {
                     style={{ width:ri===0?"200px":"168px", order:[1,0,2][vi] }}>
                     <div className="p-medal">{MEDALS[ri]}</div>
                     <div className="p-score" style={{color:podCols[ri]}}>{p.avg}</div>
-                    <div style={{fontSize:".65rem",color:"var(--dim)",marginTop:".1rem"}}>/42 pts</div>
+                    <div style={{fontSize:".65rem",color:"var(--dim)",marginTop:".1rem"}}>/{rubricMax()} pts</div>
                     <div className="p-title">{p.title}</div>
                     {finalDecisions[p.id]?.finalized && finalDecisions[p.id]?.award !== "No Award" && finalDecisions[p.id]?.award !== "Pending" && (
                       <div style={{marginTop:".35rem"}}>
@@ -5303,7 +5623,7 @@ export default function App() {
                 </div>
                 <div className="res-score">
                   <div className="res-score-big">{p.avg}</div>
-                  <div className="res-score-sub">/42</div>
+                  <div className="res-score-sub">/{rubricMax()}</div>
                 </div>
               </div>
             ))}
