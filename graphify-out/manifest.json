@@ -4,8 +4,8 @@
     "hash": "c15fd0f45c689a8b77c8ff6fe6fada9b"
   },
   "D:\\Desktop\\sciencefair-judging-app\\vite.config.js": {
-    "mtime": 1774421612.1903765,
-    "hash": "ee56e87f3eb44159980d7886bf257b22"
+    "mtime": 1780443767.1198907,
+    "hash": "b3430e393ab6e50626664d517661ed9e"
   },
   "D:\\Desktop\\sciencefair-judging-app\\api\\send-registration-email.js": {
     "mtime": 1775225316.281631,
@@ -16,36 +16,52 @@
     "hash": "0db5ffdfdae08c9adca8b7a0bc2911ae"
   },
   "D:\\Desktop\\sciencefair-judging-app\\src\\ScienceFairJudging.jsx": {
-    "mtime": 1778043677.9243457,
-    "hash": "a459e2d7417b348abe25c8d0d4cfb0e0"
+    "mtime": 1790404609.3462546,
+    "hash": "d94d356a9177d307344359d7e68c6b80"
   },
   "D:\\Desktop\\sciencefair-judging-app\\src\\supabaseClient.js": {
     "mtime": 1774419107.538437,
     "hash": "2b22cb129d509bdc2b352c125bd8a455"
   },
+  "D:\\Desktop\\sciencefair-judging-app\\supabase\\migration-2026-09-project-adviser.sql": {
+    "mtime": 1790398189.8510902,
+    "hash": "8d14e6cebfe9c11b8d4492df9098df4e"
+  },
+  "D:\\Desktop\\sciencefair-judging-app\\supabase\\migration-2026-09-security-hardening.sql": {
+    "mtime": 1790403396.0814214,
+    "hash": "6e1e561b9f3f7468c87d608550fa2313"
+  },
+  "D:\\Desktop\\sciencefair-judging-app\\supabase\\migration-2026-09b-pin-and-judge-auth.sql": {
+    "mtime": 1790403986.5667133,
+    "hash": "707a0398666b93e8a2a4437301d950c0"
+  },
   "D:\\Desktop\\sciencefair-judging-app\\supabase\\registration-migration.sql": {
     "mtime": 1775225316.2832198,
     "hash": "882a111ec90c6cfae0b5da6591a65a40"
+  },
+  "D:\\Desktop\\sciencefair-judging-app\\supabase\\schema-v2.sql": {
+    "mtime": 1790396102.4967816,
+    "hash": "8b84afdcba3cfeb7ea87ce66f0b83488"
   },
   "D:\\Desktop\\sciencefair-judging-app\\supabase\\schema.sql": {
     "mtime": 1774941959.1907969,
     "hash": "a9181043029fd4a62924ddd6780c217b"
   },
   "D:\\Desktop\\sciencefair-judging-app\\AdminInstructions.md": {
-    "mtime": 1775225316.2796233,
-    "hash": "30637eed955da7e27ddc387d50e2bc95"
+    "mtime": 1790404374.2355967,
+    "hash": "96c5c5e3cd049d128133bc010820726d"
   },
   "D:\\Desktop\\sciencefair-judging-app\\CLAUDE.md": {
-    "mtime": 1778043677.9233465,
-    "hash": "eac5ce91a4b63e7fe9ab2da82f1c6453"
+    "mtime": 1790404335.637581,
+    "hash": "f3cb3b74d41b9a448171f64c72975da4"
   },
   "D:\\Desktop\\sciencefair-judging-app\\index.html": {
     "mtime": 1774421319.9959555,
     "hash": "20f1eb991ba511a54a01e0dba855e051"
   },
   "D:\\Desktop\\sciencefair-judging-app\\JudgeInstructions.md": {
-    "mtime": 1774944598.568074,
-    "hash": "e8b5ae798ee8a2fa5d6c628f8a756ff1"
+    "mtime": 1790404386.69924,
+    "hash": "87beaf9c75049ade9e3639cf16f324be"
   },
   "D:\\Desktop\\sciencefair-judging-app\\QA_ASSESSMENT.md": {
     "mtime": 1774583047.2203789,
