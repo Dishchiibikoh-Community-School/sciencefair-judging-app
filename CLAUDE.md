@@ -190,6 +190,21 @@ submissions). The form fields are always shown; `addProject()` and `updateProjec
 them; the project rows, edit form and PDF export read the project columns first and fall
 back to `registration_submissions` for student-registered entries.
 
+**⚠️ Type split — `group_members` is NOT the same type in both tables:**
+
+| Column | Type | Holds |
+|---|---|---|
+| `projects.group_members` | `JSONB` | a real array, e.g. `["Juan","Maria"]` |
+| `registration_submissions.group_members` | `TEXT` | a joined string, e.g. `"Juan, Maria"` |
+
+The registration table's column was deliberately left as TEXT so the migration could not
+disturb existing submissions. Consequences:
+- Writes to `registration_submissions` must send a **string** (`arr.join(", ")`). The app
+  previously sent a JS array into that TEXT column in two places — `handleRegSubmit()` and
+  `updateProject()` — which Postgres rejects. Both fixed 2026-09-25.
+- Reads must handle both: use `Array.isArray(raw) ? raw.join(", ") : (raw || "")`.
+- The migration backfill converts the TEXT list into a JSON array when copying to `projects`.
+
 **Migration safety:** `writeProjectRow()` detects a missing-column error (`42703` /
 `PGRST204`) and transparently retries without the two new fields, logging
 `PROJECT_ADVISER_COLS_MISSING`. A deployment that has not run the migration keeps working

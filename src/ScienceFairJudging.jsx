@@ -2596,15 +2596,18 @@ export default function App() {
     // If project came from registration, keep the submission record in step too.
     const regSub = regSubmissions.find(s => s.project_id === pid);
     if (regSub) {
+      // NOTE: registration_submissions.group_members is TEXT (projects.group_members
+      // is JSONB) — write the joined string here, the array on the project.
+      const membersTextRegSub = membersArrProj.join(", ");
       const { error: regSubErr } = await supabase.from("registration_submissions")
-        .update({ advisor_name: updated.advisor_name, group_members: membersArrProj })
+        .update({ advisor_name: updated.advisor_name, group_members: membersTextRegSub })
         .eq("school_id", currentSchool.id).eq("id", regSub.id);
       if (regSubErr) {
         addItLog("ERROR","ADMIN","REG_SUB_UPDATE_FAILED","Failed to update registration submission adviser/members",
           { submissionId: regSub.id, projectId: pid, error: regSubErr.message });
       } else {
         setRegSubmissions(prev => prev.map(s => s.id === regSub.id
-          ? { ...s, advisor_name: updated.advisor_name, group_members: membersArrProj }
+          ? { ...s, advisor_name: updated.advisor_name, group_members: membersTextRegSub }
           : s));
       }
     }
@@ -2741,9 +2744,11 @@ export default function App() {
         project_title:     f.projectTitle.trim(),
         category:          f.category,
         project_type:      f.projectType,
+        // registration_submissions.group_members is a TEXT column — send a joined
+        // string, not an array, or Postgres rejects the insert.
         group_members:     f.groupMembers
-          ? f.groupMembers.split("\n").filter(Boolean).map(s => s.trim())
-          : [],
+          ? f.groupMembers.split("\n").map(s => s.trim()).filter(Boolean).join(", ")
+          : "",
         advisor_name:      f.advisorName.trim(),
         advisor_email:     f.advisorEmail.trim(),
         school_department: f.schoolDepartment.trim(),
