@@ -32,7 +32,9 @@ This guide will walk you through how to use the app to score science fair projec
 If you see an error:
 - **"Invalid judge name"** — Check that you're using the correct format (Judge1–Judge[N])
 - **"Already signed in"** — Ask the admin to approve device transfer in the Judges tab, then try again
-- **"Invalid invite code"** — Double-check the code with organizers
+- **"Invalid invite code"** — Double-check the code with organizers. The code is checked on the
+  server, and **5 wrong attempts lock sign-in for 5 minutes** for everyone at your school — so
+  confirm the code with an organizer rather than guessing.
 - **"Max judges reached"** — All judge slots for this department are full. Contact organizers.
 
 ---

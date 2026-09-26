@@ -775,7 +775,7 @@ export default function App() {
   const [rubricSaving,  setRubricSaving]  = useState(false);
 
   // ── SCHOOL REGISTRATION STATE ────────────────────────────
-  const [schoolForm, setSchoolForm] = useState({ name:"", slug:"", email:"", password:"", confirmPass:"" });
+  const [schoolForm, setSchoolForm] = useState({ name:"", slug:"", email:"", password:"", confirmPass:"", adminPin:"", confirmPin:"" });
   const [schoolFormErr, setSchoolFormErr] = useState("");
   const [schoolRegistering, setSchoolRegistering] = useState(false);
 
@@ -834,6 +834,12 @@ export default function App() {
   const [copied,          setCopied]          = useState(false);
 
   // Project list share state
+  // The invite code is no longer readable from the schools row (anon must not
+  // have it — it is verified server-side). Admins fetch their own via RPC.
+  const [inviteCode,   setInviteCode]   = useState("");
+  const [pinForm,      setPinForm]      = useState({ current:"", next:"", confirm:"" });
+  const [pinFormMsg,   setPinFormMsg]   = useState(null); // { ok:boolean, text:string }
+  const [pinSaving,    setPinSaving]    = useState(false);
   const [shareTokenValid,   setShareTokenValid]   = useState(false);
   const [shareTokenChecked, setShareTokenChecked] = useState(!urlShareToken);
   const [projListToken,   setProjListToken]   = useState("");
@@ -1019,6 +1025,62 @@ export default function App() {
     await supabase.from("app_settings").upsert({ school_id: currentSchool.id, key: "judge_transfer_allowances", value: JSON.stringify(next) });
   }
 
+  // Admin-only: read this school's invite code back so it can be shown on the
+  // "Get started" card. Anonymous clients never receive it.
+  async function loadInviteCode(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
+    const { data, error } = await supabase.rpc("school_invite_code", { p_school_id: schoolId });
+    if (!error && data) setInviteCode(data);
+  }
+
+  // Admin changes the PIN. The current PIN must be verified first, then
+  // set_school_pin() re-hashes the new one server-side.
+  async function changeAdminPin() {
+    setPinFormMsg(null);
+    const { current, next, confirm } = pinForm;
+    if (next.length < 4)      { setPinFormMsg({ ok:false, text:"New PIN must be at least 4 digits." }); return; }
+    if (next !== confirm)     { setPinFormMsg({ ok:false, text:"New PIN and confirmation do not match." }); return; }
+    setPinSaving(true);
+    const check = await verifyAdminPin(current);
+    if (!check.valid) {
+      setPinSaving(false);
+      setPinFormMsg({ ok:false, text: check.message || "Current PIN is incorrect." });
+      return;
+    }
+    const { error } = await supabase.rpc("set_school_pin", {
+      p_school_id: currentSchool.id,
+      p_new_pin: next,
+    });
+    setPinSaving(false);
+    if (error) {
+      setPinFormMsg({ ok:false, text: error.message || "Could not update PIN." });
+      addItLog("ERROR","ADMIN","PIN_CHANGE_FAILED","set_school_pin failed",{ error: error.message });
+      return;
+    }
+    setPinForm({ current:"", next:"", confirm:"" });
+    setPinFormMsg({ ok:true, text:"Admin PIN updated." });
+    addLog("Admin changed the admin PIN");
+    addItLog("WARN","ADMIN","PIN_CHANGED","Admin PIN was changed",{ timestamp: fmtISO(Date.now()) });
+  }
+
+  // The admin PIN is a bcrypt hash in the database and is never sent to the
+  // browser — verification happens in the verify_school_pin() SQL function,
+  // which also rate-limits (5 failures → 5 minute lockout for this school).
+  async function verifyAdminPin(pin) {
+    if (!currentSchool?.id) return { valid: false, message: "School not loaded." };
+    const { data, error } = await supabase.rpc("verify_school_pin", {
+      p_school_id: currentSchool.id,
+      p_pin: pin,
+    });
+    if (error) {
+      // P0001 is our own RAISE — currently only the lockout message.
+      addItLog("WARN","AUTH","PIN_VERIFY_ERROR","verify_school_pin returned an error",{ error: error.message });
+      return { valid: false, message: error.message || "Could not verify PIN." };
+    }
+    return { valid: data === true };
+  }
+
   function allowJudgeTransfer(alias) {
     setTransferPinAlias(alias);
     setTransferPin("");
@@ -1027,8 +1089,9 @@ export default function App() {
   }
 
   async function confirmTransfer() {
-    if (transferPin !== currentSchool?.admin_pin) {
-      setTransferPinErr("Incorrect PIN. Transfer approval denied.");
+    const ok = await verifyAdminPin(transferPin);
+    if (!ok.valid) {
+      setTransferPinErr(ok.message || "Incorrect PIN. Transfer approval denied.");
       addItLog("WARN","AUTH","JUDGE_TRANSFER_PIN_FAILED","Transfer approval denied due to incorrect PIN",{ alias: transferPinAlias, timestamp: fmtISO(Date.now()) });
       setTimeout(() => setTransferPin(""), 600);
       return;
@@ -1219,6 +1282,7 @@ export default function App() {
             loadLog(school.id);
             loadItLogs(school.id);
             loadScoreBackups(school.id);
+            loadInviteCode(school.id);
           }
         }
       } else {
@@ -2268,70 +2332,47 @@ export default function App() {
   // Actions
   async function handleRegister() {
     const name = regName.trim();
-
-    // Validate department selection
     const dept = departments.find(d => d.id === regDept);
-    if (!dept) {
-      setRegErr("Please select your department.");
+    if (!dept) { setRegErr("Please select your department."); return; }
+
+    // All validation now happens inside the register_judge() SQL function:
+    // the invite code is checked server-side (rate-limited, 5 failures = 5 min
+    // lockout), along with the alias range, the department cap and the admin
+    // transfer allowance. The browser can no longer read the invite code, and
+    // direct INSERTs into `judges` are blocked by RLS — this RPC is the only
+    // way a judge row can be created.
+    const { data, error } = await supabase.rpc("register_judge", {
+      p_school_id:     currentSchool.id,
+      p_department_id: dept.id,
+      p_alias:         name,
+      p_invite_code:   regCode.trim(),
+    });
+
+    if (error) {
+      // Our RAISE messages are already written for the judge to read.
+      setRegErr(error.message || "Registration failed. Please try again.");
+      addItLog("WARN","AUTH","JUDGE_REGISTER_REJECTED","register_judge rejected a sign-in attempt",
+        { attemptedName: name, dept: dept.name, error: error.message, timestamp: fmtISO(Date.now()) });
       return;
     }
 
-    // Validate judge name format and range
-    const judgeNum = parseInt(name.replace(/\D/g, ""));
-    if (!JUDGE_NAMES.includes(name) || isNaN(judgeNum) || judgeNum < 1 || judgeNum > dept.max_judges) {
-      setRegErr(`Invalid judge name. Use Judge1 – Judge${dept.max_judges} for ${dept.name}.`);
-      addItLog("WARN","AUTH","INVALID_JUDGE_NAME","Failed registration attempt with invalid judge name",{ attemptedName: name, dept: dept.name, maxJudges: dept.max_judges, timestamp: fmtISO(Date.now()) });
-      return;
-    }
-
-    if (regCode.trim().toUpperCase() !== (currentSchool?.invite_code || "").toUpperCase()) {
-      setRegErr("Invalid invite code.");
-      addItLog("WARN","AUTH","INVALID_INVITE_CODE","Failed registration attempt with wrong invite code",{ attemptedCode: regCode.trim(), name, dept: dept.name, timestamp: fmtISO(Date.now()) });
-      return;
-    }
-
-    // Check for existing judge with same name in this same department
-    const existingJudge = judges.find(j => j.alias === name && j.department_id === dept.id);
-    if (existingJudge) {
-      const allowedUntil = transferAllowances[`${dept.id}:${name}`] || transferAllowances[name] || 0;
-      if (!allowedUntil || Date.now() > allowedUntil) {
-        setRegErr(`${name} is already signed in for ${dept.name}. Ask admin to approve device transfer.`);
-        addItLog("WARN","AUTH","JUDGE_TRANSFER_DENIED","Judge transfer blocked — no admin approval",{ alias:name, dept:dept.name, timestamp:fmtISO(Date.now()) });
-        return;
-      }
-      setJudge(existingJudge);
-      localStorage.setItem("sf_judge_id", existingJudge.id);
-      localStorage.setItem("sf_judge_data", JSON.stringify(existingJudge));
-      localStorage.setItem("sf_judge_slug", currentSchool.slug);
-      const nextAllow = { ...transferAllowances };
-      delete nextAllow[`${dept.id}:${name}`];
-      delete nextAllow[name]; // clean up legacy key too
-      await saveTransferAllowances(nextAllow);
-      addLog(`${existingJudge.alias} (${dept.name}) session transferred to a new device`);
-      addItLog("WARN","AUTH","JUDGE_SESSION_TRANSFERRED","Existing judge session transferred to another device (admin-approved)",{
-        judgeId: existingJudge.id, alias: existingJudge.alias, dept: dept.name, timestamp: fmtISO(Date.now()),
-      });
-      setRegName(""); setRegCode(""); setRegDept(""); setRegErr(""); setView("judge-home");
-      return;
-    }
-
-    // Check per-department capacity
-    const deptJudgeCount = judges.filter(j => j.department_id === dept.id).length;
-    if (deptJudgeCount >= dept.max_judges) {
-      setRegErr(`${dept.name} is full (${deptJudgeCount}/${dept.max_judges}). Contact admin.`);
-      addItLog("WARN","AUTH","MAX_JUDGES_REACHED","Judge registration blocked — department at capacity",{ attempted: name, dept: dept.name, currentCount: deptJudgeCount, maxJudges: dept.max_judges, timestamp: fmtISO(Date.now()) });
-      return;
-    }
-
-    const j = { id:"j_"+uid(), alias:name, projects:assignProjects(dept.id), joinedAt:Date.now(), department_id:dept.id };
-    const { error } = await supabase.from("judges").insert({ school_id: currentSchool.id, id: j.id, alias: j.alias, projects: j.projects, department_id: j.department_id });
-    if (error) { setRegErr("Registration failed. Please try again."); return; }
-    setJudges(p => [...p, j]); setJudge(j);
+    const j = dbToJudge(data);
+    const isTransfer = judges.some(x => x.id === j.id);
+    setJudges(p => (isTransfer ? p.map(x => x.id === j.id ? j : x) : [...p, j]));
+    setJudge(j);
     localStorage.setItem("sf_judge_id",   j.id);
     localStorage.setItem("sf_judge_data", JSON.stringify(j));
     localStorage.setItem("sf_judge_slug", currentSchool.slug);
-    addLog(`${j.alias} joined as a judge (${dept.name})`);
-    addItLog("INFO","AUTH","JUDGE_REGISTERED","Judge registered with valid credentials",{ judgeId:j.id, alias:j.alias, dept:dept.name, assignedProjects:j.projects });
+
+    if (isTransfer) {
+      addLog(`${j.alias} (${dept.name}) session transferred to a new device`);
+      addItLog("WARN","AUTH","JUDGE_SESSION_TRANSFERRED","Existing judge session transferred to another device (admin-approved)",
+        { judgeId: j.id, alias: j.alias, dept: dept.name, timestamp: fmtISO(Date.now()) });
+    } else {
+      addLog(`${j.alias} joined as a judge (${dept.name})`);
+      addItLog("INFO","AUTH","JUDGE_REGISTERED","Judge registered with valid credentials",
+        { judgeId: j.id, alias: j.alias, dept: dept.name, assignedProjects: j.projects });
+    }
     setRegName(""); setRegCode(""); setRegDept(""); setRegErr(""); setView("judge-home");
   }
 
@@ -3758,14 +3799,29 @@ export default function App() {
             <input type="password" placeholder="At least 8 characters" value={schoolForm.password}
               onChange={e => setSchoolForm(f => ({ ...f, password: e.target.value }))} />
           </div>
-          <div style={{ marginBottom:"1.25rem" }}>
+          <div style={{ marginBottom:"1rem" }}>
             <div className="lbl">Confirm Password</div>
             <input type="password" placeholder="Re-enter password" value={schoolForm.confirmPass}
               onChange={e => setSchoolForm(f => ({ ...f, confirmPass: e.target.value }))} />
           </div>
+          <div style={{ marginBottom:"1rem" }}>
+            <div className="lbl">Admin PIN</div>
+            <input type="password" inputMode="numeric" placeholder="4-8 digits" value={schoolForm.adminPin}
+              onChange={e => setSchoolForm(f => ({ ...f, adminPin: e.target.value.replace(/D/g,"").slice(0,8) }))} />
+            <div style={{ fontSize:".76rem", color:"var(--dim)", marginTop:".3rem", lineHeight:1.45 }}>
+              Separate from your password. Guards <strong>Reset All Data</strong>, the IT Logs tab and
+              judge device transfers. Stored encrypted (hashed) — nobody, including us, can read it back,
+              so keep a note of it.
+            </div>
+          </div>
+          <div style={{ marginBottom:"1.25rem" }}>
+            <div className="lbl">Confirm Admin PIN</div>
+            <input type="password" inputMode="numeric" placeholder="Re-enter PIN" value={schoolForm.confirmPin}
+              onChange={e => setSchoolForm(f => ({ ...f, confirmPin: e.target.value.replace(/D/g,"").slice(0,8) }))} />
+          </div>
           {schoolFormErr && <div className="err" style={{ marginBottom:"1rem" }}>⚠ {schoolFormErr}</div>}
           <button className="btn" disabled={schoolRegistering} onClick={async () => {
-            const { name, slug, email, password, confirmPass } = schoolForm;
+            const { name, slug, email, password, confirmPass, adminPin, confirmPin } = schoolForm;
             if (!name.trim() || !slug.trim() || !email.trim() || !password) {
               setSchoolFormErr("Please fill in all fields."); return;
             }
@@ -3774,6 +3830,15 @@ export default function App() {
             }
             if (password.length < 8) {
               setSchoolFormErr("Password must be at least 8 characters."); return;
+            }
+            if (!/^d{4,8}$/.test(adminPin)) {
+              setSchoolFormErr("Admin PIN must be 4-8 digits."); return;
+            }
+            if (adminPin !== confirmPin) {
+              setSchoolFormErr("Admin PIN and confirmation do not match."); return;
+            }
+            if (/^(\d)\1+$/.test(adminPin) || adminPin === "1234" || adminPin === "12345678") {
+              setSchoolFormErr("Choose a less predictable PIN (not 0000, 1111, 1234, ...)."); return;
             }
             setSchoolRegistering(true); setSchoolFormErr("");
             // 1. Create auth user. NOTE: when "Confirm email" is enabled in Supabase,
@@ -3787,12 +3852,13 @@ export default function App() {
             const hasSession = !!signUpData?.session;
             if (!user) { setSchoolFormErr("Sign-up did not return a user. Please try again."); setSchoolRegistering(false); return; }
             // 2. Create school row
-            const inviteCode = genToken().slice(0,8).toUpperCase();
+            const newInviteCode = genToken().slice(0,8).toUpperCase();
             const { data: school, error: schoolErr } = await supabase.from("schools")
-              .insert({ name: name.trim(), slug: slug.trim(), invite_code: inviteCode, admin_pin: "0000" })
+              // admin_pin is hashed by the schools_hash_pin trigger before it is stored.
+              .insert({ name: name.trim(), slug: slug.trim(), invite_code: newInviteCode, admin_pin: adminPin })
               // Explicit columns: anon has no SELECT grant on admin_pin, so `select()`
               // (which means *) would fail with "permission denied for column".
-              .select("id, name, slug, invite_code").single();
+              .select("id, name, slug").single();
             if (schoolErr) { setSchoolFormErr(schoolErr.message || "Failed to create school."); setSchoolRegistering(false); return; }
             // 3. Link admin — without this the account can never administer the school.
             const { error: adminErr2 } = await supabase.from("school_admins")
@@ -3974,15 +4040,16 @@ export default function App() {
                           background:"var(--bg)", border:`1.5px solid ${resetPinErr?"var(--red)":"var(--bd)"}`,
                           borderRadius:"8px", padding:".8rem 1rem", color:"var(--text)", outline:"none"
                         }}
-                        onChange={e => {
+                        onChange={async e => {
                           const val = e.target.value.replace(/\D/g,"").slice(0,4);
                           setResetPin(val);
                           setResetPinErr("");
                           if (val.length === 4) {
-                            if (val === currentSchool?.admin_pin) {
+                            const ok = await verifyAdminPin(val);
+                            if (ok.valid) {
                               executeReset();
                             } else {
-                              setResetPinErr("Incorrect PIN.");
+                              setResetPinErr(ok.message || "Incorrect PIN.");
                               addItLog("WARN","AUTH","RESET_PIN_FAILED","Reset attempted with wrong PIN",{ timestamp:fmtISO(Date.now()) });
                               setTimeout(() => setResetPin(""), 600);
                             }
@@ -4141,11 +4208,11 @@ export default function App() {
                     </div>
                     <div className="setup-share-row">
                       <span className="setup-share-key">Invite Code</span>
-                      <span className="setup-share-val">{currentSchool?.invite_code}</span>
+                      <span className="setup-share-val">{inviteCode}</span>
                       <button
                         className={`setup-copy-btn ${setupCopied === "code" ? "copied" : ""}`}
                         onClick={() => {
-                          navigator.clipboard.writeText(currentSchool?.invite_code || "");
+                          navigator.clipboard.writeText(inviteCode || "");
                           setSetupCopied("code");
                           setTimeout(() => setSetupCopied(null), 2000);
                         }}>
@@ -4155,6 +4222,45 @@ export default function App() {
                   </div>
                 </div>
               )}
+
+              {/* Security — change the admin PIN. The PIN is stored as a bcrypt hash
+                  and verified server-side, so it can be changed but never read back. */}
+              <div className="card" style={{ marginBottom:".9rem" }}>
+                <div className="sec-title">🔐 Admin PIN</div>
+                <div style={{ fontSize:".84rem", color:"var(--dim)", marginBottom:".85rem", lineHeight:1.5 }}>
+                  Guards <strong>Reset All Data</strong>, the IT Logs tab and judge device transfers.
+                  Separate from your login password. Change it before every event.
+                </div>
+                <div className="proj-form-grid">
+                  <div>
+                    <div className="lbl">Current PIN</div>
+                    <input type="password" inputMode="numeric" placeholder="••••" value={pinForm.current}
+                      onChange={e => { setPinForm(f => ({...f, current:e.target.value.replace(/D/g,"").slice(0,8)})); setPinFormMsg(null); }} />
+                  </div>
+                  <div>
+                    <div className="lbl">New PIN</div>
+                    <input type="password" inputMode="numeric" placeholder="4-8 digits" value={pinForm.next}
+                      onChange={e => { setPinForm(f => ({...f, next:e.target.value.replace(/D/g,"").slice(0,8)})); setPinFormMsg(null); }} />
+                  </div>
+                  <div>
+                    <div className="lbl">Confirm New PIN</div>
+                    <input type="password" inputMode="numeric" placeholder="Re-enter" value={pinForm.confirm}
+                      onChange={e => { setPinForm(f => ({...f, confirm:e.target.value.replace(/D/g,"").slice(0,8)})); setPinFormMsg(null); }} />
+                  </div>
+                </div>
+                {pinFormMsg && (
+                  <div style={{ marginTop:".6rem", fontSize:".83rem", color: pinFormMsg.ok ? "var(--green)" : "var(--red)" }}>
+                    {pinFormMsg.ok ? "✓ " : "⚠ "}{pinFormMsg.text}
+                  </div>
+                )}
+                <div style={{ marginTop:".75rem" }}>
+                  <button className="btn sm" style={{ width:"auto" }}
+                    disabled={pinSaving || !pinForm.current || !pinForm.next || !pinForm.confirm}
+                    onClick={changeAdminPin}>
+                    {pinSaving ? "Updating…" : "Update PIN"}
+                  </button>
+                </div>
+              </div>
               <div className="card" style={{ marginBottom:".9rem" }}>
                 <div className="lbl">Sync Health (This Device)</div>
                 <div style={{fontSize:".9rem", color: offlineQueue.length > 0 ? "var(--amber)" : "var(--green)", fontWeight:600, marginBottom:".2rem"}}>
@@ -5340,17 +5446,18 @@ export default function App() {
                       value={itPin}
                       className={itPinErr ? "pin-shake" : ""}
                       autoFocus
-                      onChange={e => {
+                      onChange={async e => {
                         const val = e.target.value.replace(/\D/g,"").slice(0,4);
                         setItPin(val);
                         setItPinErr("");
                         if (val.length === 4) {
-                          if (val === currentSchool?.admin_pin) {
+                          const ok = await verifyAdminPin(val);
+                          if (ok.valid) {
                             setItUnlocked(true);
                             setItPin("");
                             addItLog("INFO","AUTH","IT_ACCESS_GRANTED","IT diagnostic logs accessed with correct PIN",{ timestamp:fmtISO(Date.now()) });
                           } else {
-                            setItPinErr("Incorrect PIN. Try again.");
+                            setItPinErr(ok.message || "Incorrect PIN. Try again.");
                             addItLog("WARN","AUTH","IT_ACCESS_DENIED","IT diagnostic logs access attempt with wrong PIN",{ timestamp:fmtISO(Date.now()) });
                             setTimeout(() => setItPin(""), 600);
                           }

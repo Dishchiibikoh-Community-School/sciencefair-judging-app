@@ -20,7 +20,21 @@ Your fair lives at its own address: **`https://app.qritiko.com/s/your-school`**.
 
 Five failed attempts locks login for 30 seconds. Every failure is written to the IT log.
 
-**Your 4-digit PIN** (separate from the password) guards the IT Logs tab, Reset All Data, and judge device transfers. It defaults to **`0000`** when the school is created — **change it before your event.**
+**Your Admin PIN** (separate from the password) guards the IT Logs tab, Reset All Data, and
+judge device transfers. **You choose it when you register the school** — 4 to 8 digits.
+
+- It is stored **encrypted (hashed)**. Nobody can read it back — not the app, not us, not
+  anyone with database access. Write it down somewhere safe; it cannot be recovered, only
+  replaced.
+- Obvious PINs (0000, 1111, 1234) are rejected at sign-up.
+- **5 wrong attempts locks PIN entry for 5 minutes** for your whole school. This is deliberate:
+  it stops someone guessing a 4-digit PIN. If you lock yourself out, just wait it out.
+- To change it: **Overview tab → Admin PIN card** → enter current PIN, new PIN, confirm.
+  Change it before every event, and immediately if anyone who knew it has left.
+
+> **Schools created before 2026-09-25** were given the default PIN `0000`, and that PIN was
+> readable by anyone on the internet until the September security fix. If your school is one
+> of those, change it now — treat the old PIN as public.
 
 > **First time signing in?** If you just registered the school, confirm your email first. Departments and the default rubric finish setting themselves up automatically on your first successful admin sign-in.
 
@@ -49,7 +63,7 @@ Five failed attempts locks login for 30 seconds. Every failure is written to the
 Run through this a few days before, not on the morning of.
 
 - [ ] **Check the app is awake.** Open `https://app.qritiko.com/s/your-school`. The free Supabase tier pauses a project after ~7 days with no traffic, and a paused project takes the whole app down. If anything fails to load, resume it from the Supabase dashboard and re-check.
-- [ ] **Change the admin PIN** from the default `0000` (IT Logs tab).
+- [ ] **Change the admin PIN** (Overview tab → Admin PIN card) if it has not been changed since the school was created.
 - [ ] **Confirm departments exist** — the Overview tab should list Elementary / Middle School / High School. If it does not, sign out and back in; they re-seed on admin sign-in.
 - [ ] **Set max judges per department** (locks per department once its first judge registers).
 - [ ] **Enter every project/team**, each assigned to a department, with adviser and members.
@@ -141,6 +155,8 @@ You do **not** need to generate a registration link at all this year. Leave it d
   - Example: Elementary has 5 judges → Judge1–Judge5 in that department
   - Middle School also has 5 judges → Judge1–Judge5 in that department (same names are fine — different departments)
 - **Invite code:** shown on your admin Overview tab ("Get started" card). Judges type this to sign in.
+  It is checked on the server, so a wrong code now returns a clear error — and 5 wrong attempts
+  lock sign-in for 5 minutes across the school.
 - **Department:** Tell each judge which department they are assigned to before the event
 
 ---
@@ -410,7 +426,7 @@ Click **"Revoke Link"** to expire the URL immediately.
 
 ## IT Diagnostics
 
-**PIN:** your school's 4-digit PIN (defaults to `0000` — change it before the event). The same PIN guards Reset All Data and judge device transfers.
+**PIN:** your school's Admin PIN, chosen when the school was registered (change it on the Overview tab). The same PIN guards Reset All Data and judge device transfers. Five wrong attempts locks PIN entry for 5 minutes.
 
 1. Go to **IT Logs tab**
 2. Click **"Unlock"** and enter PIN

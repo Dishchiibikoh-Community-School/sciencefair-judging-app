@@ -59,6 +59,61 @@ Built as a single-file React component (`ScienceFairJudging.jsx`).
 
 ## 🐛 Bug Fix Log
 
+### 2026-09-25 — Hashed admin PIN + server-side judge registration
+
+**Migration:** `supabase/migration-2026-09b-pin-and-judge-auth.sql`.
+**The SQL and the app build are coupled — deploy them together.** The app now calls
+`register_judge`, `verify_school_pin` and `school_invite_code`, and it no longer reads
+`invite_code` from the schools row. Old code + new SQL, or new code + old SQL, both break.
+
+**⚠️ Part 0 fixes a silent failure in the previous migration.**
+`REVOKE SELECT (admin_pin) ON schools FROM anon` did **nothing**. Supabase grants `anon` a
+TABLE-level SELECT on every table in `public`, and in Postgres table-level and column-level
+privileges are additive — while the table grant stands, revoking one column is a no-op.
+The SQL editor reported success and `?select=admin_pin` still returned `"0000"`.
+The fix is `REVOKE SELECT ON schools` followed by `GRANT SELECT (safe, columns)`.
+**Lesson: always re-run the curl check after a grant change. "Success" means the statement
+parsed, not that it achieved anything.**
+
+**Admin PIN is now hashed (bcrypt), never plaintext, never readable.**
+
+- A `BEFORE INSERT OR UPDATE OF admin_pin` trigger (`hash_admin_pin`) hashes on the way in,
+  so it is hashed whoever writes it — including the anonymous signup insert. Values already
+  matching the bcrypt prefix are left alone, which makes the migration re-runnable.
+- Verification is `verify_school_pin(school_id, pin)` — SECURITY DEFINER, returns a boolean,
+  rate-limited via the `security_attempts` table (5 failures → 5 minute lockout per school).
+- `set_school_pin()` changes it (admin only, min 4 chars). `admin_pin` is granted to nobody,
+  so the UI cannot read it back even as an admin. The client-side
+  `pin === currentSchool.admin_pin` comparisons are gone from all three gates (IT logs,
+  reset, transfer) — they now await `verifyAdminPin()`.
+- It is a hash, not reversible encryption: the app only ever needs to answer "is this the
+  right PIN", never "what is the PIN". Do not "improve" this by storing something decryptable.
+- The signup form now collects the PIN (4–8 digits, confirmed, rejects 0000/1111/1234-style
+  values). The admin Overview tab has a Change PIN card (`changeAdminPin()`).
+
+**Judge registration moved server-side.**
+
+- `register_judge(school_id, department_id, alias, invite_code)` does everything
+  `handleRegister()` used to do in the browser: invite-code check (rate-limited through the
+  same `security_attempts` table), alias range against `departments.max_judges`, department
+  capacity, and the one-time admin transfer allowance.
+- The `judges` INSERT policy is now `WITH CHECK (false)` — the SECURITY DEFINER RPC is the
+  only way a judge row can be created. `judges` UPDATE is admin-only.
+- The invite code is **never sent to an anonymous client** again. Admins read their own
+  through `school_invite_code()`; `loadInviteCode()` fills the `inviteCode` state used by
+  the "Get started" card.
+- `scores`, `deliberation_notes` and `validations` writes now require the `judge_id` to
+  exist in `judges` for that school (an EXISTS check inside the policy).
+
+**Deliberately NOT enforced in RLS: the judging lock.** A judge who scored legitimately while
+offline must still be able to sync after the admin locks judging — enforcing `locked` in the
+scores policy would silently destroy their work. The lock is enforced in `submitScore()`.
+
+**Still open:** a judge who holds the invite code can still write another judge's scores. The
+policies prove that *a* valid judge exists, not *which* judge is calling. Closing that needs
+per-judge identity (Supabase anonymous auth, with `user_id` stored on the judges row). That
+is the next security work item.
+
 ### 2026-09-25 — Security hardening + v1 retirement
 
 **v1 retired.** `qritiko.com` had been serving v2 code against the v1 database since the
@@ -397,11 +452,11 @@ Controlled by `const [adminTab, setAdminTab] = useState("overview")`.
 ### v2 Credentials (per-school, stored in Supabase DB)
 | Access | Credential |
 |---|---|
-| Judge sign-in name | `Judge1` through `Judge[N]` — N is `maxJudges` (default 15, configurable per school) |
-| Judge invite code | `schools.invite_code` — set at school registration, changeable by admin |
+| Judge sign-in name | `Judge1` through `Judge[N]` — N is that department`s `departments.max_judges` |
+| Judge invite code | `schools.invite_code` — verified server-side by `register_judge()`. NEVER sent to an anonymous client; admins read their own via `school_invite_code()` |
 | Admin dashboard | Supabase Auth email + password — set at school registration via `school-register` view |
-| IT Logs tab | `schools.admin_pin` — 4-digit PIN stored in DB, default `0000` at registration |
-| Reset All Data | `schools.admin_pin` — same PIN, separate modal |
+| IT Logs tab | `schools.admin_pin` — **bcrypt hash**, verified by `verify_school_pin()`. Chosen by the admin at registration (4-8 digits). Unreadable by anyone |
+| Reset All Data | `schools.admin_pin` — same PIN, separate modal. 5 wrong tries = 5 minute lockout |
 | Registration email | `RESEND_API_KEY` + `EMAIL_FROM` env vars (server-side, Vercel only) |
 
 > **v2 has NO `VITE_INVITE_CODE`, `VITE_ADMIN_PASS`, or `VITE_IT_PIN` env vars.**
@@ -1002,6 +1057,22 @@ Treat the above as the next security work item, not as settled.
 26. **All four share/registration URLs must include `/s/{slug}`.** `shareUrl()`, `projListUrl()` and the registration URL build from `${origin}/s/${currentSchool.slug}`. A bare origin lands on the platform homepage and the link appears broken.
 27. **Never use `try/finally` inside the `App` component.** It makes the React Compiler bail out, which silently disables the `react-hooks/purity` and `react-hooks/immutability` lint rules for the whole file (41 findings vanished when this was introduced accidentally). Use `.finally()` on a promise — see `flushOfflineQueue()`.
 28. **Every CSV cell goes through `csvCell()`.** It quotes the value and neutralises leading `=`, `+`, `-`, `@` so a project title cannot execute as a spreadsheet formula.
+29. **Never compare a credential in the browser.** The admin PIN is a bcrypt hash and the
+    invite code is server-side only. Use `verifyAdminPin()` / `register_judge()`. Any
+    `x === currentSchool.something` credential check is a bug — it means the secret was
+    shipped to the client, where a user can read it out of memory or the network tab.
+30. **Column privileges need the table grant gone first.** Supabase grants `anon` and
+    `authenticated` a table-level SELECT on everything in `public`, and Postgres treats
+    table- and column-level privileges as additive. `REVOKE SELECT (col)` alone is a silent
+    no-op. Always `REVOKE SELECT ON tbl FROM role` then `GRANT SELECT (safe, cols)`, and
+    verify with a real anonymous request afterwards — the SQL editor saying "Success" only
+    means the statement parsed.
+31. **Judge rows are created by `register_judge()` only.** The `judges` INSERT policy is
+    `WITH CHECK (false)`. Do not "fix" a registration problem by loosening that policy;
+    fix it in the function.
+32. **Do not enforce the judging lock in RLS.** Offline judges sync after the fact; a
+    `locked` check in the `scores` policy would silently destroy legitimately-scored work.
+    The lock belongs in `submitScore()`.
 
 ---
 
