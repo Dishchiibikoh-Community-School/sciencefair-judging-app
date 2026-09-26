@@ -17,10 +17,19 @@ Built as a single-file React component (`ScienceFairJudging.jsx`).
 **Target scale:** Flexible — supports 1–100+ judges, 1–150+ projects per school (configurable).
 **Target devices:** Tablets (primary), phones, laptops, Chromebooks — fully responsive.
 
-**v1 (single-school, legacy):**
-- **Live URL:** https://qritiko.com/
-- **Supabase project:** https://cjzuiimoamrggucvahjm.supabase.co
-- **Do not modify** — v1 is live for Dishchiibikoh Community School events
+**v1 (single-school) — RETIRED 2026-09-25:**
+- ~~Live URL: qritiko.com~~ · ~~Supabase project: cjzuiimoamrggucvahjm~~
+- **It was never actually isolated.** Both Vercel projects build from the same `main`
+  branch, so the 2026-06-02 v2 rewrite silently replaced v1's frontend too. From that
+  date `qritiko.com` served **v2 code against the v1 database**, which has no `schools`,
+  `school_admins` or `rubrics` tables — so it returned 404s for ~4 months. The old
+  "do not modify" note gave false comfort: only the database was separate, never the code.
+- **Data archived** 2026-09-25 to `D:Desktopsciencefair-v1-archive` (JSON + CSV):
+  27 projects · 9 judges · 81 scores · 28 registration submissions · 9 validations ·
+  3 departments · 1 share link · 3 settings. **Kept outside the repo on purpose** —
+  `registration_submissions` holds student and guardian PII and must never be committed.
+- **Do not resurrect v1.** If `qritiko.com` is wanted again, point it at v2
+  (`app.qritiko.com/s/{slug}`); do not redeploy the old app.
 
 **v2 (multi-tenant SaaS — active development):**
 - **Live URL:** https://app.qritiko.com/ (school-select) → https://app.qritiko.com/s/{slug} (per-school)
@@ -49,6 +58,34 @@ Built as a single-file React component (`ScienceFairJudging.jsx`).
 > - Phase 7: New Supabase v2 project, `schema-v2.sql` applied, new Vercel deployment, `app.qritiko.com` domain via Cloudflare CNAME
 
 ## 🐛 Bug Fix Log
+
+### 2026-09-25 — Security hardening + v1 retirement
+
+**v1 retired.** `qritiko.com` had been serving v2 code against the v1 database since the
+June rewrite (both Vercel projects build from `main`), returning 404s for ~4 months. Data
+exported to `D:Desktopsciencefair-v1-archive` — see the Project Overview section.
+
+**RLS hardening** — `supabase/migration-2026-09-security-hardening.sql`. The anon key is
+public (it is in the JS bundle), and almost every policy was `USING (true)`. Verified live
+by curl before the fix: `schools?select=admin_pin` returned `"admin_pin":"0000"`.
+
+Closed: admin PIN column revoked from anon; `app_settings` writes admin-only (anyone could
+previously set `results_finalized = true` or unlock judging); `registration_submissions`
+read/update admin-only (student + guardian PII); `activity_log` / `it_logs` reads admin-only.
+
+**App changes that MUST ship with that SQL:**
+- School signup selects explicit columns (anon has no grant on `admin_pin`, so `select()`
+  meaning `*` would now fail).
+- `ensureSeedData()` also seeds baseline `app_settings` (anon can no longer insert them).
+- The public registration form gets its count from the `registration_count` RPC and now
+  **fails loudly** instead of falling back to a guessed number — duplicate registration
+  numbers would be worse than a visible error.
+- `loadLog` / `loadItLogs` / `loadScoreBackups` are refetched on sign-in. They run once in
+  `init()` as anon; with admin-only SELECT they return `[]`, so without the refetch the
+  Activity, IT Logs and Score Export tabs would sit empty for the admin. (`score_backups`
+  was already admin-only, so that tab has been silently empty since v2 launched.)
+
+See the RLS section for what is deliberately still open and why.
 
 ### 2026-09-25 — Full architecture audit: 19 findings fixed
 
@@ -883,7 +920,41 @@ All tables are subscribed via a single `supabase.channel("app-realtime")` — ch
 This prevents the cascade of 3+ full Supabase queries + component re-renders that previously fired on every single score submission.
 
 ### RLS
-Row Level Security is enabled on all tables with open anon policies (public read/write). Full per-judge enforcement requires Supabase Auth (not yet implemented).
+Row Level Security is enabled on every table. It was wide open (`USING (true)`) until
+the 2026-09-25 hardening pass — see `supabase/migration-2026-09-security-hardening.sql`.
+
+**Remember the anon key is public.** It ships inside the JS bundle, so every RLS policy is
+the *only* thing standing between a stranger with `curl` and the database. "The UI does not
+expose it" is never a control.
+
+**Locked down (2026-09-25):**
+
+| Table | Policy |
+|---|---|
+| `schools.admin_pin` | column-level `REVOKE SELECT ... FROM anon` — the row stays readable, the PIN does not |
+| `app_settings` | reads open (judges need `locked` / `deliberation_open` / transfer allowances); **writes admin-only** |
+| `registration_submissions` | SELECT + UPDATE admin-only (student PII). INSERT stays open for the public form |
+| `activity_log`, `it_logs` | INSERT open (everything logs), **SELECT admin-only** |
+| `schools` UPDATE | `is_school_admin(id)` |
+
+`public.registration_count(uuid)` is a SECURITY DEFINER function exposing only the submission
+count, so the public registration form can still build a registration number without being
+able to read PII.
+
+**⚠️ Remaining / accepted risk — judges are anonymous by design:**
+
+- `scores`, `judges`, `validations` and `deliberation_notes` still allow anonymous
+  INSERT/UPDATE. Anyone with the school slug can register a fake judge, submit scores, or
+  overwrite existing ones. Closing this needs a judge-identity model (a per-judge token or
+  Supabase anonymous auth) — a real project, not a policy tweak.
+- `schools.invite_code` is still anon-readable because the app validates it **client-side**.
+  Proper fix: validate it in an Edge Function / RPC and stop sending it to the browser.
+- `share_links` and `registration_links` are anon-SELECTable because each anonymous visitor
+  has to validate its own token. That means tokens are enumerable, so a share link is
+  "unlisted", not "secret". Proper fix: a `verify_*_token` SECURITY DEFINER RPC.
+- `app_settings.project_list_token` is readable for the same reason.
+
+Treat the above as the next security work item, not as settled.
 
 ---
 

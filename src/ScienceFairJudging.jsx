@@ -1102,6 +1102,25 @@ export default function App() {
       }
     }
 
+    // app_settings became admin-write in the security migration, so a school
+    // created without a session has none. Seed the baseline keys if missing.
+    const { data: settings } = await supabase.from("app_settings")
+      .select("key").eq("school_id", sid);
+    const haveKeys = new Set((settings || []).map(r => r.key));
+    const baseline = [
+      { key: "locked",            value: "false" },
+      { key: "deliberation_open", value: "false" },
+      { key: "results_finalized", value: "false" },
+    ].filter(r => !haveKeys.has(r.key)).map(r => ({ school_id: sid, ...r }));
+    if (baseline.length) {
+      const { error } = await supabase.from("app_settings").insert(baseline);
+      if (!error) {
+        addItLog("WARN","SYSTEM","APP_SETTINGS_RESEEDED",
+          "Baseline app_settings were missing for this school and have been re-seeded",
+          { schoolId: sid, keys: baseline.map(r => r.key) });
+      }
+    }
+
     const { data: rubs } = await supabase.from("rubrics")
       .select("id").eq("school_id", sid).eq("is_active", true).limit(1);
     if (!rubs || rubs.length === 0) {
@@ -1194,6 +1213,12 @@ export default function App() {
             setCurrentSchool(school);
             // Seed anything the signup flow could not create without a session.
             ensureSeedData(school.id);
+            // These tables are admin-read only, so the anonymous load during init()
+            // returned nothing. Refetch now that we have a session — otherwise the
+            // Activity, IT Logs and Score Export tabs stay empty for the admin.
+            loadLog(school.id);
+            loadItLogs(school.id);
+            loadScoreBackups(school.id);
           }
         }
       } else {
@@ -2714,8 +2739,19 @@ export default function App() {
       // Count only registration-submitted projects so numbering starts at 001
       // regardless of how many admin-added projects exist
       const schoolId = regTokenData?.school_id || currentSchool?.id;
-      const { count: regCount } = await supabase.from("registration_submissions")
-        .select("id", { count: "exact", head: true }).eq("school_id", schoolId);
+      // registration_submissions is admin-read only (it holds student PII), so the
+      // public form gets just the count via a SECURITY DEFINER function.
+      const { data: regCount, error: countErr } = await supabase
+        .rpc("registration_count", { p_school_id: schoolId });
+      if (countErr) {
+        // Never fall back to a guessed number — duplicate registration numbers
+        // would be worse than a clear failure.
+        setRegFormErr("Could not generate a registration number. Please try again or contact the organizer.");
+        addItLog("ERROR","DB","REG_COUNT_FAILED","registration_count RPC failed — is the security migration applied?",
+          { schoolId, error: countErr.message });
+        setRegSubmitting(false);
+        return;
+      }
       const projNum   = String((regCount || 0) + 1).padStart(3, "0");
       const regNumber = generateRegNum(f.division, f.category, projNum);
 
@@ -3754,7 +3790,9 @@ export default function App() {
             const inviteCode = genToken().slice(0,8).toUpperCase();
             const { data: school, error: schoolErr } = await supabase.from("schools")
               .insert({ name: name.trim(), slug: slug.trim(), invite_code: inviteCode, admin_pin: "0000" })
-              .select().single();
+              // Explicit columns: anon has no SELECT grant on admin_pin, so `select()`
+              // (which means *) would fail with "permission denied for column".
+              .select("id, name, slug, invite_code").single();
             if (schoolErr) { setSchoolFormErr(schoolErr.message || "Failed to create school."); setSchoolRegistering(false); return; }
             // 3. Link admin — without this the account can never administer the school.
             const { error: adminErr2 } = await supabase.from("school_admins")
@@ -3764,7 +3802,9 @@ export default function App() {
               setSchoolRegistering(false);
               return;
             }
-            // 4. Seed app_settings
+            // 4. Seed app_settings — admin-only since the security migration, so this
+            //    only succeeds when signUp() returned a session. ensureSeedData()
+            //    fills it in on first admin sign-in otherwise.
             const { error: settingsErr } = await supabase.from("app_settings").insert([
               { school_id: school.id, key: "locked",           value: "false" },
               { school_id: school.id, key: "deliberation_open",value: "false" },
