@@ -764,7 +764,7 @@ const urlProjListToken = typeof window !== "undefined"
 export default function App() {
   // ── SCHOOL / AUTH STATE ───────────────────────────────────
   const [session,       setSession]       = useState(null);   // Supabase Auth session
-  const [currentSchool, setCurrentSchool] = useState(null);   // { id, name, slug, invite_code, admin_pin? }
+  const [currentSchool, setCurrentSchool] = useState(null);   // { id, name, slug } — invite_code/admin_pin are NOT readable; use loadInviteCode() / verifyAdminPin()
   const [schoolLoading, setSchoolLoading] = useState(!!urlSchoolSlug); // true while resolving slug
 
   // ── RUBRIC STATE ─────────────────────────────────────────
@@ -1253,7 +1253,7 @@ export default function App() {
     async function resolveSchool() {
       if (!urlSchoolSlug) { setSchoolLoading(false); return; }
       const { data } = await supabase.from("schools")
-        .select("id, name, slug, invite_code")
+        .select("id, name, slug")
         .eq("slug", urlSchoolSlug).single();
       if (data) setCurrentSchool(data);
       setSchoolLoading(false);
@@ -1269,7 +1269,7 @@ export default function App() {
           .select("school_id").eq("user_id", sess.user.id).single();
         if (sa) {
           const { data: school } = await supabase.from("schools")
-            .select("*").eq("id", sa.school_id).single();
+            .select("id, name, slug").eq("id", sa.school_id).single();
           // Only adopt the admin's school when it IS the school in the URL.
           // Otherwise the page would read school B's data while writing to school A.
           if (school && (!urlSchoolSlug || school.slug === urlSchoolSlug)) {
@@ -1289,7 +1289,7 @@ export default function App() {
         // If admin logs out, reload public-only school info (no admin_pin)
         if (urlSchoolSlug) {
           const { data } = await supabase.from("schools")
-            .select("id, name, slug, invite_code").eq("slug", urlSchoolSlug).single();
+            .select("id, name, slug").eq("slug", urlSchoolSlug).single();
           if (data) setCurrentSchool(data);
         }
       }
