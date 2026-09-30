@@ -6,7 +6,7 @@ import { supabase } from "./supabaseClient";
 // ─────────────────────────────────────────────
 const JUDGE_NAMES  = Array.from({ length: 100 }, (_, i) => `Judge${i + 1}`);
 
-// School slug from URL path: app.qritiko.com/s/school-slug
+// School slug from URL path: qritiko.com/s/school-slug
 const urlSchoolSlug = typeof window !== "undefined"
   ? (window.location.pathname.split("/s/")[1]?.split("/")[0] || null)
   : null;

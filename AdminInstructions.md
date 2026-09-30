@@ -8,7 +8,7 @@ This guide covers everything an event organizer needs to know to run the digital
 
 ## Admin Access
 
-Your fair lives at its own address: **`https://app.qritiko.com/s/your-school`**. Everything below happens there — a plain `app.qritiko.com` is the platform homepage, not your fair.
+Your fair lives at its own address: **`https://qritiko.com/s/your-school`**. Everything below happens there — a plain `qritiko.com` is the platform homepage, not your fair.
 
 **Login:** the **email and password** you chose when you registered the school (Supabase Auth). There is no shared admin password.
 
@@ -62,7 +62,7 @@ judge device transfers. **You choose it when you register the school** — 4 to 
 
 Run through this a few days before, not on the morning of.
 
-- [ ] **Check the app is awake.** Open `https://app.qritiko.com/s/your-school`. The free Supabase tier pauses a project after ~7 days with no traffic, and a paused project takes the whole app down. If anything fails to load, resume it from the Supabase dashboard and re-check.
+- [ ] **Check the app is awake.** Open `https://qritiko.com/s/your-school`. The free Supabase tier pauses a project after ~7 days with no traffic, and a paused project takes the whole app down. If anything fails to load, resume it from the Supabase dashboard and re-check.
 - [ ] **Change the admin PIN** (Overview tab → Admin PIN card) if it has not been changed since the school was created.
 - [ ] **Confirm departments exist** — the Overview tab should list Elementary / Middle School / High School. If it does not, sign out and back in; they re-seed on admin sign-in.
 - [ ] **Set max judges per department** (locks per department once its first judge registers).
@@ -404,7 +404,7 @@ Opens automatically on a tie, or admin can open manually. Admin assigns final aw
 4. Click **"Generate Live Results Link"**
 5. Copy and share the URL
 
-The link looks like `https://app.qritiko.com/s/your-school?token=…`. Anyone with it sees the
+The link looks like `https://qritiko.com/s/your-school?token=…`. Anyone with it sees the
 results page directly. If you **Revoke** it, or it expires, the link shows "Link Unavailable".
 
 > Note: while a link is live, a "● LIVE RESULTS" card also appears on your school's landing

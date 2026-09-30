@@ -9,7 +9,7 @@ This guide will walk you through how to use the app to score science fair projec
 ## Before You Start
 
 **You'll need:**
-- **Your school's app link** — it looks like `https://app.qritiko.com/s/your-school`. Your organizer will give you the exact address. Bookmark it.
+- **Your school's app link** — it looks like `https://qritiko.com/s/your-school`. Your organizer will give you the exact address. Bookmark it.
 - Your judge name: **Judge1** through **Judge[N]** — provided by your event organizer
 - Your **department**: Elementary, Middle School, or High School — your organizer will tell you which one
 - Invite code: **provided by your event organizer** (a short code set by your school)
@@ -20,7 +20,7 @@ This guide will walk you through how to use the app to score science fair projec
 
 ## Step 1: Sign In as a Judge
 
-1. **Open your school's link** — `https://app.qritiko.com/s/your-school` (ask your organizer for the exact address; a plain `app.qritiko.com` will NOT show your fair)
+1. **Open your school's link** — `https://qritiko.com/s/your-school` (ask your organizer for the exact address; a plain `qritiko.com` with no `/s/...` will NOT show your fair)
 2. **Click "I'm a Judge"**
 3. **Select your department** — tap the button for Elementary, Middle School, or High School
 4. **Enter your judge name** (e.g., "Judge1", "Judge2", etc.)

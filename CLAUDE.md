@@ -18,25 +18,35 @@ Built as a single-file React component (`ScienceFairJudging.jsx`).
 **Target devices:** Tablets (primary), phones, laptops, Chromebooks — fully responsive.
 
 **v1 (single-school) — RETIRED 2026-09-25:**
-- ~~Live URL: qritiko.com~~ · ~~Supabase project: cjzuiimoamrggucvahjm~~
-- **It was never actually isolated.** Both Vercel projects build from the same `main`
+- ~~Supabase project: cjzuiimoamrggucvahjm~~ (`cbq-sciencefair`)
+- ⚠️ **`qritiko.com` now means v2, not v1.** As of 2026-09-30 the apex domain was moved to
+  the `sciencefair-v2` Vercel project and is the platform's primary URL. Historical notes
+  below that mention "qritiko.com served v1" describe the pre-2026-09-30 arrangement.
+- **It was never actually isolated.** Both Vercel projects built from the same `main`
   branch, so the 2026-06-02 v2 rewrite silently replaced v1's frontend too. From that
   date `qritiko.com` served **v2 code against the v1 database**, which has no `schools`,
   `school_admins` or `rubrics` tables — so it returned 404s for ~4 months. The old
   "do not modify" note gave false comfort: only the database was separate, never the code.
-- **Data archived** 2026-09-25 to `D:Desktopsciencefair-v1-archive` (JSON + CSV):
+- **Data archived** 2026-09-25 to `D:\Desktop\sciencefair-v1-archive\` (JSON + CSV):
   27 projects · 9 judges · 81 scores · 28 registration submissions · 9 validations ·
   3 departments · 1 share link · 3 settings. **Kept outside the repo on purpose** —
   `registration_submissions` holds student and guardian PII and must never be committed.
-- **Do not resurrect v1.** If `qritiko.com` is wanted again, point it at v2
-  (`app.qritiko.com/s/{slug}`); do not redeploy the old app.
+- **Do not resurrect v1.** The old Vercel project (`sciencefair-judging-app`) was deleted
+  2026-09-30; do not redeploy it.
 
 **v2 (multi-tenant SaaS — active development):**
-- **Live URL:** https://app.qritiko.com/ (school-select) → https://app.qritiko.com/s/{slug} (per-school)
+- **Live URL:** https://qritiko.com/ (school-select) → https://qritiko.com/s/{slug} (per-school)
+- **Canonical domain is the bare apex `qritiko.com`** (changed 2026-09-30 from
+  `app.qritiko.com`). `www.qritiko.com` and `app.qritiko.com` are 308 redirects to it.
+  ⚠️ **Keep exactly one origin serving the app.** `localStorage` is per-origin, so a judge
+  who signs in on one hostname and later opens another looks signed out — and any scores
+  queued offline (`sf_offline_queue`) are stranded on the origin they can no longer see.
+  Never promote a second hostname to "Production" in Vercel; make it a redirect.
+  `sciencefair-v2.vercel.app` always serves and cannot be redirected — never share it.
 - **Supabase project:** https://evrupqnhgrfltfhafeyj.supabase.co
 - **Schema:** `supabase/schema-v2.sql` (applied to v2 Supabase project)
-- **Vercel project:** `sciencefair-v2` (separate from v1, same GitHub repo)
-- **Deploy:** Push to `main` → both Vercel projects auto-deploy from the same repo
+- **Vercel project:** `sciencefair-v2` — the ONLY Vercel project since 2026-09-30 (the v1 project was deleted)
+- **Deploy:** Push to `main` → `sciencefair-v2` auto-deploys. (Until 2026-09-30 a second Vercel project built from the same branch, which is how v1 was silently overwritten by the v2 rewrite.)
 
 > Last major update: 2026-09-25 — **Full architecture audit: 19 defects fixed** (see Bug Fix Log).
 > Highlights: score backups/CSV exports were silently empty under the v2 JSONB schema; projects
@@ -118,7 +128,7 @@ is the next security work item.
 
 **v1 retired.** `qritiko.com` had been serving v2 code against the v1 database since the
 June rewrite (both Vercel projects build from `main`), returning 404s for ~4 months. Data
-exported to `D:Desktopsciencefair-v1-archive` — see the Project Overview section.
+exported to `D:\Desktop\sciencefair-v1-archive\` — see the Project Overview section.
 
 **RLS hardening** — `supabase/migration-2026-09-security-hardening.sql`. The anon key is
 public (it is in the JS bundle), and almost every policy was `USING (true)`. Verified live
@@ -1073,6 +1083,14 @@ Treat the above as the next security work item, not as settled.
 32. **Do not enforce the judging lock in RLS.** Offline judges sync after the fact; a
     `locked` check in the `scores` policy would silently destroy legitimately-scored work.
     The lock belongs in `submitScore()`.
+33. **Exactly one hostname may serve the app.** The canonical origin is `https://qritiko.com`
+    (since 2026-09-30); `www.qritiko.com` and `app.qritiko.com` are 308 redirects to it.
+    Never set a second domain to "Production" in Vercel. `localStorage` is scoped per
+    origin, so a judge who signs in on one hostname and later opens another appears signed
+    out, and anything sitting in `sf_offline_queue` on the first origin can never sync —
+    silent score loss. `sf_judge_slug` guards against *cross-school* bleed, not
+    cross-hostname. Every URL the app builds uses `window.location.origin`, so it inherits
+    whatever hostname the user arrived on; the redirects are what keep that single-valued.
 
 ---
 
