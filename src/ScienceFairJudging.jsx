@@ -1264,7 +1264,7 @@ export default function App() {
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (event, sess) => {
       setSession(sess);
       if (sess) {
-        // Load school with admin_pin after auth
+        // Resolve the admin's school (public columns only — the PIN is never readable)
         const { data: sa } = await supabase.from("school_admins")
           .select("school_id").eq("user_id", sess.user.id).single();
         if (sa) {
@@ -1286,7 +1286,7 @@ export default function App() {
           }
         }
       } else {
-        // If admin logs out, reload public-only school info (no admin_pin)
+        // If admin logs out, reload public school info
         if (urlSchoolSlug) {
           const { data } = await supabase.from("schools")
             .select("id, name, slug").eq("slug", urlSchoolSlug).single();

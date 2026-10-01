@@ -207,7 +207,7 @@ If a judge's tablet fails and they need to continue on another device:
 1. Go to **Judges** tab
 2. Find the judge row
 3. Click **"Allow Transfer"**
-4. Enter the **IT PIN** to authorize transfer
+4. Enter your **Admin PIN** to authorize transfer
 5. Approval stays active briefly (about 10 minutes, one-time use)
 6. Judge signs in on the new device with the same judge name + department + invite code
 
@@ -359,9 +359,9 @@ Opens automatically on a tie, or admin can open manually. Admin assigns final aw
 
 **CAUTION — This is permanent:**
 
-1. Go to **IT Logs tab** (enter the 4-digit IT PIN)
+1. Go to **IT Logs tab** (enter your Admin PIN)
 2. Click **"Reset All Data"**
-3. Enter IT PIN and confirm
+3. Enter your Admin PIN and confirm
 
 **What resets:**
 - All judge registrations and sessions (across all departments)
