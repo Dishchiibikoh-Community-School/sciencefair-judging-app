@@ -649,10 +649,11 @@ const CSS = `
   .scan-card{display:flex;gap:.9rem;background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:.8rem;margin-top:.65rem;}
   .scan-card.error{border-color:var(--red);}
   .scan-card.saved{opacity:.7;}
-  .scan-thumb{flex:0 0 130px;align-self:flex-start;display:block;text-decoration:none;color:var(--dim);}
+  /* The photo stays in view while the admin checks the fields beside it. */
+  .scan-thumb{flex:0 0 240px;align-self:flex-start;position:sticky;top:1rem;display:block;text-decoration:none;color:var(--dim);}
   .scan-thumb img{width:100%;border-radius:6px;border:1px solid var(--bd);display:block;}
   .scan-thumb.pdf{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.3rem;font-size:2rem;
-    min-height:130px;background:var(--s2);border-radius:6px;}
+    min-height:110px;background:var(--s2);border-radius:6px;}
   .scan-thumb.pdf span{font-size:.7rem;font-family:var(--ff-m);}
   .scan-body{flex:1;min-width:0;}
   .scan-file{font-family:var(--ff-m);font-size:.72rem;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -662,9 +663,13 @@ const CSS = `
   .scan-msg.warn{background:var(--amber-l);color:#92400e;}
   .scan-msg.info{background:var(--blue-l);color:var(--blue);}
   .scan-msg.ok{background:var(--green-l);color:var(--green);}
+  @media(max-width:900px){ .scan-thumb{flex-basis:160px;} }
   @media(max-width:640px){
     .scan-card{flex-direction:column;}
-    .scan-thumb{flex-basis:auto;max-width:220px;}
+    .scan-thumb{position:static;flex-basis:auto;width:100%;max-width:none;}
+    .scan-thumb img{max-height:340px;object-fit:contain;background:var(--s2);}
+    .scan-thumb.pdf{min-height:70px;flex-direction:row;}
+    .scan-card .proj-form-grid, .proj-form .proj-form-grid{grid-template-columns:1fr;}
   }
   .proj-lock-badge{display:inline-flex;align-items:center;gap:.25rem;font-size:.68rem;font-family:var(--ff-m);
     color:var(--amber);background:var(--amber-l);padding:.15rem .5rem;border-radius:100px;}
@@ -798,7 +803,15 @@ function dbToJudge(row) {
   return { id: row.id, alias: row.alias, projects: row.projects, joinedAt: new Date(row.joined_at).getTime(), department_id: row.department_id || null };
 }
 function dbToLog(row) {
-  return { time: new Date(row.created_at).getTime(), msg: row.message };
+  return { id: row.id, time: new Date(row.created_at).getTime(), msg: row.message };
+}
+// RFC 4122 v4 — activity_log.id is a UUID column.
+function newUuid() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map(x => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
 }
 function dbToItLog(row) {
   return { id: row.id, ts: new Date(row.created_at).getTime(), level: row.level, module: row.module, event: row.event, detail: row.detail, payload: row.payload || {} };
@@ -1373,8 +1386,16 @@ export default function App() {
     }
 
     // ── Step 2: Auth state listener ──────────────────────────
-    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (event, sess) => {
+    // ⚠️ NEVER await a Supabase call inside this callback. supabase-js notifies listeners
+    // while holding its auth lock, and every query needs that lock to read the token —
+    // so an awaited query here deadlocks. Until 2026-10-05 that made Sign Out hang forever
+    // (signOut() never resolved, the admin stayed on the dashboard and every later query in
+    // the tab stalled). The work is deferred with setTimeout, as Supabase recommends.
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event, sess) => {
       setSession(sess);
+      setTimeout(() => { onAuthChanged(sess); }, 0);
+    });
+    async function onAuthChanged(sess) {
       if (sess) {
         // Resolve the admin's school (public columns only — the PIN is never readable)
         const { data: sa } = await supabase.from("school_admins")
@@ -1400,18 +1421,22 @@ export default function App() {
           }
         }
       } else {
-        // If admin logs out, reload public school info
+        // Signed out: drop admin-only data from memory so the next person on this
+        // device cannot see it, then reload the public view of the school.
+        setInviteCode("");
+        setRegSubmissions([]);
+        setScoreBackups([]);
+        setItUnlocked(false);
         if (urlSchoolSlug) {
           const { data } = await supabase.from("schools")
             .select("id, name, slug").eq("slug", urlSchoolSlug).single();
           if (data) {
             setCurrentSchool(data);
-            // Drop the admin-only student names from memory.
-            loadProjects(data.id);
+            loadProjects(data.id);   // without a session project_private returns nothing → no names
           }
         }
       }
-    });
+    }
 
     // ── Step 3: Load all school data ─────────────────────────
     async function init(school) {
@@ -1505,11 +1530,12 @@ export default function App() {
             loadScores(sid);
           }
         })
+        // The writer already added its own entry locally — skip the echo of it.
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "activity_log",  filter: f("activity_log") }, ({ new: row }) => {
-          setLog(prev => [dbToLog(row), ...prev]);
+          setLog(prev => prev.some(x => x.id === row.id) ? prev : [dbToLog(row), ...prev]);
         })
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "it_logs", filter: f("it_logs") }, ({ new: row }) => {
-          setItLogs(prev => [dbToItLog(row), ...prev]);
+          setItLogs(prev => prev.some(x => x.id === row.id) ? prev : [dbToItLog(row), ...prev]);
         })
         .on("postgres_changes", { event: "*", schema: "public", table: "share_links",   filter: f("share_links")   }, () => loadShare(sid))
         .on("postgres_changes", { event: "*", schema: "public", table: "app_settings",  filter: f("app_settings")  }, () => loadSettings(sid))
@@ -2117,15 +2143,25 @@ export default function App() {
 
   // Helpers — optimistic local update + fire-and-forget DB write.
   // Realtime subscriptions handle cross-client sync.
+  // ⚠️ A supabase-js query only runs when it is awaited or .then()-ed. Until 2026-10-05 these
+  // two inserts had neither, so NO activity or IT log row was ever written in v2 — the audit
+  // trail existed only in each browser's memory. Keep the .then().
+  // The entry id is generated here so the realtime INSERT echo can be de-duplicated.
   function addLog(msg) {
-    setLog(p => [{ time: Date.now(), msg }, ...p]);
-    supabase.from("activity_log").insert({ school_id: currentSchool?.id, message: msg });
+    const id = newUuid();
+    setLog(p => [{ id, time: Date.now(), msg }, ...p]);
+    if (!currentSchool?.id) return;
+    supabase.from("activity_log").insert({ id, school_id: currentSchool.id, message: msg })
+      .then(({ error }) => { if (error) console.warn("[activity_log] not saved:", error.message); });
   }
 
   function addItLog(level, module, event, detail, payload = {}) {
     const entry = { id: itId(), ts: Date.now(), level, module, event, detail, payload };
     setItLogs(p => [entry, ...p]);
-    supabase.from("it_logs").insert({ school_id: currentSchool?.id, id: entry.id, level, module, event, detail, payload });
+    if (!currentSchool?.id) return;
+    // Never call addItLog from this callback — a failing insert would loop.
+    supabase.from("it_logs").insert({ school_id: currentSchool.id, id: entry.id, level, module, event, detail, payload })
+      .then(({ error }) => { if (error) console.warn("[it_logs] not saved:", error.message); });
   }
 
   function buildReport(logs) {
@@ -2920,6 +2956,10 @@ export default function App() {
       key: "sc_" + uid(), file, url,
       fileName: file ? file.name : "Manual entry",
       isPdf: !!file && (file.type === "application/pdf" || /\.pdf$/i.test(file.name)),
+      // Only real images get an <img>; HEIC the browser can't draw flips thumbBroken.
+      isImage: !!file && (/^image\//.test(file.type) || /\.(jpe?g|png|webp|hei[cf])$/i.test(file.name)),
+      thumbBroken: false,
+      retryable: true,     // false for problems retrying can't fix (wrong type, too big)
       status: file ? "reading" : "ready",       // reading | ready | saving | saved | error
       error: "", data: emptyScanData(), conf: {},
       notSure: false, notForm: false, notes: "", workMode: "", deptRaw: "", savedNum: "",
@@ -2985,7 +3025,7 @@ export default function App() {
     patchScanCard(card.key, { status: "reading", error: "" });
     let payload;
     try { payload = await scanPayload(card.file); }
-    catch (e) { patchScanCard(card.key, { status: "error", error: e.message }); return; }
+    catch (e) { patchScanCard(card.key, { status: "error", error: e.message, retryable: false }); return; }
     const { data: { session: s } } = await supabase.auth.getSession();
     const resp = await fetch("/api/scan-form", {
       method: "POST",
@@ -3105,8 +3145,10 @@ export default function App() {
     return (
       <div key={card.key} className={`scan-card ${card.status}`}>
         {card.url
-          ? <a className={`scan-thumb ${card.isPdf ? "pdf" : ""}`} href={card.url} target="_blank" rel="noreferrer" title="Open the original">
-              {card.isPdf ? <>📄<span>Open PDF</span></> : <img src={card.url} alt="Scanned participation form" />}
+          ? <a className={`scan-thumb ${card.isImage && !card.thumbBroken ? "" : "pdf"}`} href={card.url} target="_blank" rel="noreferrer" title="Open the original full size">
+              {card.isImage && !card.thumbBroken
+                ? <img src={card.url} alt="Scanned participation form" onError={() => patchScanCard(card.key, { thumbBroken: true })} />
+                : <>{card.isPdf ? "📄" : "🗂️"}<span>{card.isPdf ? "Open PDF" : "Open file"}</span></>}
             </a>
           : <div className="scan-thumb pdf">✍️<span>Manual</span></div>}
         <div className="scan-body">
@@ -3117,7 +3159,7 @@ export default function App() {
           {card.status === "error" && <>
             <div className="scan-msg err">⚠ {card.error}</div>
             <div className="scan-actions">
-              {card.file && <button className="btn sm" style={{width:"auto"}} disabled={scanSaving} onClick={() => scanOne(card)}>↻ Retry</button>}
+              {card.file && card.retryable && <button className="btn sm" style={{width:"auto"}} disabled={scanSaving} onClick={() => scanOne(card)}>↻ Retry</button>}
               <button className="btn sec sm" style={{width:"auto"}} onClick={() => patchScanCard(card.key, { status:"ready", error:"" })}>✍️ Enter manually</button>
               <button className="proj-act-btn del" onClick={() => removeScanCard(card.key)}>Remove</button>
             </div>
@@ -3601,7 +3643,10 @@ export default function App() {
                 {myVal.comment && <div style={{fontSize:".82rem",color:"var(--dim)",marginTop:".5rem"}}>Your note: "{myVal.comment}"</div>}
                 <button className="btn sec sm" style={{marginTop:"1rem",width:"auto"}} onClick={() => {
                   setJudgeValidations(p => { const n={...p}; delete n[judge.id]; return n; });
-                  supabase.from("validations").delete().eq("school_id", currentSchool?.id).eq("judge_id", judge.id);
+                  // .then() is what actually sends it — this delete never ran before 2026-10-05,
+                  // so a "revised" judge reloaded as still validated and locked out of scoring.
+                  supabase.from("validations").delete().eq("school_id", currentSchool?.id).eq("judge_id", judge.id)
+                    .then(({ error }) => { if (error) addItLog("ERROR","JUDGE","VALIDATION_REVISE_FAILED","Could not clear validation",{ judgeId: judge.id, error: error.message }); });
                   setShowValForm(false); setValComment("");
                 }}>Revise my validation</button>
               </div>

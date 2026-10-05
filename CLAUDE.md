@@ -31,6 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + real-Postgres (PGlite) migration/RLS suite. Run after any `supabase/*.sql` or `api/` change |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): admin, scanner, judge, public registration, phone/tablet widths. Start the dev server first (see the file header) |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -80,6 +81,7 @@ The v1 Vercel project was deleted 2026-09-30. **Do not resurrect v1.**
 ├── scripts/
 │   ├── scan-form.test.mjs       ← mocked tests for api/scan-form.js (free, offline)
 │   ├── db-migrations.test.mjs   ← schema + all migrations on real Postgres (PGlite): RLS, RPCs
+│   ├── e2e/                     ← browser tests (playwright-core + mocked backend); screenshots in e2e/out/ (gitignored)
 │   └── scan-form-smoke.mjs      ← real-Gemini smoke test for form scanning (needs GEMINI_API_KEY)
 ├── supabase/
 │   ├── schema-v2.sql            ← v2 multi-tenant base schema
@@ -633,6 +635,10 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 46. **Public writes go through SECURITY DEFINER RPCs** (`register_judge`, `submit_registration`) that validate a token or code. Never open an anon INSERT policy to make a form work.
 47. **Run `npm test` after any `supabase/*.sql` change.** It applies the base schema + every migration twice on real Postgres and checks RLS as anon / non-admin / admin.
 
+**Supabase client pitfalls (both shipped as real bugs)**
+48. **Every Supabase query must be awaited, returned, inside `Promise.all`, or end in `.then()`.** A supabase-js query builder is lazy — a bare `supabase.from(x).insert(y);` statement sends **nothing**. This silently disabled the activity log, the IT log and "Revise my validation" for all of v2.
+49. **Never `await` a Supabase call inside `onAuthStateChange`.** supabase-js holds its auth lock while notifying listeners; an awaited query waits for that lock → deadlock. It made Sign Out hang forever. Defer with `setTimeout(() => …, 0)` (see `onAuthChanged`).
+
 ---
 
 ## 💡 Common Edit Patterns
@@ -670,6 +676,15 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-05 — Stress test: 4 shipped bugs fixed** (browser E2E + network inspection).
+1. **Activity log + IT logs were never saved** (rule 48) — inserts had no `await`/`.then()`. The "permanent
+   audit trail" lived only in each browser's memory. Now written, with ids so the realtime echo is de-duplicated.
+2. **Sign Out hung forever** (rule 49) — awaited queries inside `onAuthStateChange` deadlocked supabase-js.
+   Sign-out now also clears admin-only state (invite code, registrations, backups, IT unlock).
+3. **"Revise my validation" never deleted the row** (rule 48) — after a reload the judge was still validated and locked out.
+4. Scanner UI: broken-image thumbnails for HEIC/other files, Retry offered for unfixable errors, squashed
+   two-column fields on phones, small photo that scrolled away — photo is now 240px and sticky beside the fields.
 
 **2026-10-05 — Student names private + registration fixed** (migration `2026-10b`, coupled).
 Names moved from public `projects` to admin-only `project_private` (they were readable by anyone).
@@ -727,6 +742,10 @@ its absence. See the `group_members` type split above.
   smoke script.
 - `submit_registration()` is gated only by the registration token: anyone holding an active link
   can submit repeatedly. Deactivate the link when registration closes.
+- The public registration page and some headers show hardcoded **Dishchiibikoh Community School**
+  branding (logo + name) for every school — not multi-tenant. Cosmetic, but wrong for other schools.
+- A real-Gemini scan through the deployed `/api/scan-form` needs an admin session, so it is verified
+  by an admin scanning one form after each deploy (the smoke script tests Gemini directly).
 - Judge identity — see "Open risks".
 
 ---
