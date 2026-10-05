@@ -86,6 +86,17 @@ export function installMock(page, store, log) {
       }
       return json(route, 400, { error: "invalid_grant", error_description: "Invalid login credentials", msg: "Invalid login credentials" });
     }
+    if (path === "/auth/v1/signup") {
+      store.signupCalls = (store.signupCalls || 0) + 1;
+      if (store.authUsers?.includes(body.email)) return json(route, 422, { code: "user_already_exists", msg: "User already registered" });
+      (store.authUsers ||= []).push(body.email);
+      const nu = { ...user, id: "f0000000-0000-0000-0000-00000000000" + store.signupCalls, email: body.email };
+      store.lastSignupUserId = nu.id;
+      // "confirm" = Supabase "Confirm email" ON → user but no session (the common production setup).
+      if (store.signupMode === "confirm") return json(route, 200, nu);
+      return json(route, 200, { access_token: ADMIN_TOKEN, token_type: "bearer", expires_in: 86400,
+        expires_at: Math.floor(Date.now() / 1000) + 86400, refresh_token: "r2", user: nu });
+    }
     if (path === "/auth/v1/user") return isAdmin ? json(route, 200, user) : json(route, 401, { msg: "no" });
     if (path === "/auth/v1/logout") return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*" } });
 
@@ -102,6 +113,16 @@ export function installMock(page, store, log) {
           projects: store.projects.filter(p => p.department_id === body.p_department_id).map(p => p.id) };
         store.judges.push(row);
         return json(route, 200, row);
+      }
+      if (fn === "create_school") {
+        store.createSchoolCalls = (store.createSchoolCalls || []).concat([body]);
+        if (store.failCreateOnce) { store.failCreateOnce = false; return json(route, 400, { code: "P0001", message: "That school URL is already taken. Choose another." }); }
+        if (!/^[0-9]{4,8}$/.test(body.p_admin_pin)) return json(route, 400, { code: "P0001", message: "Admin PIN must be 4–8 digits and not easy to guess (0000, 1111, 1234…)." });
+        if (store.schools.some(x => x.slug === body.p_slug)) return json(route, 400, { code: "P0001", message: "That school URL is already taken. Choose another." });
+        const id = "5c000000-0000-0000-0000-00000000000" + store.createSchoolCalls.length;
+        store.schools.push({ id, name: body.p_name, slug: body.p_slug, created_at: new Date().toISOString() });
+        store.school_admins.push({ school_id: id, user_id: body.p_user_id, role: "owner" });
+        return json(route, 200, { id, name: body.p_name, slug: body.p_slug });
       }
       if (fn === "submit_registration") {
         const link = store.registration_links.find(l => l.token === body.p_token && l.active);

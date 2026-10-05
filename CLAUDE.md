@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + real-Postgres (PGlite) migration/RLS suite. Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): admin, scanner, judge, public registration, phone/tablet widths. Start the dev server first (see the file header) |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, public registration, phone/tablet widths. Start the dev server first (see the file header) |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -54,6 +54,7 @@ always serves and cannot be redirected — never share it.
 | `migration-2026-09b-pin-and-judge-auth.sql` | bcrypt PIN, `security_attempts`, `register_judge()`, PIN/invite RPCs, judge-scoped write policies | **Yes — deploy together with the app build** |
 | `migration-2026-10-project-details.sql` | `projects.room`, `description`, `motivation` | No — app drops the columns and logs `PROJECT_DETAIL_COLS_MISSING`, **but those fields are then silently not saved** |
 | `migration-2026-10b-private-members-and-registration.sql` | Moves adviser + student names to admin-only **`project_private`** (drops `projects.advisor_name` / `group_members`); adds 12 missing `registration_submissions` columns; **`submit_registration()`** RPC; closes direct anon INSERT on submissions | **Yes — run it, then deploy the matching app immediately.** Old app + new SQL saves projects without names |
+| `migration-2026-10c-secure-school-signup.sql` | **`create_school()`** RPC; closes direct INSERT on `schools` and `school_admins` (anyone could make themselves admin of any school) | **Yes** — the sign-up form calls `create_school()`. Run before anyone registers a school |
 
 `registration-migration.sql` and `schema.sql` are historical (the latter is the v1 schema).
 
@@ -203,6 +204,7 @@ the only real controls. "The UI does not expose it" is never a control.
 | `school_invite_code(school)` | admin | Read own invite code |
 | `set_school_invite_code(school, code)` | admin | Change invite code (⚠️ no UI calls it yet) |
 | `registration_count(school)` | anon | Count only (hardening migration). No longer used by the app since 2026-10b |
+| `create_school(user_id, name, slug, invite_code, pin, rubric)` | anon/auth | **The only way to create a school** (2026-10c). Creates school + owner link + 3 settings + 3 departments + rubric in one transaction. Owner must be the caller (signed in) or an account < 24 h old with no school (email-confirm path). Slug, name, invite code and PIN validated server-side |
 | `submit_registration(token, form)` | anon | **The only way a public registration gets in** (2026-10b). Validates the link token, then creates project + `project_private` + submission in one transaction, numbering under a per-school advisory lock. Errors raised as `P0001` are written for the student |
 | `is_school_admin(school)` | policies | Admin check used throughout RLS (base schema) |
 | `hash_admin_pin()` trigger | — | Hashes `admin_pin` on INSERT/UPDATE; leaves existing bcrypt values alone |
@@ -213,7 +215,8 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 
 | Table | Policy |
 |---|---|
-| `schools` | anon/auth may SELECT only `id, name, slug, created_at`. `admin_pin` and `invite_code` are granted to nobody. UPDATE admin-only |
+| `schools` | anon/auth may SELECT only `id, name, slug, created_at`. `admin_pin` and `invite_code` are granted to nobody. UPDATE admin-only. **INSERT closed** — `create_school()` only |
+| `school_admins` | **INSERT `WITH CHECK (false)`** — rows are created only by `create_school()`. Was `WITH CHECK (true)` until 2026-10c |
 | `judges` | INSERT `WITH CHECK (false)` (RPC only); UPDATE admin-only |
 | `scores`, `deliberation_notes` | INSERT/UPDATE require the `judge_id` to exist in `judges` for that school |
 | `validations` | Same, or `judge_id = 'admin'` written by a school admin |
@@ -233,6 +236,10 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
   their own token — tokens are enumerable, so links are "unlisted", not secret. Same for
   `app_settings.project_list_token`. Fix: `verify_*_token` SECURITY DEFINER RPCs.
 - **The judging lock is not in RLS — on purpose** (see rule 30). It is enforced in `submitScore()`.
+- ~~Anyone could make themselves admin of any school~~ — **fixed 2026-10-05 (migration 2026-10c)**.
+  `school_admins_insert` was `WITH CHECK (true)` from the base schema and never tightened: any
+  free Supabase account could insert `(school_id = victim, user_id = self)`. Verified live by a
+  no-write probe (the insert got as far as the FK check). Now `create_school()` only.
 - ~~Student names on projects were publicly readable~~ — **fixed 2026-10-05 (migration 2026-10b)**.
   `projects?select=group_members` returned names to anyone with the anon key. Names now live in
   `project_private`. A column-level REVOKE was rejected on purpose: Supabase Realtime sends whole
@@ -635,6 +642,10 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 46. **Public writes go through SECURITY DEFINER RPCs** (`register_judge`, `submit_registration`) that validate a token or code. Never open an anon INSERT policy to make a form work.
 47. **Run `npm test` after any `supabase/*.sql` change.** It applies the base schema + every migration twice on real Postgres and checks RLS as anon / non-admin / admin.
 
+50. **Only `create_school()` creates schools or admin links.** Never re-open INSERT on `schools` / `school_admins`; to add a second admin, write an RPC that requires an existing admin of that school.
+51. **Regex literals need their backslashes.** `/^d{4,8}$/` (missing `\`) rejected every numeric PIN and blocked all school sign-ups for 10 days. Prefer a test that exercises the happy path of every form.
+52. **Inputs need `type="text"`.** The base input styles are keyed on `input[type=text]`; an input without a type renders as a tiny unstyled browser box.
+
 **Supabase client pitfalls (both shipped as real bugs)**
 48. **Every Supabase query must be awaited, returned, inside `Promise.all`, or end in `.then()`.** A supabase-js query builder is lazy — a bare `supabase.from(x).insert(y);` statement sends **nothing**. This silently disabled the activity log, the IT log and "Revise my validation" for all of v2.
 49. **Never `await` a Supabase call inside `onAuthStateChange`.** supabase-js holds its auth lock while notifying listeners; an awaited query waits for that lock → deadlock. It made Sign Out hang forever. Defer with `setTimeout(() => …, 0)` (see `onAuthChanged`).
@@ -676,6 +687,16 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-05 — Pre-launch regression pass** (migration `2026-10c`, coupled).
+1. **Admin-hijack hole closed** — see Open risks. School sign-up rebuilt on `create_school()`.
+2. **School sign-up was impossible since 2026-09-25** — the PIN check `/^d{4,8}$/` lacked a backslash.
+3. Sign-up checks the URL before creating the login, and a retry reuses the login from a failed
+   attempt (otherwise "User already registered" stranded the user). Email-confirm case now shows a
+   proper success card instead of a red error. Auto URL capped at 50 chars.
+4. Sign-up page on phones: School Name / URL inputs were unstyled and the URL row overflowed.
+5. Change-PIN now enforces the same 4–8 digit, non-trivial rule as sign-up.
+Tests: 53 DB checks (incl. hole proven before / closed after), 64 browser checks incl. sign-up.
 
 **2026-10-05 — Stress test: 4 shipped bugs fixed** (browser E2E + network inspection).
 1. **Activity log + IT logs were never saved** (rule 48) — inserts had no `await`/`.then()`. The "permanent

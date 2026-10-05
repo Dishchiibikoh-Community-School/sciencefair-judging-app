@@ -8,6 +8,7 @@
 --      migration-2026-09b-pin-and-judge-auth.sql
 --      migration-2026-10-project-details.sql
 --      migration-2026-10b-private-members-and-registration.sql
+--      migration-2026-10c-secure-school-signup.sql
 --    Without them RLS is wide open and the app will not work. The sequence is tested by
 --    `node scripts/db-migrations.test.mjs` (real Postgres via PGlite).
 -- ============================================================

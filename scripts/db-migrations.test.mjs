@@ -38,7 +38,7 @@ async function fails(role, uid, q, re, msg, params) {
 await db.exec(`
   CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;
   CREATE SCHEMA auth; CREATE SCHEMA extensions;
-  CREATE TABLE auth.users (id uuid primary key);
+  CREATE TABLE auth.users (id uuid primary key, created_at timestamptz NOT NULL DEFAULT now());
   CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE
     AS $$ SELECT NULLIF(current_setting('test.uid', true), '')::uuid $$;
   GRANT USAGE ON SCHEMA auth, public, extensions TO anon, authenticated;
@@ -71,6 +71,11 @@ await db.exec(`
   INSERT INTO registration_links (school_id, token, active) VALUES ('${SID}', 'OFF-TOKEN', false);
   INSERT INTO registration_links (school_id, token, active, expires_at) VALUES ('${SID}', 'OLD-TOKEN', true, now() - interval '1 day');
 `);
+const HIJACK = await as("authenticated", OTHER,
+  `INSERT INTO school_admins (school_id, user_id) VALUES ('${SID}', '${OTHER}') RETURNING 1`);
+assert.equal(HIJACK.rows.length, 1);
+ok("BEFORE fix: a random signed-in user CAN make themselves admin of an existing school (the hole is real)");
+await db.exec(`DELETE FROM school_admins WHERE user_id = '${OTHER}'`);
 const leak = await as("anon", "", "SELECT group_members FROM projects");
 assert.deepEqual(leak.rows[0].group_members, ["Amos", "Noah"]);
 ok("BEFORE fix: anon CAN read projects.group_members (the leak is real)");
@@ -78,7 +83,8 @@ ok("BEFORE fix: anon CAN read projects.group_members (the leak is real)");
 for (const round of [1, 2]) {
   await db.exec(mig("migration-2026-10-project-details.sql"));
   await db.exec(mig("migration-2026-10b-private-members-and-registration.sql"));
-  ok(`migrations 2026-10 + 2026-10b applied (round ${round} — re-runnable)`);
+  await db.exec(mig("migration-2026-10c-secure-school-signup.sql"));
+  ok(`migrations 2026-10, 10b, 10c applied (round ${round} — re-runnable)`);
 }
 
 // ── PART 1: names are private ──
@@ -168,5 +174,52 @@ await fails("anon", "", `INSERT INTO registration_submissions (school_id, reg_nu
 await fails("anon", "", `INSERT INTO projects (id, school_id, num, title) VALUES ('p_x', '${SID}', '1', 't')`, /row-level security/, "direct anon insert into projects still blocked");
 assert.equal((await db.query("SELECT count(*)::int n FROM registration_submissions")).rows[0].n, 2);
 ok("failed attempts left no partial rows (2 submissions total)");
+
+// ── PART 3: school sign-up (migration 2026-10c) ──
+await fails("authenticated", OTHER, `INSERT INTO school_admins (school_id, user_id) VALUES ('${SID}', '${OTHER}')`,
+  /row-level security/, "AFTER fix: signed-in user can NOT make themselves admin of an existing school");
+await fails("anon", "", `INSERT INTO school_admins (school_id, user_id) VALUES ('${SID}', '${OTHER}')`,
+  /row-level security|permission denied/, "anon can NOT insert school_admins");
+await fails("anon", "", `INSERT INTO schools (name, slug, invite_code) VALUES ('Junk', 'junk', 'abcd')`,
+  /permission denied|row-level security/, "anon can NOT insert schools directly");
+await fails("authenticated", OTHER, `INSERT INTO schools (name, slug, invite_code) VALUES ('Junk', 'junk', 'abcd')`,
+  /permission denied|row-level security/, "signed-in user can NOT insert schools directly");
+
+const NEWU = "cccccccc-cccc-cccc-cccc-cccccccccccc", OLDU = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+await db.exec(`INSERT INTO auth.users (id, created_at) VALUES ('${NEWU}', now()), ('${OLDU}', now() - interval '3 days')`);
+const rubric = JSON.stringify([{ id: "x", label: "X", max: 3, steps: [0, 1, 2, 3] }]);
+const CS = "SELECT create_school($1, $2, $3, 'INV12345', $4, NULL) AS r";
+
+await fails("anon", "", CS, /2–120/, "create_school: too-short name rejected", [NEWU, "N", "new-school", "4821"]);
+await fails("anon", "", CS, /lowercase/, "create_school: bad URL rejected", [NEWU, "New School", "Bad Slug!", "4821"]);
+await fails("anon", "", CS, /already taken/, "create_school: taken URL rejected", [NEWU, "New School", "test", "4821"]);
+for (const pin of ["1111", "1234", "12a4", "123", "123456789"])
+  await fails("anon", "", CS, /PIN/, `create_school: weak/invalid PIN "${pin}" rejected`, [NEWU, "New School", "new-school", pin]);
+await fails("anon", "", CS, /too old/, "create_school: cannot attach an old existing account", [OLDU, "New School", "old-school", "4821"]);
+await fails("authenticated", OTHER, CS, /own account/, "create_school: signed-in user cannot create for someone else", [NEWU, "New School", "other-school", "4821"]);
+await fails("anon", "", CS, /already manages/, "create_school: an existing admin cannot grab a second school", [ADMIN, "New School", "admin-again", "4821"]);
+
+const created = (await as("anon", "", "SELECT create_school($1, 'New School', 'new-school', 'INV12345', '4821', $2::jsonb) AS r", [NEWU, rubric])).rows[0].r;
+assert.equal(created.slug, "new-school");
+ok("create_school (no session, email-confirm path) creates the school");
+const nsid = created.id;
+const n = async (q) => (await db.query(q, [nsid])).rows[0].n;
+assert.equal(await n("SELECT count(*)::int n FROM school_admins WHERE school_id=$1 AND role='owner'"), 1);
+assert.equal(await n("SELECT count(*)::int n FROM departments WHERE school_id=$1"), 3);
+assert.equal(await n("SELECT count(*)::int n FROM app_settings WHERE school_id=$1"), 3);
+assert.equal(await n("SELECT count(*)::int n FROM rubrics WHERE school_id=$1 AND is_active"), 1);
+ok("…with its owner, 3 departments, 3 settings and the active rubric — one transaction");
+const hash = (await db.query("SELECT admin_pin FROM schools WHERE id=$1", [nsid])).rows[0].admin_pin;
+assert.match(hash, /^\$2[aby]\$/);
+ok("…and the PIN is stored bcrypt-hashed, not plaintext");
+await fails("anon", "", CS, /already manages/, "the same account cannot create a second school", [NEWU, "Second", "second-school", "4821"]);
+assert.equal((await as("authenticated", NEWU, "SELECT is_school_admin($1) AS a", [nsid])).rows[0].a, true);
+assert.equal((await as("authenticated", NEWU, "SELECT is_school_admin($1) AS a", [SID])).rows[0].a, false);
+ok("new owner is admin of their own school only");
+const SIGNED = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
+await db.exec(`INSERT INTO auth.users (id) VALUES ('${SIGNED}')`);
+const c2 = (await as("authenticated", SIGNED, "SELECT create_school($1, 'Signed School', 'signed-school', 'INV12345', '4821', NULL) AS r", [SIGNED])).rows[0].r;
+assert.equal(c2.slug, "signed-school");
+ok("create_school (signed-in path) works for your own account");
 
 console.log(`\nALL ${pass} CHECKS PASSED`);

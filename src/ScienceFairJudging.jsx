@@ -883,6 +883,10 @@ export default function App() {
   const [schoolForm, setSchoolForm] = useState({ name:"", slug:"", email:"", password:"", confirmPass:"", adminPin:"", confirmPin:"" });
   const [schoolFormErr, setSchoolFormErr] = useState("");
   const [schoolRegistering, setSchoolRegistering] = useState(false);
+  const [schoolCreatedNeedsConfirm, setSchoolCreatedNeedsConfirm] = useState(""); // slug, when email confirmation is pending
+  // The auth account from a sign-up whose school step failed (e.g. URL taken). Retrying reuses
+  // it — calling signUp() again would fail with "User already registered" and strand the user.
+  const [pendingSignup, setPendingSignup] = useState(null);   // { email, userId, hasSession }
 
   // ── ADMIN EMAIL (for v2 Supabase Auth login) ─────────────
   const [adminEmail, setAdminEmail] = useState("");
@@ -1164,7 +1168,11 @@ export default function App() {
   async function changeAdminPin() {
     setPinFormMsg(null);
     const { current, next, confirm } = pinForm;
-    if (next.length < 4)      { setPinFormMsg({ ok:false, text:"New PIN must be at least 4 digits." }); return; }
+    // Same rule as sign-up / create_school(): 4-8 digits, nothing trivially guessable.
+    if (!/^\d{4,8}$/.test(next)) { setPinFormMsg({ ok:false, text:"New PIN must be 4–8 digits." }); return; }
+    if (/^(\d)\1+$/.test(next) || ["1234","12345","123456","1234567","12345678"].includes(next)) {
+      setPinFormMsg({ ok:false, text:"Choose a less predictable PIN (not 0000, 1111, 1234, ...)." }); return;
+    }
     if (next !== confirm)     { setPinFormMsg({ ok:false, text:"New PIN and confirmation do not match." }); return; }
     setPinSaving(true);
     const check = await verifyAdminPin(current);
@@ -4320,21 +4328,24 @@ export default function App() {
           </div>
           <div style={{ marginBottom:"1rem" }}>
             <div className="lbl">School Name</div>
-            <input placeholder="Dishchiibikoh Community School" value={schoolForm.name}
+            <input type="text" placeholder="Dishchiibikoh Community School" value={schoolForm.name}
               onChange={e => {
                 const n = e.target.value;
-                const slug = n.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+                // ≤50 chars, no leading/trailing dash — create_school() enforces the same rule.
+                const slug = n.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0, 50).replace(/-+$/,"");
                 setSchoolForm(f => ({ ...f, name: n, slug }));
               }} />
           </div>
           <div style={{ marginBottom:"1rem" }}>
             <div className="lbl">School URL</div>
-            <div style={{ display:"flex", gap:".5rem" }}>
-              <span style={{ padding:".75rem .9rem", background:"var(--s2)", border:"1.5px solid var(--bd)", borderRadius:"10px 0 0 10px", color:"var(--dim)", fontSize:".9rem", whiteSpace:"nowrap" }}>
-                {window.location.origin}/s/
+            {/* type="text" matters: the input styles are keyed on it. min-width:0 + the
+                ellipsis keep the row inside the card on phones. */}
+            <div style={{ display:"flex", minWidth:0 }}>
+              <span style={{ padding:".75rem .6rem .75rem .9rem", background:"var(--s2)", border:"1.5px solid var(--bd)", borderRadius:"10px 0 0 10px", color:"var(--dim)", fontSize:".9rem", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:"55%", flexShrink:1 }}>
+                {window.location.host}/s/
               </span>
-              <input style={{ borderRadius:"0 10px 10px 0", borderLeft:"none" }}
-                placeholder="my-school"
+              <input type="text" style={{ borderRadius:"0 10px 10px 0", borderLeft:"none", flex:1, minWidth:0 }}
+                placeholder="my-school" maxLength={50}
                 value={schoolForm.slug}
                 onChange={e => setSchoolForm(f => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g,"") }))} />
             </div>
@@ -4370,6 +4381,17 @@ export default function App() {
               onChange={e => setSchoolForm(f => ({ ...f, confirmPin: e.target.value.replace(/D/g,"").slice(0,8) }))} />
           </div>
           {schoolFormErr && <div className="err" style={{ marginBottom:"1rem" }}>⚠ {schoolFormErr}</div>}
+          {schoolCreatedNeedsConfirm ? (
+            <div className="scan-msg ok" style={{ fontSize:".9rem", padding:"1rem" }}>
+              <div style={{ fontWeight:700, marginBottom:".35rem" }}>✅ School created</div>
+              <div>Check <b>{schoolForm.email}</b> and click the confirmation link. Then open your school&apos;s page and sign in as admin:</div>
+              <div style={{ fontFamily:"var(--ff-m)", margin:".5rem 0", wordBreak:"break-all" }}>
+                {window.location.origin}/s/{schoolCreatedNeedsConfirm}
+              </div>
+              <a className="btn sm" style={{ width:"auto", display:"inline-block", textDecoration:"none" }}
+                href={`/s/${schoolCreatedNeedsConfirm}`}>Go to my school page →</a>
+            </div>
+          ) : (
           <button className="btn" disabled={schoolRegistering} onClick={async () => {
             const { name, slug, email, password, confirmPass, adminPin, confirmPin } = schoolForm;
             if (!name.trim() || !slug.trim() || !email.trim() || !password) {
@@ -4381,7 +4403,9 @@ export default function App() {
             if (password.length < 8) {
               setSchoolFormErr("Password must be at least 8 characters."); return;
             }
-            if (!/^d{4,8}$/.test(adminPin)) {
+            // (Was /^d{4,8}$/ — missing backslash — which rejected every numeric PIN, so no
+            // school could sign up from 2026-09-25 to 2026-10-05.)
+            if (!/^\d{4,8}$/.test(adminPin)) {
               setSchoolFormErr("Admin PIN must be 4-8 digits."); return;
             }
             if (adminPin !== confirmPin) {
@@ -4390,67 +4414,61 @@ export default function App() {
             if (/^(\d)\1+$/.test(adminPin) || adminPin === "1234" || adminPin === "12345678") {
               setSchoolFormErr("Choose a less predictable PIN (not 0000, 1111, 1234, ...)."); return;
             }
-            setSchoolRegistering(true); setSchoolFormErr("");
-            // 1. Create auth user. NOTE: when "Confirm email" is enabled in Supabase,
-            //    signUp() returns a user but NO session — every insert below then runs
-            //    as anonymous and the RLS-protected ones (departments, rubrics) fail.
-            //    We detect that, warn the admin, and self-heal on first sign-in via
-            //    ensureSeedData().
-            const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({ email: email.trim(), password });
-            if (signUpErr) { setSchoolFormErr(signUpErr.message); setSchoolRegistering(false); return; }
-            const user = signUpData?.user;
-            const hasSession = !!signUpData?.session;
-            if (!user) { setSchoolFormErr("Sign-up did not return a user. Please try again."); setSchoolRegistering(false); return; }
-            // 2. Create school row
-            const newInviteCode = genToken().slice(0,8).toUpperCase();
-            const { data: school, error: schoolErr } = await supabase.from("schools")
-              // admin_pin is hashed by the schools_hash_pin trigger before it is stored.
-              .insert({ name: name.trim(), slug: slug.trim(), invite_code: newInviteCode, admin_pin: adminPin })
-              // Explicit columns: anon has no SELECT grant on admin_pin, so `select()`
-              // (which means *) would fail with "permission denied for column".
-              .select("id, name, slug").single();
-            if (schoolErr) { setSchoolFormErr(schoolErr.message || "Failed to create school."); setSchoolRegistering(false); return; }
-            // 3. Link admin — without this the account can never administer the school.
-            const { error: adminErr2 } = await supabase.from("school_admins")
-              .insert({ school_id: school.id, user_id: user.id, role: "owner" });
-            if (adminErr2) {
-              setSchoolFormErr(`School created but the admin link failed: ${adminErr2.message}. Contact support before continuing.`);
-              setSchoolRegistering(false);
-              return;
+            const cleanSlug = slug.trim().toLowerCase();
+            if (!/^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/.test(cleanSlug)) {
+              setSchoolFormErr("School URL: 3–50 lowercase letters, numbers or dashes (not starting/ending with a dash)."); return;
             }
-            // 4. Seed app_settings — admin-only since the security migration, so this
-            //    only succeeds when signUp() returned a session. ensureSeedData()
-            //    fills it in on first admin sign-in otherwise.
-            const { error: settingsErr } = await supabase.from("app_settings").insert([
-              { school_id: school.id, key: "locked",           value: "false" },
-              { school_id: school.id, key: "deliberation_open",value: "false" },
-              { school_id: school.id, key: "results_finalized",value: "false" },
-            ]);
-            // 5. Seed departments
-            const { error: deptErr } = await supabase.from("departments").insert([
-              { school_id: school.id, name: "Elementary",   max_judges: 5, ord: 0 },
-              { school_id: school.id, name: "Middle School",max_judges: 5, ord: 1 },
-              { school_id: school.id, name: "High School",  max_judges: 5, ord: 2 },
-            ]);
-            // 6. Seed default rubric
-            const { error: rubricErr } = await supabase.from("rubrics").insert({
-              school_id: school.id, name: "Default (Northeast AZ Regional)", criteria: DEFAULT_RUBRIC, is_active: true,
+            setSchoolRegistering(true); setSchoolFormErr("");
+            // 0. Check the URL BEFORE creating an account, so a taken URL never leaves an
+            //    orphan login behind.
+            const { data: taken } = await supabase.from("schools").select("id").eq("slug", cleanSlug).limit(1);
+            if (taken && taken.length) {
+              setSchoolFormErr("That school URL is already taken. Choose another."); setSchoolRegistering(false); return;
+            }
+            // 1. Create the login (or reuse the one from a failed earlier attempt). With
+            //    "Confirm email" on, signUp() returns a user but NO session; create_school()
+            //    handles that case.
+            let user, hasSession;
+            if (pendingSignup && pendingSignup.email === email.trim().toLowerCase()) {
+              user = { id: pendingSignup.userId }; hasSession = pendingSignup.hasSession;
+            } else {
+              const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({ email: email.trim(), password });
+              if (signUpErr) { setSchoolFormErr(signUpErr.message); setSchoolRegistering(false); return; }
+              user = signUpData?.user;
+              hasSession = !!signUpData?.session;
+              if (!user) { setSchoolFormErr("Sign-up did not return a user. Please try again."); setSchoolRegistering(false); return; }
+              setPendingSignup({ email: email.trim().toLowerCase(), userId: user.id, hasSession });
+            }
+            // 2. Create the school, its owner link, settings, departments and rubric in ONE
+            //    server-side transaction (migration 2026-10c). Direct inserts into
+            //    schools / school_admins are closed: they let anyone make themselves admin
+            //    of any school. Works with or without a session (email confirmation).
+            const { data: school, error: schoolErr } = await supabase.rpc("create_school", {
+              p_user_id:     user.id,
+              p_name:        name.trim(),
+              p_slug:        cleanSlug,
+              p_invite_code: genToken().slice(0,8).toUpperCase(),
+              p_admin_pin:   adminPin,
+              p_rubric:      DEFAULT_RUBRIC,
             });
             setSchoolRegistering(false);
-            if (deptErr || rubricErr || settingsErr) {
-              // Almost always the no-session case above. Tell the admin exactly what to do
-              // instead of dropping them into a school with no departments.
-              setSchoolFormErr(
-                hasSession
-                  ? "School created, but some setup data could not be saved. Sign in as admin and it will finish automatically."
-                  : "School created. Please confirm your email, then sign in as admin — setup will finish automatically on first sign-in."
-              );
+            if (schoolErr || !school?.slug) {
+              // P0001 messages are written for the person signing up (slug taken, weak PIN…).
+              setSchoolFormErr(schoolErr?.code === "P0001" ? schoolErr.message
+                : `Could not create the school (${schoolErr?.message || "no result"}). Please try again.`);
+              return;
+            }
+            setPendingSignup(null);
+            if (!hasSession) {
+              setSchoolFormErr("");
+              setSchoolCreatedNeedsConfirm(school.slug);
               return;
             }
             window.location.href = `/s/${school.slug}`;
           }}>
             {schoolRegistering ? "Creating account…" : "Create School Account →"}
           </button>
+          )}
         </div>
       </div></div>
     </div>
