@@ -29,7 +29,8 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Supabase | https://evrupqnhgrfltfhafeyj.supabase.co |
 | Vercel | `sciencefair-v2` — the **only** Vercel project |
 | Deploy | Push to `main` → auto-deploys. No manual steps |
-| Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) + the migrations below |
+| Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
+| Tests | `npm test` — mocked scan API + real-Postgres (PGlite) migration/RLS suite. Run after any `supabase/*.sql` or `api/` change |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -50,7 +51,8 @@ always serves and cannot be redirected — never share it.
 | `migration-2026-09-project-adviser.sql` | `projects.advisor_name`, `projects.group_members` + backfill | No — app retries without the columns if missing |
 | `migration-2026-09-security-hardening.sql` | RLS lockdown, `registration_count()` | **Yes** |
 | `migration-2026-09b-pin-and-judge-auth.sql` | bcrypt PIN, `security_attempts`, `register_judge()`, PIN/invite RPCs, judge-scoped write policies | **Yes — deploy together with the app build** |
-| `migration-2026-10-project-details.sql` | `projects.room`, `description`, `motivation`; documents the `group_members` `{name, grade}` shape | No — app drops the columns and logs `PROJECT_DETAIL_COLS_MISSING`, **but those fields are then silently not saved** |
+| `migration-2026-10-project-details.sql` | `projects.room`, `description`, `motivation` | No — app drops the columns and logs `PROJECT_DETAIL_COLS_MISSING`, **but those fields are then silently not saved** |
+| `migration-2026-10b-private-members-and-registration.sql` | Moves adviser + student names to admin-only **`project_private`** (drops `projects.advisor_name` / `group_members`); adds 12 missing `registration_submissions` columns; **`submit_registration()`** RPC; closes direct anon INSERT on submissions | **Yes — run it, then deploy the matching app immediately.** Old app + new SQL saves projects without names |
 
 `registration-migration.sql` and `schema.sql` are historical (the latter is the v1 schema).
 
@@ -77,6 +79,7 @@ The v1 Vercel project was deleted 2026-09-30. **Do not resurrect v1.**
 │   └── scan-form.js             ← Vercel function: reads participation forms with Gemini (admin-only)
 ├── scripts/
 │   ├── scan-form.test.mjs       ← mocked tests for api/scan-form.js (free, offline)
+│   ├── db-migrations.test.mjs   ← schema + all migrations on real Postgres (PGlite): RLS, RPCs
 │   └── scan-form-smoke.mjs      ← real-Gemini smoke test for form scanning (needs GEMINI_API_KEY)
 ├── supabase/
 │   ├── schema-v2.sql            ← v2 multi-tenant base schema
@@ -197,7 +200,8 @@ the only real controls. "The UI does not expose it" is never a control.
 | `set_school_pin(school, pin)` | admin | Change PIN (min 4 chars); re-hashed server-side |
 | `school_invite_code(school)` | admin | Read own invite code |
 | `set_school_invite_code(school, code)` | admin | Change invite code (⚠️ no UI calls it yet) |
-| `registration_count(school)` | anon | Count only — lets the public form build a reg number without reading PII (hardening migration) |
+| `registration_count(school)` | anon | Count only (hardening migration). No longer used by the app since 2026-10b |
+| `submit_registration(token, form)` | anon | **The only way a public registration gets in** (2026-10b). Validates the link token, then creates project + `project_private` + submission in one transaction, numbering under a per-school advisory lock. Errors raised as `P0001` are written for the student |
 | `is_school_admin(school)` | policies | Admin check used throughout RLS (base schema) |
 | `hash_admin_pin()` trigger | — | Hashes `admin_pin` on INSERT/UPDATE; leaves existing bcrypt values alone |
 
@@ -212,7 +216,9 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `scores`, `deliberation_notes` | INSERT/UPDATE require the `judge_id` to exist in `judges` for that school |
 | `validations` | Same, or `judge_id = 'admin'` written by a school admin |
 | `app_settings` | Read open (judges need `locked`, `deliberation_open`, transfer allowances); **write admin-only** |
-| `registration_submissions` | INSERT open (public form); SELECT/UPDATE admin-only (student PII) |
+| `registration_submissions` | INSERT `WITH CHECK (false)` — only via `submit_registration()`; SELECT/UPDATE admin-only (student PII) |
+| `projects` | SELECT open (judges + public pages need titles/room/description). **Must never hold names** — see rule 45 |
+| `project_private` | Adviser + student names. All operations `is_school_admin(school_id)`; anon has **no privileges at all**. Realtime enforces the same RLS |
 | `activity_log`, `it_logs` | INSERT open; SELECT admin-only |
 | `score_backups` | Admin-only |
 
@@ -225,11 +231,10 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
   their own token — tokens are enumerable, so links are "unlisted", not secret. Same for
   `app_settings.project_list_token`. Fix: `verify_*_token` SECURITY DEFINER RPCs.
 - **The judging lock is not in RLS — on purpose** (see rule 30). It is enforced in `submitScore()`.
-- **Student names on projects are publicly readable.** `projects` is `SELECT USING (true)` with
-  the default table grant, so `projects?select=group_members` works for anyone with the anon key
-  (verified live 2026-10-05). Since form scanning this also includes each student's grade.
-  Fix: revoke anon SELECT on `group_members` (rule 28 pattern), make `loadProjects()` select
-  explicit columns when not an admin, and give judges members only if they need them.
+- ~~Student names on projects were publicly readable~~ — **fixed 2026-10-05 (migration 2026-10b)**.
+  `projects?select=group_members` returned names to anyone with the anon key. Names now live in
+  `project_private`. A column-level REVOKE was rejected on purpose: Supabase Realtime sends whole
+  rows to anyone passing RLS and ignores column privileges, so it would still leak.
 
 ### Other access rules
 - Judges sign in by number (`Judge1`–`JudgeN`); N is per department. Same alias may exist in different departments.
@@ -249,7 +254,8 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `school_admins` | Links a Supabase Auth user to a school |
 | `rubrics` | Per-school rubric — `criteria` JSONB array, `is_active` |
 | `departments` | name, `max_judges`, `ord` — seeded Elementary / Middle School / High School |
-| `projects` | num, title, cat, grade, locked, department_id, advisor_name, group_members (JSONB), room, description, motivation |
+| `projects` | num, title, cat, grade, locked, department_id, room, description, motivation — **public, no names** |
+| `project_private` | PK `(project_id, school_id)`, FK → projects **ON DELETE CASCADE**: advisor_name, group_members (JSONB), updated_at — **admin-only** |
 | `judges` | alias, `projects` (JSON array of pids), department_id, joined_at. UNIQUE(department_id, alias) |
 | `scores` | One row per judge+project; `criteria` JSONB, notes, total. UNIQUE(judge_id, project_id) |
 | `validations` | Judge/admin validation; `judge_id = 'admin'` for the admin. Conflict `(school_id, judge_id)` |
@@ -268,13 +274,16 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 
 | Where | Type | Shape |
 |---|---|---|
-| `projects.group_members` (2026-10+) | JSONB | `[{"name":"Juan","grade":"8"}]` — what the app writes now |
-| `projects.group_members` (2026-09 rows) | JSONB | `["Juan","Maria"]` — still valid, never rewritten |
+| `project_private.group_members` (2026-10+) | JSONB | `[{"name":"Juan","grade":"8"}]` — what the app writes now |
+| `project_private.group_members` (backfilled 2026-09 rows) | JSONB | `["Juan","Maria"]` — still valid, never rewritten |
 | `registration_submissions.group_members` | **TEXT** | `"Juan, Maria"` — write names joined with `", "`, never an array |
 
 `normMembers()` returns `[{ name, grade }]` for all three; `membersText()` formats them for display
-(`"Juan (Gr 8), Maria"`); `highestGrade()` picks the group's top grade. `loadProjects()` already
-normalises, so `projects` state always holds the object shape.
+(`"Juan (Gr 8), Maria"`); `highestGrade()` picks the group's top grade. `loadProjects()` merges
+`project_private` into each project (admins only — for everyone else that query returns nothing)
+and normalises, so `projects` state always holds the object shape. Before 2026-10b it falls back
+to the old `projects.advisor_name` / `group_members` columns; `writeProjectPrivate()` does the same
+on write and logs `PROJECT_PRIVATE_TABLE_MISSING`.
 
 **Project grade** = what the admin typed, or (if blank) the **highest student grade**. It drives
 the grade < 5 abstract exemption, so a mixed group is judged at its oldest member's level.
@@ -456,6 +465,9 @@ back with an empty category.
 | "The AI refused this file" (`BLOCKED`) | Safety filter | Enter manually |
 | Every scan has empty category | `REG_CATEGORIES` and API `CATEGORIES` out of sync | Make them identical |
 | Saved project has no room/description | `migration-2026-10-project-details.sql` not run (IT log `PROJECT_DETAIL_COLS_MISSING`) | Run the migration, re-edit those projects |
+| IT log `PROJECT_PRIVATE_TABLE_MISSING` | 2026-10b not run — names were saved on the **public** `projects` row | Run 2026-10b (it moves them) |
+| IT log `PROJECT_PRIVATE_WRITE_FAILED` / "Could not save" on a card | Names could not be written; the project was rolled back | Check the admin is signed in on their own school's URL; retry |
+| Student registration: "Submission failed" + IT log `REG_SUBMIT_FAILED` | 2026-10b not run (`submit_registration` missing) | Run 2026-10b |
 | Scanned 404 on `/api/scan-form` locally | `vite dev` doesn't run Vercel functions | Test on a Vercel preview, or use the smoke script |
 
 Verify a change end-to-end: `node scripts/scan-form-smoke.mjs <sample.jpg>` (prints the normalised
@@ -514,7 +526,8 @@ assignProjects(deptId, list?)          // every project id in that department
 syncJudgeAssignments(deptIds, list?)   // push the current roster to judges in those departments
 createProject(data, base?)   // shared insert path (Add Project + scanner) → { error, nextProjects, proj }
 addProject(), updateProject(pid), removeProject(pid), toggleProjectLock(pid)
-writeProjectRow(mode, row, pid)        // drops missing columns one migration at a time (2026-10, then 2026-09)
+writeProjectRow(mode, row, pid)        // public columns only; drops 2026-10 columns if that migration is missing
+writeProjectPrivate(pid, adviser, members)  // names → project_private (falls back to legacy columns pre-2026-10b)
 nextProjectNum(list?), exportProjListPDF()
 normMembers(raw), membersText(raw), highestGrade(members), normGrade(g)  // module helpers
 blankProjForm(num?), escHtml(v)        // module helpers — escHtml for any hand-built HTML (print windows)
@@ -548,7 +561,10 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 - `scores`, `judges`, `deliberation_notes`, `final_decisions`, `validations` — INSERT/UPDATE
   patch state from `payload.new`; full reload only on DELETE.
 - `activity_log`, `it_logs` — INSERT-only, prepend `payload.new`.
-- `departments`, `projects`, `share_links`, `app_settings` — full `loadX()` (rare admin changes).
+- `departments`, `projects`, `project_private`, `share_links`, `app_settings` — full `loadX(sid)` (rare admin changes).
+- ⚠️ **Always wrap loaders: `() => loadProjects(sid)`.** Passing `loadProjects` directly hands it the
+  realtime payload as `sid`; it then queried `school_id = "[object Object]"`, so projects/departments
+  never refreshed live from the v2 rewrite until 2026-10-05.
 
 ---
 
@@ -605,12 +621,17 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 38. **Discrete score buttons only** — never `<input type="range">`.
 
 **Form scanning**
-39. **Read members only through `normMembers()`.** Three shapes exist (see Data Model). Writing `group_members` as anything but `[{name, grade}]` to `projects`, or anything but a `", "`-joined string to `registration_submissions`, is a bug.
+39. **Read members only through `normMembers()`.** Three shapes exist (see Data Model). Writing `group_members` as anything but `[{name, grade}]` to `project_private`, or anything but a `", "`-joined string to `registration_submissions`, is a bug.
 40. **`/api/scan-form` stays admin-only** (JWT + `school_admins` check *before* any Gemini call). Never add an anonymous path.
 41. **Never store or log form images or their text.** Logs get counts and error codes only. Do not use the Gemini Interactions API (stores by default) or the Files API.
 42. **Nothing scanned reaches the DB without an admin pressing Save.** Do not add auto-save, and keep "Save all" excluding cards with problems or warnings.
 43. **Batch saves must thread the project list** through `createProject(data, base)`; using `projects` state in a loop gives every project the same number.
 44. **Gemini 3+: no `temperature` / `topP` / `topK` / `candidateCount`.** The request fails.
+
+**Data privacy**
+45. **No personal data on publicly readable tables.** `projects`, `departments`, `judges`, `rubrics`, `share_links`, `registration_links` and `app_settings` are anon-readable. Student/adviser names go in `project_private` (admin-only); student contact details stay in `registration_submissions`. Use a separate admin-only table, not a column REVOKE — Realtime ignores column privileges.
+46. **Public writes go through SECURITY DEFINER RPCs** (`register_judge`, `submit_registration`) that validate a token or code. Never open an anon INSERT policy to make a form work.
+47. **Run `npm test` after any `supabase/*.sql` change.** It applies the base schema + every migration twice on real Postgres and checks RLS as anon / non-admin / admin.
 
 ---
 
@@ -649,6 +670,12 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-05 — Student names private + registration fixed** (migration `2026-10b`, coupled).
+Names moved from public `projects` to admin-only `project_private` (they were readable by anyone).
+Public registration rebuilt on `submit_registration()` — it had never worked under RLS, and the
+live table was missing 12 columns. Realtime `projects`/`departments` refresh fixed (payload was being
+passed as `sid`). New `npm test`, incl. a 31-check PGlite migration/RLS suite.
 
 **2026-10-05 — Participation-form scanning (Gemini)** (`eeeca9f`, `2843338`, `12522c6`).
 Categories switched to the form's six; per-student grades (`group_members` → `[{name, grade}]`);
@@ -695,13 +722,11 @@ its absence. See the `group_members` type split above.
 - `submitDelibNote()` and `reviseDecision()` are defined but unreferenced (ESLint `no-unused-vars`).
 - No UI for `set_school_invite_code()`.
 - Legacy `CATEGORIES` and `SEED_SCORES` constants are unused.
-- **Public student registration form cannot create projects.** `handleRegSubmit()` inserts into
-  `projects` as anon, but `projects_insert` requires `is_school_admin()` — so a submission fails
-  with "could not save project". Unused in 2026-27 (organisers enter/scan teams). Fix: a
-  SECURITY DEFINER `submit_registration()` RPC that validates the registration token.
-- Student names (and now grades) on `projects` are anon-readable — see "Open risks".
-- The scanner UI has no automated browser test; `api/scan-form.js` is covered by
-  `node scripts/scan-form.test.mjs` (mocked, free) and the real-Gemini smoke script.
+- The scanner UI and the public registration form have no automated browser test. Their server
+  sides are covered by `npm test` (mocked scan API + real-Postgres RPC/RLS) and the real-Gemini
+  smoke script.
+- `submit_registration()` is gated only by the registration token: anyone holding an active link
+  can submit repeatedly. Deactivate the link when registration closes.
 - Judge identity — see "Open risks".
 
 ---

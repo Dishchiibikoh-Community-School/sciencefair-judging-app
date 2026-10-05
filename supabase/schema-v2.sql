@@ -1,7 +1,15 @@
 -- ============================================================
 -- Science Fair Judging App v2 — Multi-Tenant Schema
 -- Apply this to a NEW Supabase project (not the v1 project).
--- v1 at qritiko.com remains untouched on its own project.
+--
+-- ⚠️ This is the BASE schema only. A fresh install must then run, IN ORDER:
+--      migration-2026-09-project-adviser.sql
+--      migration-2026-09-security-hardening.sql
+--      migration-2026-09b-pin-and-judge-auth.sql
+--      migration-2026-10-project-details.sql
+--      migration-2026-10b-private-members-and-registration.sql
+--    Without them RLS is wide open and the app will not work. The sequence is tested by
+--    `node scripts/db-migrations.test.mjs` (real Postgres via PGlite).
 -- ============================================================
 
 
@@ -67,11 +75,7 @@ CREATE TABLE projects (
   -- registering on behalf of students) can carry them. Student-registered projects
   -- fall back to registration_submissions. Added by migration-2026-09-project-adviser.sql.
   advisor_name  TEXT        NOT NULL DEFAULT '',
-  group_members JSONB       NOT NULL DEFAULT '[]',   -- [{"name","grade"}]; legacy rows: ["name"]
-  -- Participation-form details. Added by migration-2026-10-project-details.sql.
-  room          TEXT        NOT NULL DEFAULT '',
-  description   TEXT        NOT NULL DEFAULT '',
-  motivation    TEXT        NOT NULL DEFAULT '',
+  group_members JSONB       NOT NULL DEFAULT '[]',
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (id, school_id)
 );

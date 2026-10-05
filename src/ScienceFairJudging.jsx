@@ -1047,18 +1047,27 @@ export default function App() {
   async function loadProjects(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
-    const { data } = await supabase.from("projects").select("*").eq("school_id", schoolId).order("created_at");
+    // Student/adviser names live in project_private (admin-only RLS, migration 2026-10b).
+    // For judges and the public that query returns nothing, so names are simply absent.
+    // Before 2026-10b the names were still columns on `projects` — fall back to those.
+    const [{ data }, { data: priv }] = await Promise.all([
+      supabase.from("projects").select("*").eq("school_id", schoolId).order("created_at"),
+      supabase.from("project_private").select("project_id, advisor_name, group_members").eq("school_id", schoolId),
+    ]);
     if (data) {
-      setProjects(data.map(r => ({
-        id: r.id, num: r.num, title: r.title, cat: r.cat, grade: r.grade,
-        locked: r.locked || false, department_id: r.department_id || null,
-        // Present only after migration-2026-09-project-adviser.sql has been applied.
-        advisor_name: r.advisor_name || "",
-        // Normalised to [{ name, grade }] whichever shape the row was written in.
-        group_members: normMembers(r.group_members),
-        // Present only after migration-2026-10-project-details.sql has been applied.
-        room: r.room || "", description: r.description || "", motivation: r.motivation || "",
-      })));
+      const privById = new Map((priv || []).map(x => [x.project_id, x]));
+      setProjects(data.map(r => {
+        const pv = privById.get(r.id);
+        return {
+          id: r.id, num: r.num, title: r.title, cat: r.cat, grade: r.grade,
+          locked: r.locked || false, department_id: r.department_id || null,
+          advisor_name: pv?.advisor_name ?? r.advisor_name ?? "",
+          // Normalised to [{ name, grade }] whichever shape the row was written in.
+          group_members: normMembers(pv ? pv.group_members : r.group_members),
+          // Present only after migration-2026-10-project-details.sql has been applied.
+          room: r.room || "", description: r.description || "", motivation: r.motivation || "",
+        };
+      }));
     }
   }
   async function loadJudges(sid) {
@@ -1386,6 +1395,8 @@ export default function App() {
             loadItLogs(school.id);
             loadScoreBackups(school.id);
             loadInviteCode(school.id);
+            // Student names (project_private) are admin-only — refetch now we can read them.
+            loadProjects(school.id);
           }
         }
       } else {
@@ -1393,7 +1404,11 @@ export default function App() {
         if (urlSchoolSlug) {
           const { data } = await supabase.from("schools")
             .select("id, name, slug").eq("slug", urlSchoolSlug).single();
-          if (data) setCurrentSchool(data);
+          if (data) {
+            setCurrentSchool(data);
+            // Drop the admin-only student names from memory.
+            loadProjects(data.id);
+          }
         }
       }
     });
@@ -1471,8 +1486,12 @@ export default function App() {
       if (!sid) return;
       const f = (table) => `school_id=eq.${sid}`;
       channel = supabase.channel(`school-${sid}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "departments", filter: f("departments") }, loadDepartments)
-        .on("postgres_changes", { event: "*", schema: "public", table: "projects",    filter: f("projects")    }, loadProjects)
+        // Wrap the loaders: passing them directly hands the realtime payload in as `sid`,
+        // so they queried school_id = "[object Object]" and never refreshed (bug until 2026-10-05).
+        .on("postgres_changes", { event: "*", schema: "public", table: "departments", filter: f("departments") }, () => loadDepartments(sid))
+        .on("postgres_changes", { event: "*", schema: "public", table: "projects",    filter: f("projects")    }, () => loadProjects(sid))
+        // Admin-only by RLS (realtime enforces it): judges/public never receive these events.
+        .on("postgres_changes", { event: "*", schema: "public", table: "project_private", filter: f("project_private") }, () => loadProjects(sid))
         .on("postgres_changes", { event: "*", schema: "public", table: "judges",      filter: f("judges") }, ({ eventType, new: row }) => {
           if (eventType === "INSERT") setJudges(prev => [...prev, dbToJudge(row)].sort((a,b) => a.joinedAt - b.joinedAt));
           else if (eventType === "UPDATE") setJudges(prev => prev.map(j => j.id === row.id ? dbToJudge(row) : j));
@@ -2678,15 +2697,36 @@ export default function App() {
   const MISSING_COL = (err) =>
     err && (err.code === "42703" || err.code === "PGRST204" || /column .* does not exist/i.test(err.message || ""));
 
-  // Columns added by later migrations, newest first. On a missing-column error we drop
-  // one migration's columns at a time, so a deployment that ran 2026-09 but not 2026-10
-  // still keeps its adviser/members.
+  // Columns added by later migrations. On a missing-column error we drop them and retry.
+  // (Names are NOT written here — they go to project_private via writeProjectPrivate().)
   const OPTIONAL_PROJECT_COLS = [
     { cols: ["room", "description", "motivation"], event: "PROJECT_DETAIL_COLS_MISSING",
       file: "migration-2026-10-project-details.sql" },
-    { cols: ["advisor_name", "group_members"], event: "PROJECT_ADVISER_COLS_MISSING",
-      file: "migration-2026-09-project-adviser.sql" },
   ];
+  const MISSING_TABLE = (err) =>
+    err && (err.code === "42P01" || err.code === "PGRST205" || /could not find the table|relation .* does not exist/i.test(err.message || ""));
+
+  // Adviser + student names live in project_private (admin-only RLS) since migration
+  // 2026-10b, because `projects` is publicly readable. Before that migration the names
+  // were columns on `projects`, so fall back to writing them there.
+  async function writeProjectPrivate(pid, advisor_name, group_members) {
+    const { error } = await supabase.from("project_private").upsert(
+      { school_id: currentSchool.id, project_id: pid, advisor_name, group_members, updated_at: new Date().toISOString() },
+      { onConflict: "project_id,school_id" });
+    if (!error) return null;
+    if (MISSING_TABLE(error)) {
+      const { error: legacyErr } = await supabase.from("projects")
+        .update({ advisor_name, group_members }).eq("school_id", currentSchool.id).eq("id", pid);
+      addItLog("WARN","DB","PROJECT_PRIVATE_TABLE_MISSING",
+        "project_private missing — names saved on projects (PUBLIC). Run migration-2026-10b-private-members-and-registration.sql",
+        { projectId: pid, legacyError: legacyErr?.message || null });
+      // Neither migration run: nowhere to keep names. Save the project anyway (logged above).
+      return MISSING_COL(legacyErr) ? null : legacyErr;
+    }
+    addItLog("ERROR","DB","PROJECT_PRIVATE_WRITE_FAILED","Could not save adviser/student names",
+      { projectId: pid, error: error.message });
+    return error;
+  }
 
   async function writeProjectRow(mode, row, pid) {
     const attempt = (payload) => mode === "insert"
@@ -2720,19 +2760,19 @@ export default function App() {
     const members = normMembers(data.members);
     const id = "p_" + uid();
     const finalNum = (data.num || "").trim() || nextProjectNum(baseProjects);
+    // Public columns only — names go to project_private below.
     const proj = {
       id, num: finalNum, title: data.title.trim(), cat: data.cat,
       grade: normGrade(data.grade) || highestGrade(members),
       locked: false,
       department_id: data.department_id || null,
-      advisor_name: (data.advisor_name || "").trim(),
-      group_members: members,
       room: (data.room || "").trim(),
       description: (data.description || "").trim(),
       motivation: (data.motivation || "").trim(),
       school_id: currentSchool.id,
     };
-    const localProj = { ...proj, school_id: undefined };
+    const advisorName = (data.advisor_name || "").trim();
+    const localProj = { ...proj, school_id: undefined, advisor_name: advisorName, group_members: members };
     const nextProjects = [...baseProjects, localProj];
     setProjects(nextProjects);
     const error = await writeProjectRow("insert", proj);
@@ -2741,6 +2781,14 @@ export default function App() {
       setProjects(baseProjects);
       addItLog("ERROR","ADMIN","PROJECT_ADD_FAILED","Failed to insert project",{ projectId:id, error:error.message });
       return { error, nextProjects: baseProjects };
+    }
+    const privErr = await writeProjectPrivate(id, advisorName, members);
+    if (privErr) {
+      // A project without its students is worse than no project: undo it so the admin
+      // can retry instead of ending up with an anonymous team.
+      await supabase.from("projects").delete().eq("school_id", currentSchool.id).eq("id", id);
+      setProjects(baseProjects);
+      return { error: privErr, nextProjects: baseProjects };
     }
     const deptName = departments.find(d => d.id === proj.department_id)?.name || "Unassigned";
     addLog(`Admin added project: ${proj.title} (#${finalNum}) — ${deptName}${data.source ? ` [${data.source}]` : ""}`);
@@ -2781,10 +2829,12 @@ export default function App() {
     };
     const nextProjects = projects.map(pp => pp.id === pid ? updated : pp);
     setProjects(nextProjects);
+    // Names first: the projects UPDATE fires the realtime event other admin screens reload
+    // on, so the private row must already be current when they do.
+    await writeProjectPrivate(pid, updated.advisor_name, updated.group_members);
     await writeProjectRow("update", {
       title: updated.title, cat: updated.cat, grade: updated.grade, num: updated.num,
       department_id: updated.department_id,
-      advisor_name: updated.advisor_name, group_members: updated.group_members,
       room: updated.room, description: updated.description, motivation: updated.motivation,
     }, pid);
     // A department change moves the project between judge pools — resync both sides.
@@ -3207,11 +3257,8 @@ export default function App() {
   }
 
   // ── REGISTRATION ACTIONS ──────────────────────────────────
-  function generateRegNum(division, category, projNum) {
-    const divCode = DIV_CODES[division] || "UNK";
-    const catCode = CAT_CODES[category] || "OTH";
-    return `${divCode}-${catCode}-${projNum}`;
-  }
+  // Registration numbers ("JHS-PMA-003") are built server-side by submit_registration();
+  // the client only sends the "JHS-PMA" prefix (see handleRegSubmit).
 
   async function deleteRegSubmission(sub) {
     await supabase.from("registration_submissions").delete().eq("school_id", currentSchool.id).eq("id", sub.id);
@@ -3255,78 +3302,52 @@ export default function App() {
     setRegSubmitting(true);
     setRegFormErr("");
     try {
-      const projId    = "p_reg_" + uid();
-      // Count only registration-submitted projects so numbering starts at 001
-      // regardless of how many admin-added projects exist
-      const schoolId = regTokenData?.school_id || currentSchool?.id;
-      // registration_submissions is admin-read only (it holds student PII), so the
-      // public form gets just the count via a SECURITY DEFINER function.
-      const { data: regCount, error: countErr } = await supabase
-        .rpc("registration_count", { p_school_id: schoolId });
-      if (countErr) {
-        // Never fall back to a guessed number — duplicate registration numbers
-        // would be worse than a clear failure.
-        setRegFormErr("Could not generate a registration number. Please try again or contact the organizer.");
-        addItLog("ERROR","DB","REG_COUNT_FAILED","registration_count RPC failed — is the security migration applied?",
-          { schoolId, error: countErr.message });
-        setRegSubmitting(false);
-        return;
-      }
-      const projNum   = String((regCount || 0) + 1).padStart(3, "0");
-      const regNumber = generateRegNum(f.division, f.category, projNum);
-
-      const { error: projErr } = await supabase.from("projects").insert({
-        school_id: regTokenData?.school_id || currentSchool?.id,
-        id: projId, num: projNum,
-        title: f.projectTitle.trim(), cat: f.category,
-        grade: f.gradeLevel.trim(), locked: false,
+      // One SECURITY DEFINER call (migration 2026-10b) validates the registration token and
+      // creates the project, its private names row and the submission in a single
+      // transaction, numbering under a per-school lock. Anonymous visitors cannot write
+      // `projects` or `registration_submissions` directly — that is why the old
+      // three-step client insert always failed.
+      const { data: res, error: rpcErr } = await supabase.rpc("submit_registration", {
+        p_token: urlRegToken,
+        p_form: {
+          student_name:       f.studentName.trim(),
+          grade_level:        f.gradeLevel.trim(),
+          division:           f.division,
+          school_name:        f.schoolName.trim(),
+          student_email:      f.studentEmail.trim(),
+          contact_number:     f.contactNumber.trim(),
+          project_title:      f.projectTitle.trim(),
+          category:           f.category,
+          project_type:       f.projectType,
+          group_members:      f.groupMembers ? f.groupMembers.split("\n").map(s => s.trim()).filter(Boolean) : [],
+          advisor_name:       f.advisorName.trim(),
+          advisor_email:      f.advisorEmail.trim(),
+          school_department:  f.schoolDepartment.trim(),
+          description:        f.description.trim(),
+          research_question:  f.researchQuestion.trim(),
+          hypothesis:         f.hypothesis.trim(),
+          needs_electricity:  !!f.needsElectricity,
+          special_equipment:  f.specialEquipment.trim(),
+          has_trifold:        !!f.hasTrifold,
+          is_original_work:   !!f.isOriginalWork,
+          agrees_to_rules:    !!f.agreesToRules,
+          guardian_name:      f.guardianName.trim(),
+          guardian_signature: f.guardianSignature.trim(),
+          // "JHS-PMA" — the server appends the next number. Codes live in DIV_CODES/CAT_CODES.
+          reg_prefix: `${DIV_CODES[f.division] || "UNK"}-${CAT_CODES[f.category] || "OTH"}`,
+        },
       });
-      if (projErr) {
-        setRegFormErr("Submission failed — could not save project. Please try again.");
+      if (rpcErr || !res?.reg_number) {
+        // P0001 messages are written for the student ("link is not active", missing fields).
+        setRegFormErr(rpcErr?.code === "P0001" ? rpcErr.message : "Submission failed — please try again or contact the organizer.");
+        addItLog("ERROR","DB","REG_SUBMIT_FAILED","submit_registration failed — is migration-2026-10b applied?",
+          { code: rpcErr?.code || null, error: rpcErr?.message || "no result" });
         setRegSubmitting(false);
         return;
       }
+      const regNumber = res.reg_number;
+      const projId    = res.project_id;
 
-      const { error: subErr } = await supabase.from("registration_submissions").insert({
-        school_id:         regTokenData?.school_id || currentSchool?.id,
-        project_id:        projId,
-        reg_number:        regNumber,
-        student_name:      f.studentName.trim(),
-        grade_level:       f.gradeLevel.trim(),
-        division:          f.division,
-        school_name:       f.schoolName.trim(),
-        student_email:     f.studentEmail.trim(),
-        contact_number:    f.contactNumber.trim(),
-        project_title:     f.projectTitle.trim(),
-        category:          f.category,
-        project_type:      f.projectType,
-        // registration_submissions.group_members is a TEXT column — send a joined
-        // string, not an array, or Postgres rejects the insert.
-        group_members:     f.groupMembers
-          ? f.groupMembers.split("\n").map(s => s.trim()).filter(Boolean).join(", ")
-          : "",
-        advisor_name:      f.advisorName.trim(),
-        advisor_email:     f.advisorEmail.trim(),
-        school_department: f.schoolDepartment.trim(),
-        description:       f.description.trim(),
-        research_question: f.researchQuestion.trim(),
-        hypothesis:        f.hypothesis.trim(),
-        needs_electricity: f.needsElectricity,
-        special_equipment: f.specialEquipment.trim(),
-        has_trifold:       f.hasTrifold,
-        is_original_work:  f.isOriginalWork,
-        agrees_to_rules:   f.agreesToRules,
-        guardian_name:     f.guardianName.trim(),
-        guardian_signature: f.guardianSignature.trim(),
-      });
-      if (subErr) {
-        await supabase.from("projects").delete().eq("school_id", regTokenData?.school_id || currentSchool?.id).eq("id", projId);
-        setRegFormErr("Submission failed — please try again.");
-        setRegSubmitting(false);
-        return;
-      }
-
-      setProjects(p => [...p, { id: projId, num: projNum, title: f.projectTitle.trim(), cat: f.category, grade: f.gradeLevel.trim(), locked: false }]);
       addLog(`New project registered online: "${f.projectTitle.trim()}" — ${regNumber}`);
       addItLog("INFO", "ADMIN", "PROJECT_REGISTERED", "Project submitted via online registration form",
         { regNumber, projectId: projId, title: f.projectTitle.trim(), category: f.category, division: f.division });
