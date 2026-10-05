@@ -67,7 +67,11 @@ CREATE TABLE projects (
   -- registering on behalf of students) can carry them. Student-registered projects
   -- fall back to registration_submissions. Added by migration-2026-09-project-adviser.sql.
   advisor_name  TEXT        NOT NULL DEFAULT '',
-  group_members JSONB       NOT NULL DEFAULT '[]',
+  group_members JSONB       NOT NULL DEFAULT '[]',   -- [{"name","grade"}]; legacy rows: ["name"]
+  -- Participation-form details. Added by migration-2026-10-project-details.sql.
+  room          TEXT        NOT NULL DEFAULT '',
+  description   TEXT        NOT NULL DEFAULT '',
+  motivation    TEXT        NOT NULL DEFAULT '',
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (id, school_id)
 );

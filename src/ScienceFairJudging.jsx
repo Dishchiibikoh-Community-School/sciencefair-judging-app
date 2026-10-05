@@ -45,9 +45,73 @@ const DEFAULT_DEPARTMENTS = [
 
 // ── REGISTRATION FORM CONSTANTS ──────────────────────────────
 const DIVISIONS     = ["Elementary", "Junior High School", "Senior High School"];
-const REG_CATEGORIES = ["Life Science", "Earth and Space Science", "Physical Science", "Engineering and Technology"];
+// The six categories printed on the 2026-27 student participation form (changed 2026-10
+// from the old four). "Not sure yet" on the paper form is deliberately NOT a category —
+// the admin must pick one of these before a scanned project can be saved.
+// Projects saved under an older category keep it and display it as-is; only the
+// dropdowns are limited to this list.
+const REG_CATEGORIES = [
+  "Life Science",
+  "Earth & Environmental Science",
+  "Chemistry & Material Science",
+  "Physics, Math & Astronomy",
+  "Engineering, Robotics & Technology",
+  "Energy, Sustainability & Design",
+];
 const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Senior High School": "SHS" };
-const CAT_CODES     = { "Life Science": "LF", "Earth and Space Science": "ESS", "Physical Science": "PS", "Engineering and Technology": "ET" };
+const CAT_CODES     = {
+  "Life Science": "LS",
+  "Earth & Environmental Science": "EES",
+  "Chemistry & Material Science": "CMS",
+  "Physics, Math & Astronomy": "PMA",
+  "Engineering, Robotics & Technology": "ERT",
+  "Energy, Sustainability & Design": "ESD",
+};
+
+// ── PROJECT MEMBER HELPERS ───────────────────────────────────
+// group_members comes in three shapes and every reader must accept all of them:
+//   projects.group_members (2026-10+)   JSONB [{ name, grade }]
+//   projects.group_members (2026-09)    JSONB ["name", ...]
+//   registration_submissions.group_members  TEXT "Juan, Maria"
+function normGrade(g) {
+  const s = String(g ?? "").trim();
+  if (!s) return "";
+  if (/^k(inder.*)?$/i.test(s)) return "K";
+  const m = s.match(/\d+/);
+  return m ? String(parseInt(m[0], 10)) : "";
+}
+function normMembers(raw) {
+  if (Array.isArray(raw)) {
+    return raw.map(m => typeof m === "string"
+      ? { name: m.trim(), grade: "" }
+      : { name: String(m?.name ?? "").trim(), grade: normGrade(m?.grade) })
+      .filter(m => m.name);
+  }
+  if (typeof raw === "string") {
+    return raw.split(",").map(s => ({ name: s.trim(), grade: "" })).filter(m => m.name);
+  }
+  return [];
+}
+function membersText(raw) {
+  return normMembers(raw).map(m => m.grade ? `${m.name} (Gr ${m.grade})` : m.name).join(", ");
+}
+// Highest numeric grade in the group — the project grade drives the grade<5 abstract
+// rule, so a mixed group is judged at its oldest member's level.
+function highestGrade(members) {
+  const nums = normMembers(members).map(m => m.grade === "K" ? 0 : parseInt(m.grade, 10)).filter(n => !isNaN(n));
+  if (!nums.length) return "";
+  const max = Math.max(...nums);
+  return max === 0 ? "K" : String(max);
+}
+function blankProjForm(num = "") {
+  return { title:"", cat:REG_CATEGORIES[0], grade:"", num, department_id:"", advisor_name:"",
+    members:[{ name:"", grade:"" }], room:"", description:"", motivation:"" };
+}
+// Escape text placed into hand-built HTML (print windows). Scanned/handwritten text is
+// untrusted input — a stray "<" must never become markup.
+function escHtml(v) {
+  return String(v ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
 
 function uid()      { return Math.random().toString(36).slice(2, 10); }
 function genToken() { return Array.from({length:4}, () => Math.random().toString(36).slice(2,6).toUpperCase()).join("-"); }
@@ -574,6 +638,9 @@ const CSS = `
   .proj-form{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:1.25rem;margin-bottom:.75rem;}
   .proj-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;}
   .proj-form-grid.full{grid-template-columns:1fr;}
+  .member-row{display:flex;gap:.4rem;align-items:center;margin-bottom:.35rem;}
+  .member-row input{flex:1;min-width:0;}
+  .member-row input.member-grade{flex:0 0 72px;}
   .proj-lock-badge{display:inline-flex;align-items:center;gap:.25rem;font-size:.68rem;font-family:var(--ff-m);
     color:var(--amber);background:var(--amber-l);padding:.15rem .5rem;border-radius:100px;}
 
@@ -898,7 +965,7 @@ export default function App() {
   // Project management state
   const [showAddProject,     setShowAddProject]      = useState(false);
   const [editingProject,     setEditingProject]      = useState(null); // project id being edited
-  const [projForm,           setProjForm]            = useState({ title:"", cat:REG_CATEGORIES[0], grade:"", num:"", department_id:"", advisor_name:"", group_members:"" });
+  const [projForm,           setProjForm]            = useState(blankProjForm());
   const [showDeleteConfirm,  setShowDeleteConfirm]   = useState(false);
   const [deleteProjectId,    setDeleteProjectId]     = useState(null);
 
@@ -954,7 +1021,10 @@ export default function App() {
         locked: r.locked || false, department_id: r.department_id || null,
         // Present only after migration-2026-09-project-adviser.sql has been applied.
         advisor_name: r.advisor_name || "",
-        group_members: Array.isArray(r.group_members) ? r.group_members : [],
+        // Normalised to [{ name, grade }] whichever shape the row was written in.
+        group_members: normMembers(r.group_members),
+        // Present only after migration-2026-10-project-details.sql has been applied.
+        room: r.room || "", description: r.description || "", motivation: r.motivation || "",
       })));
     }
   }
@@ -1681,18 +1751,21 @@ export default function App() {
       const sub = regSubmissions.find(s => s.project_id === p.id);
       // Project-level values win; registration submission is the legacy fallback.
       const adviser = p.advisor_name || sub?.advisor_name || "";
-      const rawMembers = (p.group_members && p.group_members.length) ? p.group_members : sub?.group_members;
-      const members = Array.isArray(rawMembers) ? rawMembers.join(", ") : (rawMembers || "");
-      const meta = [adviser ? `<span style="color:#1e293b;font-weight:500">Adviser:</span> ${adviser}` : "", members ? `<span style="color:#1e293b;font-weight:500">Members:</span> ${members}` : ""].filter(Boolean).join(" &nbsp;·&nbsp; ");
+      const members = membersText(p.group_members?.length ? p.group_members : sub?.group_members);
+      const meta = [
+        adviser ? `<span style="color:#1e293b;font-weight:500">Adviser:</span> ${escHtml(adviser)}` : "",
+        members ? `<span style="color:#1e293b;font-weight:500">Members:</span> ${escHtml(members)}` : "",
+        p.room  ? `<span style="color:#1e293b;font-weight:500">Room:</span> ${escHtml(p.room)}` : "",
+      ].filter(Boolean).join(" &nbsp;·&nbsp; ");
       return `
       <tr>
-        <td style="font-family:monospace;color:#1e3a5f;white-space:nowrap;vertical-align:top">#${p.num}</td>
+        <td style="font-family:monospace;color:#1e3a5f;white-space:nowrap;vertical-align:top">#${escHtml(p.num)}</td>
         <td>
-          <div style="font-weight:600">${p.title}</div>
+          <div style="font-weight:600">${escHtml(p.title)}</div>
           ${meta ? `<div style="font-size:.8rem;color:#64748b;margin-top:.2rem">${meta}</div>` : ""}
         </td>
-        <td style="color:#64748b;vertical-align:top">${p.cat}</td>
-        <td style="color:#64748b;text-align:center;vertical-align:top">${p.grade||"—"}</td>
+        <td style="color:#64748b;vertical-align:top">${escHtml(p.cat)}</td>
+        <td style="color:#64748b;text-align:center;vertical-align:top">${escHtml(p.grade||"—")}</td>
       </tr>`;
     }).join("");
 
@@ -2572,81 +2645,106 @@ export default function App() {
   const MISSING_COL = (err) =>
     err && (err.code === "42703" || err.code === "PGRST204" || /column .* does not exist/i.test(err.message || ""));
 
+  // Columns added by later migrations, newest first. On a missing-column error we drop
+  // one migration's columns at a time, so a deployment that ran 2026-09 but not 2026-10
+  // still keeps its adviser/members.
+  const OPTIONAL_PROJECT_COLS = [
+    { cols: ["room", "description", "motivation"], event: "PROJECT_DETAIL_COLS_MISSING",
+      file: "migration-2026-10-project-details.sql" },
+    { cols: ["advisor_name", "group_members"], event: "PROJECT_ADVISER_COLS_MISSING",
+      file: "migration-2026-09-project-adviser.sql" },
+  ];
+
   async function writeProjectRow(mode, row, pid) {
     const attempt = (payload) => mode === "insert"
       ? supabase.from("projects").insert(payload)
       : supabase.from("projects").update(payload).eq("school_id", currentSchool.id).eq("id", pid);
-    let { error } = await attempt(row);
-    if (MISSING_COL(error)) {
-      /* eslint-disable no-unused-vars */
-      const { advisor_name, group_members, ...legacy } = row;
-      /* eslint-enable no-unused-vars */
-      ({ error } = await attempt(legacy));
+    let payload = row;
+    let { error } = await attempt(payload);
+    for (const step of OPTIONAL_PROJECT_COLS) {
+      if (!MISSING_COL(error)) break;
+      payload = Object.fromEntries(Object.entries(payload).filter(([k]) => !step.cols.includes(k)));
+      ({ error } = await attempt(payload));
       if (!error) {
-        addItLog("WARN","DB","PROJECT_ADVISER_COLS_MISSING",
-          "projects.advisor_name/group_members missing — run migration-2026-09-project-adviser.sql",
+        addItLog("WARN","DB",step.event,
+          `projects.${step.cols.join("/")} missing — run ${step.file}`,
           { projectId: pid || row.id });
       }
     }
     return error;
   }
 
-  function nextProjectNum() {
-    const nums = projects.map(p => parseInt(p.num) || 0);
+  function nextProjectNum(list = projects) {
+    const nums = list.map(p => parseInt(p.num) || 0);
     return String(Math.max(0, ...nums) + 1).padStart(3, "0");
   }
 
-  async function addProject() {
-    const { title, cat, grade, num, department_id, advisor_name, group_members } = projForm;
-    if (!title.trim()) return;
+  // Shared by the Add Project form and the form scanner. `baseProjects` is the list to
+  // build on — the scanner saves several projects in a row before React state flushes,
+  // so it threads the list through itself; otherwise every save would get the same number.
+  // Returns { error, nextProjects }.
+  async function createProject(data, baseProjects = projects) {
+    const members = normMembers(data.members);
     const id = "p_" + uid();
-    const finalNum = num.trim() || nextProjectNum();
-    const members = group_members
-      ? group_members.split(",").map(s => s.trim()).filter(Boolean)
-      : [];
+    const finalNum = (data.num || "").trim() || nextProjectNum(baseProjects);
     const proj = {
-      id, num: finalNum, title: title.trim(), cat, grade, locked: false,
-      department_id: department_id || null,
-      advisor_name: (advisor_name || "").trim(),
+      id, num: finalNum, title: data.title.trim(), cat: data.cat,
+      grade: normGrade(data.grade) || highestGrade(members),
+      locked: false,
+      department_id: data.department_id || null,
+      advisor_name: (data.advisor_name || "").trim(),
       group_members: members,
+      room: (data.room || "").trim(),
+      description: (data.description || "").trim(),
+      motivation: (data.motivation || "").trim(),
       school_id: currentSchool.id,
     };
     const localProj = { ...proj, school_id: undefined };
-    const nextProjects = [...projects, localProj];
+    const nextProjects = [...baseProjects, localProj];
     setProjects(nextProjects);
     const error = await writeProjectRow("insert", proj);
     if (error) {
       // Roll back the optimistic insert so the UI never shows a project the DB rejected.
-      setProjects(projects);
+      setProjects(baseProjects);
       addItLog("ERROR","ADMIN","PROJECT_ADD_FAILED","Failed to insert project",{ projectId:id, error:error.message });
-      return;
+      return { error, nextProjects: baseProjects };
     }
-    const deptName = departments.find(d => d.id === department_id)?.name || "Unassigned";
-    addLog(`Admin added project: ${proj.title} (#${finalNum}) — ${deptName}`);
+    const deptName = departments.find(d => d.id === proj.department_id)?.name || "Unassigned";
+    addLog(`Admin added project: ${proj.title} (#${finalNum}) — ${deptName}${data.source ? ` [${data.source}]` : ""}`);
     addItLog("INFO","ADMIN","PROJECT_ADDED","Admin added a new project",
-      { projectId:id, num:finalNum, title:proj.title, cat, grade, dept:deptName, timestamp:fmtISO(Date.now()) });
+      { projectId:id, num:finalNum, title:proj.title, cat:proj.cat, grade:proj.grade, dept:deptName,
+        source: data.source || "form", timestamp:fmtISO(Date.now()) });
     // Push the new project out to judges already registered in this department.
-    await syncJudgeAssignments(department_id, nextProjects);
-    setProjForm({ title:"", cat:REG_CATEGORIES[0], grade:"", num:"", department_id:"", advisor_name:"", group_members:"" });
+    await syncJudgeAssignments(proj.department_id, nextProjects);
+    return { error: null, nextProjects, proj: localProj };
+  }
+
+  async function addProject() {
+    if (!projForm.title.trim()) return;
+    const { error } = await createProject(projForm);
+    if (error) return;
+    setProjForm(blankProjForm());
     setShowAddProject(false);
   }
 
   async function updateProject(pid) {
     const existing = projects.find(p => p.id === pid);
     if (!existing || existing.locked) return;
-    const { title, cat, grade, num, department_id, advisor_name, group_members } = projForm;
+    const { title, cat, grade, num, department_id, advisor_name } = projForm;
     if (!title.trim()) return;
-    const membersArrProj = group_members
-      ? group_members.split(",").map(s => s.trim()).filter(Boolean)
-      : [];
+    const membersArrProj = normMembers(projForm.members);
     const prevDept = existing.department_id || null;
     const updated = {
       ...existing,
-      title: title.trim(), cat, grade,
+      title: title.trim(), cat,
+      grade: normGrade(grade) || highestGrade(membersArrProj),
       num: num.trim() || existing.num,
       department_id: department_id || null,
       advisor_name: (advisor_name || "").trim(),
       group_members: membersArrProj,
+      room: (projForm.room || "").trim(),
+      description: (projForm.description || "").trim(),
+      motivation: (projForm.motivation || "").trim(),
     };
     const nextProjects = projects.map(pp => pp.id === pid ? updated : pp);
     setProjects(nextProjects);
@@ -2654,6 +2752,7 @@ export default function App() {
       title: updated.title, cat: updated.cat, grade: updated.grade, num: updated.num,
       department_id: updated.department_id,
       advisor_name: updated.advisor_name, group_members: updated.group_members,
+      room: updated.room, description: updated.description, motivation: updated.motivation,
     }, pid);
     // A department change moves the project between judge pools — resync both sides.
     if (prevDept !== updated.department_id) {
@@ -2664,7 +2763,8 @@ export default function App() {
     if (regSub) {
       // NOTE: registration_submissions.group_members is TEXT (projects.group_members
       // is JSONB) — write the joined string here, the array on the project.
-      const membersTextRegSub = membersArrProj.join(", ");
+      // Names only — the registration table has no per-member grade.
+      const membersTextRegSub = membersArrProj.map(m => m.name).join(", ");
       const { error: regSubErr } = await supabase.from("registration_submissions")
         .update({ advisor_name: updated.advisor_name, group_members: membersTextRegSub })
         .eq("school_id", currentSchool.id).eq("id", regSub.id);
@@ -2681,7 +2781,7 @@ export default function App() {
     addItLog("INFO","ADMIN","PROJECT_UPDATED","Admin updated project details",
       { projectId:pid, title:updated.title, num:updated.num, timestamp:fmtISO(Date.now()) });
     setEditingProject(null);
-    setProjForm({ title:"", cat:REG_CATEGORIES[0], grade:"", num:"", department_id:"", advisor_name:"", group_members:"" });
+    setProjForm(blankProjForm());
   }
 
   async function removeProject(pid) {
@@ -3249,7 +3349,12 @@ export default function App() {
             <div className="sc-header">
               <div style={{ fontFamily:"var(--ff-m)", fontSize:".78rem", color:"var(--navy)", marginBottom:".2rem" }}>PROJECT #{proj.num}</div>
               <h2>{proj.title}</h2>
-              <div style={{ fontSize:".78rem", color:"var(--dim)", marginTop:".35rem" }}>{proj.cat} · Grade {proj.grade} · {getDivision(proj.grade)}</div>
+              <div style={{ fontSize:".78rem", color:"var(--dim)", marginTop:".35rem" }}>
+                {proj.cat} · Grade {proj.grade} · {getDivision(proj.grade)}{proj.room ? ` · Room ${proj.room}` : ""}
+              </div>
+              {proj.description && (
+                <div style={{ fontSize:".8rem", color:"var(--text)", marginTop:".5rem", lineHeight:1.45 }}>{proj.description}</div>
+              )}
             </div>
             {rubric.map(r => {
               if (r.id === "abstract" && !requiresAbstract(proj)) return null;
@@ -4485,7 +4590,7 @@ export default function App() {
                   <div className="adm-sub">Manage projects, view rubric breakdown, and control project access</div>
                 </div>
                 <button className="btn sm" style={{width:"auto"}} onClick={() => {
-                  setProjForm({ title:"", cat:REG_CATEGORIES[0], grade:"", num:nextProjectNum(), department_id:"", advisor_name:"", group_members:"" });
+                  setProjForm(blankProjForm(nextProjectNum()));
                   setShowAddProject(true); setEditingProject(null);
                 }}>
                   + Add Project
@@ -4518,14 +4623,17 @@ export default function App() {
                       <div className="lbl">Category</div>
                       <select className="delib-rec-select" value={projForm.cat}
                         onChange={e => setProjForm(f => ({...f, cat:e.target.value}))}>
+                        {/* A project saved under a pre-2026-10 category keeps it until changed */}
+                        {projForm.cat && !REG_CATEGORIES.includes(projForm.cat) &&
+                          <option value={projForm.cat}>{projForm.cat} (old category)</option>}
                         {REG_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                   </div>
                   <div className="proj-form-grid" style={{marginTop:".5rem"}}>
                     <div>
-                      <div className="lbl">Grade</div>
-                      <input type="text" placeholder="e.g. 9" value={projForm.grade}
+                      <div className="lbl">Grade <span style={{fontWeight:400,textTransform:"none",letterSpacing:0,fontSize:".7rem"}}>(blank = highest student grade)</span></div>
+                      <input type="text" placeholder={highestGrade(projForm.members) || "e.g. 9"} value={projForm.grade}
                         onChange={e => setProjForm(f => ({...f, grade:e.target.value}))} />
                     </div>
                     <div>
@@ -4538,15 +4646,46 @@ export default function App() {
                       to carry the adviser/member names, so these must be editable here. */}
                   <div className="proj-form-grid" style={{marginTop:".5rem"}}>
                     <div>
-                      <div className="lbl">Adviser Name</div>
+                      <div className="lbl">Teacher / Adviser</div>
                       <input type="text" placeholder="Adviser name..." value={projForm.advisor_name}
                         onChange={e => setProjForm(f => ({...f, advisor_name:e.target.value}))} />
                     </div>
                     <div>
-                      <div className="lbl">Group Members <span style={{fontWeight:400,textTransform:"none",letterSpacing:0,fontSize:".7rem"}}>(comma-separated)</span></div>
-                      <input type="text" placeholder="e.g. Juan, Maria, Pedro" value={projForm.group_members}
-                        onChange={e => setProjForm(f => ({...f, group_members:e.target.value}))} />
+                      <div className="lbl">Room</div>
+                      <input type="text" placeholder="e.g. T25" value={projForm.room}
+                        onChange={e => setProjForm(f => ({...f, room:e.target.value}))} />
                     </div>
+                  </div>
+                  <div style={{marginTop:".5rem"}}>
+                    <div className="lbl">Students</div>
+                    {projForm.members.map((m, i) => (
+                      <div key={i} className="member-row">
+                        <input type="text" placeholder={`Student ${i + 1} name`} value={m.name}
+                          onChange={e => setProjForm(f => ({...f, members: f.members.map((x, j) => j === i ? {...x, name:e.target.value} : x)}))} />
+                        <input type="text" placeholder="Grade" value={m.grade} className="member-grade"
+                          onChange={e => setProjForm(f => ({...f, members: f.members.map((x, j) => j === i ? {...x, grade:e.target.value} : x)}))} />
+                        {projForm.members.length > 1 && (
+                          <button type="button" className="proj-act-btn del" title="Remove student"
+                            onClick={() => setProjForm(f => ({...f, members: f.members.filter((_, j) => j !== i)}))}>✕</button>
+                        )}
+                      </div>
+                    ))}
+                    {projForm.members.length < 6 && (
+                      <button type="button" className="btn sec sm" style={{width:"auto",marginTop:".35rem"}}
+                        onClick={() => setProjForm(f => ({...f, members: [...f.members, { name:"", grade:"" }]}))}>
+                        + Add student
+                      </button>
+                    )}
+                  </div>
+                  <div style={{marginTop:".5rem"}}>
+                    <div className="lbl">What they plan to investigate, test, design or build</div>
+                    <textarea rows={2} value={projForm.description}
+                      onChange={e => setProjForm(f => ({...f, description:e.target.value}))} />
+                  </div>
+                  <div style={{marginTop:".5rem"}}>
+                    <div className="lbl">Why they chose this project</div>
+                    <textarea rows={2} value={projForm.motivation}
+                      onChange={e => setProjForm(f => ({...f, motivation:e.target.value}))} />
                   </div>
                   <div style={{marginTop:".5rem",display:"flex",gap:".5rem"}}>
                     <button className="btn sm" style={{width:"auto"}}
@@ -4555,7 +4694,7 @@ export default function App() {
                       {editingProject ? "Save Changes" : "Add Project"}
                     </button>
                     <button className="btn sec sm" style={{width:"auto"}}
-                      onClick={() => { setShowAddProject(false); setEditingProject(null); setProjForm({ title:"", cat:REG_CATEGORIES[0], grade:"", num:"", department_id:"", advisor_name:"", group_members:"" }); }}>
+                      onClick={() => { setShowAddProject(false); setEditingProject(null); setProjForm(blankProjForm()); }}>
                       Cancel
                     </button>
                   </div>
@@ -4586,15 +4725,19 @@ export default function App() {
                           // Prefer the values stored on the project itself (admin-entered);
                           // fall back to the registration submission for student-registered ones.
                           const adviser = p.advisor_name || regSub?.advisor_name || "";
-                          const rawMembers = (p.group_members && p.group_members.length)
-                            ? p.group_members : regSub?.group_members;
-                          const members = Array.isArray(rawMembers) ? rawMembers.join(", ") : (rawMembers || "");
-                          if (!adviser && !members) return null;
+                          const members = membersText(p.group_members?.length ? p.group_members : regSub?.group_members);
+                          if (!adviser && !members && !p.room && !p.description) return null;
                           return (
-                            <div style={{fontSize:".74rem",color:"var(--dim)",marginTop:".3rem",display:"flex",flexWrap:"wrap",gap:".5rem 1rem"}}>
-                              {adviser && <span><span style={{color:"var(--text)",fontWeight:500}}>Adviser:</span> {adviser}</span>}
-                              {members && <span><span style={{color:"var(--text)",fontWeight:500}}>Members:</span> {members}</span>}
-                            </div>
+                            <>
+                              <div style={{fontSize:".74rem",color:"var(--dim)",marginTop:".3rem",display:"flex",flexWrap:"wrap",gap:".5rem 1rem"}}>
+                                {adviser && <span><span style={{color:"var(--text)",fontWeight:500}}>Adviser:</span> {adviser}</span>}
+                                {members && <span><span style={{color:"var(--text)",fontWeight:500}}>Members:</span> {members}</span>}
+                                {p.room && <span><span style={{color:"var(--text)",fontWeight:500}}>Room:</span> {p.room}</span>}
+                              </div>
+                              {p.description && (
+                                <div style={{fontSize:".74rem",color:"var(--dim)",marginTop:".25rem",fontStyle:"italic"}}>{p.description}</div>
+                              )}
+                            </>
                           );
                         })()}
                       </div>
@@ -4610,14 +4753,12 @@ export default function App() {
                               <button className="proj-act-btn edit"
                                 onClick={() => {
                                   setEditingProject(p.id);
+                                  const mem = normMembers(p.group_members?.length ? p.group_members : regSub?.group_members);
                                   setProjForm({
                                     title:p.title, cat:p.cat, grade:p.grade, num:p.num, department_id:p.department_id||"",
                                     advisor_name: p.advisor_name || regSub?.advisor_name || "",
-                                    group_members: (() => {
-                                      const raw = (p.group_members && p.group_members.length)
-                                        ? p.group_members : regSub?.group_members;
-                                      return Array.isArray(raw) ? raw.join(", ") : (raw || "");
-                                    })(),
+                                    members: mem.length ? mem : [{ name:"", grade:"" }],
+                                    room: p.room || "", description: p.description || "", motivation: p.motivation || "",
                                   });
                                   setShowAddProject(false);
                                 }}
