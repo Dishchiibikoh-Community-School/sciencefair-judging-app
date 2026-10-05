@@ -101,6 +101,10 @@ await check("offline: score kept on the device, not lost", async () => {
   assert.equal(q.length, 1); assert.equal(q[0].data.project_id, "p_old8");
 });
 await check("offline: judge sees the offline / pending warning", () => J.page.locator(".offline-banner").first().waitFor({ timeout: 4000 }));
+await check("offline: Sign Out is blocked while scores are only on the device (was: deleted them)", async () => {
+  await J.page.getByText(/only on this device\. Connect to the internet/).waitFor({ timeout: 3000 });
+  assert.equal(await J.page.getByRole("button", { name: "Sign Out" }).count(), 0);
+});
 store.offline = false; await J.ctx.setOffline(false);
 await J.page.waitForTimeout(2500);
 await check("back online: queued score syncs automatically and the queue empties", async () => {
@@ -184,6 +188,49 @@ const csv = readFileSync(await dl.path(), "utf8");
 await check("judge-score CSV has per-criterion values (was empty before Sept fix)", async () => {
   assert.match(csv, /Presentation/); assert.match(csv, /Judge1/); assert.match(csv, /"6"|,6,|"4"/);
 });
+
+console.log("\n── Admin: projects CSV, rubric safety, help");
+await A.page.locator(".nav-it", { hasText: "Projects" }).first().click();
+const [pdl] = await Promise.all([A.page.waitForEvent("download"), A.page.getByRole("button", { name: /Download Projects CSV/ }).click()]);
+const pcsv = readFileSync(await pdl.path(), "utf8");
+await check("projects CSV has every project with adviser + students + department", async () => {
+  assert.match(pcsv, /Teacher \/ Adviser/); assert.match(pcsv, /Existing Volcano Study/);
+  assert.match(pcsv, /Ana Ruiz/); assert.match(pcsv, /Middle School/); assert.equal(pcsv.charCodeAt(0), 0xFEFF);
+});
+
+await A.page.locator(".nav-it", { hasText: "Rubric" }).click();
+await A.page.getByRole("button", { name: "Edit Rubric" }).click();
+await check("editing with scores shows the accurate totals warning", () => A.page.getByText(/Totals are always calculated with the/).waitFor({ timeout: 4000 }));
+await A.page.locator(".rub-del-btn").first().click();
+await A.page.getByRole("button", { name: "Save Rubric" }).click();
+await check("removing a criterion asks to confirm and names it", async () => {
+  await A.page.getByText(/This change will change project totals/).waitFor({ timeout: 4000 });
+  await A.page.getByText(/Removed:/).waitFor();
+});
+await A.page.getByRole("button", { name: "Cancel" }).last().click();
+await check("cancel leaves the stored rubric untouched", async () => assert.deepEqual(store.rubrics[0].criteria, []));
+store.failRubricSave = true;
+await A.page.getByRole("button", { name: "Save Rubric" }).click();
+await A.page.getByRole("button", { name: /Yes, change the rubric/ }).click();
+await check("a failed save says 'Rubric NOT saved' and keeps the editor open", async () => {
+  await A.page.getByText(/Rubric NOT saved/).waitFor({ timeout: 4000 });
+  await A.page.getByRole("button", { name: "Save Rubric" }).waitFor();
+});
+store.failRubricSave = false;
+await A.page.getByRole("button", { name: /Yes, change the rubric/ }).click();
+await check("confirmed save stores the new 9-criterion rubric", async () => {
+  await A.page.getByRole("button", { name: "Edit Rubric" }).waitFor({ timeout: 4000 });
+  assert.equal(store.rubrics[0].criteria.length, 9);
+});
+
+await A.page.locator(".nav-it", { hasText: "Help & FAQ" }).click();
+await check("Help & FAQ tab shows the guide with sections and FAQs", async () => {
+  await A.page.getByText("How this system works").waitFor({ timeout: 4000 });
+  for (const t of ["Before the event — checklist", "Data safety", "Form scanning", "Troubleshooting"]) await A.page.getByText(t, { exact: false }).first().waitFor();
+  await A.page.getByText("What does Reset All Data clear?").click();
+  await A.page.getByText(/It keeps projects, departments, the rubric/).waitFor();
+});
+await A.page.screenshot({ path: new URL("./out/help-tab.png", import.meta.url).pathname.replace(/^\/(\w:)/, "$1"), fullPage: true });
 
 console.log("\n── Admin: IT logs + Reset with a 6-digit PIN");
 await A.page.locator(".nav-it", { hasText: "IT Logs" }).click();

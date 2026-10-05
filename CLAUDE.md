@@ -173,6 +173,7 @@ files, no Tailwind, no CSS modules.
 | `export` | Per-judge CSV + score backups |
 | `rubric` | Edit criteria / max / steps / order; save to `rubrics`; reset to default |
 | `itlogs` | IT diagnostic terminal + Reset All Data (PIN-gated) |
+| `help` | **Help & FAQ** — how the system works, before-event checklist, do's / don'ts, data safety, scanning, judges, troubleshooting. Content = `ADMIN_HELP` constant (top of the JSX) |
 
 ### AnimatedBackdrop
 **Disabled** — the render path is hardcoded to `const backdrop = null;` for tablet input
@@ -538,7 +539,7 @@ createProject(data, base?)   // shared insert path (Add Project + scanner) → {
 addProject(), updateProject(pid), removeProject(pid), toggleProjectLock(pid)
 writeProjectRow(mode, row, pid)        // public columns only; drops 2026-10 columns if that migration is missing
 writeProjectPrivate(pid, adviser, members)  // names → project_private (falls back to legacy columns pre-2026-10b)
-nextProjectNum(list?), exportProjListPDF()
+nextProjectNum(list?), exportProjListPDF(), exportProjectsCSV()
 normMembers(raw), membersText(raw), highestGrade(members), normGrade(g)  // module helpers
 blankProjForm(num?), escHtml(v)        // module helpers — escHtml for any hand-built HTML (print windows)
 loadDepartments(), updateDeptMaxJudges(deptId, max)
@@ -552,7 +553,7 @@ loadInviteCode(sid)          // school_invite_code RPC → inviteCode state
 allowJudgeTransfer(alias) / confirmTransfer()   // PIN modal, one-time ~10 min allowance
 executeReset()               // PIN-gated; see rule 15
 ensureSeedData(schoolId)     // re-seeds departments, rubric, baseline app_settings on first admin load
-saveRubric(criteria)
+requestSaveRubric(criteria) → saveRubric(criteria)   // impact check + confirm; save reports failure
 addLog(msg), addItLog(level, module, event, detail, payload)
 buildSnapshot()
 
@@ -651,6 +652,11 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 54. **A DELETE/UPDATE that RLS filters out is not an error.** Postgres reports 0 rows as success. When the UI depends on it, chain `.select()` and check that rows came back (see "Revise my validation").
 55. **Only show a saved state after the save succeeded** (judging lock: upsert, check `error`, then `setLocked`).
 
+**Keeping users informed**
+56. **Every user-visible change updates the help in the SAME commit:** the `ADMIN_HELP` constant (bump `ADMIN_HELP_UPDATED`), `AdminInstructions.md`, and `JudgeInstructions.md` if judges are affected. A feature, a new rule, a changed button label, a new limit or a new failure message all count. Admins rely on the in-app Help tab — a stale answer there is a bug.
+57. **Never delete data a user can't get back without saying so first.** Judge sign-out must not clear `sf_offline_queue` (it did until 2026-10-05); deleting a scored project, Reset and rubric changes all warn first.
+58. **Rubric changes go through `requestSaveRubric()`** — it validates, and when scores exist and criteria / points change it shows the impact (removed / added / changed) and offers a backup before `saveRubric()`. `saveRubric()` reports failure (`rubricErr`) and keeps the editor open.
+
 **Supabase client pitfalls (both shipped as real bugs)**
 48. **Every Supabase query must be awaited, returned, inside `Promise.all`, or end in `.then()`.** A supabase-js query builder is lazy — a bare `supabase.from(x).insert(y);` statement sends **nothing**. This silently disabled the activity log, the IT log and "Revise my validation" for all of v2.
 49. **Never `await` a Supabase call inside `onAuthStateChange`.** supabase-js holds its auth lock while notifying listeners; an awaited query waits for that lock → deadlock. It made Sign Out hang forever. Defer with `setTimeout(() => …, 0)` (see `onAuthChanged`).
@@ -692,6 +698,16 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-05 — Data-safety pass + in-app Help & FAQ.**
+1. **Judge Sign Out deleted unsynced scores** (`sf_offline_queue`) — now blocked while scores are only on
+   the device; its `window.confirm` (blocked in installed mode) became an inline step.
+2. **Rubric:** saves now report failure ("Rubric NOT saved", editor stays open); the misleading "won't
+   retroactively update" warning replaced by an accurate one; changing criteria/points with scores present
+   asks to confirm, lists the impact and offers a score backup; Reset to Default no longer uses
+   `window.confirm`; `alert()` validation replaced by inline errors.
+3. **Projects → ⬇ Download Projects CSV** (adviser, students + grades, room, answers, avg) — the admin's own copy.
+4. **Help & FAQ admin tab** driven by `ADMIN_HELP` (rule 56). Lifecycle E2E now 40 checks.
 
 **2026-10-05 — Email confirmation landed on localhost.** Supabase Auth's *Site URL* was still the
 default `http://localhost:3000`, so the first real school's confirmation link opened a dead page (the email

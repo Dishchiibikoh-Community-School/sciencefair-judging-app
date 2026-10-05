@@ -68,6 +68,77 @@ const CAT_CODES     = {
   "Energy, Sustainability & Design": "ESD",
 };
 
+// ── ADMIN HELP & FAQ (admin "Help & FAQ" tab) ───────────────────────────────
+// ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
+// this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
+// commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
+const ADMIN_HELP_UPDATED = "2026-10-05";
+const ADMIN_HELP = [
+  { title: "How this system works", icon: "🧭", items: [
+    "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
+    "Everything is saved to a secure online database the moment you press Save or a judge presses Submit. App updates never erase your data.",
+    "The flow: set up → add projects → judges sign in → judges score → judges validate → (deliberation if there is a tie) → you finalize → you share the results link.",
+    "Each judge scores every project in their own department, and only those.",
+    "Totals are always calculated with the CURRENT rubric. Grades below 5 skip the Abstract criterion; grades 5 and up cannot be given a 0.",
+    "Rankings, ties and the public results are per department — projects in different departments never compete.",
+    "Student names are visible only to signed-in admins of your school. Judges and the public results page never see them.",
+  ]},
+  { title: "Before the event — checklist", icon: "✅", items: [
+    "Remember your Admin PIN (4–8 digits). It cannot be recovered, only changed (Overview → Admin PIN). 5 wrong tries lock PIN entry for 5 minutes.",
+    "Overview: check the departments and set Max Judges for each one. It locks for a department once its first judge signs in.",
+    "Rubric tab: finish the rubric BEFORE the first judge signs in.",
+    "Projects tab: add every project (📷 Scan forms or + Add Project) and give each one a department — a project with no department is scored by nobody.",
+    "Lock (🔒) projects whose details are final, so they cannot be edited or deleted by accident.",
+    "Download Projects CSV and the Project List PDF as your own backup copy.",
+    "Dry run: on a spare tablet sign in as Judge1, score one project, check it on Overview, then Reset All Data.",
+    "Give each judge: the school link, the invite code (Overview → Get started), their judge name (Judge1, Judge2…) and their department.",
+  ]},
+  { title: "Do", icon: "👍", items: [
+    "Save a score backup (Score Export → 💾 Save Score Backup) and download the CSVs at the halfway point and at the end.",
+    "Check every scanned card against its photo — amber boxes are where the AI was unsure.",
+    "Keep the paper participation forms as the original record.",
+    "Lock judging (sidebar → Lock Judging) when scoring time is over.",
+    "Ask judges to stay on Wi-Fi when possible and press Sync Now if they see an offline warning.",
+  ]},
+  { title: "Don't", icon: "⛔", items: [
+    "Don't change the rubric after judging starts. Removing or adding a criterion, or changing its points, changes every total and ranking. (Renaming or rewording is safe.) The app asks you to confirm and offers a backup first.",
+    "Don't delete a project that has scores — its scores are deleted with it. Lock it instead.",
+    "Don't use Reset All Data during the event. It removes all judges, scores, validations, awards and the share link (projects, departments and the rubric stay).",
+    "Don't post the invite code or the Admin PIN publicly. 5 wrong invite codes lock judge sign-in for 5 minutes for the whole school.",
+    "Don't share exports that contain student names (Projects CSV, Project List PDF, registrations) outside your staff.",
+    "Don't open the app on any address other than qritiko.com.",
+  ]},
+  { title: "Data safety", icon: "🛡️", faq: [
+    ["Will updates to the app erase my projects or scores?", "No. Updates replace the website, never your data. Database changes are tested on a copy first and only add or tighten things."],
+    ["What does Reset All Data clear?", "Judges, scores, validations, deliberation notes, awards, the share link and the lock / finalize settings. It keeps projects, departments, the rubric, registrations and the activity log."],
+    ["How do I back up?", "Score Export → 💾 Save Score Backup (stores scores AND the rubric), ⬇ Download Judge Scores CSV, and Projects → ⬇ Download Projects CSV. Download copies at the halfway point and at the end."],
+    ["What happens to scores if I change the rubric?", "The raw scores are kept, but totals use the current rubric: a removed criterion stops counting, a new one counts 0 until re-scored, changed points keep the old values. Finish the rubric before judging."],
+    ["Who can see student names?", "Only signed-in admins of your school. Never judges, never the public results page."],
+  ]},
+  { title: "Form scanning", icon: "📷", faq: [
+    ["Where do the photos go?", "They are sent to Google Gemini to be read and are not stored anywhere. Only what you press Save on becomes a project."],
+    ["What if a form cannot be read?", "Press ↻ Retry, or ✍️ Enter manually to type it beside the photo. You can also add a ✍️ Blank card, or use + Add Project."],
+    ["A student ticked \"Not sure yet\" for the category.", "The card cannot be saved until you choose one of the six categories."],
+    ["It says \"possible duplicate\".", "A project with the same title or the same students already exists. Save only if it really is a different project (\"Save anyway\")."],
+    ["It says scanning is not set up / the API key was rejected.", "That is a setup problem, not your photo — tell your technical contact. Use + Add Project meanwhile."],
+  ]},
+  { title: "Judges", icon: "🧑‍⚖️", faq: [
+    ["A judge's tablet died.", "Judges tab → Allow Transfer on that judge (Admin PIN). Within 10 minutes the judge signs in on the new device with the same name, department and invite code. Their scores are kept."],
+    ["A judge lost internet.", "Scores are kept on the device and sync automatically when it reconnects (or with Sync Now). The app will not let a judge sign out while scores are still only on the device."],
+    ["Can a judge change a score?", "Yes — open the project again and resubmit, until they validate their results or you lock judging."],
+    ["A judge validated too early.", "They can press Revise my validation until you finalize the results."],
+    ["A judge cannot see a project you just added.", "Make sure the project has their department. It appears automatically; if not, ask them to refresh the page."],
+    ["A judge registered in the wrong department.", "Before any scoring: Reset All Data and have them sign in again. After scoring has started, plan departments carefully — a judge cannot move departments."],
+  ]},
+  { title: "Troubleshooting", icon: "🛠️", faq: [
+    ["\"Email not confirmed\" when signing in.", "Click the link in the confirmation email (check spam / junk), then sign in again."],
+    ["PIN entry is locked.", "5 wrong PINs lock PIN entry for 5 minutes. Wait, then try again."],
+    ["The lock button says \"Lock failed — retry\".", "The change did not reach the database (often an expired sign-in). Sign out and in, then try again — judges are NOT locked until it succeeds."],
+    ["\"Rubric NOT saved\".", "Nothing was changed. Your edits are still on screen — sign in again if needed and press Save Rubric again."],
+    ["Something looks wrong.", "IT Logs tab (Admin PIN) → copy the report and send it to your technical contact."],
+  ]},
+];
+
 // ── PROJECT MEMBER HELPERS ───────────────────────────────────
 // group_members comes in three shapes and every reader must accept all of them:
 //   projects.group_members (2026-10+)   JSONB [{ name, grade }]
@@ -641,6 +712,14 @@ const CSS = `
   .member-row{display:flex;gap:.4rem;align-items:center;margin-bottom:.35rem;}
   .member-row input{flex:1;min-width:0;}
   .member-row input.member-grade{flex:0 0 72px;}
+  /* Admin Help & FAQ */
+  .help-card{margin-bottom:.85rem;}
+  .help-title{font-family:var(--ff-d);font-size:1.02rem;color:var(--navy);margin-bottom:.55rem;}
+  .help-list{margin:0 0 0 1.1rem;padding:0;font-size:.88rem;line-height:1.55;}
+  .help-list li{margin-bottom:.35rem;}
+  .help-faq{border-top:1px solid var(--bd);padding:.55rem 0;font-size:.88rem;}
+  .help-faq summary{cursor:pointer;font-weight:600;color:var(--text);}
+  .help-faq div{margin-top:.4rem;color:var(--dim);line-height:1.55;}
   /* Participation-form scanner */
   .scan-panel{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:1rem 1.1rem;margin-bottom:.75rem;}
   .scan-actions{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin-top:.65rem;}
@@ -879,6 +958,8 @@ export default function App() {
   const [editingRubric, setEditingRubric] = useState(false);           // rubric editor open
   const [rubricDraft,   setRubricDraft]   = useState([]);              // draft criteria during edit
   const [rubricSaving,  setRubricSaving]  = useState(false);
+  const [rubricErr,     setRubricErr]     = useState("");     // save / validation error shown in the Rubric tab
+  const [rubricConfirm, setRubricConfirm] = useState(null);   // { criteria, impact } awaiting "save anyway" when scores exist
 
   // ── SCHOOL REGISTRATION STATE ────────────────────────────
   const [schoolForm, setSchoolForm] = useState({ name:"", slug:"", email:"", password:"", confirmPass:"", adminPin:"", confirmPin:"" });
@@ -999,6 +1080,7 @@ export default function App() {
   const [showValForm,        setShowValForm]         = useState(false);
   const [valReviseErr,       setValReviseErr]        = useState("");
   const [lockErr,            setLockErr]             = useState("");
+  const [judgeSignOutAsk,    setJudgeSignOutAsk]     = useState(false);  // inline "sign out anyway?" step
   const [transferAllowances, setTransferAllowances]  = useState({}); // { [alias]: expiryTs }
 
   // Transfer PIN modal state
@@ -1340,23 +1422,66 @@ export default function App() {
     }
   }
 
+  // What a rubric change does to scores already entered. Totals are ALWAYS computed with the
+  // current rubric (getTotal), so removing/adding criteria or changing a max changes them.
+  function rubricImpact(next) {
+    const cur = new Map(rubric.map(c => [c.id, c]));
+    const nxt = new Map(next.map(c => [c.id, c]));
+    return {
+      scoreCount: Object.keys(scores).length,
+      removed: rubric.filter(c => !nxt.has(c.id)).map(c => c.label),
+      added:   next.filter(c => !cur.has(c.id)).map(c => c.label),
+      changed: next.filter(c => cur.has(c.id) && (Number(cur.get(c.id).max) !== Number(c.max)
+                 || JSON.stringify(cur.get(c.id).steps) !== JSON.stringify(c.steps))).map(c => c.label),
+    };
+  }
+  // Validate → if scores exist and scoring changes, ask first (inline, no window.confirm —
+  // it is blocked in installed/standalone mode) → save.
+  function requestSaveRubric(criteria) {
+    setRubricErr("");
+    for (const c of criteria) {
+      if (!String(c.label || "").trim()) { setRubricErr("Every criterion needs a label."); return; }
+      if (!Array.isArray(c.steps) || c.steps.length < 2) { setRubricErr(`"${c.label}" needs at least 2 score steps.`); return; }
+    }
+    const impact = rubricImpact(criteria);
+    if (impact.scoreCount > 0 && (impact.removed.length || impact.added.length || impact.changed.length)) {
+      setRubricConfirm({ criteria, impact });
+      return;
+    }
+    saveRubric(criteria);
+  }
+
   async function saveRubric(criteria) {
-    if (!currentSchool?.id) return;
+    if (!currentSchool?.id) return false;
     setRubricSaving(true);
+    setRubricErr("");
+    let error = null;
     if (rubricId) {
-      await supabase.from("rubrics").update({ criteria }).eq("id", rubricId);
+      // .select() so an RLS-filtered update (0 rows, no error) is caught as a failure.
+      const res = await supabase.from("rubrics").update({ criteria })
+        .eq("school_id", currentSchool.id).eq("id", rubricId).select("id");
+      error = res.error || (!res.data?.length ? { message: "nothing was saved (are you still signed in?)" } : null);
     } else {
-      const { data } = await supabase.from("rubrics")
+      const res = await supabase.from("rubrics")
         .insert({ school_id: currentSchool.id, name: "Custom Rubric", criteria, is_active: true })
         .select("id").single();
-      if (data) setRubricId(data.id);
+      error = res.error;
+      if (res.data) setRubricId(res.data.id);
+    }
+    setRubricSaving(false);
+    if (error) {
+      // Keep the editor open with the draft so nothing typed is lost.
+      setRubricErr(`Rubric NOT saved: ${error.message}. Your changes are still here — try again.`);
+      addItLog("ERROR","ADMIN","RUBRIC_SAVE_FAILED","Rubric could not be saved",{ error: error.message });
+      return false;
     }
     setRubric(criteria);
+    setRubricConfirm(null);
     setEditingRubric(false);
-    setRubricSaving(false);
     addLog("Admin updated the scoring rubric");
     addItLog("INFO","ADMIN","RUBRIC_UPDATED","Admin saved updated scoring rubric",
       { criteriaCount: criteria.length, totalMax: criteria.reduce((s,c) => s + c.max, 0) });
+    return true;
   }
 
   function rubricDraftMove(idx, dir) {
@@ -1828,6 +1953,33 @@ export default function App() {
     setProjListToken("");
     addLog("Admin revoked project list share link");
     addItLog("WARN","SHARE","PROJ_LIST_LINK_REVOKED","Admin revoked project list share link", {});
+  }
+
+  // Full project roster as CSV — the admin's own off-database copy of every team (adviser,
+  // students + grades, room, answers). Student names are included: admin-only, keep it private.
+  function exportProjectsCSV() {
+    const deptName = (id) => departments.find(d => d.id === id)?.name || "Unassigned";
+    const rows = [[
+      "Project #","Title","Department","Category","Grade","Room","Teacher / Adviser",
+      "Students (grade)","What they plan to investigate","Why they chose it","Locked","Reviews",`Avg Score (of rubric max ${rubricMax()})`,
+    ].map(csvCell)];
+    [...projects].sort((a, b) => String(a.num).localeCompare(String(b.num))).forEach(p => {
+      const sub = regSubmissions.find(s => s.project_id === p.id);
+      const reviews = Object.keys(scores).filter(k => k.endsWith(`_${p.id}`)).length;
+      rows.push([
+        p.num, p.title, deptName(p.department_id), p.cat, p.grade, p.room || "",
+        p.advisor_name || sub?.advisor_name || "",
+        membersText(p.group_members?.length ? p.group_members : sub?.group_members),
+        p.description || "", p.motivation || "", p.locked ? "yes" : "no", reviews, projAvg(p.id) ?? "",
+      ].map(csvCell));
+    });
+    // BOM so Excel opens accented names (Navajo, Spanish…) correctly.
+    const blob = new Blob([String.fromCharCode(0xFEFF) + rows.map(r => r.join(",")).join(String.fromCharCode(10))], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `projects_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    addItLog("INFO","ADMIN","PROJECTS_CSV_EXPORTED","Admin downloaded the projects CSV",{ count: projects.length });
   }
 
   function exportProjListPDF() {
@@ -3823,15 +3975,35 @@ export default function App() {
           <div className="sync-meta" style={{ marginTop:".3rem", marginBottom:".7rem" }}>
             Sync status: {offlineQueue.length > 0 ? "Pending local saves" : "All local scores synced"} · Last sync: {lastSyncAt ? fmtFull(lastSyncAt) : "Not yet"}
           </div>
+          {/* Signing out wipes this device's copy of the session. It must NEVER wipe scores that
+              have not reached the database yet (sf_offline_queue) — until 2026-10-05 it did, so an
+              offline judge who signed out lost those scores for good. No window.confirm: it is
+              blocked when the app is installed. */}
+          {offlineQueue.length > 0 ? (
+            <div className="locked-banner" style={{ marginTop:".85rem" }}>
+              ⚠ {offlineQueue.length} score{offlineQueue.length!==1?"s are":" is"} only on this device. Connect to the internet and
+              press <b>Sync Now</b> before signing out — signing out now would lose {offlineQueue.length!==1?"them":"it"}.
+            </div>
+          ) : judgeSignOutAsk ? (
+            <div className="scan-msg warn" style={{ marginTop:".85rem" }}>
+              <div style={{ marginBottom:".5rem" }}>You have scored {done} of {myProj.length} projects. Sign out anyway? Your saved scores stay in the system.</div>
+              <div style={{ display:"flex", gap:".5rem", flexWrap:"wrap" }}>
+                <button className="btn danger sm" style={{ width:"auto" }} onClick={() => {
+                  setJudgeSignOutAsk(false); setJudge(null);
+                  ["sf_judge_id","sf_judge_data","sf_scores_cache"].forEach(k => localStorage.removeItem(k));
+                  setView("landing");
+                }}>Yes, sign out</button>
+                <button className="btn sec sm" style={{ width:"auto" }} onClick={() => setJudgeSignOutAsk(false)}>Keep scoring</button>
+              </div>
+            </div>
+          ) : (
           <button className="btn sec" style={{ marginTop:".85rem" }} onClick={() => {
-            if (done < myProj.length) {
-              const confirmed = window.confirm("You have unfinished scoring. Are you sure you want to sign out?");
-              if (!confirmed) return;
-            }
+            if (done < myProj.length) { setJudgeSignOutAsk(true); return; }
             setJudge(null);
-            ["sf_judge_id","sf_judge_data","sf_scores_cache","sf_offline_queue"].forEach(k => localStorage.removeItem(k));
+            ["sf_judge_id","sf_judge_data","sf_scores_cache"].forEach(k => localStorage.removeItem(k));
             setView("landing");
           }}>Sign Out</button>
+          )}
         </div></div>
       </div>
     );
@@ -4589,6 +4761,7 @@ export default function App() {
       { id:"registration", ico:"📝", label:"Registration" },
       { id:"rubric",   ico:"📐", label:"Rubric"        },
       { id:"itlogs",   ico:"🖥️", label:"IT Logs"      },
+      { id:"help",     ico:"❓", label:"Help & FAQ"   },
     ];
 
     return (
@@ -5390,10 +5563,15 @@ export default function App() {
               {/* Export Project List */}
               <div style={{marginTop:"2rem",borderTop:"1px solid var(--bd)",paddingTop:"1.5rem"}}>
                 <div className="adm-h1" style={{marginBottom:".25rem"}}>Export Project List</div>
-                <div className="adm-sub" style={{marginBottom:"1rem"}}>Generate a printable PDF of all projects grouped by department — share with teachers or print for the event.</div>
-                <button className="btn sm" style={{width:"auto"}} onClick={exportProjListPDF} disabled={projects.length === 0}>
-                  🖨 Export Project List PDF
-                </button>
+                <div className="adm-sub" style={{marginBottom:"1rem"}}>Printable PDF grouped by department, or a spreadsheet (CSV) with every detail — keep the CSV as your own backup copy. Both contain student names: share only with staff.</div>
+                <div style={{display:"flex",gap:".5rem",flexWrap:"wrap"}}>
+                  <button className="btn sm" style={{width:"auto"}} onClick={exportProjListPDF} disabled={projects.length === 0}>
+                    🖨 Export Project List PDF
+                  </button>
+                  <button className="btn sec sm" style={{width:"auto"}} onClick={exportProjectsCSV} disabled={projects.length === 0}>
+                    ⬇ Download Projects CSV
+                  </button>
+                </div>
               </div>
             </>}
 
@@ -5994,33 +6172,71 @@ export default function App() {
             )}
 
             {/* RUBRIC */}
+            {/* HELP & FAQ — content lives in ADMIN_HELP (top of file). Keep it current. */}
+            {adminTab==="help" && <>
+              <div className="adm-h1">Help &amp; FAQ</div>
+              <div className="adm-sub">How the system works, what to do and what to avoid. Last updated {ADMIN_HELP_UPDATED}.</div>
+              {ADMIN_HELP.map(sec => (
+                <div key={sec.title} className="card help-card">
+                  <div className="help-title">{sec.icon} {sec.title}</div>
+                  {sec.items && <ul className="help-list">{sec.items.map((t, i) => <li key={i}>{t}</li>)}</ul>}
+                  {sec.faq && sec.faq.map(([q, a]) => (
+                    <details key={q} className="help-faq">
+                      <summary>{q}</summary>
+                      <div>{a}</div>
+                    </details>
+                  ))}
+                </div>
+              ))}
+            </>}
+
             {adminTab==="rubric" && (() => {
               const draftTotal = rubricDraft.reduce((s,c) => s + (Number(c.max)||0), 0);
               const hasScores  = Object.keys(scores).length > 0;
+              const scoreCount = Object.keys(scores).length;
+              // Shown in both edit and view mode (Reset to Default uses it too).
+              const confirmPanel = rubricConfirm && (
+                <div className="scan-msg warn" style={{ padding:"1rem", marginBottom:"1rem", fontSize:".86rem" }}>
+                  <div style={{ fontWeight:700, marginBottom:".4rem" }}>⚠️ {rubricConfirm.impact.scoreCount} score{rubricConfirm.impact.scoreCount!==1?"s":""} already exist. This change will change project totals and rankings:</div>
+                  <ul style={{ margin:"0 0 .6rem 1.1rem" }}>
+                    {rubricConfirm.impact.removed.length > 0 && <li><b>Removed:</b> {rubricConfirm.impact.removed.join(", ")} — those points disappear from every total (the raw scores are kept and come back if you restore the criterion).</li>}
+                    {rubricConfirm.impact.added.length > 0 && <li><b>Added:</b> {rubricConfirm.impact.added.join(", ")} — projects already scored get 0 for it until judges re-score them.</li>}
+                    {rubricConfirm.impact.changed.length > 0 && <li><b>Points/steps changed:</b> {rubricConfirm.impact.changed.join(", ")} — existing scores keep their old values.</li>}
+                  </ul>
+                  <div style={{ marginBottom:".6rem" }}>Recommended: save a score backup first (it stores the current rubric too).</div>
+                  <div style={{ display:"flex", gap:".5rem", flexWrap:"wrap" }}>
+                    <button className="btn sec sm" style={{ width:"auto" }} disabled={savingBackup} onClick={saveScoreBackup}>
+                      {savingBackup ? "⏳ Saving backup…" : backupSaved ? "✓ Backup saved" : "💾 Save score backup first"}
+                    </button>
+                    <button className="btn danger sm" style={{ width:"auto" }} disabled={rubricSaving} onClick={() => saveRubric(rubricConfirm.criteria)}>
+                      {rubricSaving ? "Saving…" : "Yes, change the rubric"}
+                    </button>
+                    <button className="btn sec sm" style={{ width:"auto" }} onClick={() => setRubricConfirm(null)}>Cancel</button>
+                  </div>
+                </div>
+              );
+              const errBanner = rubricErr && <div className="err" style={{ marginBottom:"1rem" }}>⚠ {rubricErr}</div>;
 
               if (editingRubric) return (
                 <div>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1.25rem", flexWrap:"wrap", gap:".75rem" }}>
                     <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.2rem", color:"var(--navy)" }}>Edit Rubric</h2>
                     <div style={{ display:"flex", gap:".5rem" }}>
-                      <button className="btn sec sm" style={{ width:"auto" }} onClick={() => { setEditingRubric(false); setRubricDraft([]); }}>Cancel</button>
-                      <button className="btn sm" style={{ width:"auto" }} disabled={rubricSaving || rubricDraft.length === 0}
-                        onClick={() => {
-                          // Validate all rows have a label and valid steps
-                          for (const c of rubricDraft) {
-                            if (!c.label.trim()) { alert("All criteria need a label."); return; }
-                            if (!c.steps || c.steps.length < 2) { alert(`"${c.label}" needs at least 2 step values.`); return; }
-                          }
-                          saveRubric(rubricDraft);
-                        }}>
+                      <button className="btn sec sm" style={{ width:"auto" }} onClick={() => { setEditingRubric(false); setRubricDraft([]); setRubricConfirm(null); setRubricErr(""); }}>Cancel</button>
+                      <button className="btn sm" style={{ width:"auto" }} disabled={rubricSaving || rubricDraft.length === 0 || !!rubricConfirm}
+                        onClick={() => requestSaveRubric(rubricDraft)}>
                         {rubricSaving ? "Saving…" : "Save Rubric"}
                       </button>
                     </div>
                   </div>
 
-                  {hasScores && (
+                  {errBanner}
+                  {confirmPanel}
+                  {hasScores && !rubricConfirm && (
                     <div style={{ background:"var(--amber-l)", border:"1px solid #d9770630", borderRadius:"var(--r)", padding:".85rem 1rem", marginBottom:"1rem", fontSize:".88rem", color:"var(--amber)" }}>
-                      ⚠️ Scores already exist for this event. Changing the rubric will not retroactively update existing scores. Criteria IDs must stay consistent.
+                      ⚠️ {scoreCount} score{scoreCount!==1?"s":""} already exist. Totals are always calculated with the <b>current</b> rubric —
+                      removing a criterion, adding one, or changing its points will change every project&apos;s total and ranking.
+                      Renaming a criterion or editing its description is safe. You will be asked to confirm before saving.
                     </div>
                   )}
 
@@ -6098,14 +6314,14 @@ export default function App() {
                         Edit Rubric
                       </button>
                       <button className="btn sec sm" style={{ width:"auto", color:"var(--amber)", borderColor:"var(--amber)" }}
-                        onClick={() => {
-                          if (Object.keys(scores).length > 0 && !window.confirm("Existing scores may be incompatible with the default rubric. Continue?")) return;
-                          saveRubric(DEFAULT_RUBRIC);
-                        }}>
+                        disabled={rubricSaving || !!rubricConfirm}
+                        onClick={() => requestSaveRubric(DEFAULT_RUBRIC)}>
                         Reset to Default
                       </button>
                     </div>
                   </div>
+                  {errBanner}
+                  {confirmPanel}
 
                   <div className="card" style={{ padding:0, overflow:"hidden", marginBottom:"1rem" }}>
                     <table className="rub-view-table">

@@ -169,6 +169,9 @@ If internet drops:
 
 **Note:** Ensure your browser doesn't clear data, or scores may be lost.
 
+**You cannot sign out while scores are only on your device.** The app shows a warning instead of the
+Sign Out button until they have synced — connect to the internet and press **Sync Now** first.
+
 ---
 
 ## FAQs

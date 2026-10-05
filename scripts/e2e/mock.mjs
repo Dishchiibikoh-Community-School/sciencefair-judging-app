@@ -185,6 +185,8 @@ export function installMock(page, store, log) {
       if (prefer.includes("return=representation")) return json(route, 201, single ? out[0] : out);
       return route.fulfill({ status: 201, headers: { "access-control-allow-origin": "*" } });
     }
+    if (method === "PATCH" && table === "rubrics" && store.failRubricSave)
+      return json(route, 401, { code: "42501", message: "JWT expired" });
     if (method === "PATCH") {
       const out = rows.filter(r => matches(r, params));
       out.forEach(r => Object.assign(r, body));

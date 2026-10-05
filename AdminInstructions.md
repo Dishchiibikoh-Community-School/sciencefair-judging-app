@@ -40,6 +40,10 @@ judge device transfers. **You choose it when you register the school** — 4 to 
 
 ---
 
+> **In the app:** the **❓ Help & FAQ** tab (admin sidebar) has the same essentials — how the system
+> works, a before-event checklist, do's and don'ts, and answers to common problems. It is kept up to
+> date with every change to the system.
+
 ## Tab Overview
 
 | Tab | Purpose |
@@ -55,6 +59,7 @@ judge device transfers. **You choose it when you register the school** — 4 to 
 | **Score Export** | Per-judge CSV export and score backups |
 | **Rubric** | View and edit your school's scoring criteria |
 | **IT Logs** | Diagnostic terminal for troubleshooting (PIN-gated) |
+| **Help & FAQ** | How the system works, checklist, do's and don'ts, troubleshooting |
 
 ---
 
@@ -68,6 +73,8 @@ Run through this a few days before, not on the morning of.
 - [ ] **Set max judges per department** (locks per department once its first judge registers).
 - [ ] **Enter every project/team**, each assigned to a department, with adviser and members.
 - [ ] **Print the project list** (Projects tab) and check advisers/members appear.
+- [ ] **Download Projects CSV** (Projects tab) — your own backup copy of every team.
+- [ ] **Finish the rubric** (Rubric tab) before the first judge signs in.
 - [ ] **Do a dry run:** sign in as Judge1 on a spare tablet, score one project, confirm it shows in Overview, then Reset All Data.
 - [ ] **Write down** the school link, invite code, and which judge name each judge gets.
 - [ ] **Save a score backup** (Score Export tab) at the halfway point on event day.
@@ -386,6 +393,26 @@ Opens automatically on a tie, or admin can open manually. Admin assigns final aw
 ---
 
 ## Data Management
+
+### Your data is saved immediately — and kept
+
+Projects and scores are written to the online database the moment you press Save / a judge presses
+Submit. Updates to the app never erase data. What *does* remove data: deleting a project (its scores go
+with it — lock it instead), and Reset All Data (keeps projects, departments and the rubric).
+
+### Changing the rubric
+
+Totals are always calculated with the **current** rubric. Renaming or rewording a criterion is safe.
+Removing one, adding one, or changing its points changes every total and ranking — once scores exist,
+the app shows exactly what will change, offers to save a score backup first, and asks you to confirm.
+If a save fails you will see **Rubric NOT saved** and your edits stay on screen. Best practice: finish
+the rubric before judging starts.
+
+### Backups
+
+At the halfway point and at the end: **Score Export → 💾 Save Score Backup** (includes the rubric),
+**⬇ Download Judge Scores CSV**, and **Projects → ⬇ Download Projects CSV**. Keep the files somewhere
+safe and private — they contain student names.
 
 ### Reset All Data
 
