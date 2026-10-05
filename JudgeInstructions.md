@@ -62,7 +62,8 @@ After registering, you'll see:
 ### Scoring Form Layout
 When you open a project to score, you'll see:
 
-1. **Project heading** — Project number, title, category, grade
+1. **Project heading** — Project number, title, category, grade, room (if given), and a short
+   description of what the students planned to investigate or build
 2. **10 Scoring Criteria** — Each with buttons showing allowed scores
 3. **Notes field** — Optional: add comments about the project
 4. **Total score** — Automatically calculated at the top

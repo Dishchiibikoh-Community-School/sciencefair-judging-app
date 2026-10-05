@@ -118,10 +118,10 @@ their "Projects Assigned" count should go up by one.
 2. Fill in the form:
    - **Department** — Which department this project belongs to (Elementary, Middle School, or High School)
    - **Title** — Project name (e.g., "Solar Cell Efficiency Under Different Light Spectra")
-   - **Category** — Life Science · Earth and Space Science · Physical Science · Engineering and Technology
+   - **Category** — Life Science · Earth & Environmental Science · Chemistry & Material Science · Physics, Math & Astronomy · Engineering, Robotics & Technology · Energy, Sustainability & Design
    - **Grade** — Student grade level (e.g., 4, 6, 9, 11)
    - **Number** — Auto-generated, can edit (e.g., 001, 002, 003)
-3. Fill in **Adviser Name** and **Group Members** (comma-separated) if it is a team entry
+3. Fill in **Teacher / Adviser**, **Room**, each **Student** with their grade (tap **+ Add student** for more), and the two short answers from the form
 4. Click **"Add Project"**
 
 **Important:** Judges only score projects in their own department. A judge registered under Elementary will only see Elementary projects.
@@ -136,13 +136,43 @@ appear on the project rows and on the printed project list PDF.
 |---|---|
 | Department | Required — a project with no department is scored by nobody |
 | Title | The project name |
-| Category | One of the four official categories |
+| Category | One of the six categories on the participation form |
 | Grade | Drives the abstract rule — grades below 5 skip the Abstract criterion and are scored out of 36 |
 | Number | Auto-filled; edit if you use your own numbering |
-| Adviser Name | Teacher/coach — optional but appears on the project list |
-| Group Members | Comma-separated, e.g. `Juan, Maria, Pedro` — leave blank for individual entries |
+| Teacher / Adviser | Teacher/coach — optional but appears on the project list |
+| Room | Where the project is — shown to judges and on the project list |
+| Students | One row per student, name + grade. Leave the project **Grade** blank and it uses the highest student grade |
+| What they plan to investigate | From the form — shown to judges on the scoring screen |
+| Why they chose it | From the form — admin only |
 
 You do **not** need to generate a registration link at all this year. Leave it deactivated.
+
+#### 📷 Scan paper participation forms (fastest way)
+
+Instead of typing each team, photograph the **Student Participation Forms** and let the app read them.
+
+1. **Projects tab → 📷 Scan forms**
+2. **📁 Choose photos / PDFs** (pick many at once) or **📸 Take photo** on a tablet
+   - One form per photo works best. Flat, well-lit, whole page in frame.
+   - Scanned PDFs work too (up to ~3 MB — split bigger ones).
+3. Each form becomes a **card** next to its photo. Check every card against the photo:
+   - **Amber boxes** = the AI wasn't sure (messy handwriting). Fix them; the colour goes away when you edit.
+   - **Red message** = must be fixed before saving (missing title, department, category or student).
+     If the student ticked *Not sure yet*, you must choose a category.
+   - **Amber message** = a warning, e.g. *possible duplicate of project #012* or *doesn't look like a
+     participation form*. Save only if it is really a new project.
+4. Press **✓ Save project** on a card, or **Save all ready** to save every card with no warnings.
+   Cards with warnings must be saved one by one.
+5. If a form can't be read: **↻ Retry**, or **✍️ Enter manually** and type it in from the photo.
+6. Press **Done** when finished. Unsaved cards are discarded (it asks first).
+
+**Privacy:** photos are sent to Google Gemini to be read and are **not stored** anywhere — not in
+the app, not in the database. Only what you save becomes a project. Keep the paper forms as the
+original record.
+
+**If scanning shows an error** (for example *"Form scanning is not set up yet"* or *"API key was
+rejected"*), it is a setup problem, not your photo — tell your technical contact. You can always
+add projects with **+ Add Project** instead.
 
 **Tips:**
 - Assign every project to a department before judging begins
@@ -295,12 +325,14 @@ On submission:
 
 | Division | Code | Category | Code |
 |---|---|---|---|
-| Elementary | `Elem` | Life Science | `LF` |
-| Junior High School | `JHS` | Earth and Space Science | `ESS` |
-| Senior High School | `SHS` | Physical Science | `PS` |
-| | | Engineering and Technology | `ET` |
+| Elementary | `Elem` | Life Science | `LS` |
+| Junior High School | `JHS` | Earth & Environmental Science | `EES` |
+| Senior High School | `SHS` | Chemistry & Material Science | `CMS` |
+| | | Physics, Math & Astronomy | `PMA` |
+| | | Engineering, Robotics & Technology | `ERT` |
+| | | Energy, Sustainability & Design | `ESD` |
 
-Example: `JHS-PS-003` = 3rd Junior High School Physical Science entry
+Example: `JHS-PMA-003` = 3rd Junior High School Physics, Math & Astronomy entry
 
 ### View Submitted Registrations
 

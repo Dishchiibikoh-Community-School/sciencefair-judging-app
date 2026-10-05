@@ -26,15 +26,16 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Live URL | https://qritiko.com/ (platform homepage) → https://qritiko.com/s/{slug} (a school's fair) |
 | Redirects | `www.qritiko.com` and `app.qritiko.com` → 308 to `qritiko.com` (apex is canonical since 2026-09-30) |
 | DNS | Cloudflare, all records **DNS only** (grey cloud). Apex `A qritiko.com → 76.76.21.21`; `www` → CNAME `cname.vercel-dns.com`; `app` → CNAME `0a80f066a911951b.vercel-dns-017.com` |
+| Supabase | https://evrupqnhgrfltfhafeyj.supabase.co |
+| Vercel | `sciencefair-v2` — the **only** Vercel project |
+| Deploy | Push to `main` → auto-deploys. No manual steps |
+| Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) + the migrations below |
+| Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
 HTTP but **refused HTTPS**, so `https://qritiko.com` was down for everyone while `www`/`app`
 still redirected into it. Fixed by changing the record to `76.76.21.21`. After any DNS change,
 verify with `curl -sI https://qritiko.com/` — a working port 80 proves nothing.
-| Supabase | https://evrupqnhgrfltfhafeyj.supabase.co |
-| Vercel | `sciencefair-v2` — the **only** Vercel project |
-| Deploy | Push to `main` → auto-deploys. No manual steps |
-| Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) + the migrations below |
 
 ⚠️ **Exactly one hostname may serve the app.** `localStorage` is per-origin: a judge who
 signs in on one hostname and opens another looks signed out, and anything in
@@ -49,6 +50,7 @@ always serves and cannot be redirected — never share it.
 | `migration-2026-09-project-adviser.sql` | `projects.advisor_name`, `projects.group_members` + backfill | No — app retries without the columns if missing |
 | `migration-2026-09-security-hardening.sql` | RLS lockdown, `registration_count()` | **Yes** |
 | `migration-2026-09b-pin-and-judge-auth.sql` | bcrypt PIN, `security_attempts`, `register_judge()`, PIN/invite RPCs, judge-scoped write policies | **Yes — deploy together with the app build** |
+| `migration-2026-10-project-details.sql` | `projects.room`, `description`, `motivation`; documents the `group_members` `{name, grade}` shape | No — app drops the columns and logs `PROJECT_DETAIL_COLS_MISSING`, **but those fields are then silently not saved** |
 
 `registration-migration.sql` and `schema.sql` are historical (the latter is the v1 schema).
 
@@ -71,7 +73,11 @@ The v1 Vercel project was deleted 2026-09-30. **Do not resurrect v1.**
 │   ├── supabaseClient.js        ← Supabase client init (reads .env)
 │   └── main.jsx                 ← React root + PWA service-worker registration
 ├── api/
-│   └── send-registration-email.js ← Vercel function: registration confirmation via Resend
+│   ├── send-registration-email.js ← Vercel function: registration confirmation via Resend
+│   └── scan-form.js             ← Vercel function: reads participation forms with Gemini (admin-only)
+├── scripts/
+│   ├── scan-form.test.mjs       ← mocked tests for api/scan-form.js (free, offline)
+│   └── scan-form-smoke.mjs      ← real-Gemini smoke test for form scanning (needs GEMINI_API_KEY)
 ├── supabase/
 │   ├── schema-v2.sql            ← v2 multi-tenant base schema
 │   ├── migration-2026-09*.sql   ← see Migrations table above
@@ -151,7 +157,7 @@ files, no Tailwind, no CSS modules.
 |---|---|
 | `overview` | Stats, per-department leaderboards + max-judges settings, "Get started" card (invite code, school URL), Change PIN card, Lock Judging |
 | `judges` | Per-judge progress grouped by department; Allow Transfer (PIN) |
-| `projects` | Add/edit/remove/lock projects, rubric breakdown, project-list PDF |
+| `projects` | Add/edit/remove/lock projects, **📷 Scan forms** (AI form reader), rubric breakdown, project-list PDF |
 | `registration` | Student registration links + submissions, registration CSV |
 | `activity` | Human-readable activity log with keyword filter |
 | `alerts` | Anomaly detection (>8 pt deviation) + system status |
@@ -180,6 +186,7 @@ the only real controls. "The UI does not expose it" is never a control.
 | Judge sign-in | Alias + `schools.invite_code` | `register_judge()` — invite code never sent to anon clients |
 | IT Logs, Reset All Data, judge transfer | `schools.admin_pin` — **bcrypt hash**, 4–8 digits chosen at sign-up | `verify_school_pin()` |
 | Registration email | `RESEND_API_KEY`, `EMAIL_FROM` (Vercel server env only — never `VITE_`) | `api/send-registration-email.js` |
+| Form scanning (Gemini) | `GEMINI_API_KEY` (Vercel server env only, **paid** key), caller's Supabase session | `api/scan-form.js` — checks `school_admins` before calling Gemini |
 
 ### Server-side functions (migration 2026-09b unless noted)
 
@@ -218,6 +225,11 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
   their own token — tokens are enumerable, so links are "unlisted", not secret. Same for
   `app_settings.project_list_token`. Fix: `verify_*_token` SECURITY DEFINER RPCs.
 - **The judging lock is not in RLS — on purpose** (see rule 30). It is enforced in `submitScore()`.
+- **Student names on projects are publicly readable.** `projects` is `SELECT USING (true)` with
+  the default table grant, so `projects?select=group_members` works for anyone with the anon key
+  (verified live 2026-10-05). Since form scanning this also includes each student's grade.
+  Fix: revoke anon SELECT on `group_members` (rule 28 pattern), make `loadProjects()` select
+  explicit columns when not an admin, and give judges members only if they need them.
 
 ### Other access rules
 - Judges sign in by number (`Judge1`–`JudgeN`); N is per department. Same alias may exist in different departments.
@@ -237,7 +249,7 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `school_admins` | Links a Supabase Auth user to a school |
 | `rubrics` | Per-school rubric — `criteria` JSONB array, `is_active` |
 | `departments` | name, `max_judges`, `ord` — seeded Elementary / Middle School / High School |
-| `projects` | num, title, cat, grade, locked, department_id, advisor_name, group_members (JSONB) |
+| `projects` | num, title, cat, grade, locked, department_id, advisor_name, group_members (JSONB), room, description, motivation |
 | `judges` | alias, `projects` (JSON array of pids), department_id, joined_at. UNIQUE(department_id, alias) |
 | `scores` | One row per judge+project; `criteria` JSONB, notes, total. UNIQUE(judge_id, project_id) |
 | `validations` | Judge/admin validation; `judge_id = 'admin'` for the admin. Conflict `(school_id, judge_id)` |
@@ -252,17 +264,31 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `it_logs` | Structured diagnostics |
 | `security_attempts` | Failure counters for PIN / invite-code rate limiting |
 
-⚠️ **`group_members` type split:** `projects.group_members` is **JSONB** (a real array);
-`registration_submissions.group_members` is **TEXT** (`"Juan, Maria"`). Write a joined
-string to the registration table; read with
-`Array.isArray(raw) ? raw.join(", ") : (raw || "")`.
+⚠️ **`group_members` comes in three shapes — always read it through `normMembers(raw)`:**
+
+| Where | Type | Shape |
+|---|---|---|
+| `projects.group_members` (2026-10+) | JSONB | `[{"name":"Juan","grade":"8"}]` — what the app writes now |
+| `projects.group_members` (2026-09 rows) | JSONB | `["Juan","Maria"]` — still valid, never rewritten |
+| `registration_submissions.group_members` | **TEXT** | `"Juan, Maria"` — write names joined with `", "`, never an array |
+
+`normMembers()` returns `[{ name, grade }]` for all three; `membersText()` formats them for display
+(`"Juan (Gr 8), Maria"`); `highestGrade()` picks the group's top grade. `loadProjects()` already
+normalises, so `projects` state always holds the object shape.
+
+**Project grade** = what the admin typed, or (if blank) the **highest student grade**. It drives
+the grade < 5 abstract exemption, so a mixed group is judged at its oldest member's level.
 
 ### Client state shapes
 
 ```js
 departments  // [{ id, name, max_judges, ord }]
-projects     // [{ id, num, title, cat, grade, locked, department_id, advisor_name, group_members }]
-             // id "p_xxxxxx" (admin-added); cat ∈ REG_CATEGORIES
+projects     // [{ id, num, title, cat, grade, locked, department_id, advisor_name,
+             //    group_members: [{ name, grade }], room, description, motivation }]
+             // id "p_xxxxxx" (admin-added); cat ∈ REG_CATEGORIES (older rows may hold a legacy category)
+projForm     // blankProjForm(num) → { title, cat, grade, num, department_id, advisor_name,
+             //    members: [{ name, grade }], room, description, motivation }
+scanCards    // form-scanner review cards, memory only — see "📷 Form scanning"
 judges       // [{ id, alias, projects: [pid…], joinedAt, department_id }]
 scores       // { [`${judgeId}_${projectId}`]: { criteria: { [criterionId]: number }, notes, time } }
 rubric       // [{ id, label, desc, max, steps: [..] }] — from `rubrics`, fallback DEFAULT_RUBRIC
@@ -346,6 +372,97 @@ Rankings are auto-computed (`projAvg`, `rankedProjectsIn`). The workflow validat
 
 ---
 
+## 📷 Form scanning (participation forms → projects) — added 2026-10-05
+
+Admins photograph or scan the paper **Student Participation Form**; Google Gemini reads it; the
+admin reviews/corrects each result on an editable card; only then is a project created. Built for
+the Dishchii'bikoh 2026-27 form but the prompt asks for *fields*, not a fixed layout, so similar
+forms from other schools work too.
+
+### Flow
+```
+Projects tab → "📷 Scan forms"
+  → pick photos/PDFs (multiple) or "Take photo" (tablet camera)
+  → browser: scanPayload() shrinks photos to ≤2000px JPEG (PDF/HEIC sent as-is, ≤3.2 MB)
+  → POST /api/scan-form  { schoolId, mimeType, data(base64) } + admin's Supabase JWT   (3 files in parallel)
+  → server: verify JWT → verify school_admins row → load department names → Gemini generateContent
+  → server: normaliseForm() → { forms: [...] }   (one entry per form; a PDF/photo may hold several)
+  → browser: one review card per form (scanCards state, memory only)
+  → admin edits → "✓ Save project" / "Save all ready" → createProject() → same path as Add Project
+```
+
+### Files & functions
+| Piece | Where |
+|---|---|
+| Server endpoint | `api/scan-form.js` — `handler`, `callGemini`, `normaliseForm`, `buildSchema`, `buildPrompt` |
+| Timeout | `vercel.json` → `functions["api/scan-form.js"].maxDuration = 60`; Gemini call aborts at 50 s |
+| Client logic | `scanPayload`, `scanOne`, `scanAddFiles`, `scanCardFromForm`, `scanProblems`, `scanDuplicate`, `saveScanCard`, `saveAllScanCards`, `closeScanner`, `renderScanCard` |
+| Shared save path | `createProject(data, baseProjects)` — also used by Add Project |
+| Tests | `node scripts/scan-form.test.mjs` — mocked, free: auth, validation, request shape, error mapping |
+| Smoke test | `scripts/scan-form-smoke.mjs` — real Gemini call with a sample form |
+
+### Settings (Vercel → sciencefair-v2 → Settings → Environment Variables)
+| Var | Required | Notes |
+|---|---|---|
+| `GEMINI_API_KEY` | yes | **Paid / billing-enabled** key from Google AI Studio. Free-tier inputs may be used by Google to improve products — not acceptable for students' names |
+| `GEMINI_MODEL` | no | Default `gemini-3.8-flash` (stable, checked 2026-10-05). Cheaper: `gemini-3.5-flash-lite` |
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | already set | Reused server-side for the admin check |
+
+After changing an env var you must **redeploy** (Vercel → Deployments → ⋯ → Redeploy) — running
+functions keep the old value.
+
+### What the card checks
+- **Amber field** = Gemini said `low` / `unreadable`. Editing the field clears it (`conf` → `"edited"`).
+- **Blocks saving:** no title · no department · category not one of the six (incl. *Not sure yet*) · no student.
+- **Warns (Save becomes "Save anyway", excluded from Save all):** possible duplicate (same title, or
+  same team: ≥2 shared names / same single student — vs existing projects and other cards) ·
+  page is not a participation form.
+- **Info:** "groups of three" ticked but 2 names, etc. · AI notes (crossed-out text, two boxes ticked).
+- Failed read → **Retry** or **Enter manually** (blank card beside the photo).
+
+### Category mapping
+The six `REG_CATEGORIES` are copied **verbatim** in `api/scan-form.js` (`CATEGORIES`). Gemini's
+category is an enum of those six + `"Not sure yet"` + `"None"`; anything else becomes blank.
+**If you change `REG_CATEGORIES`, change `CATEGORIES` in the API too**, or every scan will come
+back with an empty category.
+
+### Privacy (do not weaken)
+- Photos exist only in the admin's browser memory (object URLs, revoked on close) and in the single
+  request to Gemini. Not stored in Supabase, not logged.
+- `generateContent` is stateless; the request also sends `store:false` (retried without it if the API
+  ever rejects the field). **Do not switch to the Interactions API** — it stores requests by default.
+- Server logs and `it_logs` (`FORM_SCANNED`, `FORM_SCAN_FAILED`) hold counts, MIME type, model and
+  error codes — never names, titles or text.
+- The endpoint is admin-only: a public endpoint would let anyone spend the school's Gemini credit.
+
+### Gemini 3.x gotchas (checked 2026-10-05)
+- Do **not** send `temperature`, `topP`, `topK`, `candidateCount` — Gemini 3+ rejects them.
+- Structured output: `generationConfig.responseMimeType = "application/json"` + `responseSchema`
+  (OpenAPI subset, uppercase types, `enum` on strings).
+- Gemini 2.5 models are restricted to existing users since 2026-09-18 — don't fall back to them.
+
+### Troubleshooting
+| Card / log says | Cause | Fix |
+|---|---|---|
+| "Form scanning is not set up yet" (`NOT_CONFIGURED`) | `GEMINI_API_KEY` missing | Add it in Vercel, redeploy |
+| "Gemini API key was rejected" (`KEY`) | Key wrong, revoked, or API not enabled | New key in AI Studio, update Vercel, redeploy |
+| "Gemini model … was not found" (`MODEL`) | `GEMINI_MODEL` typo or model retired | Check https://ai.google.dev/gemini-api/docs/models, fix env var |
+| "AI rate limit reached" (`RATE_LIMIT`) | Too many requests per minute | Wait; scan fewer at once; raise quota in Google Cloud |
+| "Your admin session has expired" (`AUTH`) | JWT expired / signed out | Sign out and in again |
+| "You are not an admin of this school" (`FORBIDDEN`) | Viewing school B while signed in as school A's admin | Open your own school's URL |
+| "File is too large" / 413 | > 3.2 MB PDF, or photo the browser couldn't shrink | Split the PDF; export photo as JPEG |
+| "Too many forms in one file" (`UNREADABLE`, MAX_TOKENS) | Huge multi-page PDF | Split into ≤ 10 pages |
+| "The AI took too long" (`TIMEOUT`) | Slow model / big PDF | Retry; split PDF |
+| "The AI refused this file" (`BLOCKED`) | Safety filter | Enter manually |
+| Every scan has empty category | `REG_CATEGORIES` and API `CATEGORIES` out of sync | Make them identical |
+| Saved project has no room/description | `migration-2026-10-project-details.sql` not run (IT log `PROJECT_DETAIL_COLS_MISSING`) | Run the migration, re-edit those projects |
+| Scanned 404 on `/api/scan-form` locally | `vite dev` doesn't run Vercel functions | Test on a Vercel preview, or use the smoke script |
+
+Verify a change end-to-end: `node scripts/scan-form-smoke.mjs <sample.jpg>` (prints the normalised
+cards), then scan the same form in the app.
+
+---
+
 ## 🎨 Design System
 
 **Fonts:** `--ff-d` Merriweather (headings) · `--ff-b` Source Sans 3 (body/UI) · `--ff-m` DM Mono (codes, IDs, pills)
@@ -395,9 +512,12 @@ recPillClass(rec), awardBadgeClass(award), awardEmoji(award), buildDelibReport()
 handleRegister()             // calls register_judge RPC
 assignProjects(deptId, list?)          // every project id in that department
 syncJudgeAssignments(deptIds, list?)   // push the current roster to judges in those departments
+createProject(data, base?)   // shared insert path (Add Project + scanner) → { error, nextProjects, proj }
 addProject(), updateProject(pid), removeProject(pid), toggleProjectLock(pid)
-writeProjectRow(mode, row, pid)        // retries without advisor_name/group_members if migration missing
-nextProjectNum(), exportProjListPDF()
+writeProjectRow(mode, row, pid)        // drops missing columns one migration at a time (2026-10, then 2026-09)
+nextProjectNum(list?), exportProjListPDF()
+normMembers(raw), membersText(raw), highestGrade(members), normGrade(g)  // module helpers
+blankProjForm(num?), escHtml(v)        // module helpers — escHtml for any hand-built HTML (print windows)
 loadDepartments(), updateDeptMaxJudges(deptId, max)
 submitScore()                // enforces judging lock + already-validated gate
 flushOfflineQueue()          // guarded; body in runOfflineFlush(queue)
@@ -450,7 +570,7 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 11. **`max_judges` is per department and locks** once that department's first judge registers. The old global `maxJudges` / `app_settings.max_judges` was removed 2026-09-25 — do not reintroduce it. `JUDGE_NAMES` pre-generates Judge1–Judge100.
 12. **Locked projects cannot be edited or removed.** Only `toggleProjectLock()` changes the lock.
 13. **Removing a project cascades:** its scores, deliberation notes, final decision and every judge's assignment entry. No orphans.
-14. **Categories come from `REG_CATEGORIES`** (`Life Science`, `Earth and Space Science`, `Physical Science`, `Engineering and Technology`). Forms default to `REG_CATEGORIES[0]`. The legacy `CATEGORIES` constant is unused — do not revert to it.
+14. **Categories come from `REG_CATEGORIES`** — the six on the 2026-27 participation form: `Life Science`, `Earth & Environmental Science`, `Chemistry & Material Science`, `Physics, Math & Astronomy`, `Engineering, Robotics & Technology`, `Energy, Sustainability & Design` (reg codes `LS EES CMS PMA ERT ESD`). Changed 2026-10 from the old four. **Keep `CATEGORIES` in `api/scan-form.js` identical.** "Not sure yet" is never a category. The legacy `CATEGORIES` constant in the JSX is unused — do not revert to it.
 15. **`executeReset()` clears** judges, scores, validations, deliberation notes, final decisions, share link, project-list token, judge transfer allowances, `locked`, `deliberation_open`, `results_finalized`. **It never clears** projects, departments, registration data or the activity log.
 
 **Workflow gates**
@@ -484,6 +604,14 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 37. **Never use `try/finally` inside `App`.** It makes the React Compiler bail out, silently disabling the `react-hooks/purity` and `react-hooks/immutability` lint rules for the whole file. Use `.finally()` on a promise (see `flushOfflineQueue()`).
 38. **Discrete score buttons only** — never `<input type="range">`.
 
+**Form scanning**
+39. **Read members only through `normMembers()`.** Three shapes exist (see Data Model). Writing `group_members` as anything but `[{name, grade}]` to `projects`, or anything but a `", "`-joined string to `registration_submissions`, is a bug.
+40. **`/api/scan-form` stays admin-only** (JWT + `school_admins` check *before* any Gemini call). Never add an anonymous path.
+41. **Never store or log form images or their text.** Logs get counts and error codes only. Do not use the Gemini Interactions API (stores by default) or the Files API.
+42. **Nothing scanned reaches the DB without an admin pressing Save.** Do not add auto-save, and keep "Save all" excluding cards with problems or warnings.
+43. **Batch saves must thread the project list** through `createProject(data, base)`; using `projects` state in a loop gives every project the same number.
+44. **Gemini 3+: no `temperature` / `topP` / `topK` / `candidateCount`.** The request fails.
+
 ---
 
 ## 💡 Common Edit Patterns
@@ -505,9 +633,13 @@ invite code → `set_school_invite_code()` RPC (no UI yet). Never via env vars.
 
 **More judges:** raise a department's Max Judges on the Overview tab before its first judge registers (up to 100).
 
-**Adding a project:** Projects tab → "+ Add Project" (department, title, category, grade, number, adviser, members). `addProject()` inserts and syncs judge assignments.
+**Adding a project:** Projects tab → "+ Add Project" (department, title, category, number, teacher, room, students with grades, description, motivation). `addProject()` → `createProject()` inserts and syncs judge assignments.
 
-**Changing project categories:** edit `REG_CATEGORIES` (used by the registration form and the admin project form).
+**Adding projects from paper forms:** Projects tab → "📷 Scan forms" — see "📷 Form scanning".
+
+**Changing project categories:** edit `REG_CATEGORIES` **and** `CATEGORIES` in `api/scan-form.js` **and** `CAT_CODES` (registration numbers), then update the category table in AdminInstructions.md.
+
+**Changing what the scanner reads:** add the field to `buildSchema()` (+ `required`), the prompt, `normaliseForm()`, `scanCardFromForm()`, `emptyScanData()`, the card UI, and — if it is saved — a migration + `createProject()` / `writeProjectRow()`'s optional-column list. Then run the smoke script.
 
 **DB changes:** write a new `supabase/migration-YYYY-MM-*.sql`, keep it re-runnable, add it to the
 Migrations table above, and say in the commit whether it is coupled to the app build.
@@ -517,6 +649,12 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-05 — Participation-form scanning (Gemini)** (`eeeca9f`, `2843338`, `12522c6`).
+Categories switched to the form's six; per-student grades (`group_members` → `[{name, grade}]`);
+new `room` / `description` / `motivation` (migration `2026-10-project-details`); admin-only
+`/api/scan-form`; review-queue UI; judges see room + description. Project-list PDF now escapes text.
+Requires: migration + `GEMINI_API_KEY` in Vercel. See "📷 Form scanning".
 
 **2026-10-01 — Apex HTTPS outage fixed.** Cloudflare A record `216.198.79.1` → `76.76.21.21` (see Environments).
 CLAUDE.md cleaned up; all RLS/RPC claims re-verified with live anonymous requests.
@@ -557,6 +695,13 @@ its absence. See the `group_members` type split above.
 - `submitDelibNote()` and `reviseDecision()` are defined but unreferenced (ESLint `no-unused-vars`).
 - No UI for `set_school_invite_code()`.
 - Legacy `CATEGORIES` and `SEED_SCORES` constants are unused.
+- **Public student registration form cannot create projects.** `handleRegSubmit()` inserts into
+  `projects` as anon, but `projects_insert` requires `is_school_admin()` — so a submission fails
+  with "could not save project". Unused in 2026-27 (organisers enter/scan teams). Fix: a
+  SECURITY DEFINER `submit_registration()` RPC that validates the registration token.
+- Student names (and now grades) on `projects` are anon-readable — see "Open risks".
+- The scanner UI has no automated browser test; `api/scan-form.js` is covered by
+  `node scripts/scan-form.test.mjs` (mocked, free) and the real-Gemini smoke script.
 - Judge identity — see "Open risks".
 
 ---
