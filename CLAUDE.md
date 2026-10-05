@@ -693,6 +693,14 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 
 Full detail is in the git log for each commit.
 
+**2026-10-05 — Email confirmation landed on localhost.** Supabase Auth's *Site URL* was still the
+default `http://localhost:3000`, so the first real school's confirmation link opened a dead page (the email
+*was* confirmed). Sign-up now passes `emailRedirectTo: /s/{slug}`; the landing "I'm an Admin" card goes
+straight to the dashboard when already signed in as this school's admin (`adminHere`).
+**Supabase dashboard settings required:** Authentication → URL Configuration → Site URL `https://qritiko.com`,
+Redirect URLs `https://qritiko.com/**`. Built-in Supabase email is rate-limited and often lands in spam —
+configure custom SMTP (Resend) before onboarding more schools.
+
 **2026-10-05 — Scoring / lifecycle pass** (migration `2026-10d`, not coupled).
 1. **PIN boxes stopped at 4 digits** (Reset, IT Logs, judge transfer) and auto-checked at 4 — any school
    with a 5–8 digit PIN could never reset, open IT Logs or approve a transfer. Now Enter / button.

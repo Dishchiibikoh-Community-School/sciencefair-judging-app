@@ -869,6 +869,7 @@ const urlProjListToken = typeof window !== "undefined"
 export default function App() {
   // ── SCHOOL / AUTH STATE ───────────────────────────────────
   const [session,       setSession]       = useState(null);   // Supabase Auth session
+  const [adminHere,     setAdminHere]     = useState(false);  // signed in as an admin of THIS school (URL slug)
   const [currentSchool, setCurrentSchool] = useState(null);   // { id, name, slug } — invite_code/admin_pin are NOT readable; use loadInviteCode() / verifyAdminPin()
   const [schoolLoading, setSchoolLoading] = useState(!!urlSchoolSlug); // true while resolving slug
 
@@ -1421,6 +1422,7 @@ export default function App() {
           // Otherwise the page would read school B's data while writing to school A.
           if (school && (!urlSchoolSlug || school.slug === urlSchoolSlug)) {
             setCurrentSchool(school);
+            setAdminHere(true);
             // Seed anything the signup flow could not create without a session.
             ensureSeedData(school.id);
             // These tables are admin-read only, so the anonymous load during init()
@@ -1438,6 +1440,7 @@ export default function App() {
         // Signed out: drop admin-only data from memory so the next person on this
         // device cannot see it, then reload the public view of the school.
         setInviteCode("");
+        setAdminHere(false);
         setRegSubmissions([]);
         setScoreBackups([]);
         setItUnlocked(false);
@@ -3520,7 +3523,9 @@ export default function App() {
           <div className="role-card" onClick={() => setView("judge-register")}>
             <div className="ico">🧑‍⚖️</div><h3>I'm a Judge</h3><p>You'll need your assigned judge name (e.g. Judge1) and the invite code from your coordinator</p>
           </div>
-          <div className="role-card adm" onClick={() => setView("admin-login")}>
+          {/* Already signed in as this school's admin (e.g. arriving from the email-confirmation
+              link) → straight to the dashboard instead of asking for the password again. */}
+          <div className="role-card adm" onClick={() => setView(adminHere && session ? "admin-home" : "admin-login")}>
             <div className="ico">🛡️</div><h3>Admin</h3><p>Monitor progress and manage the event</p>
           </div>
           {isLinkLive() && (
@@ -4483,7 +4488,14 @@ export default function App() {
             if (pendingSignup && pendingSignup.email === email.trim().toLowerCase()) {
               user = { id: pendingSignup.userId }; hasSession = pendingSignup.hasSession;
             } else {
-              const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({ email: email.trim(), password });
+              // emailRedirectTo: the confirmation link lands on the new school's page (and signs
+              // the admin in). Without it Supabase uses its "Site URL", which defaulted to
+              // http://localhost:3000 — the first real school landed on a dead page. The URL must
+              // be allowed in Supabase → Authentication → URL Configuration (https://qritiko.com/**).
+              const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+                email: email.trim(), password,
+                options: { emailRedirectTo: `${window.location.origin}/s/${cleanSlug}` },
+              });
               if (signUpErr) { setSchoolFormErr(signUpErr.message); setSchoolRegistering(false); return; }
               user = signUpData?.user;
               hasSession = !!signUpData?.session;
