@@ -84,7 +84,8 @@ for (const round of [1, 2]) {
   await db.exec(mig("migration-2026-10-project-details.sql"));
   await db.exec(mig("migration-2026-10b-private-members-and-registration.sql"));
   await db.exec(mig("migration-2026-10c-secure-school-signup.sql"));
-  ok(`migrations 2026-10, 10b, 10c applied (round ${round} — re-runnable)`);
+  await db.exec(mig("migration-2026-10d-judge-revise-validation.sql"));
+  ok(`migrations 2026-10, 10b, 10c, 10d applied (round ${round} — re-runnable)`);
 }
 
 // ── PART 1: names are private ──
@@ -221,5 +222,102 @@ await db.exec(`INSERT INTO auth.users (id) VALUES ('${SIGNED}')`);
 const c2 = (await as("authenticated", SIGNED, "SELECT create_school($1, 'Signed School', 'signed-school', 'INV12345', '4821', NULL) AS r", [SIGNED])).rows[0].r;
 assert.equal(c2.slug, "signed-school");
 ok("create_school (signed-in path) works for your own account");
+
+// ── PART 4: the judging lifecycle, as the app calls it (anon judges, signed-in admin) ──
+const D = "d1111111-1111-1111-1111-111111111111";
+await as("authenticated", ADMIN, `INSERT INTO departments (id, school_id, name, max_judges, ord) VALUES ('${D}', '${SID}', 'Middle School', 2, 0)`);
+await as("authenticated", ADMIN, `INSERT INTO projects (id, school_id, num, title, cat, grade, department_id) VALUES
+  ('p_a', '${SID}', '010', 'Alpha', 'Life Science', '7', '${D}'), ('p_b', '${SID}', '011', 'Beta', 'Life Science', '8', '${D}')`);
+ok("admin creates a department + 2 projects");
+
+const RJ = "SELECT register_judge($1, $2, $3, $4) AS j";
+await fails("anon", "", RJ, /Invalid invite code/i, "judge: wrong invite code rejected", [SID, D, "Judge1", "WRONG"]);
+await fails("anon", "", RJ, null, "judge: alias above the department's max_judges rejected", [SID, D, "Judge3", "CODE"]);
+const j1 = (await as("anon", "", RJ, [SID, D, "Judge1", "CODE"])).rows[0].j;
+assert.ok(j1.id); assert.deepEqual([...j1.projects].sort(), ["p_a", "p_b"]);
+ok("judge: Judge1 registers and is assigned every project in the department");
+await fails("anon", "", RJ, null, "judge: the same alias cannot register twice (needs admin transfer)", [SID, D, "Judge1", "CODE"]);
+const j2 = (await as("anon", "", RJ, [SID, D, "Judge2", "code"])).rows[0].j;
+ok("judge: invite code is case-insensitive (Judge2 with 'code')");
+
+// Scores: exactly what submitScore() / the offline flush send (PostgREST upsert = INSERT … ON CONFLICT DO UPDATE)
+const UPSERT_SCORE = `INSERT INTO scores (school_id, judge_id, project_id, criteria, notes) VALUES ($1, $2, $3, $4::jsonb, $5)
+  ON CONFLICT (judge_id, project_id) DO UPDATE SET criteria = EXCLUDED.criteria, notes = EXCLUDED.notes`;
+await as("anon", "", UPSERT_SCORE, [SID, j1.id, "p_a", JSON.stringify({ presentation: 4, data: 6 }), "good"]);
+await as("anon", "", UPSERT_SCORE, [SID, j1.id, "p_a", JSON.stringify({ presentation: 6, data: 6 }), "better"]);
+const sc = (await db.query("SELECT criteria, notes FROM scores WHERE judge_id=$1 AND project_id='p_a'", [j1.id])).rows;
+assert.equal(sc.length, 1); assert.equal(sc[0].criteria.presentation, 6); assert.equal(sc[0].notes, "better");
+ok("scores: judge submits, then edits → one row, updated in place");
+await fails("anon", "", UPSERT_SCORE, /row-level security/, "scores: a made-up judge id cannot submit", [SID, "j_fake", "p_a", "{}", ""]);
+await as("anon", "", UPSERT_SCORE, [SID, j1.id, "p_b", JSON.stringify({ presentation: 2 }), ""]);
+await as("anon", "", UPSERT_SCORE, [SID, j2.id, "p_a", JSON.stringify({ presentation: 4 }), ""]);
+ok("scores: multiple judges × projects coexist");
+assert.equal((await as("anon", "", "SELECT count(*)::int n FROM scores WHERE school_id=$1", [SID])).rows[0].n, 3);
+ok("scores: readable by judges/public pages (needed for averages)");
+
+// Deliberation notes
+await as("anon", "", `INSERT INTO deliberation_notes (school_id, judge_id, project_id, comment, recommendation, flagged) VALUES ($1,$2,'p_a','tie?','Strong Contender',true)
+  ON CONFLICT (judge_id, project_id) DO UPDATE SET comment = EXCLUDED.comment`, [SID, j1.id]);
+await as("anon", "", `INSERT INTO deliberation_notes (school_id, judge_id, project_id, comment, recommendation, flagged) VALUES ($1,$2,'p_a','edited','Strong Contender',true)
+  ON CONFLICT (judge_id, project_id) DO UPDATE SET comment = EXCLUDED.comment`, [SID, j1.id]);
+assert.equal((await db.query("SELECT comment FROM deliberation_notes WHERE judge_id=$1", [j1.id])).rows[0].comment, "edited");
+ok("deliberation notes: judge submits + edits");
+
+// Validations — judge approve, judge REVISE (delete), admin approve
+const UPSERT_VAL = `INSERT INTO validations (school_id, judge_id, approved, comment) VALUES ($1,$2,$3,'')
+  ON CONFLICT (school_id, judge_id) DO UPDATE SET approved = EXCLUDED.approved`;
+await as("anon", "", UPSERT_VAL, [SID, j1.id, true]);
+ok("validation: judge approves");
+const del = await as("anon", "", "DELETE FROM validations WHERE school_id=$1 AND judge_id=$2 RETURNING 1", [SID, j1.id]);
+assert.equal(del.rows.length, 1, "Revise my validation: the anon DELETE removed nothing — RLS has no DELETE policy for judges");
+ok("validation: judge can REVISE (delete own row) — the button now really works end to end");
+await fails("anon", "", UPSERT_VAL, /row-level security/, "validation: anon cannot write the admin's validation", [SID, "admin", true]);
+await as("authenticated", ADMIN, UPSERT_VAL, [SID, "admin", true]);
+ok("validation: admin approves");
+
+// Admin-only writes
+const SET = `INSERT INTO app_settings (school_id, key, value) VALUES ($1, $2, $3) ON CONFLICT (school_id, key) DO UPDATE SET value = EXCLUDED.value`;
+await fails("anon", "", SET, /row-level security/, "lock: a judge cannot unlock/lock judging", [SID, "locked", "false"]);
+await as("authenticated", ADMIN, SET, [SID, "locked", "true"]);
+await as("authenticated", ADMIN, SET, [SID, "locked", "false"]);
+await as("authenticated", ADMIN, SET, [SID, "deliberation_open", "true"]);
+await as("authenticated", ADMIN, SET, [SID, "results_finalized", "true"]);
+ok("admin: lock / unlock / open deliberation / finalize all write");
+await as("anon", "", UPSERT_VAL, [SID, j2.id, true]);
+const lateRevise = await as("anon", "", "DELETE FROM validations WHERE school_id=$1 AND judge_id=$2 RETURNING 1", [SID, j2.id]);
+assert.equal(lateRevise.rows.length, 0);
+ok("validation: once results are FINALIZED a judge can no longer revise");
+const adminRowDel = await as("anon", "", "DELETE FROM validations WHERE school_id=$1 AND judge_id='admin' RETURNING 1", [SID]);
+assert.equal(adminRowDel.rows.length, 0);
+ok("validation: a judge can never delete the admin's validation");
+const FD = `INSERT INTO final_decisions (school_id, project_id, award, admin_notes, finalized) VALUES ($1,'p_a','1st Place','',true)
+  ON CONFLICT (school_id, project_id) DO UPDATE SET award = EXCLUDED.award`;
+await fails("anon", "", FD, /row-level security/, "awards: a judge cannot set awards", [SID]);
+await as("authenticated", ADMIN, FD, [SID]);
+ok("awards: admin sets final decision");
+await fails("anon", "", "INSERT INTO share_links (school_id, token) VALUES ($1, 'T-ANON')", /row-level security/, "share link: anon cannot create one", [SID]);
+await as("authenticated", ADMIN, "INSERT INTO share_links (school_id, token, expiry) VALUES ($1, 'T-OK', 'never')", [SID]);
+assert.equal((await as("anon", "", "SELECT token FROM share_links WHERE token='T-OK'")).rows.length, 1);
+ok("share link: admin creates; the public page can validate the token");
+
+// Remove a project (admin) — cascade the app performs, then RESET
+await as("authenticated", ADMIN, "DELETE FROM scores WHERE school_id=$1 AND project_id='p_b'", [SID]);
+await as("authenticated", ADMIN, "DELETE FROM projects WHERE school_id=$1 AND id='p_b'", [SID]);
+assert.equal((await db.query("SELECT count(*)::int n FROM scores WHERE project_id='p_b'")).rows[0].n, 0);
+ok("remove project: admin deletes its scores + the project");
+await fails("anon", "", "DELETE FROM projects WHERE id='p_a' RETURNING 1", null, "a judge cannot delete projects").catch(async () => {
+  const r = await as("anon", "", "DELETE FROM projects WHERE id='p_a' RETURNING 1"); assert.equal(r.rows.length, 0); ok("a judge cannot delete projects (0 rows)");
+});
+for (const t of ["scores", "judges", "share_links", "deliberation_notes", "final_decisions", "validations"])
+  await as("authenticated", ADMIN, `DELETE FROM ${t} WHERE school_id = $1`, [SID]);
+for (const t of ["scores", "judges", "share_links", "deliberation_notes", "final_decisions", "validations"])
+  assert.equal((await db.query(`SELECT count(*)::int n FROM ${t} WHERE school_id=$1`, [SID])).rows[0].n, 0, t + " not cleared");
+assert.ok((await db.query("SELECT count(*)::int n FROM projects WHERE school_id=$1", [SID])).rows[0].n > 0);
+ok("RESET (admin): clears judges/scores/notes/awards/validations/share links, keeps projects");
+for (const t of ["scores", "judges"]) {
+  const r = await as("anon", "", `DELETE FROM ${t} WHERE school_id = $1 RETURNING 1`, [SID]);
+  assert.equal(r.rows.length, 0);
+}
+ok("RESET is impossible for a judge (anon deletes affect 0 rows)");
 
 console.log(`\nALL ${pass} CHECKS PASSED`);

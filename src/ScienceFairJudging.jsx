@@ -996,6 +996,8 @@ export default function App() {
   const [resultsFinalized,   setResultsFinalized]    = useState(false);
   const [valComment,         setValComment]          = useState("");
   const [showValForm,        setShowValForm]         = useState(false);
+  const [valReviseErr,       setValReviseErr]        = useState("");
+  const [lockErr,            setLockErr]             = useState("");
   const [transferAllowances, setTransferAllowances]  = useState({}); // { [alias]: expiryTs }
 
   // Transfer PIN modal state
@@ -1270,8 +1272,12 @@ export default function App() {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
     const { data } = await supabase.from("rubrics").select("*").eq("school_id", schoolId).eq("is_active", true).single();
-    if (data) { setRubric(data.criteria); setRubricId(data.id); }
-    else setRubric(DEFAULT_RUBRIC);
+    // rubrics.criteria defaults to '[]'. An empty or malformed rubric would give judges a
+    // scoring form with nothing on it (or crash the app) — fall back to the default instead.
+    const valid = Array.isArray(data?.criteria) && data.criteria.length > 0
+      && data.criteria.every(c => c && c.id && Array.isArray(c.steps) && c.steps.length);
+    if (data) setRubricId(data.id);
+    setRubric(valid ? data.criteria : DEFAULT_RUBRIC);
   }
 
   // The school-registration flow fires its seed inserts immediately after signUp(),
@@ -2287,9 +2293,41 @@ export default function App() {
     setTimeout(() => { setShowReset(false); setResetDone(false); setResetPin(""); setResetPinErr(""); }, 1800);
   }
 
+  // PINs are 4–8 digits, so these check on Enter / button, never automatically at 4 digits
+  // (until 2026-10-05 the boxes kept only 4 digits — a 5–8 digit PIN could never unlock).
+  async function submitResetPin() {
+    if (resetPin.length < 4) { setResetPinErr("Enter your 4–8 digit PIN."); return; }
+    const ok = await verifyAdminPin(resetPin);
+    if (ok.valid) { executeReset(); return; }
+    setResetPinErr(ok.message || "Incorrect PIN.");
+    addItLog("WARN","AUTH","RESET_PIN_FAILED","Reset attempted with wrong PIN",{});   // row has created_at
+    setTimeout(() => setResetPin(""), 600);
+  }
+  async function submitItPin() {
+    if (itPin.length < 4) { setItPinErr("Enter your 4–8 digit PIN."); return; }
+    const ok = await verifyAdminPin(itPin);
+    if (ok.valid) {
+      setItUnlocked(true); setItPin("");
+      addItLog("INFO","AUTH","IT_ACCESS_GRANTED","IT diagnostic logs accessed with correct PIN",{});
+      return;
+    }
+    setItPinErr(ok.message || "Incorrect PIN. Try again.");
+    addItLog("WARN","AUTH","IT_ACCESS_DENIED","IT diagnostic logs access attempt with wrong PIN",{});
+    setTimeout(() => setItPin(""), 600);
+  }
+
   async function handleToggleLock() {
     const next = !locked;
-    await supabase.from("app_settings").update({ value: String(next) }).eq("school_id", currentSchool.id).eq("key", "locked");
+    setLockErr("");
+    // Upsert (the row may be missing on an older school) and only flip the switch once the
+    // database has it — otherwise the admin could see "Locked" while judges can still submit.
+    const { error } = await supabase.from("app_settings")
+      .upsert({ school_id: currentSchool.id, key: "locked", value: String(next) }, { onConflict: "school_id,key" });
+    if (error) {
+      setLockErr(next ? "Lock failed — retry" : "Unlock failed — retry");
+      addItLog("ERROR","ADMIN","JUDGING_LOCK_FAILED","Could not change the judging lock",{ wanted: next, error: error.message });
+      return;
+    }
     setLocked(next);
     addLog(next ? "Admin locked judging" : "Admin unlocked judging");
     addItLog(next?"WARN":"INFO","ADMIN", next?"JUDGING_LOCKED":"JUDGING_UNLOCKED",
@@ -3649,12 +3687,25 @@ export default function App() {
                   {myVal.approved ? "✓ You approved the computed results" : "⚠ You flagged a concern"}
                 </div>
                 {myVal.comment && <div style={{fontSize:".82rem",color:"var(--dim)",marginTop:".5rem"}}>Your note: "{myVal.comment}"</div>}
-                <button className="btn sec sm" style={{marginTop:"1rem",width:"auto"}} onClick={() => {
+                {valReviseErr && <div className="err" style={{marginTop:".75rem"}}>⚠ {valReviseErr}</div>}
+                <button className="btn sec sm" style={{marginTop:"1rem",width:"auto"}} onClick={async () => {
+                  // Delete in the database FIRST and only unlock on screen if a row was really
+                  // removed. Until 2026-10-05 this was a fire-and-forget delete that never ran,
+                  // and then (RLS admin-only) silently matched 0 rows — the screen said
+                  // "revised" while the DB still had the judge validated and locked out.
+                  setValReviseErr("");
+                  const { data, error } = await supabase.from("validations").delete()
+                    .eq("school_id", currentSchool?.id).eq("judge_id", judge.id).select("judge_id");
+                  if (error || !data?.length) {
+                    setValReviseErr(resultsFinalized
+                      ? "Results are already finalized — your validation can no longer be changed."
+                      : "Could not reopen your validation. Check your connection, or ask the admin.");
+                    addItLog("ERROR","JUDGE","VALIDATION_REVISE_FAILED","Could not clear validation",
+                      { judgeId: judge.id, error: error?.message || "0 rows deleted (RLS / migration 2026-10d not run?)" });
+                    return;
+                  }
                   setJudgeValidations(p => { const n={...p}; delete n[judge.id]; return n; });
-                  // .then() is what actually sends it — this delete never ran before 2026-10-05,
-                  // so a "revised" judge reloaded as still validated and locked out of scoring.
-                  supabase.from("validations").delete().eq("school_id", currentSchool?.id).eq("judge_id", judge.id)
-                    .then(({ error }) => { if (error) addItLog("ERROR","JUDGE","VALIDATION_REVISE_FAILED","Could not clear validation",{ judgeId: judge.id, error: error.message }); });
+                  addLog(`${judge.alias} reopened their validation`);
                   setShowValForm(false); setValComment("");
                 }}>Revise my validation</button>
               </div>
@@ -4549,7 +4600,7 @@ export default function App() {
             <div style={{ flex:1 }} />
             <div className="nav-it" style={{ color:locked?"#fca5a5":"#86efac" }}
               onClick={handleToggleLock}>
-              <span>{locked?"🔒":"🔓"}</span><span>{locked?"Unlock":"Lock"} Judging</span>
+              <span>{locked?"🔒":"🔓"}</span><span>{lockErr ? `⚠ ${lockErr}` : `${locked?"Unlock":"Lock"} Judging`}</span>
             </div>
             <div className="nav-it" onClick={() => setView("landing")}><span>←</span><span>Exit</span></div>
             {session && (
@@ -4591,14 +4642,14 @@ export default function App() {
                     </div>
                     <div className="modal-pin-label">Enter PIN to confirm</div>
                     <div className="modal-pin-dots">
-                      {[0,1,2,3].map(i => (
+                      {Array.from({ length: Math.max(4, resetPin.length) }, (_, i) => i).map(i => (
                         <div key={i} className={`modal-pin-dot ${resetPin.length > i ? "filled" : ""}`} />
                       ))}
                     </div>
                     <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:".25rem"}}>
                       <input
                         type="password"
-                        maxLength={4}
+                        maxLength={8} inputMode="numeric"
                         placeholder="••••"
                         value={resetPin}
                         autoFocus
@@ -4608,27 +4659,17 @@ export default function App() {
                           background:"var(--bg)", border:`1.5px solid ${resetPinErr?"var(--red)":"var(--bd)"}`,
                           borderRadius:"8px", padding:".8rem 1rem", color:"var(--text)", outline:"none"
                         }}
-                        onChange={async e => {
-                          const val = e.target.value.replace(/\D/g,"").slice(0,4);
-                          setResetPin(val);
-                          setResetPinErr("");
-                          if (val.length === 4) {
-                            const ok = await verifyAdminPin(val);
-                            if (ok.valid) {
-                              executeReset();
-                            } else {
-                              setResetPinErr(ok.message || "Incorrect PIN.");
-                              addItLog("WARN","AUTH","RESET_PIN_FAILED","Reset attempted with wrong PIN",{ timestamp:fmtISO(Date.now()) });
-                              setTimeout(() => setResetPin(""), 600);
-                            }
-                          }
-                        }}
+                        onChange={e => { setResetPin(e.target.value.replace(/\D/g,"").slice(0,8)); setResetPinErr(""); }}
+                        onKeyDown={e => { if (e.key === "Enter") submitResetPin(); }}
                       />
                       {resetPinErr && <div style={{color:"var(--red)",fontSize:".8rem",marginTop:".25rem"}}>{resetPinErr}</div>}
                     </div>
                     <div className="modal-btn-row">
                       <button className="btn sec" onClick={() => { setShowReset(false); setResetPin(""); setResetPinErr(""); }}>
                         Cancel
+                      </button>
+                      <button className="btn danger" disabled={resetPin.length < 4} onClick={submitResetPin}>
+                        Reset everything
                       </button>
                     </div>
                   </>
@@ -4647,14 +4688,14 @@ export default function App() {
                 <p style={{fontSize:".8rem",color:"var(--dim)",marginTop:".4rem"}}>Approval expires in 10 minutes.</p>
                 <div className="modal-pin-label" style={{marginTop:"1.25rem"}}>IT PIN</div>
                 <div className="modal-pin-dots">
-                  {[0,1,2,3].map(i => (
+                  {Array.from({ length: Math.max(4, transferPin.length) }, (_, i) => i).map(i => (
                     <div key={i} className={`modal-pin-dot ${transferPin.length > i ? "filled" : ""}`} />
                   ))}
                 </div>
                 <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:".25rem"}}>
                   <input
                     type="password"
-                    maxLength={4}
+                    maxLength={8} inputMode="numeric"
                     placeholder="••••"
                     value={transferPin}
                     autoFocus
@@ -4664,18 +4705,17 @@ export default function App() {
                       background:"var(--bg)", border:`1.5px solid ${transferPinErr?"var(--red)":"var(--bd)"}`,
                       borderRadius:"8px", padding:".8rem 1rem", color:"var(--text)", outline:"none"
                     }}
-                    onChange={e => {
-                      const val = e.target.value.replace(/\D/g,"").slice(0,4);
-                      setTransferPin(val);
-                      setTransferPinErr("");
-                      if (val.length === 4) confirmTransfer();
-                    }}
+                    onChange={e => { setTransferPin(e.target.value.replace(/\D/g,"").slice(0,8)); setTransferPinErr(""); }}
+                    onKeyDown={e => { if (e.key === "Enter" && transferPin.length >= 4) confirmTransfer(); }}
                   />
                   {transferPinErr && <div style={{color:"var(--red)",fontSize:".8rem",marginTop:".25rem"}}>{transferPinErr}</div>}
                 </div>
                 <div className="modal-btn-row">
                   <button className="btn sec" onClick={() => { setShowTransferPinModal(false); setTransferPin(""); setTransferPinErr(""); }}>
                     Cancel
+                  </button>
+                  <button className="btn" disabled={transferPin.length < 4} onClick={confirmTransfer}>
+                    Approve transfer
                   </button>
                 </div>
               </div>
@@ -6104,37 +6144,25 @@ export default function App() {
                   <h2>IT Access Required</h2>
                   <p>This section contains sensitive diagnostic data. Enter the IT PIN to continue.</p>
                   <div className="pin-dots">
-                    {[0,1,2,3].map(i => (
+                    {Array.from({ length: Math.max(4, itPin.length) }, (_, i) => i).map(i => (
                       <div key={i} className={`pin-dot ${itPin.length > i ? "filled" : ""}`} />
                     ))}
                   </div>
                   <div className="pin-input-wrap">
                     <input
                       type="password"
-                      maxLength={4}
+                      maxLength={8} inputMode="numeric"
                       placeholder="••••"
                       value={itPin}
                       className={itPinErr ? "pin-shake" : ""}
                       autoFocus
-                      onChange={async e => {
-                        const val = e.target.value.replace(/\D/g,"").slice(0,4);
-                        setItPin(val);
-                        setItPinErr("");
-                        if (val.length === 4) {
-                          const ok = await verifyAdminPin(val);
-                          if (ok.valid) {
-                            setItUnlocked(true);
-                            setItPin("");
-                            addItLog("INFO","AUTH","IT_ACCESS_GRANTED","IT diagnostic logs accessed with correct PIN",{ timestamp:fmtISO(Date.now()) });
-                          } else {
-                            setItPinErr(ok.message || "Incorrect PIN. Try again.");
-                            addItLog("WARN","AUTH","IT_ACCESS_DENIED","IT diagnostic logs access attempt with wrong PIN",{ timestamp:fmtISO(Date.now()) });
-                            setTimeout(() => setItPin(""), 600);
-                          }
-                        }
-                      }}
+                      onChange={e => { setItPin(e.target.value.replace(/\D/g,"").slice(0,8)); setItPinErr(""); }}
+                      onKeyDown={e => { if (e.key === "Enter") submitItPin(); }}
                     />
                     <div className="pin-err">{itPinErr}</div>
+                    <button className="btn sm" style={{ width:"auto", marginTop:".75rem" }} disabled={itPin.length < 4} onClick={submitItPin}>
+                      Unlock
+                    </button>
                   </div>
                 </div>
               );

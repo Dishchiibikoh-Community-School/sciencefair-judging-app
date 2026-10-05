@@ -55,6 +55,7 @@ always serves and cannot be redirected — never share it.
 | `migration-2026-10-project-details.sql` | `projects.room`, `description`, `motivation` | No — app drops the columns and logs `PROJECT_DETAIL_COLS_MISSING`, **but those fields are then silently not saved** |
 | `migration-2026-10b-private-members-and-registration.sql` | Moves adviser + student names to admin-only **`project_private`** (drops `projects.advisor_name` / `group_members`); adds 12 missing `registration_submissions` columns; **`submit_registration()`** RPC; closes direct anon INSERT on submissions | **Yes — run it, then deploy the matching app immediately.** Old app + new SQL saves projects without names |
 | `migration-2026-10c-secure-school-signup.sql` | **`create_school()`** RPC; closes direct INSERT on `schools` and `school_admins` (anyone could make themselves admin of any school) | **Yes** — the sign-up form calls `create_school()`. Run before anyone registers a school |
+| `migration-2026-10d-judge-revise-validation.sql` | Judges may delete their own validation until results are finalized (never the admin's) | No — without it "Revise my validation" shows an error instead of unlocking |
 
 `registration-migration.sql` and `schema.sql` are historical (the latter is the v1 schema).
 
@@ -219,7 +220,7 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `school_admins` | **INSERT `WITH CHECK (false)`** — rows are created only by `create_school()`. Was `WITH CHECK (true)` until 2026-10c |
 | `judges` | INSERT `WITH CHECK (false)` (RPC only); UPDATE admin-only |
 | `scores`, `deliberation_notes` | INSERT/UPDATE require the `judge_id` to exist in `judges` for that school |
-| `validations` | Same, or `judge_id = 'admin'` written by a school admin |
+| `validations` | Same, or `judge_id = 'admin'` written by a school admin. DELETE: admin, or a judge for their own (non-admin) row while `results_finalized` is not `true` (2026-10d) |
 | `app_settings` | Read open (judges need `locked`, `deliberation_open`, transfer allowances); **write admin-only** |
 | `registration_submissions` | INSERT `WITH CHECK (false)` — only via `submit_registration()`; SELECT/UPDATE admin-only (student PII) |
 | `projects` | SELECT open (judges + public pages need titles/room/description). **Must never hold names** — see rule 45 |
@@ -646,6 +647,10 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 51. **Regex literals need their backslashes.** `/^d{4,8}$/` (missing `\`) rejected every numeric PIN and blocked all school sign-ups for 10 days. Prefer a test that exercises the happy path of every form.
 52. **Inputs need `type="text"`.** The base input styles are keyed on `input[type=text]`; an input without a type renders as a tiny unstyled browser box.
 
+53. **Admin PINs are 4–8 digits.** Never cap a PIN box at 4 or auto-submit at a fixed length; check on Enter / a button (`submitResetPin`, `submitItPin`, `confirmTransfer`).
+54. **A DELETE/UPDATE that RLS filters out is not an error.** Postgres reports 0 rows as success. When the UI depends on it, chain `.select()` and check that rows came back (see "Revise my validation").
+55. **Only show a saved state after the save succeeded** (judging lock: upsert, check `error`, then `setLocked`).
+
 **Supabase client pitfalls (both shipped as real bugs)**
 48. **Every Supabase query must be awaited, returned, inside `Promise.all`, or end in `.then()`.** A supabase-js query builder is lazy — a bare `supabase.from(x).insert(y);` statement sends **nothing**. This silently disabled the activity log, the IT log and "Revise my validation" for all of v2.
 49. **Never `await` a Supabase call inside `onAuthStateChange`.** supabase-js holds its auth lock while notifying listeners; an awaited query waits for that lock → deadlock. It made Sign Out hang forever. Defer with `setTimeout(() => …, 0)` (see `onAuthChanged`).
@@ -687,6 +692,19 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-05 — Scoring / lifecycle pass** (migration `2026-10d`, not coupled).
+1. **PIN boxes stopped at 4 digits** (Reset, IT Logs, judge transfer) and auto-checked at 4 — any school
+   with a 5–8 digit PIN could never reset, open IT Logs or approve a transfer. Now Enter / button.
+2. **"Revise my validation" still did nothing** — `validations` DELETE was admin-only, so the judge's
+   delete matched 0 rows "successfully". New policy (2026-10d) + the app checks rows were deleted.
+3. **Judging lock could show "Locked" when the save failed** (UPDATE, errors ignored) — now upsert +
+   error check + "Lock failed — retry" label.
+4. An empty / malformed rubric row (the column defaults to `[]`) gave judges an empty scoring form or
+   crashed the app — `loadRubric` now falls back to `DEFAULT_RUBRIC`.
+Tests: DB suite 80 checks (full lifecycle per role); new `scripts/e2e/lifecycle.e2e.mjs` 32 checks —
+scoring, abstract + zero rules, edit, offline queue → auto-sync, validate/revise, lock, leaderboard,
+finalize, share link → public results (no names), CSV export, IT Logs + Reset with a 6-digit PIN.
 
 **2026-10-05 — Pre-launch regression pass** (migration `2026-10c`, coupled).
 1. **Admin-hijack hole closed** — see Open risks. School sign-up rebuilt on `create_school()`.

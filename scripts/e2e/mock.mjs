@@ -70,6 +70,7 @@ export function installMock(page, store, log) {
     const req = route.request();
     const url = new URL(req.url());
     const method = req.method();
+    if (store.offline) return route.abort("internetdisconnected");   // simulate no network
     if (method === "OPTIONS") return route.fulfill({ status: 204, headers: {
       "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "*" } });
     const auth = req.headers()["authorization"] || "";
@@ -104,7 +105,7 @@ export function installMock(page, store, log) {
     if (path.startsWith("/rest/v1/rpc/")) {
       const fn = path.split("/").pop();
       if (fn === "school_invite_code") return isAdmin ? json(route, 200, "ABC123") : json(route, 400, { code: "P0001", message: "Not authorised" });
-      if (fn === "verify_school_pin") return json(route, 200, body.p_pin === "4821");
+      if (fn === "verify_school_pin") return json(route, 200, body.p_pin === (store.pin || "4821"));
       if (fn === "registration_count") return json(route, 200, store.registration_submissions.length);
       if (fn === "register_judge") {
         if (body.p_invite_code !== "ABC123") return json(route, 400, { code: "P0001", message: "Invalid invite code." });
@@ -169,7 +170,9 @@ export function installMock(page, store, log) {
     }
     if (method === "POST") {
       const items = Array.isArray(body) ? body : [body];
-      const conflict = url.searchParams.get("on_conflict");
+      // PostgREST upserts on the PRIMARY KEY when on_conflict is not given.
+      const PK = { app_settings: "school_id,key", validations: "school_id,judge_id", project_private: "project_id,school_id" };
+      const conflict = url.searchParams.get("on_conflict") || (prefer.includes("merge-duplicates") ? PK[table] : null);
       const out = [];
       for (const it of items) {
         if (table === "project_private" && !store.projects.some(p => p.id === it.project_id))
@@ -189,11 +192,13 @@ export function installMock(page, store, log) {
       return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*" } });
     }
     if (method === "DELETE") {
+      const gone = rows.filter(r => matches(r, params));
       const keep = rows.filter(r => !matches(r, params));
       const removed = rows.length - keep.length;
       store[table] = keep;
       if (table === "projects") store.project_private = store.project_private.filter(x => store.projects.some(p => p.id === x.project_id));
       log.push(`  deleted ${removed} from ${table}`);
+      if (prefer.includes("return=representation")) return json(route, 200, gone);
       return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*" } });
     }
     return json(route, 405, { message: "unsupported" });
