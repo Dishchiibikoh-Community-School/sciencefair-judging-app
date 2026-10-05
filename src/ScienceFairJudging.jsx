@@ -641,6 +641,31 @@ const CSS = `
   .member-row{display:flex;gap:.4rem;align-items:center;margin-bottom:.35rem;}
   .member-row input{flex:1;min-width:0;}
   .member-row input.member-grade{flex:0 0 72px;}
+  /* Participation-form scanner */
+  .scan-panel{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:1rem 1.1rem;margin-bottom:.75rem;}
+  .scan-actions{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin-top:.65rem;}
+  .scan-summary{display:flex;gap:.9rem;flex-wrap:wrap;align-items:center;font-size:.78rem;color:var(--dim);
+    margin-top:.75rem;padding:.55rem .7rem;background:var(--bg);border:1px solid var(--bd);border-radius:8px;}
+  .scan-card{display:flex;gap:.9rem;background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:.8rem;margin-top:.65rem;}
+  .scan-card.error{border-color:var(--red);}
+  .scan-card.saved{opacity:.7;}
+  .scan-thumb{flex:0 0 130px;align-self:flex-start;display:block;text-decoration:none;color:var(--dim);}
+  .scan-thumb img{width:100%;border-radius:6px;border:1px solid var(--bd);display:block;}
+  .scan-thumb.pdf{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.3rem;font-size:2rem;
+    min-height:130px;background:var(--s2);border-radius:6px;}
+  .scan-thumb.pdf span{font-size:.7rem;font-family:var(--ff-m);}
+  .scan-body{flex:1;min-width:0;}
+  .scan-file{font-family:var(--ff-m);font-size:.72rem;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .scan-unsure{border-color:var(--amber)!important;background:var(--amber-l)!important;}
+  .scan-msg{font-size:.78rem;line-height:1.4;padding:.45rem .65rem;border-radius:6px;margin-top:.45rem;}
+  .scan-msg.err{background:var(--red-l);color:var(--red);}
+  .scan-msg.warn{background:var(--amber-l);color:#92400e;}
+  .scan-msg.info{background:var(--blue-l);color:var(--blue);}
+  .scan-msg.ok{background:var(--green-l);color:var(--green);}
+  @media(max-width:640px){
+    .scan-card{flex-direction:column;}
+    .scan-thumb{flex-basis:auto;max-width:220px;}
+  }
   .proj-lock-badge{display:inline-flex;align-items:center;gap:.25rem;font-size:.68rem;font-family:var(--ff-m);
     color:var(--amber);background:var(--amber-l);padding:.15rem .5rem;border-radius:100px;}
 
@@ -964,6 +989,14 @@ export default function App() {
 
   // Project management state
   const [showAddProject,     setShowAddProject]      = useState(false);
+  // ── Participation-form scanner (admin Projects tab) ──
+  // Cards live only in memory: the photos are never uploaded anywhere except /api/scan-form,
+  // and nothing is written to the DB until the admin presses Save on a card.
+  const [scanOpen,           setScanOpen]            = useState(false);
+  const [scanCards,          setScanCards]           = useState([]);   // see newScanCard()
+  const [scanSaving,         setScanSaving]          = useState(false);
+  const [scanDiscardAsk,     setScanDiscardAsk]      = useState(false);
+  const scanUrlsRef = useRef([]);   // object URLs for thumbnails — revoked when the scanner closes
   const [editingProject,     setEditingProject]      = useState(null); // project id being edited
   const [projForm,           setProjForm]            = useState(blankProjForm());
   const [showDeleteConfirm,  setShowDeleteConfirm]   = useState(false);
@@ -2784,6 +2817,352 @@ export default function App() {
     setProjForm(blankProjForm());
   }
 
+  // ── PARTICIPATION-FORM SCANNER ──────────────────────────────
+  // Flow: admin picks photos/PDFs → each is shrunk in the browser → POST /api/scan-form
+  // (Gemini) → one editable card per form → admin reviews/corrects → Save → createProject().
+  // Nothing touches the database until Save. See CLAUDE.md "📷 Form scanning".
+  const SCAN_MAX_BYTES   = 3.2 * 1024 * 1024;   // must match MAX_BYTES in api/scan-form.js
+  const SCAN_CONCURRENCY = 3;
+  const SCAN_MIME = ["application/pdf","image/heic","image/heif","image/png","image/webp","image/jpeg"];
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload  = () => resolve(String(r.result).split(",")[1] || "");
+      r.onerror = () => reject(r.error);
+      r.readAsDataURL(blob);
+    });
+  }
+
+  // Photos are re-encoded as ≤2000px JPEG so they fit Vercel's 4.5 MB request limit and
+  // upload fast on school Wi-Fi. PDFs, and HEIC the browser cannot decode, go as-is.
+  async function scanPayload(file) {
+    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    if (!isPdf) {
+      let bmp = null;
+      try { bmp = await createImageBitmap(file); } catch { bmp = null; }
+      if (bmp) {
+        const scale  = Math.min(1, 2000 / Math.max(bmp.width, bmp.height));
+        const canvas = document.createElement("canvas");
+        canvas.width  = Math.round(bmp.width * scale);
+        canvas.height = Math.round(bmp.height * scale);
+        canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
+        if (bmp.close) bmp.close();
+        const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg", 0.85));
+        if (blob) return { mimeType: "image/jpeg", data: await blobToBase64(blob) };
+      }
+    }
+    const type = isPdf ? "application/pdf" : (file.type || (/\.hei[cf]$/i.test(file.name) ? "image/heic" : ""));
+    if (!SCAN_MIME.includes(type)) throw new Error("This file type can't be read. Use a photo (JPEG, PNG, HEIC) or a PDF.");
+    if (file.size > SCAN_MAX_BYTES) {
+      throw new Error(isPdf ? "PDF is larger than 3 MB — split it into smaller files."
+                            : "Photo is too large and this browser couldn't shrink it. Try a JPEG.");
+    }
+    return { mimeType: type, data: await blobToBase64(file) };
+  }
+
+  function emptyScanData() {
+    return { title:"", department_id:"", cat:"", grade:"", advisor_name:"", room:"",
+      description:"", motivation:"", members:[{ name:"", grade:"" }] };
+  }
+  function newScanCard(file, url) {
+    return {
+      key: "sc_" + uid(), file, url,
+      fileName: file ? file.name : "Manual entry",
+      isPdf: !!file && (file.type === "application/pdf" || /\.pdf$/i.test(file.name)),
+      status: file ? "reading" : "ready",       // reading | ready | saving | saved | error
+      error: "", data: emptyScanData(), conf: {},
+      notSure: false, notForm: false, notes: "", workMode: "", deptRaw: "", savedNum: "",
+    };
+  }
+  // One /api/scan-form result → one review card (a PDF or photo can hold several forms).
+  function scanCardFromForm(base, f) {
+    const members = (f.students || []).map(s => ({ name: s.name.value, grade: s.grade.value }));
+    return {
+      ...base, key: "sc_" + uid(), status: "ready", error: "",
+      data: {
+        title: f.title.value, department_id: f.department_id.value, cat: f.cat.value,
+        grade: "", advisor_name: f.advisor_name.value, room: f.room.value,
+        description: f.description.value, motivation: f.motivation.value,
+        members: members.length ? members : [{ name:"", grade:"" }],
+      },
+      conf: {
+        title: f.title.confidence, department_id: f.department_id.confidence, cat: f.cat.confidence,
+        advisor_name: f.advisor_name.confidence, room: f.room.confidence,
+        description: f.description.confidence, motivation: f.motivation.confidence,
+        members: (f.students || []).map(s => ({ name: s.name.confidence, grade: s.grade.confidence })),
+      },
+      notSure: !!f.cat.notSure, notForm: !f.isForm, notes: f.notes || "",
+      workMode: f.workMode || "", deptRaw: f.department_id.raw || "",
+    };
+  }
+
+  function patchScanCard(key, patch) {
+    setScanCards(cs => cs.map(c => c.key === key ? { ...c, ...(typeof patch === "function" ? patch(c) : patch) } : c));
+  }
+  // Any field the admin touches stops being highlighted as "AI unsure".
+  function editScanField(key, field, value) {
+    patchScanCard(key, c => ({
+      data: { ...c.data, [field]: value },
+      conf: { ...c.conf, [field]: "edited" },
+      ...(field === "cat" ? { notSure: false } : {}),
+    }));
+  }
+  function editScanMember(key, i, field, value) {
+    patchScanCard(key, c => {
+      const memConf = [...(c.conf.members || [])];
+      memConf[i] = { ...(memConf[i] || {}), [field]: "edited" };
+      return {
+        data: { ...c.data, members: c.data.members.map((m, j) => j === i ? { ...m, [field]: value } : m) },
+        conf: { ...c.conf, members: memConf },
+      };
+    });
+  }
+  function addScanMember(key) {
+    patchScanCard(key, c => ({ data: { ...c.data, members: [...c.data.members, { name:"", grade:"" }] } }));
+  }
+  function removeScanMember(key, i) {
+    patchScanCard(key, c => ({
+      data: { ...c.data, members: c.data.members.filter((_, j) => j !== i) },
+      conf: { ...c.conf, members: (c.conf.members || []).filter((_, j) => j !== i) },
+    }));
+  }
+  function removeScanCard(key) {
+    setScanCards(cs => cs.filter(c => c.key !== key));
+  }
+
+  async function scanOne(card) {
+    patchScanCard(card.key, { status: "reading", error: "" });
+    let payload;
+    try { payload = await scanPayload(card.file); }
+    catch (e) { patchScanCard(card.key, { status: "error", error: e.message }); return; }
+    const { data: { session: s } } = await supabase.auth.getSession();
+    const resp = await fetch("/api/scan-form", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${s?.access_token || ""}` },
+      body: JSON.stringify({ schoolId: currentSchool.id, ...payload }),
+    }).catch(() => null);
+    const body = resp ? await resp.json().catch(() => ({})) : {};
+    if (!resp || !resp.ok) {
+      const msg = !resp ? "No connection — check the internet and retry."
+        : resp.status === 413 ? "File is too large. Split the PDF or use a smaller photo."
+        : (body.error || `Scan failed (error ${resp.status}).`);
+      patchScanCard(card.key, { status: "error", error: msg });
+      // Never log names or form content — status and code only.
+      addItLog("WARN","ADMIN","FORM_SCAN_FAILED","Participation form could not be read",
+        { status: resp?.status || 0, code: body.code || "NETWORK", mimeType: payload.mimeType });
+      return;
+    }
+    const forms = Array.isArray(body.forms) ? body.forms : [];
+    if (!forms.length) {
+      patchScanCard(card.key, { status: "error", error: "No form was found in this file. Retry or enter it manually." });
+      return;
+    }
+    setScanCards(cs => cs.flatMap(c => c.key === card.key ? forms.map(f => scanCardFromForm(c, f)) : [c]));
+    addItLog("INFO","ADMIN","FORM_SCANNED","Participation form read by AI",
+      { forms: forms.length, mimeType: payload.mimeType, model: body.model });
+  }
+
+  async function scanAddFiles(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    const cards = files.map(file => {
+      const url = URL.createObjectURL(file);
+      scanUrlsRef.current.push(url);
+      return newScanCard(file, url);
+    });
+    setScanCards(cs => [...cs, ...cards]);
+    // Small worker pool — a stack of 30 photos is read 3 at a time.
+    const queue = [...cards];
+    const worker = async () => { while (queue.length) await scanOne(queue.shift()); };
+    await Promise.all(Array.from({ length: Math.min(SCAN_CONCURRENCY, queue.length) }, worker));
+  }
+
+  const scanKey = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  function scanProblems(card) {
+    const p = [];
+    if (!card.data.title.trim()) p.push("Project title is required.");
+    if (!card.data.department_id) p.push(card.deptRaw && card.deptRaw !== "None"
+      ? `Pick a department (form says “${card.deptRaw}”).` : "Pick a department.");
+    if (!REG_CATEGORIES.includes(card.data.cat)) p.push(card.notSure
+      ? "The student ticked “Not sure yet” — pick a category." : "Pick a category.");
+    if (!normMembers(card.data.members).length) p.push("Add at least one student.");
+    return p;
+  }
+  // Same title, or the same team (2+ shared names, or the same single student).
+  function scanDuplicate(card) {
+    const t = scanKey(card.data.title);
+    const names = new Set(normMembers(card.data.members).map(m => scanKey(m.name)));
+    const sameTeam = (members) => {
+      const other = normMembers(members).map(m => scanKey(m.name));
+      const shared = other.filter(n => names.has(n)).length;
+      return shared >= 2 || (shared === 1 && other.length === 1 && names.size === 1);
+    };
+    const hit = projects.find(p => (t && scanKey(p.title) === t) || sameTeam(p.group_members));
+    if (hit) return `Possible duplicate of project #${hit.num} “${hit.title}”.`;
+    const twin = scanCards.find(c => c.key !== card.key && (c.status === "ready" || c.status === "saving")
+      && ((t && scanKey(c.data.title) === t) || sameTeam(c.data.members)));
+    return twin ? `Looks the same as another card in this batch (${twin.fileName}).` : "";
+  }
+
+  async function saveScanCard(card, base) {
+    if (scanProblems(card).length) return { ok: false, nextProjects: base };
+    patchScanCard(card.key, { status: "saving", error: "" });
+    const { error, nextProjects, proj } = await createProject({ ...card.data, source: "scanned form" }, base);
+    if (error) {
+      patchScanCard(card.key, { status: "ready", error: `Could not save: ${error.message}` });
+      return { ok: false, nextProjects };
+    }
+    patchScanCard(card.key, { status: "saved", savedNum: proj.num });
+    return { ok: true, nextProjects };
+  }
+  async function saveOneScanCard(card) {
+    setScanSaving(true);
+    await saveScanCard(card, projects);
+    setScanSaving(false);
+  }
+  // Saves only cards with no problems, no duplicate warning and that are real forms;
+  // the rest need an explicit per-card Save. Saves run one after another, threading the
+  // project list so each gets the next number.
+  async function saveAllScanCards() {
+    setScanSaving(true);
+    let base = projects;
+    const ready = scanCards.filter(c => c.status === "ready" && !c.notForm && !scanProblems(c).length && !scanDuplicate(c));
+    for (const c of ready) {
+      const r = await saveScanCard(c, base);
+      base = r.nextProjects;
+    }
+    setScanSaving(false);
+  }
+  function closeScanner(force) {
+    if (!force && scanCards.some(c => c.status !== "saved")) { setScanDiscardAsk(true); return; }
+    scanUrlsRef.current.forEach(u => URL.revokeObjectURL(u));
+    scanUrlsRef.current = [];
+    setScanCards([]);
+    setScanDiscardAsk(false);
+    setScanOpen(false);
+  }
+
+  function renderScanCard(card) {
+    const cf = card.conf || {};
+    const unsure = (lvl) => (lvl === "low" || lvl === "unreadable") ? "scan-unsure" : "";
+    const editable = card.status === "ready" || card.status === "saving";
+    const problems = card.status === "ready" ? scanProblems(card) : [];
+    const dup = card.status === "ready" ? scanDuplicate(card) : "";
+    const busy = card.status === "saving" || scanSaving;
+    const named = normMembers(card.data.members).length;
+    const expected = { "Individually": 1, "In pairs": 2, "In groups of three": 3 }[card.workMode];
+    return (
+      <div key={card.key} className={`scan-card ${card.status}`}>
+        {card.url
+          ? <a className={`scan-thumb ${card.isPdf ? "pdf" : ""}`} href={card.url} target="_blank" rel="noreferrer" title="Open the original">
+              {card.isPdf ? <>📄<span>Open PDF</span></> : <img src={card.url} alt="Scanned participation form" />}
+            </a>
+          : <div className="scan-thumb pdf">✍️<span>Manual</span></div>}
+        <div className="scan-body">
+          <div className="scan-file">{card.fileName}</div>
+
+          {card.status === "reading" && <div className="scan-msg info">⏳ Reading form…</div>}
+
+          {card.status === "error" && <>
+            <div className="scan-msg err">⚠ {card.error}</div>
+            <div className="scan-actions">
+              {card.file && <button className="btn sm" style={{width:"auto"}} disabled={scanSaving} onClick={() => scanOne(card)}>↻ Retry</button>}
+              <button className="btn sec sm" style={{width:"auto"}} onClick={() => patchScanCard(card.key, { status:"ready", error:"" })}>✍️ Enter manually</button>
+              <button className="proj-act-btn del" onClick={() => removeScanCard(card.key)}>Remove</button>
+            </div>
+          </>}
+
+          {card.status === "saved" && <div className="scan-msg ok">✅ Saved as project #{card.savedNum} — {card.data.title}</div>}
+
+          {editable && <>
+            {card.notForm && <div className="scan-msg warn">This page doesn't look like a participation form. Remove it, or fill it in if it is one.</div>}
+            {card.notes && <div className="scan-msg warn">🔎 AI note: {card.notes}</div>}
+
+            <div className="lbl" style={{marginTop:".5rem"}}>Project title</div>
+            <input type="text" className={unsure(cf.title)} value={card.data.title}
+              onChange={e => editScanField(card.key, "title", e.target.value)} />
+
+            <div className="proj-form-grid" style={{marginTop:".5rem"}}>
+              <div>
+                <div className="lbl">Department</div>
+                <select className={`delib-rec-select ${unsure(cf.department_id)}`} value={card.data.department_id}
+                  onChange={e => editScanField(card.key, "department_id", e.target.value)}>
+                  <option value="">— Pick a department —</option>
+                  {departments.filter(d => d.id).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <div className="lbl">Category</div>
+                <select className={`delib-rec-select ${unsure(cf.cat)}`} value={card.data.cat}
+                  onChange={e => editScanField(card.key, "cat", e.target.value)}>
+                  <option value="">{card.notSure ? "— Student was not sure: pick one —" : "— Pick a category —"}</option>
+                  {REG_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="proj-form-grid" style={{marginTop:".5rem"}}>
+              <div>
+                <div className="lbl">Teacher / Adviser</div>
+                <input type="text" className={unsure(cf.advisor_name)} value={card.data.advisor_name}
+                  onChange={e => editScanField(card.key, "advisor_name", e.target.value)} />
+              </div>
+              <div>
+                <div className="lbl">Room</div>
+                <input type="text" className={unsure(cf.room)} value={card.data.room}
+                  onChange={e => editScanField(card.key, "room", e.target.value)} />
+              </div>
+            </div>
+
+            <div className="lbl" style={{marginTop:".5rem"}}>Students <span style={{fontWeight:400,textTransform:"none",letterSpacing:0}}>· name · grade</span></div>
+            {card.data.members.map((m, i) => (
+              <div key={i} className="member-row">
+                <input type="text" placeholder={`Student ${i + 1}`} className={unsure(cf.members?.[i]?.name)} value={m.name}
+                  onChange={e => editScanMember(card.key, i, "name", e.target.value)} />
+                <input type="text" placeholder="Gr." className={`member-grade ${unsure(cf.members?.[i]?.grade)}`} value={m.grade}
+                  onChange={e => editScanMember(card.key, i, "grade", e.target.value)} />
+                {card.data.members.length > 1 &&
+                  <button type="button" className="proj-act-btn del" title="Remove student" onClick={() => removeScanMember(card.key, i)}>✕</button>}
+              </div>
+            ))}
+            {card.data.members.length < 6 &&
+              <button type="button" className="btn sec sm" style={{width:"auto"}} onClick={() => addScanMember(card.key)}>+ Add student</button>}
+            {expected && named !== expected &&
+              <div className="scan-msg info">Form says “{card.workMode}” but {named} student{named !== 1 ? "s are" : " is"} listed — check the names.</div>}
+
+            <div className="proj-form-grid" style={{marginTop:".5rem"}}>
+              <div>
+                <div className="lbl">Project grade</div>
+                <input type="text" placeholder={highestGrade(card.data.members) ? `${highestGrade(card.data.members)} (highest student)` : "e.g. 8"}
+                  value={card.data.grade} onChange={e => editScanField(card.key, "grade", e.target.value)} />
+              </div>
+              <div />
+            </div>
+
+            <div className="lbl" style={{marginTop:".5rem"}}>What they plan to investigate, test, design or build</div>
+            <textarea rows={2} className={unsure(cf.description)} value={card.data.description}
+              onChange={e => editScanField(card.key, "description", e.target.value)} />
+            <div className="lbl" style={{marginTop:".5rem"}}>Why they chose this project</div>
+            <textarea rows={2} className={unsure(cf.motivation)} value={card.data.motivation}
+              onChange={e => editScanField(card.key, "motivation", e.target.value)} />
+
+            {problems.length > 0 && <div className="scan-msg err">{problems.map(p => <div key={p}>• {p}</div>)}</div>}
+            {dup && <div className="scan-msg warn">⚠ {dup} Save only if it really is a different project.</div>}
+            {card.error && <div className="scan-msg err">{card.error}</div>}
+
+            <div className="scan-actions">
+              <button className="btn sm" style={{width:"auto"}} disabled={busy || problems.length > 0} onClick={() => saveOneScanCard(card)}>
+                {card.status === "saving" ? "Saving…" : dup ? "Save anyway" : "✓ Save project"}
+              </button>
+              <button className="proj-act-btn del" disabled={busy} onClick={() => removeScanCard(card.key)}>Remove</button>
+            </div>
+          </>}
+        </div>
+      </div>
+    );
+  }
+
   async function removeProject(pid) {
     const proj = projects.find(p => p.id === pid);
     if (!proj || proj.locked) return;
@@ -4589,13 +4968,79 @@ export default function App() {
                   <div className="adm-h1">Projects Overview</div>
                   <div className="adm-sub">Manage projects, view rubric breakdown, and control project access</div>
                 </div>
-                <button className="btn sm" style={{width:"auto"}} onClick={() => {
-                  setProjForm(blankProjForm(nextProjectNum()));
-                  setShowAddProject(true); setEditingProject(null);
-                }}>
-                  + Add Project
-                </button>
+                <div style={{display:"flex",gap:".4rem",flexWrap:"wrap"}}>
+                  <button className="btn sec sm" style={{width:"auto"}} onClick={() => setScanOpen(true)} disabled={scanOpen}>
+                    📷 Scan forms
+                  </button>
+                  <button className="btn sm" style={{width:"auto"}} onClick={() => {
+                    setProjForm(blankProjForm(nextProjectNum()));
+                    setShowAddProject(true); setEditingProject(null);
+                  }}>
+                    + Add Project
+                  </button>
+                </div>
               </div>
+
+              {/* Participation-form scanner — see CLAUDE.md "📷 Form scanning" */}
+              {scanOpen && (() => {
+                const count = (s) => scanCards.filter(c => c.status === s).length;
+                const readyToSave = scanCards.filter(c => c.status === "ready" && !c.notForm && !scanProblems(c).length && !scanDuplicate(c)).length;
+                const needsAttention = scanCards.filter(c => c.status === "error" || (c.status === "ready" && (c.notForm || scanProblems(c).length || scanDuplicate(c)))).length;
+                return (
+                  <div className="scan-panel">
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:".5rem",flexWrap:"wrap"}}>
+                      <div>
+                        <div style={{fontWeight:600,fontSize:".95rem"}}>📷 Scan participation forms</div>
+                        <div style={{fontSize:".76rem",color:"var(--dim)",marginTop:".2rem",maxWidth:"560px"}}>
+                          Photos are sent to Google Gemini to be read and are <b>not stored</b>. Fields the AI was unsure of are
+                          <span className="scan-unsure" style={{padding:"0 .3rem",borderRadius:"4px",margin:"0 .25rem"}}>highlighted</span>.
+                          Check every card against the photo before saving.
+                        </div>
+                      </div>
+                      <button className="btn sec sm" style={{width:"auto"}} disabled={scanSaving} onClick={() => closeScanner(false)}>Done</button>
+                    </div>
+
+                    <div className="scan-actions">
+                      <label className="btn sm" style={{width:"auto",cursor:"pointer"}}>
+                        📁 Choose photos / PDFs
+                        <input type="file" accept="image/*,application/pdf" multiple style={{display:"none"}}
+                          onChange={e => { scanAddFiles(e.target.files); e.target.value = ""; }} />
+                      </label>
+                      <label className="btn sec sm" style={{width:"auto",cursor:"pointer"}}>
+                        📸 Take photo
+                        <input type="file" accept="image/*" capture="environment" style={{display:"none"}}
+                          onChange={e => { scanAddFiles(e.target.files); e.target.value = ""; }} />
+                      </label>
+                      <button className="btn sec sm" style={{width:"auto"}} onClick={() => setScanCards(cs => [...cs, newScanCard(null, null)])}>
+                        ✍️ Blank card
+                      </button>
+                    </div>
+
+                    {scanCards.length > 0 && (
+                      <div className="scan-summary">
+                        <span>⏳ {count("reading")} reading</span>
+                        <span>✓ {readyToSave} ready</span>
+                        <span style={{color: needsAttention ? "var(--amber)" : undefined}}>⚠ {needsAttention} need attention</span>
+                        <span>💾 {count("saved")} saved</span>
+                        <button className="btn sm" style={{width:"auto",marginLeft:"auto"}}
+                          disabled={scanSaving || readyToSave === 0} onClick={saveAllScanCards}>
+                          {scanSaving ? "Saving…" : `Save all ready (${readyToSave})`}
+                        </button>
+                      </div>
+                    )}
+
+                    {scanDiscardAsk && (
+                      <div className="scan-msg warn" style={{display:"flex",alignItems:"center",gap:".5rem",flexWrap:"wrap"}}>
+                        <span>{scanCards.filter(c => c.status !== "saved").length} card(s) are not saved and will be discarded.</span>
+                        <button className="btn danger sm" style={{width:"auto"}} onClick={() => closeScanner(true)}>Discard &amp; close</button>
+                        <button className="btn sec sm" style={{width:"auto"}} onClick={() => setScanDiscardAsk(false)}>Keep reviewing</button>
+                      </div>
+                    )}
+
+                    {scanCards.map(renderScanCard)}
+                  </div>
+                );
+              })()}
 
               {/* Add / Edit project form */}
               {(showAddProject || editingProject) && (

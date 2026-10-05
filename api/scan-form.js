@@ -147,7 +147,7 @@ async function sbGet(base, anon, token, path) {
 }
 
 // ── Gemini ─────────────────────────────────────────────────────────────────────
-async function callGemini({ key, model, mimeType, data, deptNames, withStore }) {
+export async function callGemini({ key, model, mimeType, data, deptNames, withStore }) {
   const body = {
     contents: [{
       role: "user",
@@ -180,7 +180,7 @@ async function callGemini({ key, model, mimeType, data, deptNames, withStore }) 
 }
 
 // Turn Gemini's raw form into the shape the admin review card uses.
-function normaliseForm(f, depts) {
+export function normaliseForm(f, depts) {
   const t = (field, max) => ({ value: clip(field?.value, max), confidence: conf(field?.confidence) });
 
   const deptRaw = clip(f?.department?.value, 80);
