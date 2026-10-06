@@ -107,6 +107,8 @@ await check("names go to the private table with their grades (accents intact)", 
   for (const p of B.projects) for (const k of ["advisor_name", "group_members"]) assert.ok(!(k in p) || !p[k], "name on public row");
 });
 await check("one PROJECTS_IMPORTED log entry, without names", async () => {
+  // The IT-log row is written in the background after the message appears — wait for it.
+  for (let i = 0; i < 50 && !B.it_logs.some(r => r.event === "PROJECTS_IMPORTED" && r.payload.imported === 3); i++) await PB.waitForTimeout(100);
   const rows = B.it_logs.filter(r => r.event === "PROJECTS_IMPORTED");
   assert.ok(rows.some(r => r.payload.imported === 3));
   assert.ok(!JSON.stringify(rows).includes("Ñez"));

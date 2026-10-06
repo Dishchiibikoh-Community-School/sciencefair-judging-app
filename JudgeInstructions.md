@@ -42,7 +42,7 @@ If you see an error:
 
 After registering, you'll see:
 
-- **Project list** — All projects in your department that you need to score
+- **Project list** — the projects assigned to you. In a big department each project may be scored by only some of the judges (e.g. 3), so your list can be a share of the department rather than all of it — that is normal
 - **Progress bar** — Shows how many projects you've completed
 - **Your status** — Whether you've validated your results
 
@@ -52,7 +52,7 @@ After registering, you'll see:
 - **Empty circle** = Not yet scored
 - **Click any project** to open the scoring form
 
-**Note:** You will only see projects assigned to your department. Judges in other departments score their own separate project lists.
+**Note:** You only see the projects assigned to you. If the list changes during the event (for example a late project, or the organizer moves work from a judge who could not come), it updates on its own — projects you already scored never disappear.
 
 ---
 
@@ -209,7 +209,7 @@ Sign Out button until they have synced — connect to the internet and press **S
 ## FAQs
 
 **Q: Which projects will I score?**
-A: Only projects assigned to your department (Elementary, Middle School, or High School). You will not see projects from other departments.
+A: Only the projects assigned to you — usually every project in your department, or an even share of it in a big department. You will not see projects from departments you do not judge.
 
 **Q: Can I change a score after submitting?**
 A: Yes — go back to the project and tap it again. Scores are editable until you validate results, or until the admin locks judging. Once you validate, or once judging is locked, submissions are refused.

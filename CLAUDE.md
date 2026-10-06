@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + real-Postgres (PGlite) migration/RLS suite. Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 256 checks across 13 files |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 269 checks across 14 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -57,6 +57,7 @@ always serves and cannot be redirected — never share it.
 | `migration-2026-10c-secure-school-signup.sql` | **`create_school()`** RPC; closes direct INSERT on `schools` and `school_admins` (anyone could make themselves admin of any school) | **Yes** — the sign-up form calls `create_school()`. Run before anyone registers a school |
 | `migration-2026-10d-judge-revise-validation.sql` | Judges may delete their own validation until results are finalized (never the admin's) | No — without it "Revise my validation" shows an error instead of unlocking |
 | `migration-2026-10e-categories-and-department-codes.sql` | **`categories`** table (per-school project categories) + seeds the six for every existing school; **`departments.code`** | No — **additive only**. Old app ignores both; new app falls back to `DEFAULT_CATEGORIES` and logs `CATEGORIES_TABLE_MISSING`. Safe to run in either order |
+| `migration-2026-10k-judge-roster-and-panels.sql` | **Judge roster grid + N judges per project**: `judge_roster` (number ↔ department, public read, RPC-only writes), `judge_labels` (admin-only private names), `departments.judges_per_project`, `project_judges` (stored panel assignments); `register_judge()` / `set_judge_roster()` / `set_judges_per_project()` / `assign_panels(fill\|rebuild\|rebalance)` / `sync_judge_projects()`; `set_judge_numbers()` kept as a ranges→roster wrapper for cached apps; new departments still get a default block (now also in the roster) | **Yes — run it, then deploy the matching app.** The previous app keeps working (its range editor saves through the wrapper) but cannot show the grid or panels. ⚠️ Supersedes register_judge (10h), set_judge_numbers / set_judge_max / the numbering trigger (10i), departments_guard_judging (10j) — re-run 10k after any of those |
 | `migration-2026-10j-department-rubrics.sql` | **Each department picks its rubric**: `departments.rubric_id` (NULL = the school default = `rubrics.is_active`); one default per school (unique partial index, duplicates resolved to the newest); guard trigger — a department's rubric / comment-only setting cannot change once it has scores, and only its own school's rubrics; delete guard — the default and any rubric in use cannot be deleted; **`set_default_rubric()`** | No — old app keeps using the default for every department |
 | `migration-2026-10i-judge-max.sql` | **Maximum judge number**: `app_settings.judge_max` (default 15, clamped 1–90 by `judge_max()`), backfilled to clamp(highest number in use, 15, 90); **`set_judge_max()`**; `set_judge_numbers()` refuses ranges past it; new departments are numbered only if they fit | No. ⚠️ Supersedes `set_judge_numbers()` (10h) and the numbering trigger (10g) — re-run 10i after re-running either |
 | `migration-2026-10h-shared-judges.sql` | **Departments can share judges** (opt-in): `judges.department_ids` (backfilled `[department_id]`), `register_judge()` covers every department whose range holds the number, `set_judge_numbers()` accepts overlaps, re-syncs signed-in judges and refuses to take a department away from one | No. ⚠️ Re-running **10g** after this re-creates the older functions — always re-run 10h after 10g |
@@ -290,6 +291,9 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `categories` | Per-school project categories: name, `code`, `ord` (2026-10e). UNIQUE(school_id, name). **No FK from `projects`** — `projects.cat` is a free-text snapshot, so deleting a category never alters a project |
 | `projects` | num, title, cat, grade, locked, department_id, room, description, motivation — **public, no names** |
 | `project_private` | PK `(project_id, school_id)`, FK → projects **ON DELETE CASCADE**: advisor_name, group_members (JSONB), updated_at — **admin-only** |
+| `judge_roster` | (school_id, judge_number, department_id) — which departments each judge NUMBER covers (2026-10k). Replaces departments.judge_from/judge_to as the source of truth (those are kept in step for old apps). Public read, writes only via `set_judge_roster()` |
+| `judge_labels` | (school_id, judge_number, label) — **admin-only** private names behind numbers; anon has no privileges |
+| `project_judges` | (school_id, project_id, judge_number) — panel assignments for departments with `judges_per_project` set. Stored, never recomputed on the fly; scored assignments are never removed |
 | `judges` | alias, `projects` (JSON array of pids), department_id (FIRST department), **`department_ids`** (every department covered — 2026-10h), joined_at. UNIQUE(department_id, alias) |
 | `scores` | One row per judge+project; `criteria` JSONB, notes, total, **`commendation`** (feedback departments only — `criteria` is `{}` there). UNIQUE(judge_id, project_id) |
 | `validations` | Judge/admin validation; `judge_id = 'admin'` for the admin. Conflict `(school_id, judge_id)` |
@@ -611,6 +615,11 @@ handleRegister()             // calls register_judge RPC
 schoolNumbering()            // true when judge_numbering is 'school' AND departments carry ranges
 deptForJudgeNum(n), deptsForJudgeNum(n), deptNames(ids), judgeRangeText(d), deptJudgeCount(d), plannedJudgeRanges()
 plannedSharedRanges(), judgeCoverage(plan), setJudgeSharingMode(on)   // sharing mode (2026-10h)
+loadRoster(sid), loadProjectJudges(sid), loadJudgeLabels(sid)   // 2026-10k
+rosterInUse(), deptNumbers(d), sharedWith(d), topJudgeNumber(), compressNums(nums)
+rosterView(), toggleRosterCell(n, deptId), rosterLoad(n, map), saveRoster()   // Setup → Judges grid
+setDeptJudgesPerProject(deptId, n), runPanels(deptId, "rebuild"|"rebalance"), panelInfo(d)
+// NOTE: never name a helper use*() — React treats it as a hook (useRoster() broke rules-of-hooks)
 judgeMax(), saveJudgeMax()   // maximum judge number (2026-10i); judgeMax() falls back like the backfill
 judgeDeptIds(j)              // module helper — EVERY department a judge covers; never use j.department_id alone
 saveJudgeNumbers()           // set_judge_numbers RPC from the Setup counts (contiguous, in department order)
@@ -691,7 +700,7 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 8. **Ranking and tie detection are per department.** Use `rankedProjectsIn(deptId)`; cross-department ties are meaningless.
 
 **Judges & projects**
-9. **Every judge scores every project in their department.** No per-judge subsets.
+9. **A judge's list is `judges.projects`, filled by the SERVER** (2026-10k). By default every judge scores every project in their departments; a department with `judges_per_project = N` gives each project N judges from its roster (`project_judges`). Never compute a judge's projects in the browser from department membership alone — call `sync_judge_projects()` (via `syncJudgeAssignments()`), which fills panels for NEW projects only (it must never top up short projects: after a Rebalance that would hand work back to absent judges) and re-syncs every judge. Scored assignments are never removed by rebuild/rebalance/roster saves.
 10. **Any project change re-syncs judge assignments.** `judges.projects` is a snapshot, so `addProject()` and a department change in `updateProject()` must call `syncJudgeAssignments()`. `removeProject()` does its own removal.
 11. **Judge numbers are one list per school by default (2026-10g).** A department's seats are its `judge_from`–`judge_to` range, saved only through `set_judge_numbers()` (which keeps `max_judges` = range size); never write the range columns directly, and never let the client decide a judge's department in school mode — `register_judge()` derives it from the number. Build department rows with `dbToDept()` or the ranges silently disappear. In **legacy mode** `max_judges` is per department and locks once that department's first judge registers. The old global `maxJudges` / `app_settings.max_judges` was removed 2026-09-25 — do not reintroduce it. `JUDGE_NAMES` pre-generates Judge1–Judge100.
 12. **Locked projects cannot be edited or removed.** Only `toggleProjectLock()` changes the lock.
@@ -826,6 +835,25 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-06 — Judge roster grid + "N judges per project" panels** (migration `2026-10k`, **coupled**).
+Ranges could not express every sharing pattern (A+B share #1, B+C #2, A+C #3) and every judge scored every
+project — 6-8 (31 projects) meant ~3 h per judge. Now:
+- **Setup → Judges grid**: tick departments per judge number (any pattern), optional admin-only names,
+  per-row workload, warnings for departments with no / too few judges. Replaces the counts and the
+  From–To sharing editors (and `app_settings.judge_sharing`, now unused).
+- **Judges per project** per department (`set_judges_per_project`): balanced least-loaded assignment
+  stored in `project_judges`; judges see only their assignments; **Judges tab → Panels** card shows
+  coverage / no-shows and **Rebalance** (moves unscored work from judges who never signed in).
+- Server owns judges' lists (`_resync_judges`); the browser sync is a pre-10k fallback.
+Bugs caught by the new tests before shipping: (1) PL/pgSQL loop variable `r` shadowed a table alias `r`
+("record r has no field judge_number"); (2) `schoolNumbering()` turned on when the roster TABLE merely
+existed, hiding the department picker for schools without numbers; (3) after a Rebalance, a late project's
+automatic fill topped up every short project — handing work back to absent judges (fill is now
+new-projects-only); (4) CSV import re-synced judges once per project (63 round-trips) — now once per batch;
+(5) a helper named `useRoster()` was treated as a React hook.
+Tests: DB 195 (30 new); new `scripts/e2e/judge-panels.e2e.mjs` 11; judge-numbers / shared-judges E2E
+rewritten for the grid (25 / 13); real 63-project import re-verified (21 s, 6-8 panels all 3 judges).
 
 **2026-10-06 — Judge numbers could never be saved on Supabase (pg-safeupdate)** (re-run 2026-10i).
 `set_judge_numbers()` cleared its temp tables with `DELETE FROM _jn;` / `_jj;`. Supabase API sessions load

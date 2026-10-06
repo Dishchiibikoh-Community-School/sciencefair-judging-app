@@ -160,6 +160,25 @@ const RUBRIC_PRESETS = [
 function validCriteria(c) {
   return Array.isArray(c) && c.length > 0 && c.every(x => x && x.id && Array.isArray(x.steps) && x.steps.length);
 }
+// Roster rows [{ number, department_id }] → { [number]: [deptId…] }. A loop, not a callback (rule 37).
+function rosterToMap(list) {
+  const out = {};
+  for (const r of list || []) out[r.number] = [...(out[r.number] || []), r.department_id];
+  return out;
+}
+// [1, 2, 3, 5, 8] → "1–3, 5, 8"
+function compressNums(nums) {
+  const sorted = [...new Set(nums)].sort((a, b) => a - b);
+  const parts = [];
+  let i = 0;
+  while (i < sorted.length) {
+    let j = i;
+    while (j + 1 < sorted.length && sorted[j + 1] === sorted[j] + 1) j++;
+    parts.push(j > i ? `${sorted[i]}–${sorted[j]}` : String(sorted[i]));
+    i = j + 1;
+  }
+  return parts.join(", ");
+}
 // True when two criteria lists score the same way (same ids, order and maximums). Used to
 // hide a preset from the department dropdown once the school already has it — even if
 // they renamed it.
@@ -308,7 +327,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-06n";
+const ADMIN_HELP_UPDATED = "2026-10-06o";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -324,7 +343,8 @@ const ADMIN_HELP = [
   { title: "Before the event — checklist", icon: "✅", items: [
     "Remember your Admin PIN (4–8 digits). It cannot be recovered, only changed (Overview → Admin PIN). 5 wrong tries lock PIN entry for 5 minutes.",
     "Setup tab: set your departments first — add, rename or reorder them, or start from a preset (school levels, PreK–12 grade bands, grade bands + SPED, or PreK · K-5 · 6-8 · 9-12 · SPED).",
-    "Setup tab → Judge numbers: enter how many judges each department needs. Every judge gets ONE number for the whole school (e.g. PreK = Judge 1–2, K-2 = Judge 3–4) and the number decides their department.",
+    "Setup tab → Judges: tick the departments each judge number covers (one judge can cover several departments; a department can use any numbers, e.g. 1, 2, 5, 8). Judges type only their number and the invite code. Add a private name per number if you like — only admins see it.",
+    "Big department? Under its column choose '3 judges per project' — each project is then scored by 3 judges and the app shares the projects out evenly, instead of every judge scoring every project.",
     "Setup tab: check your project categories. They are yours alone — rename them, delete the ones you don't use, or add your own (a robotics fair can replace all six).",
     "Setup tab: set any department that should NOT be scored (PreK, K-2) to 'Comments only'. This cannot be changed once that department has scores.",
     "Rubric tab + Setup: build your rubrics and pick one for each department (or Comments only) BEFORE the first judge signs in — a department's rubric locks once it has scores.",
@@ -407,14 +427,16 @@ const ADMIN_HELP = [
     ["A judge cannot see a project you just added.", "Make sure the project has their department. It appears automatically; if not, ask them to refresh the page."],
     ["A judge registered in the wrong department.", "With one judge list for the whole school (the default) this cannot happen — the number decides the department. If someone used the wrong NUMBER: Judges tab → Remove on that judge (Admin PIN), then they sign in with the right number. Removing deletes that judge's scores, so do it before they score."],
     ["Someone signed in who is not a judge / a test sign-in is in the list.", "Judges tab → Remove (Admin PIN). Their number is freed. No Reset needed."],
-    ["How many judge numbers can we have?", "Setup → Judge numbers → Maximum judges: 15 by default, up to 90. Department counts and ranges cannot go past it. To lower it, first lower the department numbers that use the higher numbers."],
+    ["How many judge numbers can we have?", "Setup → Judges → Maximum judges: 15 by default, up to 90. The grid only shows numbers up to it. To lower it, first untick the higher numbers."],
     ["I signed in as a new judge number but still see the old judge's projects.", "That device is still signed in as the earlier judge — the app remembers each device so judges never lose their place. The top of the project list shows who it is (e.g. 'Judge15 · PreK'). Press Sign Out, then sign in with the new number. Use one device per judge on event day."],
-    ["How do judge numbers work?", "Setup tab → Judge numbers. Type how many judges each department needs and press Save; numbers are handed out in department order (PreK 2, K-2 2 → PreK = Judge 1–2, K-2 = Judge 3–4). Each number exists once in the school, so two people can never both be 'Judge 1'. Judges type only their number and the invite code."],
-    ["Can I change the judge numbers after judges signed in?", "Yes, as long as everyone already signed in keeps a number inside their own department — otherwise Save is refused and tells you who is in the way. Remove that judge first if they signed in by mistake."],
-    ["We have fewer judges than departments need. Can one judge cover several departments?", "Yes. Setup → Judge numbers → choose 'Departments can share judges'. Give each department a range of judge numbers; two departments with the same range share those judges (e.g. PreK: Judge 1–3 and K-2: Judge 1–3). A shared judge types their number as usual, sees every department's projects under its own heading, and scores all of them. 'Who judges what' shows each judge's departments and how many projects that is."],
-    ["Why can't a judge get only SOME projects of a department?", "On purpose. Every project in a department must be scored by the same judges, otherwise one strict or generous judge would affect only part of it and the results stop being fair. Sharing works by whole departments."],
-    ["Can I change sharing after judges have signed in?", "You can ADD a department to a signed-in judge (widen the range) — their list updates. You cannot take one AWAY: the save is refused and names the judge, because they were told where to judge. Remove that judge on the Judges tab first if needed."],
-    ["Can numbers restart in each department instead?", "Yes: Setup → Judge numbers → 'Numbers restart in each department'. Each department then has its own Judge1, Judge2… and judges pick their department when signing in. Not recommended — the same name then means several people."],
+    ["How do judge numbers work?", "Setup → Judges is a grid: one row per judge number, one column per department. Tick where each judge judges and press Save judges. A judge types only their number; the sign-in screen shows their department(s). Each number is one person."],
+    ["What is the Name box in the judge grid?", "An optional private note of who has each number (e.g. 'Ms. Rabah'). Only your school's admins can see it — never judges, never the public."],
+    ["Can I change the judge grid after judges signed in?", "You can tick MORE departments for a signed-in judge — their project list updates. You cannot untick one: Save is refused and names the judge, because they were told where to judge. Remove that judge on the Judges tab first if needed."],
+    ["We have fewer judges than departments need. Can one judge cover several departments?", "Yes — tick that judge number in each department they cover. Their sign-in shows e.g. 'Judge 2 · PreK + K-5' and their list has a heading per department."],
+    ["A department has too many projects for every judge to score them all.", "Setup → Judges → under that department choose e.g. '3 judges per project'. Each project is then scored by 3 judges and the projects are shared out evenly (the Projects column shows each judge's load). A project added later gets its judges automatically. This cannot be changed once the department has scores."],
+    ["A judge did not come — their projects are missing reviews.", "Judges tab → the department's Panels card shows who has not signed in. Press Rebalance: their unscored projects move to the judges who are there. Scored work never moves."],
+    ["Is '3 judges per project' fair if different projects get different judges?", "The app spreads the projects evenly so each judge sees a similar mix, and the Alerts tab still flags a judge far from a project's average. Every project in a department is still ranked on the same rubric."],
+    ["Can numbers restart in each department instead?", "Yes: Setup → Judges → 'Numbers restart in each department'. Each department then has its own Judge1, Judge2… and judges pick their department when signing in. Not recommended — the same name then means several people, and 'judges per project' does not apply."],
   ]},
   { title: "Troubleshooting", icon: "🛠️", faq: [
     ["Where is the judge invite code?", "Overview tab, at the top. Before any judge signs in it is inside the \"Get started\" card; after that the card becomes \"Judge sign-in details\" and still shows the school address and invite code with Copy buttons."],
@@ -758,6 +780,17 @@ const CSS = `
   .jn-cover-depts{flex:1;min-width:0;}
   .jn-cover-load{color:var(--dim);font-size:.78rem;white-space:nowrap;}
   @media (max-width:520px){ .jn-cover-row{flex-wrap:wrap;} .jn-cover-num{min-width:0;} .jn-ft{flex-basis:100%;} }
+  .setup-jlink{text-decoration:none;color:var(--dim);}
+  .setup-jlink:hover{color:var(--navy);text-decoration:underline;}
+  .setup-jshare{font-size:.72rem;color:var(--dim);}
+  .roster-tbl th, .roster-tbl td{text-align:center;padding:.3rem .4rem;font-size:.8rem;}
+  .roster-tbl th:first-child, .roster-tbl td:first-child{text-align:left;white-space:nowrap;font-family:var(--ff-m);color:var(--navy);}
+  .roster-tbl td input[type=checkbox]{width:18px;height:18px;cursor:pointer;}
+  .roster-tbl td input[type=text]{min-width:120px;font-size:.78rem;padding:.25rem .4rem;}
+  .roster-tbl th select{margin-top:.3rem;font-size:.7rem;min-width:0;max-width:150px;}
+  .roster-sub{font-weight:400;font-size:.7rem;color:var(--dim);}
+  .roster-tbl tr.roster-empty td:first-child{color:var(--dim);}
+  .panel-card .panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:.6rem;flex-wrap:wrap;margin-bottom:.4rem;}
   .jn-rows{display:flex;flex-direction:column;gap:.4rem;margin:.6rem 0 .85rem;}
   .jn-row{display:flex;align-items:center;gap:.75rem;padding:.45rem .65rem;border:1px solid var(--bd);border-radius:8px;background:var(--bg);}
   .jn-row .jn-name{flex:1;min-width:0;font-weight:600;color:var(--navy);}
@@ -1130,7 +1163,7 @@ const CSS = `
   .fb-chip:hover{border-color:var(--purple);color:var(--purple);}
   .fb-chip.selected{background:var(--purple);border-color:var(--purple);color:#fff;}
   .setup-mode{padding:.28rem .4rem;border:1px solid var(--bd);border-radius:6px;background:var(--bg);
-    font-family:var(--ff-b);font-size:.76rem;color:var(--text);cursor:pointer;max-width:150px;}
+    font-family:var(--ff-b);font-size:.76rem;color:var(--text);cursor:pointer;min-width:200px;max-width:280px;}
 
   /* ── Setup tab: departments + project categories ── */
   .setup-rows{display:flex;flex-direction:column;gap:.4rem;margin-bottom:1rem;}
@@ -1368,7 +1401,9 @@ function dbToDept(r) {
            scoring_mode: r.scoring_mode === "feedback" ? "feedback" : "scored",
            judge_from: Number.isInteger(r.judge_from) ? r.judge_from : null,
            judge_to:   Number.isInteger(r.judge_to)   ? r.judge_to   : null,
-           rubric_id:  r.rubric_id || null };   // 2026-10j; null = the school's default rubric
+           rubric_id:  r.rubric_id || null,     // 2026-10j; null = the school's default rubric
+           // 2026-10k: null = every judge scores every project; N = each project gets N judges
+           judges_per_project: Number.isInteger(r.judges_per_project) ? r.judges_per_project : null };
 }
 // "8", "judge 8", "JUDGE08", "Judge8" → "Judge8". Anything else is returned trimmed,
 // so the server can reject it with its own message.
@@ -1530,11 +1565,16 @@ export default function App() {
   // (DEFAULT — the number decides the department), "department" = numbers restart
   // in every department (the pre-2026-10g behaviour).
   const [judgeNumbering,   setJudgeNumbering]   = useState("school");
-  const [judgeCountDrafts, setJudgeCountDrafts] = useState({});   // Setup tab: { [deptId]: "3" }
-  // Optional (2026-10h): departments share judges — the admin types each department's
-  // From–To range and ranges may overlap. 'off' (default) = counts, no overlap.
-  const [judgeSharing,     setJudgeSharing]     = useState("off");
-  const [judgeRangeDrafts, setJudgeRangeDrafts] = useState({});   // { [deptId]: { from: "1", to: "3" } }
+  // Judge roster (2026-10k): which departments each judge NUMBER covers — replaces ranges.
+  const [roster,           setRoster]           = useState([]);    // [{ number, department_id }]
+  const [hasRoster,        setHasRoster]        = useState(false); // judge_roster table exists
+  const [rosterDraft,      setRosterDraft]      = useState(null);  // { [number]: [deptId…] } while editing
+  const [judgeLabels,      setJudgeLabels]      = useState({});    // { [number]: "Ms. Rabah" } — admins only
+  const [labelDrafts,      setLabelDrafts]      = useState({});    // { [number]: "…" } unsaved edits
+  const [projectJudges,    setProjectJudges]    = useState([]);    // panels: [{ project_id, judge_number }]
+  const [panelBusy,        setPanelBusy]        = useState("");    // deptId while a panel action runs
+  const [panelMsg,         setPanelMsg]         = useState("");
+  const [panelOpen,        setPanelOpen]        = useState({});    // { [deptId]: true } assignment table shown
   // Highest judge number allowed (2026-10i): 15 by default, up to 90. null = not stored yet.
   const [judgeMaxSetting,  setJudgeMaxSetting]  = useState(null);
   const [judgeMaxDraft,    setJudgeMaxDraft]    = useState("");
@@ -1801,7 +1841,6 @@ export default function App() {
       }
       setProjListToken(map.project_list_token || "");
       setJudgeNumbering(map.judge_numbering === "department" ? "department" : "school");
-      setJudgeSharing(map.judge_sharing === "on" ? "on" : "off");
       // An invalid stored format (hand-edited row) falls back rather than printing garbage.
       setCodeFormat(map.project_code_format && !validateCodeFormat(map.project_code_format)
         ? map.project_code_format.trim() : DEFAULT_CODE_FORMAT);
@@ -1928,6 +1967,29 @@ export default function App() {
     const { data } = await supabase.from("final_decisions").select("*").eq("school_id", schoolId);
     if (data) setFinalDecisions(finalDecisionsToMap(data));
   }
+  // ── Judge roster + panels (2026-10k) ──
+  async function loadRoster(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
+    const { data, error } = await supabase.from("judge_roster").select("judge_number, department_id").eq("school_id", schoolId);
+    if (error) { setHasRoster(false); return; }   // migration 2026-10k not run: ranges stay in charge
+    setHasRoster(true);
+    setRoster(data.map(r => ({ number: r.judge_number, department_id: r.department_id })));
+  }
+  async function loadProjectJudges(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
+    const { data, error } = await supabase.from("project_judges").select("project_id, judge_number").eq("school_id", schoolId);
+    if (!error && data) setProjectJudges(data);
+  }
+  // Admin-only names behind judge numbers (RLS: nobody else can read them).
+  async function loadJudgeLabels(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
+    const { data, error } = await supabase.from("judge_labels").select("judge_number, label").eq("school_id", schoolId);
+    if (!error && data) setJudgeLabels(Object.fromEntries(data.map(r => [r.judge_number, r.label])));
+  }
+
   // Loads EVERY rubric of the school (the library). A malformed one falls back to the
   // built-in criteria so a judge never gets an empty or crashing scoring form.
   async function loadRubrics(sid) {
@@ -2250,6 +2312,7 @@ export default function App() {
             loadItLogs(school.id);
             loadScoreBackups(school.id);
             loadInviteCode(school.id);
+            loadJudgeLabels(school.id);
             // Student names (project_private) are admin-only — refetch now we can read them.
             loadProjects(school.id);
           }
@@ -2258,6 +2321,7 @@ export default function App() {
         // Signed out: drop admin-only data from memory so the next person on this
         // device cannot see it, then reload the public view of the school.
         setInviteCode("");
+        setJudgeLabels({}); setLabelDrafts({});
         setAdminHere(false);
         setRegSubmissions([]);
         setScoreBackups([]);
@@ -2338,7 +2402,7 @@ export default function App() {
         loadDepartments(sid), loadCategories(sid), loadProjects(sid), loadJudges(sid), loadScores(sid),
         loadLog(sid), loadItLogs(sid), loadShare(sid), loadSettings(sid),
         loadDelibNotes(sid), loadFinalDecisions(sid), loadValidations(sid),
-        loadScoreBackups(sid), loadRubrics(sid),
+        loadScoreBackups(sid), loadRubrics(sid), loadRoster(sid), loadProjectJudges(sid),
       ]).catch(err => {
         // A loader threw (network drop mid-load, unexpected response). Previously an
         // unhandled rejection: the screen waited for the 8 s timeout and nothing was logged.
@@ -2362,6 +2426,10 @@ export default function App() {
         // Judges' screens follow rubric edits live (before 2026-10j nothing listened, so an
         // open scoring form kept the old rubric until the page was reloaded).
         .on("postgres_changes", { event: "*", schema: "public", table: "rubrics",     filter: f("rubrics")     }, () => loadRubrics(sid))
+        .on("postgres_changes", { event: "*", schema: "public", table: "judge_roster", filter: f("judge_roster") }, () => loadRoster(sid))
+        .on("postgres_changes", { event: "*", schema: "public", table: "project_judges", filter: f("project_judges") }, () => loadProjectJudges(sid))
+        // Admin-only by RLS (realtime enforces it): nobody else ever receives a judge's name.
+        .on("postgres_changes", { event: "*", schema: "public", table: "judge_labels", filter: f("judge_labels") }, () => loadJudgeLabels(sid))
         .on("postgres_changes", { event: "*", schema: "public", table: "categories",  filter: f("categories")  }, () => loadCategories(sid))
         .on("postgres_changes", { event: "*", schema: "public", table: "projects",    filter: f("projects")    }, () => loadProjects(sid))
         // Admin-only by RLS (realtime enforces it): judges/public never receive these events.
@@ -2640,6 +2708,18 @@ export default function App() {
     if (!currentSchool?.id) return;
     const targets = [...new Set((Array.isArray(deptIds) ? deptIds : [deptIds]).filter(Boolean))];
     if (!targets.length) return;
+    // 2026-10k: the server owns judges' lists (roster + panels). It fills panels for the new
+    // project without reshuffling anyone and re-syncs every judge. Without that migration
+    // the RPC is missing and the client-side sync below still runs.
+    if (hasRoster) {
+      const { error } = await supabase.rpc("sync_judge_projects", { p_school_id: currentSchool.id, p_department_ids: targets });
+      if (!error) {
+        await Promise.all([loadJudges(currentSchool.id), loadProjectJudges(currentSchool.id)]);
+        addItLog("INFO","ADMIN","JUDGE_ASSIGNMENTS_SYNCED","Judge project lists re-synced on the server after a project change",{ departments: targets.length });
+        return;
+      }
+      addItLog("ERROR","ADMIN","JUDGE_ASSIGNMENTS_SYNC_FAILED","Server re-sync failed — falling back to the browser",{ error: error.code || error.message });
+    }
     const list = projectList || projects;
     const updates = [];
     for (const j of judges) {   // a loop, not forEach: pushing inside a callback bails the compiler (rule 37)
@@ -2848,12 +2928,15 @@ export default function App() {
       const { error, nextProjects, proj } = await createProject({
         title: r.title, cat: r.cat, grade: r.grade, num, department_id: importDeptId(r),
         advisor_name: r.advisor, members: r.members, room: r.room,
-        description: r.description, motivation: r.motivation, source: "CSV import",
+        description: r.description, motivation: r.motivation, source: "CSV import", skipSync: true,
       }, base);
       base = nextProjects;
       if (error) { failed += 1; patchImportRow(r.key, { status: "error", error: error.message }); }
       else { imported += 1; patchImportRow(r.key, { status: "saved", savedNum: proj.num, include: false }); }
     }
+    // One judge sync for every department that received projects (see createProject skipSync).
+    const touched = [...new Set(base.filter(p => !projects.some(q => q.id === p.id)).map(p => p.department_id).filter(Boolean))];
+    if (touched.length) await syncJudgeAssignments(touched, base);
     setImportBusy(false);
     setImportMsg(failed
       ? `Imported ${imported} project${imported!==1?"s":""}. ${failed} could NOT be saved — see the red rows, then press Import again to retry them.`
@@ -2963,90 +3046,64 @@ export default function App() {
   //  never enforced; per-department departments.max_judges is the only limit.
   //  See updateDeptMaxJudges below.)
 
-  // ── Judge numbers (migration 2026-10g) ─────────────────────────────────────
-  // School-wide numbering is only real once the departments carry judge numbers;
-  // before the migration runs the app keeps the old per-department numbering.
+  // ── Judge numbers (2026-10g) → roster (2026-10k) ───────────────────────────
+  // Each judge NUMBER is ticked into the departments it covers (judge_roster). Before
+  // migration 2026-10k (or for a roster nobody has saved yet) the department ranges
+  // (judge_from/judge_to) still answer — the 10k migration keeps them in step.
+  // Only when numbers actually exist (a saved roster, or the pre-10k ranges). The roster
+  // TABLE merely existing is not enough: a school with no numbers yet keeps the department
+  // picker at sign-in instead of a number box nobody can use.
+  function rosterInUse() { return hasRoster && roster.length > 0; }
   function schoolNumbering() {
-    return judgeNumbering === "school" && departments.some(d => d.judge_from != null);
+    return judgeNumbering === "school" && (rosterInUse() || departments.some(d => d.judge_from != null));
   }
-  // Every department whose range holds this number (several when departments share judges).
+  function deptNumbers(d) {
+    if (!d) return [];
+    if (rosterInUse()) return roster.filter(r => r.department_id === d.id).map(r => r.number).sort((a, b) => a - b);
+    if (d.judge_from == null) return [];
+    return Array.from({ length: d.judge_to - d.judge_from + 1 }, (_, i) => d.judge_from + i);
+  }
+  // Every department this number covers (several when departments share judges).
   function deptsForJudgeNum(n) {
     if (!n) return [];
-    return [...departments].sort((a, b) => a.ord - b.ord)
-      .filter(d => d.judge_from != null && n >= d.judge_from && n <= d.judge_to);
+    const sorted = [...departments].sort((a, b) => a.ord - b.ord);
+    if (rosterInUse()) return sorted.filter(d => roster.some(r => r.number === n && r.department_id === d.id));
+    return sorted.filter(d => d.judge_from != null && n >= d.judge_from && n <= d.judge_to);
   }
   function deptForJudgeNum(n) { return deptsForJudgeNum(n)[0] || null; }
   function deptNames(ids) {
     return (ids || []).map(id => departments.find(d => d.id === id)?.name).filter(Boolean).join(" + ") || "Unassigned";
   }
+  // "Judges 1–3, 5" / "Judge 4" / "no judges"
   function judgeRangeText(d) {
-    if (d?.judge_from == null) return "no judges";
-    return d.judge_from === d.judge_to ? `Judge ${d.judge_from}` : `Judge ${d.judge_from}–${d.judge_to}`;
+    const nums = deptNumbers(d);
+    if (!nums.length) return "no judges";
+    return `${nums.length === 1 ? "Judge" : "Judges"} ${compressNums(nums)}`;
   }
-  function deptJudgeCount(d) {
-    return d?.judge_from == null ? 0 : d.judge_to - d.judge_from + 1;
+  function deptJudgeCount(d) { return deptNumbers(d).length; }
+  // Other departments that share at least one judge number with d.
+  function sharedWith(d) {
+    const mine = new Set(deptNumbers(d));
+    return departments.filter(o => o.id !== d.id && deptNumbers(o).some(n => mine.has(n))).map(o => o.name);
   }
-  // Counts typed in the Setup tab → contiguous ranges in department order
-  // (PreK 2, K-2 2, 3-5 3 → 1–2, 3–4, 5–7). A count of 0 gives the department no judges.
-  function plannedJudgeRanges() {
-    // A plain loop on purpose: bumping `next` inside a .map() callback bails the React
-    // Compiler out of the whole file (rule 37).
-    const out = [];
-    let next = 1;
-    for (const d of [...departments].sort((a, b) => a.ord - b.ord)) {
-      const raw = judgeCountDrafts[d.id];
-      const n = raw === undefined ? deptJudgeCount(d) : Math.max(0, parseInt(raw, 10) || 0);
-      out.push({ dept: d, count: n, ...(n > 0 ? { from: next, to: next + n - 1 } : { from: null, to: null }) });
-      next += n;
-    }
-    return out;
+  function topJudgeNumber() {
+    return rosterInUse() ? roster.reduce((m, r) => Math.max(m, r.number), 0)
+                       : departments.reduce((m, d) => Math.max(m, d.judge_to || 0), 0);
   }
 
-  // Sharing mode: the admin's From–To per department, overlaps allowed.
-  function plannedSharedRanges() {
-    const out = [];
-    for (const d of [...departments].sort((a, b) => a.ord - b.ord)) {
-      const draft = judgeRangeDrafts[d.id];
-      const rawF = draft ? draft.from : (d.judge_from ?? "");
-      const rawT = draft ? draft.to   : (d.judge_to ?? "");
-      const f = String(rawF).trim() === "" ? null : parseInt(rawF, 10);
-      const t = String(rawT).trim() === "" ? null : parseInt(rawT, 10);
-      const invalid = (f == null) !== (t == null) || (f != null && (isNaN(f) || isNaN(t) || f < 1 || t < f || t > 999));
-      out.push({ dept: d, from: invalid ? null : f, to: invalid ? null : t, rawF, rawT, invalid,
-                 count: !invalid && f != null ? t - f + 1 : 0 });
-    }
-    return out;
-  }
-  // Who judges what: consecutive judge numbers with the same departments, and their
-  // workload (every project in every department they cover).
-  // Written without mutating anything: an earlier version extended the last group in
-  // place (last.to = n) and that alone bailed the React Compiler out of the file (rule 37).
-  function judgeCoverage(plan) {
-    const top = plan.reduce((m, p) => Math.max(m, p.to || 0), 0);
-    const deptsAt = (n) => plan.filter(p => p.from != null && n >= p.from && n <= p.to).map(p => p.dept);
-    const keyAt = (n) => deptsAt(n).map(d => d.id).join(",");
-    const nums = Array.from({ length: top }, (_, i) => i + 1);
-    const starts = nums.filter(n => n === 1 || keyAt(n) !== keyAt(n - 1));
-    return starts.map((from, i) => {
-      const ds = deptsAt(from);
-      return { from, to: i + 1 < starts.length ? starts[i + 1] - 1 : top, depts: ds,
-               projects: projects.filter(pr => ds.some(d => d.id === pr.department_id)).length };
-    });
-  }
   // The highest judge number this school allows. Before migration 2026-10i stores it,
   // fall back exactly as the migration's backfill would: the numbers already in use, at
   // least 15, at most 90 — so an existing school is never suddenly over its maximum.
   function judgeMax() {
     if (judgeMaxSetting != null) return judgeMaxSetting;
-    const top = departments.reduce((m, d) => Math.max(m, d.judge_to || 0), 0);
-    return Math.min(90, Math.max(15, top));
+    return Math.min(90, Math.max(15, topJudgeNumber()));
   }
   async function saveJudgeMax() {
     setSetupErr("");
     const n = parseInt(judgeMaxDraft, 10);
     if (!(n >= 1 && n <= 90)) { setSetupErr("The maximum must be a number from 1 to 90."); return; }
-    const top = departments.reduce((m, d) => Math.max(m, d.judge_to || 0), 0);
-    if (n < top) { setSetupErr(`Judge numbers already go up to ${top}. Lower the department numbers first, then the maximum.`); return; }
+    const top = topJudgeNumber();
+    if (n < top) { setSetupErr(`Judge numbers already go up to ${top}. Untick the higher numbers first, then lower the maximum.`); return; }
     const { error } = await supabase.rpc("set_judge_max", { p_school_id: currentSchool.id, p_max: n });
     if (error) {
       const missing = /set_judge_max/.test(error.message || "") && /function|not find/i.test(error.message || "");
@@ -3060,49 +3117,125 @@ export default function App() {
     addItLog("INFO","ADMIN","JUDGE_MAX_SAVED","Admin changed the maximum judge number",{ max: n });
   }
 
-  async function setJudgeSharingMode(on) {
+  // ── Roster grid ──
+  function rosterView() { return rosterDraft ?? rosterToMap(rosterInUse() ? roster
+    : departments.flatMap(d => deptNumbers(d).map(n => ({ number: n, department_id: d.id })))); }
+  function toggleRosterCell(n, deptId) {
     setSetupErr("");
-    const value = on ? "on" : "off";
-    const { error } = await supabase.from("app_settings")
-      .upsert({ school_id: currentSchool.id, key: "judge_sharing", value }, { onConflict: "school_id,key" });
-    if (error) { setSetupErr(`Setting NOT changed: ${error.message}`); return; }
-    setJudgeSharing(value); setJudgeCountDrafts({}); setJudgeRangeDrafts({});
-    addItLog("INFO","ADMIN","JUDGE_SHARING_CHANGED","Admin changed whether departments can share judges",{ sharing: value });
+    const base = rosterView();
+    const list = base[n] || [];
+    setRosterDraft({ ...base, [n]: list.includes(deptId) ? list.filter(x => x !== deptId) : [...list, deptId] });
+  }
+  // About how many projects judge number n would score with the roster on screen.
+  function rosterLoad(n, map) {
+    let total = 0, approx = false;
+    for (const deptId of map[n] || []) {
+      const d = departments.find(x => x.id === deptId);
+      const nProj = projects.filter(p => p.department_id === deptId).length;
+      if (!d?.judges_per_project) { total += nProj; continue; }
+      const seats = Object.values(map).filter(ds => ds.includes(deptId)).length || 1;
+      const assigned = rosterDraft === null ? projectJudges.filter(x => x.judge_number === n
+        && projects.some(p => p.id === x.project_id && p.department_id === deptId)).length : null;
+      if (assigned !== null && projectJudges.length) total += assigned;
+      else { total += Math.ceil(nProj * d.judges_per_project / seats); approx = true; }
+    }
+    return { total, approx };
+  }
+  async function saveRoster() {
+    setSetupErr("");
+    const sid = currentSchool.id;
+    const map = rosterView();
+    const payload = Object.entries(map).filter(([, ds]) => ds.length).map(([n, ds]) => ({ number: Number(n), department_ids: ds }));
+    if (rosterDraft !== null) {
+      const { error } = await supabase.rpc("set_judge_roster", { p_school_id: sid, p_roster: payload });
+      if (error) {
+        const missing = /set_judge_roster/.test(error.message || "") && /function|not find/i.test(error.message || "");
+        setSetupErr(missing ? "This needs a database update that has not been run yet (migration 2026-10k). Nothing was changed."
+                            : `Judges NOT saved: ${error.message}`);
+        addItLog("ERROR","ADMIN","JUDGE_ROSTER_SAVE_FAILED","Could not save the judge roster",{ error: error.code || error.message });
+        return;
+      }
+    }
+    const failed = [];
+    for (const [n, text] of Object.entries(labelDrafts)) {
+      const label = String(text || "").trim().slice(0, 80);
+      const { error } = label
+        ? await supabase.from("judge_labels").upsert({ school_id: sid, judge_number: Number(n), label, updated_at: new Date().toISOString() },
+            { onConflict: "school_id,judge_number" })
+        : await supabase.from("judge_labels").delete().eq("school_id", sid).eq("judge_number", Number(n));
+      if (error) failed.push(n);
+    }
+    if (failed.length) setSetupErr(`Judge list saved, but the names for judge ${failed.join(", ")} were NOT saved. Try again.`);
+    const rosterChanged = rosterDraft !== null;
+    setRosterDraft(null); setLabelDrafts(Object.fromEntries(Object.entries(labelDrafts).filter(([n]) => failed.includes(n))));
+    await Promise.all([loadRoster(sid), loadDepartments(sid), loadJudges(sid), loadProjectJudges(sid), loadJudgeLabels(sid)]);
+    if (rosterChanged) {
+      addLog(`Admin saved the judge list (${payload.length} judge number${payload.length !== 1 ? "s" : ""})`);
+      addItLog("INFO","ADMIN","JUDGE_ROSTER_SAVED","Admin saved the judge roster",
+        { judges: payload.length, assignments: payload.reduce((t, x) => t + x.department_ids.length, 0) });
+    }
   }
 
-  async function saveJudgeNumbers() {
-    setSetupErr("");
-    const sharing = judgeSharing === "on";
-    const plan = sharing ? plannedSharedRanges() : plannedJudgeRanges();
-    const bad = plan.find(p => p.invalid);
-    if (bad) { setSetupErr(`${bad.dept.name}: enter both numbers (From ≤ To, 1–999), or leave both empty for no judges.`); return; }
-    // Past the school's maximum (2026-10i). The server refuses it too; this names the
-    // department up front. Covers both modes — counts become contiguous ranges first.
-    const over = plan.find(p => p.to != null && p.to > judgeMax());
-    if (over) { setSetupErr(`${over.dept.name} goes up to Judge ${over.to}, but the maximum is ${judgeMax()}. Raise the maximum (up to 90) first.`); return; }
-    const total = sharing ? plan.reduce((m, p) => Math.max(m, p.to || 0), 0) : plan.reduce((a, p) => a + p.count, 0);
-    if (total === 0) { setSetupErr("Give at least one department some judges."); return; }
-    // The server re-checks all of this (overlaps, and that no signed-in judge would end
-    // up outside their department) — its message is written for the admin to read.
-    const { error } = await supabase.rpc("set_judge_numbers", {
-      p_school_id: currentSchool.id,
-      p_ranges: plan.map(p => ({ department_id: p.dept.id, from: p.from, to: p.to })),
-    });
-    if (error) {
-      // "would share judge numbers" comes from the 2026-10g server: sharing needs 2026-10h.
-      setSetupErr(/would share judge numbers/.test(error.message || "")
-        ? `Judge numbers NOT saved: ${error.message} Sharing judges needs a database update that has not been run yet (migration 2026-10h).`
-        : `Judge numbers NOT saved: ${error.message}`);
-      addItLog("ERROR","ADMIN","JUDGE_NUMBERS_SAVE_FAILED","Could not save the judge list",{ error: error.code || error.message, sharing });
+  // ── Panels: N judges per project (2026-10k) ──
+  async function setDeptJudgesPerProject(deptId, raw) {
+    const dept = departments.find(d => d.id === deptId);
+    const n = raw === "" ? null : parseInt(raw, 10);
+    if (!dept || (n ?? null) === (dept.judges_per_project ?? null)) return;
+    if (deptHasScores(deptId)) {
+      setSetupErr(`"${dept.name}" already has scores. How many judges score each project cannot change now. ` +
+        `Remove those scores first (Reset All Data, or remove the judges who gave them).`);
       return;
     }
-    setJudgeCountDrafts({}); setJudgeRangeDrafts({});
-    // The server re-synced signed-in judges' departments and project lists — reload both.
-    await Promise.all([loadDepartments(currentSchool.id), loadJudges(currentSchool.id)]);
-    const summary = plan.map(p => `${p.dept.name} ${p.from == null ? "none" : `${p.from}-${p.to}`}`).join(", ");
-    addLog(`Admin set the judge numbers: ${summary}`);
-    addItLog("INFO","ADMIN","JUDGE_NUMBERS_SAVED","Admin saved the school's judge list",
-      { total, sharing, ranges: plan.map(p => ({ dept: p.dept.name, from: p.from, to: p.to })) });
+    setSetupErr(""); setPanelBusy(deptId);
+    const { data, error } = await supabase.rpc("set_judges_per_project", { p_school_id: currentSchool.id, p_department_id: deptId, p_n: n });
+    setPanelBusy("");
+    if (error) {
+      const missing = /set_judges_per_project/.test(error.message || "") && /function|not find/i.test(error.message || "");
+      setSetupErr(missing ? "This needs a database update that has not been run yet (migration 2026-10k). Nothing was changed."
+                          : `Not changed: ${error.message}`);
+      addItLog("ERROR","ADMIN","PANEL_SIZE_FAILED","Could not change judges per project",{ dept: dept.name, n, error: error.code || error.message });
+      return;
+    }
+    const sid = currentSchool.id;
+    await Promise.all([loadDepartments(sid), loadProjectJudges(sid), loadJudges(sid)]);
+    if (data?.short) setSetupErr(`${dept.name}: ${data.short} project${data.short !== 1 ? "s have" : " has"} fewer than ${n} judges — tick more judges for ${dept.name}.`);
+    addLog(`Admin set ${dept.name} to ${n ? `${n} judges per project` : "every judge scores every project"}`);
+    addItLog("INFO","ADMIN","PANEL_SIZE_CHANGED","Admin changed judges per project",{ dept: dept.name, n });
+  }
+  async function runPanels(deptId, mode) {
+    const dept = departments.find(d => d.id === deptId);
+    if (!dept) return;
+    setPanelMsg(""); setPanelBusy(deptId);
+    const { data, error } = await supabase.rpc("assign_panels", { p_school_id: currentSchool.id, p_department_id: deptId, p_mode: mode });
+    setPanelBusy("");
+    if (error) {
+      setPanelMsg(`${dept.name}: NOT done — ${error.message}`);
+      addItLog("ERROR","ADMIN","PANEL_ASSIGN_FAILED","Panel assignment failed",{ dept: dept.name, mode, error: error.code || error.message });
+      return;
+    }
+    const sid = currentSchool.id;
+    await Promise.all([loadProjectJudges(sid), loadJudges(sid)]);
+    setPanelMsg(`${dept.name}: ${mode === "rebalance" ? "rebalanced onto the judges who signed in" : "assignments rebuilt"}` +
+      (data?.short ? ` — ${data.short} project${data.short !== 1 ? "s" : ""} still short of ${data.judges_per_project} judges.` : " — every project is covered."));
+    addLog(`Admin ${mode === "rebalance" ? "rebalanced" : "rebuilt"} the judge panels for ${dept.name}`);
+    addItLog(mode === "rebalance" ? "WARN" : "INFO","ADMIN","PANELS_" + mode.toUpperCase(),"Admin changed panel assignments",
+      { dept: dept.name, short: data?.short ?? null });
+  }
+  // Coverage of one panel department, for the Judges tab.
+  function panelInfo(d) {
+    const n = d.judges_per_project;
+    if (!n) return null;
+    const seats = deptNumbers(d);
+    const present = seats.filter(s => judges.some(j => j.alias === `Judge${s}`));
+    const judgeIdOf = (s) => judges.find(j => j.alias === `Judge${s}`)?.id;
+    const rows = projects.filter(p => p.department_id === d.id)
+      .sort((a, b) => String(a.num).localeCompare(String(b.num), undefined, { numeric: true }))
+      .map(p => {
+        const nums = projectJudges.filter(x => x.project_id === p.id).map(x => x.judge_number).sort((a, b) => a - b);
+        return { p, nums, scored: nums.filter(s => judgeIdOf(s) && scores[`${judgeIdOf(s)}_${p.id}`]) };
+      });
+    const absentUnscored = rows.reduce((t, r) => t + r.nums.filter(s => !present.includes(s) && !r.scored.includes(s)).length, 0);
+    return { n, seats, present, rows, short: rows.filter(r => r.nums.length < n).length, absentUnscored };
   }
 
   async function setJudgeNumberingMode(mode) {
@@ -4605,8 +4738,10 @@ export default function App() {
     addItLog("INFO","ADMIN","PROJECT_ADDED","Admin added a new project",
       { projectId:id, num:finalNum, title:proj.title, cat:proj.cat, grade:proj.grade, dept:deptName,
         source: data.source || "form", timestamp:fmtISO(Date.now()) });
-    // Push the new project out to judges already registered in this department.
-    await syncJudgeAssignments(proj.department_id, nextProjects);
+    // Push the new project out to judges already registered in this department. A batch
+    // (CSV import) passes skipSync and syncs ONCE at the end — 63 projects would otherwise
+    // mean 63 server re-syncs + reloads (2026-10k).
+    if (!data.skipSync) await syncJudgeAssignments(proj.department_id, nextProjects);
     return { error: null, nextProjects, proj: localProj };
   }
 
@@ -5287,7 +5422,7 @@ export default function App() {
             const num  = judgeNumOf(normJudgeAlias(regName));
             const dept = deptForJudgeNum(num);
             const all  = deptsForJudgeNum(num);
-            const top  = departments.reduce((m, d) => Math.max(m, d.judge_to || 0), 0);
+            const top  = topJudgeNumber();
             return (
               <div style={{ marginBottom:"1rem" }}>
                 <div className="lbl">Judge Number</div>
@@ -6764,8 +6899,8 @@ export default function App() {
                       <div className="setup-share-row" style={{alignItems:"flex-start"}}>
                         <span className="setup-share-key">Judge numbers</span>
                         <span className="setup-share-val" style={{whiteSpace:"normal",fontSize:".82rem",lineHeight:1.5}}>
-                          {[...departments].sort((a,b)=>a.ord-b.ord).filter(d => d.judge_from != null)
-                            .map(d => `${d.name}: ${d.judge_from === d.judge_to ? d.judge_from : `${d.judge_from}–${d.judge_to}`}`).join(" · ")}
+                          {[...departments].sort((a,b)=>a.ord-b.ord).filter(d => deptNumbers(d).length)
+                            .map(d => `${d.name}: ${compressNums(deptNumbers(d))}`).join(" · ")}
                         </span>
                         <button className="setup-copy-btn" onClick={() => setAdminTab("setup")}>Edit</button>
                       </div>
@@ -7014,9 +7149,12 @@ export default function App() {
                         {!edit && (
                           <div className="setup-acts">
                             {schoolNumbering() ? (
-                              <span className="setup-maxj" title="Set on the Judge numbers card below">
+                              <a href="#judges-grid" className="setup-maxj setup-jlink" title="Edit on the Judges card below"
+                                onClick={e => { e.preventDefault(); document.getElementById("judges-grid")?.scrollIntoView({ behavior: "smooth" }); }}>
                                 {judgeRangeText(dept)}
-                              </span>
+                                <span className="setup-jshare">{sharedWith(dept).length ? ` · shared with ${sharedWith(dept).join(", ")}` : deptJudgeCount(dept) ? " · own judges" : ""}</span>
+                                {dept.judges_per_project ? <span className="setup-jshare"> · {dept.judges_per_project} per project</span> : null}
+                              </a>
                             ) : <span className="setup-maxj">
                               Max judges:{" "}
                               {judgeLock
@@ -7089,27 +7227,35 @@ export default function App() {
                 </div>
               </div>
 
-              {/* ── Judge numbers (migration 2026-10g) ── */}
-              {departments.some(d => d.judge_from != null) && (() => {
-                const sharing = judgeSharing === "on";
-                const plan    = plannedJudgeRanges();
-                const total   = plan.reduce((a, p) => a + p.count, 0);
-                const shared  = plannedSharedRanges();
-                const cover   = judgeCoverage(shared);
-                const dirty   = sharing ? Object.keys(judgeRangeDrafts).length > 0 : Object.keys(judgeCountDrafts).length > 0;
-                const covers  = (deptId) => judges.filter(j => judgeDeptIds(j).includes(deptId)).length;
-                // Ranges saved earlier in sharing mode may overlap; the counts editor would undo that.
-                const overlapNow = departments.some(a => departments.some(b => a.id !== b.id && a.judge_from != null && b.judge_from != null
-                  && a.judge_from <= b.judge_to && b.judge_from <= a.judge_to));
+              {/* ── Judges: roster grid (2026-10k) ── */}
+              {(() => {
+                const sorted  = [...departments].filter(d => d.id).sort((x, y) => x.ord - y.ord);
+                const map     = rosterView();
+                const top     = Math.max(judgeMax(), topJudgeNumber());
+                const nums    = Array.from({ length: top }, (_, i) => i + 1);
+                const dirty   = rosterDraft !== null || Object.keys(labelDrafts).length > 0;
+                const seatsOf = (deptId) => nums.filter(n => (map[n] || []).includes(deptId));
+                const noJudges = sorted.filter(d => projects.some(p => p.department_id === d.id) && seatsOf(d.id).length === 0);
+                const tooFew  = sorted.filter(d => d.judges_per_project && seatsOf(d.id).length < d.judges_per_project);
                 return (
-                  <div className="card">
-                    <div className="lbl" style={{marginBottom:".4rem"}}>Judge numbers</div>
+                  <div className="card" id="judges-grid">
+                    <div className="lbl" style={{marginBottom:".4rem"}}>Judges</div>
                     <select className="setup-mode" aria-label="Judge numbering" style={{marginBottom:".6rem"}} value={judgeNumbering}
                       onChange={e => setJudgeNumberingMode(e.target.value)}>
                       <option value="school">One list for the whole school (recommended)</option>
                       <option value="department">Numbers restart in each department</option>
                     </select>
-                    {judgeNumbering === "school" ? (<>
+                    {judgeNumbering !== "school" ? (
+                      <p style={{fontSize:".82rem",color:"var(--dim)"}}>
+                        Each department has its own Judge1, Judge2, … and judges pick their department when signing in.
+                        Set the size of each department with Max judges above.
+                      </p>
+                    ) : !hasRoster ? (
+                      <div className="judge-num-miss" style={{textAlign:"left"}}>
+                        The judge grid needs a database update that has not been run yet (migration 2026-10k).
+                        Until then judges keep their current numbers.
+                      </div>
+                    ) : (<>
                       <div className="jn-max">
                         <span><strong>Maximum judges:</strong> numbers 1–{judgeMax()}</span>
                         <input type="number" min="1" max="90" aria-label="Maximum judges"
@@ -7121,119 +7267,75 @@ export default function App() {
                         </>}
                         <span className="jn-max-hint">15 by default, up to 90</span>
                       </div>
-                      <div className="jn-modes" role="radiogroup" aria-label="How judges are assigned">
-                        <label className={`jn-mode ${!sharing ? "on" : ""}`}>
-                          <input type="radio" name="jn-mode" checked={!sharing} onChange={() => setJudgeSharingMode(false)} />
-                          <span><strong>Each department has its own judges</strong> (default) — enter how many judges each department needs.</span>
-                        </label>
-                        <label className={`jn-mode ${sharing ? "on" : ""}`}>
-                          <input type="radio" name="jn-mode" checked={sharing} onChange={() => setJudgeSharingMode(true)} />
-                          <span><strong>Departments can share judges</strong> — give each department a range of judge numbers; ranges may overlap.</span>
-                        </label>
-                      </div>
-                      {!sharing ? (<>
-                      <p style={{fontSize:".82rem",color:"var(--dim)",marginBottom:".2rem"}}>
-                        Every judge gets one number for the whole school, and the number decides the department —
-                        judges type only their number and the invite code. Enter how many judges each department needs;
-                        numbers are handed out in department order.
+                      <p style={{fontSize:".82rem",color:"var(--dim)",marginBottom:".5rem"}}>
+                        Tick the departments each judge number covers — one judge can cover several departments, and a
+                        department can use any numbers (e.g. 1, 2, 5, 8). Judges type only their number and the invite code.
+                        Under each department choose whether <b>every judge scores every project</b>, or each project gets
+                        a set number of judges (the app shares the projects out evenly).
                       </p>
-                      {overlapNow && (
-                        <div className="judge-num-miss" style={{textAlign:"left"}}>
-                          Some departments currently share judges. Saving here gives every department its own numbers;
-                          it is refused if a signed-in judge would lose a department.
-                        </div>
-                      )}
-                      <div className="jn-rows">
-                        {plan.map(p => {
-                          const signedIn = covers(p.dept.id);
-                          return (
-                            <div key={p.dept.id || p.dept.name} className="jn-row">
-                              <span className="jn-name">{p.dept.name}
-                                {signedIn > 0 && <span style={{fontWeight:400,fontSize:".76rem",color:"var(--dim)"}}> · {signedIn} signed in</span>}
-                              </span>
-                              <input type="number" min="0" max={judgeMax()} aria-label={`Judges for ${p.dept.name}`}
-                                value={judgeCountDrafts[p.dept.id] ?? String(deptJudgeCount(p.dept))}
-                                onChange={e => { setSetupErr(""); setJudgeCountDrafts(d => ({...d, [p.dept.id]: e.target.value})); }} />
-                              <span className={`jn-range ${p.from == null ? "none" : ""}`}>
-                                {p.from == null ? "no judges" : p.from === p.to ? `Judge ${p.from}` : `Judge ${p.from}–${p.to}`}
-                              </span>
-                            </div>
-                          );
-                        })}
+                      <div className="tbl-wrap">
+                        <table className="roster-tbl">
+                          <thead>
+                            <tr>
+                              <th>Judge</th>
+                              <th>Name <span className="roster-sub">(private)</span></th>
+                              {sorted.map(d => (
+                                <th key={d.id}>
+                                  {d.name}
+                                  <div className="roster-sub">{seatsOf(d.id).length} judge{seatsOf(d.id).length !== 1 ? "s" : ""} · {projects.filter(p => p.department_id === d.id).length} proj.</div>
+                                  <select aria-label={`Judges per project for ${d.name}`} value={d.judges_per_project ?? ""}
+                                    disabled={dirty || panelBusy === d.id}
+                                    title={dirty ? "Save the judge list first" : "How many judges score each project"}
+                                    onChange={e => setDeptJudgesPerProject(d.id, e.target.value)}>
+                                    <option value="">Every judge scores all</option>
+                                    {[1, 2, 3, 4, 5].map(k => <option key={k} value={k}>{k} judge{k !== 1 ? "s" : ""} per project</option>)}
+                                  </select>
+                                </th>
+                              ))}
+                              <th>Projects</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {nums.map(n => {
+                              const load = rosterLoad(n, map);
+                              const labelVal = labelDrafts[n] ?? judgeLabels[n] ?? "";
+                              return (
+                                <tr key={n} className={(map[n] || []).length ? "" : "roster-empty"}>
+                                  <td>Judge {n}</td>
+                                  <td>
+                                    <input type="text" maxLength={80} placeholder="optional" aria-label={`Name for judge ${n}`}
+                                      value={labelVal} onChange={e => { setSetupErr(""); setLabelDrafts(ld => ({ ...ld, [n]: e.target.value })); }} />
+                                  </td>
+                                  {sorted.map(d => (
+                                    <td key={d.id}>
+                                      <input type="checkbox" aria-label={`Judge ${n} judges ${d.name}`}
+                                        checked={(map[n] || []).includes(d.id)} onChange={() => toggleRosterCell(n, d.id)} />
+                                    </td>
+                                  ))}
+                                  <td style={{color: load.total > 20 ? "var(--amber)" : "var(--dim)"}}>
+                                    {(map[n] || []).length ? `${load.approx ? "≈" : ""}${load.total}` : "—"}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                       </div>
-                      <div style={{display:"flex",gap:".5rem",alignItems:"center",flexWrap:"wrap"}}>
-                        <button className="btn sm" style={{width:"auto"}} disabled={!dirty} onClick={saveJudgeNumbers}>Save judge numbers</button>
-                        {dirty && <button className="btn sec sm" style={{width:"auto"}} onClick={() => { setSetupErr(""); setJudgeCountDrafts({}); }}>Cancel</button>}
-                        <span style={{fontSize:".8rem",color: total > judgeMax() ? "var(--red)" : "var(--dim)"}}>
-                          {total} judge{total!==1?"s":""} in total{total > judgeMax() ? ` — over the maximum of ${judgeMax()}` : ""}
+                      {noJudges.map(d => <div key={d.id} className="judge-num-miss" style={{textAlign:"left"}}>⚠ Nobody judges {d.name} — it has projects but no judge is ticked.</div>)}
+                      {tooFew.map(d => <div key={d.id} className="judge-num-miss" style={{textAlign:"left"}}>⚠ {d.name} needs {d.judges_per_project} judges per project but only {seatsOf(d.id).length} {seatsOf(d.id).length === 1 ? "is" : "are"} ticked.</div>)}
+                      <div style={{display:"flex",gap:".5rem",alignItems:"center",flexWrap:"wrap",marginTop:".6rem"}}>
+                        <button className="btn sm" style={{width:"auto"}} disabled={!dirty} onClick={saveRoster}>Save judges</button>
+                        {dirty && <button className="btn sec sm" style={{width:"auto"}} onClick={() => { setSetupErr(""); setRosterDraft(null); setLabelDrafts({}); }}>Cancel</button>}
+                        <span style={{fontSize:".78rem",color:"var(--dim)"}}>
+                          {nums.filter(n => (map[n] || []).length).length} judge number{nums.filter(n => (map[n] || []).length).length !== 1 ? "s" : ""} in use
                         </span>
                       </div>
                       <p style={{fontSize:".76rem",color:"var(--dim)",marginTop:".6rem"}}>
-                        You can change this after judges have signed in, as long as each of them keeps a number inside
-                        their own department. To fix a judge who signed in by mistake, remove them on the Judges tab.
+                        After judges sign in you can tick more departments for them, but not untick one — remove that judge on
+                        the Judges tab instead. Names are private: only your school's admins can see them. The Projects column is
+                        how many projects that judge will score (≈ = estimate until saved).
                       </p>
-                      </>) : (<>
-                      <p style={{fontSize:".82rem",color:"var(--dim)",marginBottom:".2rem"}}>
-                        Give each department the judge numbers that judge it. Two departments with the same numbers share
-                        those judges — they score every project in both. Leave both boxes empty for a department with no judges.
-                      </p>
-                      <div className="jn-rows">
-                        {shared.map(p => {
-                          const sharesWith = shared.filter(o => o !== p && p.from != null && o.from != null
-                            && o.from <= p.to && p.from <= o.to).map(o => o.dept.name);
-                          const n = covers(p.dept.id);
-                          const setRange = (k, v) => { setSetupErr(""); setJudgeRangeDrafts(d => ({ ...d,
-                            [p.dept.id]: { from: k === "from" ? v : String(p.rawF), to: k === "to" ? v : String(p.rawT) } })); };
-                          return (
-                            <div key={p.dept.id || p.dept.name} className="jn-row">
-                              <span className="jn-name">{p.dept.name}
-                                {n > 0 && <span style={{fontWeight:400,fontSize:".76rem",color:"var(--dim)"}}> · {n} signed in</span>}
-                              </span>
-                              <span className="jn-ft">
-                                Judge <input type="number" min="1" max={judgeMax()} aria-label={`First judge for ${p.dept.name}`}
-                                  value={p.rawF} onChange={e => setRange("from", e.target.value)} />
-                                – <input type="number" min="1" max={judgeMax()} aria-label={`Last judge for ${p.dept.name}`}
-                                  value={p.rawT} onChange={e => setRange("to", e.target.value)} />
-                              </span>
-                              <span className={`jn-range ${p.invalid || p.from == null ? "none" : ""}`}>
-                                {p.invalid ? "check the numbers" : p.from == null ? "no judges"
-                                  : sharesWith.length ? `shared with ${sharesWith.join(", ")}` : "own judges"}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <div className="jn-cover">
-                        <div className="lbl" style={{marginBottom:".3rem"}}>Who judges what</div>
-                        {cover.map(g => (
-                          <div key={g.from} className={`jn-cover-row ${g.depts.length ? "" : "unused"}`}>
-                            <span className="jn-cover-num">{g.from === g.to ? `Judge ${g.from}` : `Judge ${g.from}–${g.to}`}</span>
-                            <span className="jn-cover-depts">{g.depts.length ? g.depts.map(d => d.name).join(" + ") : "not used"}</span>
-                            <span className="jn-cover-load">{g.depts.length ? `${g.projects} project${g.projects!==1?"s":""}${g.from !== g.to ? " each" : ""}` : ""}</span>
-                          </div>
-                        ))}
-                        {shared.filter(p => p.from == null && !p.invalid && projects.some(pr => pr.department_id === p.dept.id)).map(p => (
-                          <div key={p.dept.id} className="judge-num-miss" style={{textAlign:"left"}}>
-                            ⚠ Nobody judges {p.dept.name} — it has projects but no judge numbers.
-                          </div>
-                        ))}
-                      </div>
-                      <div style={{display:"flex",gap:".5rem",alignItems:"center",flexWrap:"wrap",marginTop:".6rem"}}>
-                        <button className="btn sm" style={{width:"auto"}} disabled={!dirty} onClick={saveJudgeNumbers}>Save judge numbers</button>
-                        {dirty && <button className="btn sec sm" style={{width:"auto"}} onClick={() => { setSetupErr(""); setJudgeRangeDrafts({}); }}>Cancel</button>}
-                      </div>
-                      <p style={{fontSize:".76rem",color:"var(--dim)",marginTop:".6rem"}}>
-                        Every project in a department is scored by all of its judges, so results stay comparable.
-                        After judges sign in you can add a department to their range, but not take one away — remove
-                        that judge on the Judges tab instead.
-                      </p>
-                      </>)}
-                    </>) : (
-                      <p style={{fontSize:".82rem",color:"var(--dim)"}}>
-                        Each department has its own Judge1, Judge2, … and judges pick their department when signing in.
-                        Set the size of each department with Max judges above.
-                      </p>
-                    )}
+                    </>)}
                   </div>
                 );
               })()}
@@ -7375,6 +7477,58 @@ export default function App() {
             {adminTab==="judges" && <>
               <div className="adm-h1">Judge Management</div>
               <div className="adm-sub">Monitor activity and completion per judge · approve device transfer only when needed</div>
+              {/* Panels (2026-10k): departments where each project gets N judges. */}
+              {departments.filter(d => d.judges_per_project).map(d => {
+                const info = panelInfo(d);
+                return (
+                  <div className="card panel-card" key={`panel-${d.id}`}>
+                    <div className="panel-head">
+                      <div>
+                        <div style={{fontWeight:700,color:"var(--navy)"}}>{d.name} — {info.n} judges per project</div>
+                        <div style={{fontSize:".8rem",color:"var(--dim)"}}>
+                          {info.rows.length} project{info.rows.length!==1?"s":""} · judges {compressNums(info.seats) || "none"} ·
+                          {" "}{info.present.length} of {info.seats.length} signed in
+                        </div>
+                      </div>
+                      <div style={{display:"flex",gap:".4rem",flexWrap:"wrap"}}>
+                        <button className="btn sec sm" style={{width:"auto"}} disabled={panelBusy === d.id}
+                          onClick={() => setPanelOpen(o => ({ ...o, [d.id]: !o[d.id] }))}>{panelOpen[d.id] ? "Hide" : "Show"} assignments</button>
+                        <button className="btn sm amber" style={{width:"auto"}} disabled={panelBusy === d.id || info.absentUnscored === 0 || info.present.length === 0}
+                          title={info.present.length === 0 ? "Nobody has signed in to this department yet — nothing to move the work onto."
+                            : "Moves unscored projects from judges who have not signed in to judges who have. Scored work never moves."}
+                          onClick={() => runPanels(d.id, "rebalance")}>⚖ Rebalance</button>
+                      </div>
+                    </div>
+                    {info.short > 0 && <div className="judge-num-miss" style={{textAlign:"left"}}>⚠ {info.short} project{info.short!==1?"s have":" has"} fewer than {info.n} judges. Tick more judges for {d.name} in Setup, or press Rebalance once judges have signed in.</div>}
+                    {info.absentUnscored > 0 && info.present.length > 0 && (
+                      <div className="judge-num-miss" style={{textAlign:"left"}}>
+                        Judge{info.seats.filter(s => !info.present.includes(s)).length !== 1 ? "s" : ""} {compressNums(info.seats.filter(s => !info.present.includes(s)))} {info.seats.filter(s => !info.present.includes(s)).length !== 1 ? "have" : "has"} not signed in — {info.absentUnscored} unscored review{info.absentUnscored!==1?"s":""} waiting.
+                        If they are not coming, press <b>Rebalance</b>.
+                      </div>
+                    )}
+                    {panelOpen[d.id] && (
+                      <div className="tbl-wrap" style={{marginTop:".6rem"}}>
+                        <table>
+                          <thead><tr><th>Project</th><th>Title</th><th>Judges (✓ = scored)</th></tr></thead>
+                          <tbody>
+                            {info.rows.map(r => (
+                              <tr key={r.p.id}>
+                                <td style={{fontFamily:"var(--ff-m)",whiteSpace:"nowrap"}}>{projectCode(r.p)}</td>
+                                <td style={{maxWidth:"240px"}}>{r.p.title}</td>
+                                <td style={{fontFamily:"var(--ff-m)"}}>
+                                  {r.nums.length ? r.nums.map(s => `${s}${r.scored.includes(s) ? "✓" : ""}`).join(" · ") : "—"}
+                                  {r.nums.length < info.n && <span style={{color:"var(--amber)"}}> (needs {info.n - r.nums.length} more)</span>}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {panelMsg && <div className="card" style={{fontSize:".85rem"}}>{panelMsg}</div>}
               <div className="card"><div className="tbl-wrap">
                 <table>
                   <thead><tr><th>Alias</th><th>Department</th><th>Joined</th><th>Assigned</th><th>Progress</th><th>Status</th><th>Device / remove</th></tr></thead>

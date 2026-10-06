@@ -80,35 +80,40 @@ await check("Overview lists the judge numbers per department", async () => {
   for (const s of ["Elementary: 1–2", "Middle School: 3–5", "High School: 6–7"]) assert.ok(t.includes(s), s);
 });
 await A.page.locator(".nav-it", { hasText: "Setup" }).click();
-const counts = A.page.locator(".jn-row input[type=number]");
-await check("Setup shows the Judge numbers card with one row per department", async () => {
-  await A.page.getByText("Judge numbers", { exact: true }).waitFor({ timeout: 4000 });
-  assert.equal(await counts.count(), 3);
+const cell = (n, dept) => A.page.getByLabel(`Judge ${n} judges ${dept}`);
+await check("Setup shows the judge grid, ticked from the current numbers", async () => {
+  await cell(1, "Elementary").waitFor({ timeout: 4000 });
+  for (const [n, d] of [[1, "Elementary"], [2, "Elementary"], [3, "Middle School"], [5, "Middle School"], [7, "High School"]])
+    assert.equal(await cell(n, d).isChecked(), true, `Judge ${n} ${d}`);
+  assert.equal(await cell(8, "High School").isChecked(), false);
 });
-// Elementary 1 → 1, Middle 1 → 2 : Judge4 would fall outside Middle School.
-await counts.nth(0).fill("1"); await counts.nth(1).fill("1");
-await check("the preview renumbers live (Middle School → Judge 2)", async () =>
-  assert.equal((await A.page.locator(".jn-row").nth(1).locator(".jn-range").innerText()).trim(), "Judge 2"));
-await A.page.getByRole("button", { name: "Save judge numbers" }).click();
-await check("saving a list that strands Judge4 is refused with a clear message", async () => {
-  await A.page.getByText(/Judge numbers NOT saved: Judge4 is signed in to Middle School/).waitFor({ timeout: 4000 });
-  assert.equal(store.departments.find(d => d.id === DEPTS.D_MID).judge_to, 5);
+// Unticking signed-in Judge4's department must be refused.
+await cell(4, "Middle School").uncheck();
+await A.page.getByRole("button", { name: "Save judges" }).click();
+await check("unticking a signed-in judge's department is refused with a clear message", async () => {
+  await A.page.getByText(/Judges NOT saved: Judge4 is signed in to Middle School and would lose it/).waitFor({ timeout: 4000 });
+  assert.equal(store.judge_roster.length, 0, "nothing saved");
 });
-await counts.nth(1).fill("3"); await counts.nth(2).fill("0");
-await A.page.getByRole("button", { name: "Save judge numbers" }).click();
-await check("valid list saved: Elementary 1, Middle School 2–4, High School none", async () => {
-  await A.page.waitForTimeout(600);
-  const d = (id) => store.departments.find(x => x.id === id);
-  assert.deepEqual([d(DEPTS.D_ELEM).judge_from, d(DEPTS.D_ELEM).judge_to], [1, 1]);
-  assert.deepEqual([d(DEPTS.D_MID).judge_from, d(DEPTS.D_MID).judge_to], [2, 4]);
-  assert.equal(d(DEPTS.D_HIGH).judge_from, null);
-  assert.ok(store.it_logs.some(r => r.event === "JUDGE_NUMBERS_SAVED"));
+await A.page.getByRole("button", { name: "Cancel" }).first().click();
+// Elementary {1}, Middle School {2,3,4}, High School {} — any pattern, by ticking.
+await cell(2, "Elementary").uncheck(); await cell(2, "Middle School").check(); await cell(5, "Middle School").uncheck();
+await cell(6, "High School").uncheck(); await cell(7, "High School").uncheck();
+await A.page.getByLabel("Name for judge 3").fill("Ms. Rabah");
+await A.page.getByRole("button", { name: "Save judges" }).click();
+await check("valid grid saved: Elementary 1, Middle School 2–4, High School none (+ a private name)", async () => {
+  await A.page.waitForTimeout(700);
+  const nums = (id) => store.judge_roster.filter(r => r.department_id === id).map(r => r.judge_number).sort((a, b) => a - b);
+  assert.deepEqual(nums(DEPTS.D_ELEM), [1]); assert.deepEqual(nums(DEPTS.D_MID), [2, 3, 4]); assert.deepEqual(nums(DEPTS.D_HIGH), []);
+  assert.ok(store.it_logs.some(r => r.event === "JUDGE_ROSTER_SAVED"));
+  assert.equal(store.judge_labels.find(r => r.judge_number === 3)?.label, "Ms. Rabah");
 });
-await check("department rows show their numbers instead of a Max judges box", async () => {
+await check("department rows show their numbers and sharing, not a Max judges box", async () => {
   const t = await A.page.locator(".setup-rows").first().innerText();
   assert.ok(!t.includes("Max judges"), "Max judges box still shown");
-  assert.ok(t.includes("Judge 2–4") && t.includes("no judges"), t.slice(0, 200));
+  assert.ok(t.includes("Judges 2–4") && t.includes("own judges") && t.includes("no judges"), t.slice(0, 300));
 });
+await check("no false alarm: High School has no projects, so 'no judges' is not flagged", async () =>
+  assert.equal(await A.page.getByText(/Nobody judges High School/).count(), 0));
 await check("Setup has no horizontal overflow on a phone", async () => {
   await A.page.setViewportSize({ width: 390, height: 844 });
   await A.page.waitForTimeout(200);
@@ -143,15 +148,10 @@ console.log("\n── Maximum judges (default 15, up to 90)");
 await A.page.locator(".nav-it", { hasText: "Setup" }).click();
 await check("the maximum shows 15 by default", async () =>
   assert.equal(await A.page.getByLabel("Maximum judges").inputValue(), "15"));
-await A.page.locator(".jn-row input[type=number]").nth(0).fill("14");
-await check("counts past the maximum are flagged before saving", () =>
-  A.page.getByText(/over the maximum of 15/).waitFor({ timeout: 3000 }));
-await A.page.getByRole("button", { name: "Save judge numbers" }).click();
-await check("…and refused, with nothing saved", async () => {
-  await A.page.getByText(/Middle School goes up to Judge 17, but the maximum is 15/).waitFor({ timeout: 3000 });
-  assert.equal(store.departments.find(d => d.id === DEPTS.D_ELEM).judge_to, 1);
+await check("the grid offers exactly judge numbers 1–15 (nothing above the maximum)", async () => {
+  assert.equal(await A.page.locator(".roster-tbl tbody tr").count(), 15);
+  assert.equal(await A.page.getByLabel("Judge 16 judges Elementary").count(), 0);
 });
-await A.page.getByRole("button", { name: "Cancel" }).first().click();
 await A.page.getByLabel("Maximum judges").fill("2");
 await A.page.getByRole("button", { name: "Save maximum" }).click();
 await check("the maximum cannot go below a number in use", () =>
@@ -161,9 +161,10 @@ await A.page.getByRole("button", { name: "Save maximum" }).click();
 await check("the maximum cannot go above 90", () => A.page.getByText(/from 1 to 90/).waitFor({ timeout: 3000 }));
 await A.page.getByLabel("Maximum judges").fill("40");
 await A.page.getByRole("button", { name: "Save maximum" }).click();
-await check("raising the maximum to 40 is saved", async () => {
+await check("raising the maximum to 40 is saved and the grid grows to 40 numbers", async () => {
   await A.page.getByText("numbers 1–40").waitFor({ timeout: 3000 });
   assert.equal(store.app_settings.find(r => r.key === "judge_max")?.value, "40");
+  assert.equal(await A.page.locator(".roster-tbl tbody tr").count(), 40);
 });
 
 console.log("\n── Switching back to per-department numbering");

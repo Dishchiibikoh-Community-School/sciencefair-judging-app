@@ -22,7 +22,6 @@ const dep = (id) => store.departments.find(d => d.id === id);
 Object.assign(dep(DEPTS.D_ELEM), { judge_from: 1, judge_to: 2, scoring_mode: "feedback" });
 Object.assign(dep(DEPTS.D_MID),  { judge_from: 1, judge_to: 2 });
 Object.assign(dep(DEPTS.D_HIGH), { judge_from: 3, judge_to: 4 });
-store.app_settings.push({ school_id: SID, key: "judge_sharing", value: "on" });
 const now = new Date().toISOString();
 store.projects.push(
   { id: "p_e", school_id: SID, num: "005", title: "Ladybug Garden", cat: "Life Science", grade: "K", locked: false, department_id: DEPTS.D_ELEM, room: "", description: "", motivation: "", created_at: now },
@@ -77,40 +76,35 @@ await A.locator("input[type=password]").fill("correct-horse");
 await A.keyboard.press("Enter");
 await A.locator(".adm-side").waitFor({ timeout: 6000 });
 await A.locator(".nav-it", { hasText: "Setup" }).click();
-await check("sharing mode is selected and rows say who shares", async () => {
-  assert.equal(await A.getByRole("radio", { name: /Departments can share judges/ }).isChecked(), true);
-  const t = await A.locator(".jn-rows").innerText();
+const cell = (n, dept) => A.getByLabel(`Judge ${n} judges ${dept}`);
+await check("department rows say who shares judges", async () => {
+  const t = await A.locator(".setup-rows").first().innerText();
   assert.match(t, /shared with Middle School/); assert.match(t, /shared with Elementary/); assert.match(t, /own judges/);
 });
-await check("'Who judges what' shows each judge's departments and workload", async () => {
-  const rows = (await A.locator(".jn-cover-row").allInnerTexts()).map(r => r.replace(/\s+/g, " ").trim());
-  assert.ok(rows.some(r => /Judge 1–2 Elementary \+ Middle School 2 projects each/.test(r)), rows.join(" | "));
-  assert.ok(rows.some(r => /Judge 3–4 High School 1 project each/.test(r)), rows.join(" | "));
+await check("the grid shows the shared judges ticked in both departments, with their workload", async () => {
+  assert.equal(await cell(1, "Elementary").isChecked(), true); assert.equal(await cell(1, "Middle School").isChecked(), true);
+  assert.equal(await cell(3, "High School").isChecked(), true); assert.equal(await cell(3, "Elementary").isChecked(), false);
+  const load = async (n) => (await A.locator(".roster-tbl tbody tr").nth(n - 1).locator("td").last().innerText()).trim();
+  assert.equal(await load(1), "2", "Judge 1: Elementary + Middle School = 2 projects");
+  assert.equal(await load(3), "1", "Judge 3: High School = 1 project");
 });
-// Widen High School down to Judge 2 → Judge2 gains High School.
-await A.getByLabel("First judge for High School").fill("2");
-await A.getByRole("button", { name: "Save judge numbers" }).click();
-await check("widening High School to 2–4 adds it to signed-in Judge2 (projects re-synced)", async () => {
+// Tick High School for signed-in Judge2 → Judge2 gains High School.
+await cell(2, "High School").check();
+await A.getByRole("button", { name: "Save judges" }).click();
+await check("ticking High School for signed-in Judge2 adds it to them (projects re-synced)", async () => {
   await A.waitForTimeout(700);
   assert.deepEqual(j2().department_ids, [DEPTS.D_ELEM, DEPTS.D_MID, DEPTS.D_HIGH]);
   assert.ok(j2().projects.includes("p_h"));
 });
-// Narrow Middle School to Judge 1 only → would take it away from Judge2 → refused.
-await A.getByLabel("Last judge for Middle School").fill("1");
-await A.getByRole("button", { name: "Save judge numbers" }).click();
+// Untick Middle School for Judge2 → would take it away from a signed-in judge → refused.
+await cell(2, "Middle School").uncheck();
+await A.getByRole("button", { name: "Save judges" }).click();
 await check("taking Middle School away from signed-in Judge2 is refused, nothing changes", async () => {
   await A.getByText(/Judge2 is signed in to Middle School and would lose it/).waitFor({ timeout: 4000 });
-  assert.equal(dep(DEPTS.D_MID).judge_to, 2);
+  assert.ok(store.judge_roster.some(r => r.judge_number === 2 && r.department_id === DEPTS.D_MID));
 });
 await A.getByRole("button", { name: "Cancel" }).first().click();
-await check("bad input is caught before saving (From > To)", async () => {
-  await A.getByLabel("First judge for High School").fill("9");
-  await A.getByLabel("Last judge for High School").fill("5");
-  await A.getByRole("button", { name: "Save judge numbers" }).click();
-  await A.getByText(/High School: enter both numbers/).waitFor({ timeout: 3000 });
-  assert.equal(dep(DEPTS.D_HIGH).judge_from, 2);
-});
-await A.getByRole("button", { name: "Cancel" }).first().click();
+await check("Cancel puts the saved ticks back", async () => assert.equal(await cell(2, "Middle School").isChecked(), true));
 
 console.log("\n── Judges tab");
 await A.locator(".nav-it", { hasText: "Judges" }).click();
@@ -130,16 +124,9 @@ await check("imported Middle School project is added to Judge2's list", async ()
   assert.ok(j2().projects.includes(pid));
 });
 
-console.log("\n── Back to the default mode");
+console.log("\n── Phone");
 await A.locator(".nav-it", { hasText: "Setup" }).click();
-await A.getByRole("radio", { name: /Each department has its own judges/ }).click();
-await check("default mode warns that departments currently share judges", async () => {
-  await A.getByText(/Some departments currently share judges/).waitFor({ timeout: 4000 });
-  assert.equal(store.app_settings.find(r => r.key === "judge_sharing").value, "off");
-});
-await check("Setup has no horizontal overflow on a phone (sharing editor)", async () => {
-  await A.getByRole("radio", { name: /Departments can share judges/ }).click();
-  await A.getByText("Who judges what").waitFor({ timeout: 4000 });
+await check("Setup has no horizontal page overflow on a phone (the grid scrolls inside its box)", async () => {
   await A.setViewportSize({ width: 390, height: 844 });
   await A.waitForTimeout(250);
   const over = await A.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

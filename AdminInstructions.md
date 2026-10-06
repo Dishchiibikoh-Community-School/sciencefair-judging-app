@@ -146,72 +146,56 @@ and a judge can always type their own instead.
 > **⚠️ Set this before judging starts.** Once a department has scores the app refuses to change its
 > mode, because those scores would stop counting but stay in the database.
 
-#### Judge numbers — one list for the whole school (default)
+#### Judges — the judge grid (Setup tab)
 
-Every judge gets **one number for the whole school**, and the number decides their department.
-On the **Judge numbers** card, type how many judges each department needs and press **Save judge
-numbers**. Numbers are handed out in department order:
+Every judge gets **one number for the whole school**. The **Judges** card is a grid: one row per judge
+number, one column per department. **Tick the departments each number judges** and press
+**Save judges**.
 
-| Department | Judges | Numbers |
-|---|---|---|
-| PreK | 2 | Judge 1–2 |
-| K-2 | 2 | Judge 3–4 |
-| 3-5 | 3 | Judge 5–7 |
-| 6-8 | 4 | Judge 8–11 |
+```
+            PreK   K-5   6-8   9-12  SPED   Projects
+Judge 1      ☑     ☑     ☐     ☐     ☐        10
+Judge 2      ☑     ☐     ☐     ☐     ☑         5
+Judge 5      ☑     ☐     ☐     ☐     ☐         2
+```
 
-- A judge types **only their number** and the invite code. The sign-in screen shows their
-  department back to them ("✓ Judge 9 · 6-8") — they can no longer pick the wrong department.
-- Each number exists **once** in the school. A second person typing the same number is refused.
-- A department set to **0** takes no judges.
-- **You can change the list after judges have signed in**, as long as each of them keeps a number
-  inside their own department. If not, Save is refused and names the judge in the way — remove
-  them on the Judges tab first if they signed in by mistake.
-- New departments are numbered after the last one automatically; adjust the counts afterwards.
+- **Any pattern works:** a department can use numbers 1, 2, 5, 8 — not just a block — and one judge
+  can cover several departments (tick them all). Judges type only their number and the invite code;
+  the sign-in screen shows their department(s), e.g. *"✓ Judge 2 · PreK + SPED"*.
+- **Name (private):** an optional note of who has each number (*"Ms. Rabah"*). Only your school's
+  admins can see it — never judges, never the public.
+- **Projects** column: how many projects each judge will score (≈ = estimate until you save). Aim for
+  no more than ~20 (about 5 minutes per scored project).
+- **Maximum judges** (above the grid): 15 by default, up to 90. The grid shows numbers up to it; to
+  lower it, untick the higher numbers first.
+- Warnings: a department with projects but **nobody ticked**; a department that needs more judges than
+  are ticked.
+- **After judges sign in** you can tick MORE departments for them (their list updates). Unticking a
+  signed-in judge's department is refused — remove that judge on the Judges tab first.
+- Each department row above shows its numbers and whether they are shared (*"Judges 1–3 · shared
+  with K-5"*); click it to jump to the grid.
 
-#### Maximum judges (default 15, up to 90)
+#### Judges per project (big departments)
 
-At the top of the Judge numbers card, **Maximum judges** sets the highest judge number the school
-uses — **15 by default**, raise it up to **90**. Department counts (or ranges) cannot go past it, and
-nobody can sign in with a higher number. To lower it, first lower the departments that use the higher
-numbers. Schools that already had more numbers keep their current size until you change it.
+By default **every judge scores every project** in their department. For a big department (e.g. 6-8
+with 31 projects) choose **"3 judges per project"** under its column in the grid:
 
-> **Testing tip:** a device stays signed in as the last judge who used it — the project list shows
-> who (e.g. *"👤 Judge15 · PreK"*). Press **Sign Out** before trying another judge number on the same
-> device, or you will just see the earlier judge's projects again.
+- Each project is scored by **3 different judges**, and the app **shares the projects out evenly**
+  (with 6 judges, about 16 each instead of 31). Judges see only the projects assigned to them.
+- A **project added later** gets its 3 judges automatically — nobody else's list changes.
+- **Locked once the department has scores** (same as its rubric).
+- Every project in the department is still ranked on the same rubric; the Alerts tab still flags a
+  judge far from a project's average.
 
-#### Option: departments can share judges
-
-With only a few judges (say 15 for six departments), one judge often has to cover several departments.
-On the Judge numbers card choose **"Departments can share judges"**. Each department then gets a
-**From – To** range, and ranges may overlap:
-
-| Department | Judges | Means |
-|---|---|---|
-| PreK | Judge 1–3 | Judges 1, 2 and 3 judge PreK **and** K-2 |
-| K-2 | Judge 1–3 | (same range = shared) |
-| 3-5 | Judge 4–7 | Judges 4–7 judge 3-5 **and** SPED |
-| SPED | Judge 4–7 | |
-| 6-8 | Judge 8–12 | own judges |
-| 9-12 | Judge 13–15 | own judges |
-
-- A shared judge signs in with their number as usual and sees **"✓ Judge 2 · PreK + K-2"**. Their
-  project list has a heading per department; comment-only projects show the comment form, scored
-  ones the rubric.
-- **Who judges what** (under the ranges) lists each judge's departments and how many projects that
-  is — check nobody has far too many (about 5 minutes per scored project).
-- A department with projects but no judge numbers is flagged.
-- **Whole departments only.** Every project in a department is scored by all of its judges, so the
-  averages stay comparable. You cannot give a judge only some of a department's projects.
-- **After judges sign in:** widening a range adds that department to them (their list updates);
-  narrowing it so a signed-in judge would lose a department is refused — remove that judge first.
-- Switching back to **"Each department has its own judges"** shows a warning while ranges still
-  overlap; saving counts there gives every department its own numbers again.
+**Event day — a judge did not come:** Judges tab → the department's **Panels** card shows how many
+judges have signed in and who has not. Press **⚖ Rebalance**: their **unscored** projects move to the
+judges who are there. Scored work never moves. If too few judges are present, the card says how many
+projects are still short.
 
 **Old style — numbers restart in each department.** Choose *"Numbers restart in each department"*
-on the same card if you really want it: each department then has its own Judge1, Judge2…, judges
-pick their department when signing in, and each department row gets a **Max judges** box (it locks
-once that department's first judge signs in). Not recommended: "Judge1" then means several people,
-and a judge who taps the wrong department can only be fixed by removing them.
+above the grid if you really want it: each department then has its own Judge1, Judge2…, judges pick
+their department when signing in, and each department row gets a **Max judges** box. Not
+recommended: "Judge1" then means several people, and "judges per project" does not apply.
 
 #### Project codes (e.g. PK-LS-001)
 
@@ -363,6 +347,11 @@ Each department shows its own section with:
 Unscored projects (no reviews yet) appear below a divider at reduced opacity.
 
 ### Judges Tab — Per-Judge Status
+
+**Panels** (departments set to "N judges per project"): one card per department showing how many
+judges have signed in, who has not, and how many projects are short of judges. **Show assignments**
+lists every project with its judge numbers (✓ = already scored). **⚖ Rebalance** moves unscored work
+from judges who have not signed in to those who have.
 
 Judges are grouped by department with a section header for each.
 

@@ -110,7 +110,8 @@ for (const round of [1, 2]) {
   await db.exec(mig("migration-2026-10h-shared-judges.sql"));
   await db.exec(mig("migration-2026-10i-judge-max.sql"));
   await db.exec(mig("migration-2026-10j-department-rubrics.sql"));
-  ok(`migrations 2026-10 … 10j applied (round ${round} — re-runnable)`);
+  await db.exec(mig("migration-2026-10k-judge-roster-and-panels.sql"));
+  ok(`migrations 2026-10 … 10k applied (round ${round} — re-runnable)`);
 }
 
 // ── PART 1: names are private ──
@@ -481,6 +482,8 @@ await db.exec(`INSERT INTO schools (id, name, slug, invite_code, admin_pin) VALU
 await db.exec(mig("migration-2026-10g-school-judge-numbers.sql"));
 await db.exec(mig("migration-2026-10h-shared-judges.sql"));
 await db.exec(mig("migration-2026-10i-judge-max.sql"));
+await db.exec(mig("migration-2026-10j-department-rubrics.sql"));
+await db.exec(mig("migration-2026-10k-judge-roster-and-panels.sql"));
 assert.deepEqual(await ranges(S3), { "A": "1-15", "B": "16-19" });
 ok("judge numbers: backfill numbers an existing school's departments in their order, sized by max judges");
 
@@ -512,6 +515,8 @@ await as("authenticated", ADMIN, SJN, [S2, R([XMS, 5, 9])]);
 await db.exec(mig("migration-2026-10g-school-judge-numbers.sql"));
 await db.exec(mig("migration-2026-10h-shared-judges.sql"));
 await db.exec(mig("migration-2026-10i-judge-max.sql"));
+await db.exec(mig("migration-2026-10j-department-rubrics.sql"));
+await db.exec(mig("migration-2026-10k-judge-roster-and-panels.sql"));
 assert.deepEqual(await ranges(S2), { "PreK": "1-1", "K-2": "2-4", "6-8": "5-9" });
 ok("judge numbers: re-running the migration never overwrites the admin's list");
 
@@ -591,6 +596,8 @@ await db.exec(`INSERT INTO judges (id, school_id, alias, projects, department_id
   VALUES ('j_old', '${S4}', 'Judge4', '[]', '${Y35}', '[]')`);
 await db.exec(mig("migration-2026-10h-shared-judges.sql"));
 await db.exec(mig("migration-2026-10i-judge-max.sql"));
+await db.exec(mig("migration-2026-10j-department-rubrics.sql"));
+await db.exec(mig("migration-2026-10k-judge-roster-and-panels.sql"));
 assert.deepEqual((await deptsOf("Judge4")).department_ids, [Y35]);
 ok("sharing: a pre-2026-10h judge row is backfilled to department_ids = [department_id]");
 
@@ -701,5 +708,150 @@ ok("rubrics: judges (anon) can read each department's rubric_id");
 await db.exec(`DELETE FROM scores WHERE school_id = '${S6}'; DELETE FROM judges WHERE school_id = '${S6}'; DELETE FROM schools WHERE id = '${S6}'`);
 assert.equal((await db.query("SELECT count(*)::int n FROM rubrics WHERE school_id=$1", [S6])).rows[0].n, 0);
 ok("rubrics: deleting a school still cascades through its rubrics");
+
+// ── PART 9: judge roster grid + "N judges per project" panels (migration 2026-10k) ──
+const S7 = "77777777-7777-7777-7777-777777777777";
+const G = (n) => `d7000000-0000-0000-0000-00000000000${n}`;
+await db.exec(`
+  INSERT INTO schools (id, name, slug, invite_code, admin_pin) VALUES ('${S7}', 'Seven', 'seven', 'CODE7', '4821');
+  INSERT INTO school_admins (school_id, user_id) VALUES ('${S7}', '${ADMIN}');
+  INSERT INTO departments (id, school_id, name, max_judges, ord) VALUES
+    ('${G(1)}', '${S7}', 'Alpha', 3, 0), ('${G(2)}', '${S7}', 'Beta', 3, 1), ('${G(3)}', '${S7}', 'Gamma', 3, 2);
+`);
+const roster = async (sid) => (await db.query(
+  "SELECT r.judge_number n, d.name FROM judge_roster r JOIN departments d ON d.id = r.department_id WHERE r.school_id=$1 ORDER BY 1, d.ord", [sid])).rows
+  .map(r => `${r.n}:${r.name}`);
+assert.deepEqual(await roster(S7), ["1:Alpha","2:Alpha","3:Alpha","4:Beta","5:Beta","6:Beta","7:Gamma","8:Gamma","9:Gamma"]);
+ok("roster: new departments get their default block of numbers in the roster too (1-3, 4-6, 7-9)");
+
+const SJR = "SELECT set_judge_roster($1, $2::jsonb)";
+const RG = (...xs) => JSON.stringify(xs.map(([n, ...ds]) => ({ number: n, department_ids: ds })));
+await fails("anon", "", SJR, /Not authorised/, "set_judge_roster: anon refused", [S7, RG([1, G(1)])]);
+await fails("authenticated", OTHER, SJR, /Not authorised/, "set_judge_roster: another school's admin refused", [S7, RG([1, G(1)])]);
+await fails("authenticated", ADMIN, "INSERT INTO judge_roster (school_id, judge_number, department_id) VALUES ($1, 50, $2)",
+  /row-level security/, "roster: even an admin cannot write the table directly (RPC only)", [S7, G(1)]);
+// Any pattern: Alpha = {1, 2, 5, 8} (not a range), Judge 5 shared by Alpha + Gamma.
+await as("authenticated", ADMIN, SJR, [S7, RG([1, G(1), G(2)], [2, G(1)], [5, G(1), G(3)], [8, G(1), G(2)], [9, G(3)])]);
+assert.deepEqual(await roster(S7), ["1:Alpha","1:Beta","2:Alpha","5:Alpha","5:Gamma","8:Alpha","8:Beta","9:Gamma"]);
+ok("roster: any pattern saves — Alpha judged by 1, 2, 5 and 8 (not a range)");
+const R7 = (n, hint = G(2)) => as("anon", "", RJ, [S7, hint, `Judge${n}`, "CODE7"]);
+const j5 = (await R7(5)).rows[0].j;
+assert.deepEqual(j5.department_ids, [G(1), G(3)]); assert.equal(j5.department_id, G(1));
+ok("roster: Judge5 covers Alpha + Gamma, straight from the grid");
+await fails("anon", "", RJ, /not on this school's judge list/, "roster: a number nobody ticked cannot sign in", [S7, G(1), "Judge3", "CODE7"]);
+await fails("authenticated", ADMIN, SJR, /outside 1–15/, "roster: a number above the maximum is refused", [S7, RG([16, G(1)])]);
+await fails("authenticated", ADMIN, SJR, /Judge5 is signed in to Gamma and would lose it/,
+  "roster: un-ticking a signed-in judge's department is refused", [S7, RG([1, G(1)], [5, G(1)])]);
+assert.ok((await roster(S7)).includes("5:Gamma"));
+ok("roster: a refused save changes nothing");
+await as("authenticated", ADMIN, SJR, [S7, RG([1, G(1), G(2)], [2, G(1)], [5, G(1), G(2), G(3)], [8, G(1), G(2)], [9, G(3)])]);
+assert.deepEqual((await db.query("SELECT department_ids FROM judges WHERE school_id=$1 AND alias='Judge5'", [S7])).rows[0].department_ids, [G(1), G(2), G(3)]);
+ok("roster: ticking another department for a signed-in judge adds it to them");
+await fails("authenticated", ADMIN, "SELECT set_judge_max($1, 4)", /already go up to 9 \(Gamma\)/, "set_judge_max: checks the roster's highest number", [S7]);
+
+// Private names
+await as("authenticated", ADMIN, "INSERT INTO judge_labels (school_id, judge_number, label) VALUES ($1, 5, 'Ms. Rabah')", [S7]);
+assert.equal((await as("authenticated", ADMIN, "SELECT label FROM judge_labels WHERE school_id=$1", [S7])).rows[0].label, "Ms. Rabah");
+ok("labels: an admin can name judge numbers");
+await fails("anon", "", "SELECT label FROM judge_labels", /permission denied/, "labels: anon cannot read judge names at all");
+assert.equal((await as("authenticated", OTHER, "SELECT label FROM judge_labels WHERE school_id=$1", [S7])).rows.length, 0);
+ok("labels: another school's admin sees none of them");
+await fails("anon", "", "INSERT INTO judge_labels (school_id, judge_number, label) VALUES ($1, 1, 'x')", /permission denied/, "labels: anon cannot write", [S7]);
+
+// ── Panels: Panel dept, 4 judges, 7 projects, 3 judges per project ──
+const PD = G(4);
+await as("authenticated", ADMIN, `INSERT INTO departments (id, school_id, name, max_judges, ord) VALUES ('${PD}', '${S7}', 'Panel', 1, 3)`);
+await as("authenticated", ADMIN, `INSERT INTO projects (id, school_id, num, title, cat, grade, department_id) VALUES
+  ('q1','${S7}','101','P1','Life Science','7','${PD}'), ('q2','${S7}','102','P2','Life Science','7','${PD}'),
+  ('q3','${S7}','103','P3','Life Science','7','${PD}'), ('q4','${S7}','104','P4','Life Science','7','${PD}'),
+  ('q5','${S7}','105','P5','Life Science','7','${PD}'), ('q6','${S7}','106','P6','Life Science','7','${PD}'),
+  ('q7','${S7}','107','P7','Life Science','7','${PD}')`);
+await as("authenticated", ADMIN, SJR, [S7, RG([1, G(1), G(2)], [2, G(1)], [5, G(1), G(2), G(3)], [8, G(1), G(2)], [9, G(3)],
+  [11, PD], [12, PD], [13, PD], [14, PD])]);
+const pj = async () => (await db.query("SELECT project_id p, judge_number n FROM project_judges WHERE school_id=$1 ORDER BY 1, 2", [S7])).rows;
+const SPP = "SELECT set_judges_per_project($1, $2, $3) r";
+await fails("anon", "", SPP, /Not authorised/, "panels: anon cannot set judges per project", [S7, PD, 3]);
+const res = (await as("authenticated", ADMIN, SPP, [S7, PD, 3])).rows[0].r;
+assert.equal(res.short, 0);
+const a1 = await pj();
+const perProj = {}, perSeat = {};
+for (const r of a1) { perProj[r.p] = (perProj[r.p] || 0) + 1; perSeat[r.n] = (perSeat[r.n] || 0) + 1; }
+assert.deepEqual(Object.values(perProj), [3,3,3,3,3,3,3]);
+const loads = Object.values(perSeat);
+assert.equal(loads.reduce((a, b) => a + b, 0), 21); assert.ok(Math.max(...loads) - Math.min(...loads) <= 1, JSON.stringify(perSeat));
+ok("panels: 3 judges per project → every project has 3 different judges, loads balanced (5-6 each of 4)");
+const j11 = (await R7(11, PD)).rows[0].j;
+assert.deepEqual([...j11.projects].sort(), a1.filter(r => r.n === 11).map(r => r.p).sort());
+ok("panels: Judge11 signs in and gets ONLY their assigned projects");
+assert.equal((await db.query("SELECT projects FROM judges WHERE school_id=$1 AND alias='Judge5'", [S7])).rows[0].projects.length >= 0, true);
+
+// Judge11 scores one of theirs; a rebuild never takes it away.
+const scoredP = j11.projects[0];
+await as("anon", "", UPSERT_SCORE, [S7, j11.id, scoredP, JSON.stringify({ x: 3 }), ""]);
+await as("authenticated", ADMIN, "SELECT assign_panels($1, $2, 'rebuild')", [S7, PD]);
+assert.ok((await pj()).some(r => r.p === scoredP && r.n === 11));
+ok("panels: rebuild keeps every scored assignment");
+
+// A late project is filled in without reshuffling anyone.
+const before = JSON.stringify((await pj()).filter(r => r.p !== "q8"));
+await as("authenticated", ADMIN, `INSERT INTO projects (id, school_id, num, title, cat, grade, department_id) VALUES ('q8','${S7}','108','P8','Life Science','7','${PD}')`);
+await as("authenticated", ADMIN, "SELECT sync_judge_projects($1, $2::uuid[])", [S7, `{${PD}}`]);
+const after = await pj();
+assert.equal(after.filter(r => r.p === "q8").length, 3);
+assert.equal(JSON.stringify(after.filter(r => r.p !== "q8")), before);
+ok("panels: a late project gets 3 judges and nobody else's list changes");
+const j11now = (await db.query("SELECT projects FROM judges WHERE school_id=$1 AND alias='Judge11'", [S7])).rows[0].projects;
+assert.deepEqual([...j11now].sort(), after.filter(r => r.n === 11).map(r => r.p).sort());
+ok("panels: signed-in judges' lists are re-synced");
+
+// No-shows: only 11 and 12 signed in → rebalance moves unscored work off 13 and 14.
+const j12 = (await R7(12, PD)).rows[0].j;
+await fails("authenticated", OTHER, "SELECT assign_panels($1, $2, 'rebalance')", /Not authorised/, "panels: another school's admin cannot rebalance", [S7, PD]);
+const rb = (await as("authenticated", ADMIN, "SELECT assign_panels($1, $2, 'rebalance') r", [S7, PD])).rows[0].r;
+const afterRb = await pj();
+assert.ok(afterRb.every(r => r.n === 11 || r.n === 12), JSON.stringify(afterRb.filter(r => r.n > 12)));
+assert.ok(afterRb.some(r => r.p === scoredP && r.n === 11));
+assert.equal(rb.short, 8, "with only 2 judges present every project is short of 3");
+ok("panels: rebalance moves unscored work from absent judges to present ones and reports the shortfall");
+{
+  const keep = JSON.stringify(await pj());
+  await as("authenticated", ADMIN, `INSERT INTO projects (id, school_id, num, title, cat, grade, department_id) VALUES ('q9','${S7}','109','P9','Life Science','7','${PD}')`);
+  await as("authenticated", ADMIN, "SELECT sync_judge_projects($1, $2::uuid[])", [S7, `{${PD}}`]);
+  const now9 = await pj();
+  assert.equal(JSON.stringify(now9.filter(r => r.p !== "q9")), keep, "a late project must not top up projects left short by a rebalance");
+  assert.equal(now9.filter(r => r.p === "q9").length, 3);
+  await as("authenticated", ADMIN, "DELETE FROM projects WHERE school_id=$1 AND id='q9'", [S7]);
+  ok("panels: after a rebalance, a late project gets judges WITHOUT handing work back to absent judges");
+}
+assert.ok((await db.query("SELECT projects FROM judges WHERE school_id=$1 AND alias='Judge12'", [S7])).rows[0].projects.length > 0);
+
+// Guard: no change once the department has scores.
+await fails("authenticated", ADMIN, SPP, /Panel already has scores/, "panels: judges-per-project locks once the department has scores", [S7, PD, 2]);
+// Removing a project cascades its assignments.
+await as("authenticated", ADMIN, "DELETE FROM projects WHERE school_id=$1 AND id='q8'", [S7]);
+assert.equal((await pj()).filter(r => r.p === "q8").length, 0);
+ok("panels: deleting a project deletes its assignments");
+await fails("anon", "", "INSERT INTO project_judges (school_id, project_id, judge_number) VALUES ($1, 'q1', 99)", /row-level security/,
+  "panels: assignments cannot be written directly", [S7]);
+
+// Back to "every judge scores every project" (fresh department, no scores).
+const PD2 = G(5);
+await as("authenticated", ADMIN, `INSERT INTO departments (id, school_id, name, max_judges, ord) VALUES ('${PD2}', '${S7}', 'Panel2', 1, 4)`);
+await as("authenticated", ADMIN, `INSERT INTO projects (id, school_id, num, title, cat, grade, department_id) VALUES
+  ('r1','${S7}','201','R1','Life Science','9','${PD2}'), ('r2','${S7}','202','R2','Life Science','9','${PD2}')`);
+const rosterNow = (await db.query("SELECT judge_number n, array_agg(department_id::text) ds FROM judge_roster WHERE school_id=$1 GROUP BY 1", [S7])).rows;
+await as("authenticated", ADMIN, SJR, [S7, JSON.stringify(rosterNow.map(r => ({ number: r.n, department_ids: r.n === 12 ? [...r.ds, PD2] : r.ds })))]);
+await as("authenticated", ADMIN, SPP, [S7, PD2, 1]);
+assert.equal((await pj()).filter(r => r.p.startsWith("r")).length, 2);
+await as("authenticated", ADMIN, SPP, [S7, PD2, null]);
+assert.equal((await pj()).filter(r => r.p.startsWith("r")).length, 0);
+const j12p = (await db.query("SELECT projects FROM judges WHERE school_id=$1 AND alias='Judge12'", [S7])).rows[0].projects;
+assert.ok(j12p.includes("r1") && j12p.includes("r2"));
+ok("panels: clearing judges-per-project goes back to every judge scoring every project");
+
+// The old range editor (cached app) still works — it now writes the roster.
+await as("authenticated", ADMIN, "SELECT set_judge_numbers($1, $2::jsonb)", [S7, JSON.stringify([{ department_id: G(3), from: 5, to: 9 }])]);
+assert.ok((await roster(S7)).filter(x => x.endsWith(":Gamma")).map(x => +x.split(":")[0]).join() === "5,6,7,8,9");
+ok("compat: set_judge_numbers (old range editor) writes the roster");
 
 console.log(`\nALL ${pass} CHECKS PASSED`);

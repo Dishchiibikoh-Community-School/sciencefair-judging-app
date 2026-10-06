@@ -68,6 +68,46 @@ function matches(row, params) {
 }
 
 export function installMock(page, store, log) {
+  // ── 2026-10k roster / panels, mirrored from the SQL ──
+  store.judge_roster = store.judge_roster || [];
+  store.project_judges = store.project_judges || [];
+  const roster = () => store.judge_roster;
+  const byOrd = () => [...store.departments].sort((a, b) => a.ord - b.ord);
+  const rosterDepts = (n) => byOrd().filter(d => roster().some(r => r.judge_number === n && r.department_id === d.id));
+  const seatsOf = (deptId) => roster().filter(r => r.department_id === deptId).map(r => r.judge_number).sort((a, b) => a - b);
+  const seatScored = (pid, n) => store.scores.some(sc => sc.project_id === pid && store.judges.some(j => j.id === sc.judge_id && j.alias === `Judge${n}`));
+  const judgeProjects = (n, deptIds) => store.projects.filter(p => deptIds.includes(p.department_id)).filter(p => {
+    const d = store.departments.find(x => x.id === p.department_id);
+    return !d?.judges_per_project || store.project_judges.some(x => x.project_id === p.id && x.judge_number === n);
+  }).map(p => p.id);
+  const shortOf = (d) => store.projects.filter(p => p.department_id === d.id)
+    .filter(p => store.project_judges.filter(x => x.project_id === p.id).length < d.judges_per_project).length;
+  const fillPanels = (deptId, seats, onlyEmpty = false) => {
+    const d = store.departments.find(x => x.id === deptId);
+    if (!d?.judges_per_project) return;
+    const inDept = (pid) => store.projects.find(pp => pp.id === pid)?.department_id === deptId;
+    store.project_judges = store.project_judges.filter(x => !inDept(x.project_id) || seats.includes(x.judge_number) || seatScored(x.project_id, x.judge_number));
+    const load = (n) => store.project_judges.filter(x => x.judge_number === n && inDept(x.project_id)).length;
+    store.projects.filter(p => p.department_id === deptId).sort((a, b) => String(a.num).localeCompare(String(b.num))).forEach((p, i) => {
+      if (onlyEmpty && store.project_judges.some(x => x.project_id === p.id)) return;
+      while (store.project_judges.filter(x => x.project_id === p.id).length < d.judges_per_project) {
+        const pick = seats.filter(n => !store.project_judges.some(x => x.project_id === p.id && x.judge_number === n))
+          .sort((a, b) => load(a) - load(b) || ((seats.indexOf(a) - i) % seats.length + seats.length) % seats.length - ((seats.indexOf(b) - i) % seats.length + seats.length) % seats.length)[0];
+        if (pick == null) break;
+        store.project_judges.push({ school_id: SID, project_id: p.id, judge_number: pick });
+      }
+    });
+  };
+  const resync = () => {
+    if (!roster().length) return;
+    for (const j of store.judges) {
+      const n = parseInt(j.alias.slice(5)); const ids = rosterDepts(n).map(d => d.id);
+      if (!ids.length) continue;
+      j.department_ids = ids; if (!ids.includes(j.department_id)) j.department_id = ids[0];
+      j.projects = judgeProjects(n, ids);
+    }
+  };
+
   const json = (route, status, body, headers = {}) =>
     route.fulfill({ status, contentType: "application/json", headers: { "access-control-allow-origin": "*", ...headers },
       body: body === undefined ? "" : JSON.stringify(body) });
@@ -121,23 +161,82 @@ export function installMock(page, store, log) {
         // Mirrors migrations 2026-10g/10h: school-wide numbering when departments carry judge
         // numbers (unless the school opted back into per-department numbering); a number may
         // fall in several overlapping ranges → the judge covers all of those departments.
-        const school = store.departments.some(d => d.judge_from != null)
+        const school = (store.departments.some(d => d.judge_from != null) || roster().length > 0)
           && !store.app_settings.some(r => r.key === "judge_numbering" && r.value === "department");
         let deptIds = [body.p_department_id];
         if (school) {
           const n = /^Judge\d+$/.test(body.p_alias) ? parseInt(body.p_alias.slice(5)) : null;
-          const ds = [...store.departments].sort((a, b) => a.ord - b.ord)
+          const ds = roster().length ? rosterDepts(n) : [...store.departments].sort((a, b) => a.ord - b.ord)
             .filter(x => x.judge_from != null && n >= x.judge_from && n <= x.judge_to);
           if (!ds.length) return json(route, 400, { code: "P0001", message: `Judge ${n} is not on this school's judge list. Check your number with the coordinator.` });
           if (store.judges.some(j => j.alias === body.p_alias))
             return json(route, 400, { code: "P0001", message: `${body.p_alias} is already signed in. Ask the admin to approve a device transfer.` });
           deptIds = ds.map(d => d.id);
         }
+        const num = /^Judge\d+$/.test(body.p_alias) ? parseInt(body.p_alias.slice(5)) : null;
         const row = { id: "j_" + Math.random().toString(36).slice(2, 8), school_id: SID, alias: body.p_alias,
           department_id: deptIds[0], department_ids: deptIds, joined_at: new Date().toISOString(),
-          projects: store.projects.filter(p => deptIds.includes(p.department_id)).map(p => p.id) };
+          projects: school && roster().length ? judgeProjects(num, deptIds)
+            : store.projects.filter(p => deptIds.includes(p.department_id)).map(p => p.id) };
         store.judges.push(row);
         return json(route, 200, row);
+      }
+      if (fn === "set_judge_roster") {
+        if (!isAdmin) return json(route, 400, { code: "P0001", message: "Not authorised" });
+        const max = parseInt(store.app_settings.find(r => r.key === "judge_max")?.value || "15", 10);
+        const next = [];
+        for (const e of body.p_roster) for (const d of e.department_ids || []) next.push({ school_id: SID, judge_number: e.number, department_id: d });
+        const over = next.find(r => r.judge_number > max);
+        if (over) return json(route, 400, { code: "P0001", message: `Judge ${over.judge_number} is outside 1–${max} (the maximum). Raise the maximum (up to 90) first.` });
+        for (const j of store.judges) {
+          const n = parseInt(j.alias.slice(5));
+          const lost = (j.department_ids?.length ? j.department_ids : [j.department_id])
+            .find(d => !next.some(r => r.judge_number === n && r.department_id === d));
+          if (lost) { const dn = store.departments.find(d => d.id === lost)?.name;
+            return json(route, 400, { code: "P0001", message: `${j.alias} is signed in to ${dn} and would lose it. Remove that judge on the Judges tab first, or keep them ticked for ${dn}.` }); }
+        }
+        store.judge_roster = next;
+        for (const d of store.departments) {
+          const ns = next.filter(r => r.department_id === d.id).map(r => r.judge_number);
+          d.judge_from = ns.length ? Math.min(...ns) : null; d.judge_to = ns.length ? Math.max(...ns) : null;
+          if (ns.length) d.max_judges = ns.length;
+          if (d.judges_per_project) fillPanels(d.id, seatsOf(d.id));
+        }
+        resync();
+        return json(route, 200, null);
+      }
+      if (fn === "set_judges_per_project") {
+        if (!isAdmin) return json(route, 400, { code: "P0001", message: "Not authorised" });
+        const d = store.departments.find(x => x.id === body.p_department_id);
+        if (store.scores.some(sc => store.projects.some(pp => pp.id === sc.project_id && pp.department_id === d.id)))
+          return json(route, 400, { code: "P0001", message: `${d.name} already has scores. Changing how it is judged now would make those scores count differently.` });
+        d.judges_per_project = body.p_n;
+        if (body.p_n == null) {
+          store.project_judges = store.project_judges.filter(x => store.projects.find(pp => pp.id === x.project_id)?.department_id !== d.id);
+          resync(); return json(route, 200, { judges_per_project: null });
+        }
+        store.project_judges = store.project_judges.filter(x => store.projects.find(pp => pp.id === x.project_id)?.department_id !== d.id || seatScored(x.project_id, x.judge_number));
+        fillPanels(d.id, seatsOf(d.id)); resync();
+        return json(route, 200, { judges_per_project: body.p_n, short: shortOf(d) });
+      }
+      if (fn === "assign_panels") {
+        if (!isAdmin) return json(route, 400, { code: "P0001", message: "Not authorised" });
+        const d = store.departments.find(x => x.id === body.p_department_id);
+        let seats = seatsOf(d.id);
+        if (body.p_mode === "rebalance") {
+          seats = seats.filter(n => store.judges.some(j => j.alias === `Judge${n}`));
+          if (!seats.length) return json(route, 400, { code: "P0001", message: "No judges have signed in to this department yet — nothing to rebalance onto." });
+        } else if (body.p_mode === "rebuild") {
+          store.project_judges = store.project_judges.filter(x => store.projects.find(pp => pp.id === x.project_id)?.department_id !== d.id || seatScored(x.project_id, x.judge_number));
+        }
+        fillPanels(d.id, seats); resync();
+        return json(route, 200, { judges_per_project: d.judges_per_project, seats: seats.length, short: shortOf(d) });
+      }
+      if (fn === "sync_judge_projects") {
+        if (!isAdmin) return json(route, 400, { code: "P0001", message: "Not authorised" });
+        for (const d of store.departments) if (d.judges_per_project && (body.p_department_ids || []).includes(d.id)) fillPanels(d.id, seatsOf(d.id), true);
+        resync();
+        return json(route, 200, null);
       }
       if (fn === "set_default_rubric") {
         // Mirrors migration 2026-10j (the score guard is covered by the DB suite).
@@ -234,6 +333,8 @@ export function installMock(page, store, log) {
     const prefer = req.headers()["prefer"] || "";
 
     // RLS that matters for these tests.
+    if (table === "judge_labels" && !isAdmin)
+      return json(route, 401, { code: "42501", message: "permission denied for table judge_labels" });
     if (table === "project_private" && !isAdmin)
       return json(route, 401, { code: "42501", message: "permission denied for table project_private" });
     if (["projects", "registration_submissions", "judges"].includes(table) && method !== "GET" && !isAdmin)
