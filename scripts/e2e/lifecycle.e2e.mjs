@@ -105,9 +105,23 @@ await check("offline: Sign Out is blocked while scores are only on the device (w
   await J.page.getByText(/only on this device\. Connect to the internet/).waitFor({ timeout: 3000 });
   assert.equal(await J.page.getByRole("button", { name: "Sign Out" }).count(), 0);
 });
+const itEvents = (ev) => store.it_logs.filter(r => r.event === ev);
+// Back online, but the server rejects the score: it must stay queued AND be logged
+// (until 2026-10-06 only successful syncs were logged, so a stuck queue was invisible).
+store.failWrites = ["scores"];
 store.offline = false; await J.ctx.setOffline(false);
 await J.page.waitForTimeout(2500);
-await check("back online: queued score syncs automatically and the queue empties", async () => {
+await check("sync rejected by the server: score stays queued and OFFLINE_SYNC_FAILED is logged", async () => {
+  const q = await J.page.evaluate(() => JSON.parse(localStorage.getItem("sf_offline_queue") || "[]"));
+  assert.equal(q.length, 1);
+  const row = itEvents("OFFLINE_SYNC_FAILED")[0];
+  assert.ok(row, "no OFFLINE_SYNC_FAILED row");
+  assert.equal(row.payload.failed, 1); assert.deepEqual(row.payload.errors, ["PGRST000"]);
+});
+store.failWrites = [];
+await J.page.getByRole("button", { name: "Sync Now" }).click();
+await J.page.waitForTimeout(1500);
+await check("back online: queued score syncs and the queue empties", async () => {
   assert.equal(scoreOf("p_old8").length, 1);
   const q = await J.page.evaluate(() => JSON.parse(localStorage.getItem("sf_offline_queue") || "[]"));
   assert.equal(q.length, 0);
@@ -115,6 +129,16 @@ await check("back online: queued score syncs automatically and the queue empties
 
 console.log("\n── Judge: validate + revise");
 await check("after 3/3 the judge is asked to validate", () => J.page.getByRole("button", { name: /Approve Results/ }).waitFor({ timeout: 4000 }));
+store.failWrites = ["validations"];
+await J.page.getByRole("button", { name: /Approve Results/ }).click();
+await check("failed validation save: judge sees 'NOT saved', stays unvalidated, failure logged", async () => {
+  await J.page.getByText(/validation was NOT saved/).waitFor({ timeout: 4000 });
+  assert.equal(store.validations.filter(v => v.judge_id !== "admin").length, 0);
+  assert.equal(await J.page.getByRole("button", { name: /Approve Results/ }).count(), 1);
+  assert.equal(itEvents("VALIDATION_SAVE_FAILED").length, 1);
+  assert.equal(itEvents("RESULTS_VALIDATED").length, 0, "success was logged for a failed save");
+});
+store.failWrites = [];
 await J.page.getByRole("button", { name: /Approve Results/ }).click();
 await check("approval saved", async () => { await J.page.waitForTimeout(400); assert.equal(store.validations.filter(v => v.approved === true && v.judge_id !== "admin").length, 1); });
 await check("validated judge can no longer open projects to re-score", async () => {
@@ -143,6 +167,12 @@ await A.page.locator('input[type=email]').fill("admin@test.edu");
 await A.page.locator('input[type=password]').fill("correct-horse");
 await A.page.keyboard.press("Enter");
 await A.page.locator(".adm-side").waitFor({ timeout: 6000 });
+await check("invite code still shown on Overview after a judge has signed in (card used to vanish)", async () => {
+  assert.ok(store.judges.length > 0);
+  await A.page.getByText("Judge sign-in details").waitFor({ timeout: 4000 });
+  await A.page.locator(".setup-share-val", { hasText: "ABC123" }).waitFor({ timeout: 4000 });
+  assert.equal(await A.page.locator(".setup-checklist").count(), 0, "setup checklist should be gone once judges exist");
+});
 await check("overview leaderboard shows the scored projects with averages", async () => {
   const t = await A.page.locator(".adm-main").innerText();
   for (const s of ["Young Plants", "Existing Volcano Study", "Eighth Grade Rockets"]) assert.ok(t.includes(s), s);
@@ -162,6 +192,16 @@ await A.page.getByRole("button", { name: /Approve Results/ }).click();
 await check("admin approval saved as judge_id 'admin'", async () => { await A.page.waitForTimeout(400); assert.ok(store.validations.some(v => v.judge_id === "admin" && v.approved)); });
 const fin = A.page.getByRole("button", { name: /Finalize Results/ });
 await check("Finalize becomes available after consensus", async () => assert.equal(await fin.isDisabled(), false));
+store.failWrites = ["app_settings"];
+await fin.click();
+await check("failed finalize: 'NOT finalized' shown, Share stays locked, failure logged", async () => {
+  await A.page.getByText(/Results were NOT finalized/).waitFor({ timeout: 4000 });
+  assert.notEqual(store.app_settings.find(r => r.key === "results_finalized")?.value, "true");
+  assert.equal(await fin.count(), 1, "finalize button vanished as if it had worked");
+  assert.equal(itEvents("FINALIZE_FAILED").length, 1);
+  assert.equal(itEvents("RESULTS_FINALIZED").length, 0, "success was logged for a failed save");
+});
+store.failWrites = [];
 await fin.click();
 await check("finalize saved", async () => { await A.page.waitForTimeout(400); assert.equal(store.app_settings.find(r => r.key === "results_finalized")?.value, "true"); });
 
@@ -251,7 +291,16 @@ await check("reset clears scores, judges, validations, share links — keeps pro
   assert.equal(store.app_settings.find(r => r.key === "results_finalized")?.value, "false");
 });
 
-const real = errs.filter(e => !/WebSocket|realtime|ERR_NAME_NOT_RESOLVED|ERR_INTERNET_DISCONNECTED|Failed to load resource|mock\.supabase\.co|Failed to fetch/i.test(e));
+console.log("\n── Diagnostics: uncaught errors reach the IT log");
+await A.page.evaluate(() => { setTimeout(() => { throw new Error("e2e-boom"); }, 0); setTimeout(() => { throw new Error("e2e-boom"); }, 5); });
+await A.page.waitForTimeout(800);
+await check("an uncaught JS error is logged once as CLIENT_ERROR (duplicates suppressed)", async () => {
+  const rows = itEvents("CLIENT_ERROR").filter(r => /e2e-boom/.test(r.detail));
+  assert.equal(rows.length, 1);
+  assert.ok(rows[0].payload.ua && typeof rows[0].payload.width === "number");
+});
+
+const real = errs.filter(e => !/e2e-boom|WebSocket|realtime|ERR_NAME_NOT_RESOLVED|ERR_INTERNET_DISCONNECTED|Failed to load resource|mock\.supabase\.co|Failed to fetch/i.test(e));
 await check("no React/JS errors in the console", async () => assert.deepEqual(real, []));
 if (real.length) console.log(real.slice(0, 8).join("\n"));
 await browser.close();

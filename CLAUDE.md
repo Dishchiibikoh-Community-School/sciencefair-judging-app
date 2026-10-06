@@ -169,7 +169,7 @@ files, no Tailwind, no CSS modules.
 
 | `adminTab` | Content |
 |---|---|
-| `overview` | Stats, per-department leaderboards, "Get started" card (invite code, school URL), Change PIN card, Lock Judging, a summary card linking to Setup |
+| `overview` | Stats, per-department leaderboards, "Get started" card (checklist only until the first judge registers; school URL + invite code **always** — it becomes "Judge sign-in details"), Change PIN card, Lock Judging, a summary card linking to Setup |
 | `setup` | **Departments** (add / rename / reorder / delete / max judges / presets) and **project categories** (add / rename / reorder / delete / restore defaults). Both are per-school data — see rule 14 |
 | `judges` | Per-judge progress grouped by department; Allow Transfer (PIN) |
 | `projects` | Add/edit/remove/lock projects, **📷 Scan forms** (AI form reader), rubric breakdown, project-list PDF |
@@ -624,7 +624,9 @@ allowJudgeTransfer(alias) / confirmTransfer()   // PIN modal, one-time ~10 min a
 executeReset()               // PIN-gated; see rule 15
 ensureSeedData(schoolId)     // re-seeds departments, rubric, baseline app_settings on first admin load
 requestSaveRubric(criteria) → saveRubric(criteria)   // impact check + confirm; save reports failure
-addLog(msg), addItLog(level, module, event, detail, payload)
+addLog(msg), addItLog(level, module, event, detail, payload, sid?)
+                             // pass sid from the mount effect / window listeners — they see the
+                             // first render, where currentSchool is still null (entry would not be saved)
 buildSnapshot()
 
 // Exports & sharing (every cell through csvCell())
@@ -702,7 +704,7 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 37. **Never write anything that makes the React Compiler bail out of `App`.** A bailout silently disables `react-hooks/purity` and `react-hooks/immutability` **for the entire file** — the findings do not move or change, they vanish, so the lint report looks *better* when you have just broken it. Two confirmed triggers:
     - `try/finally` inside `App` — use `.finally()` on a promise instead (see `flushOfflineQueue()`).
     - **Mutating a closed-over variable inside a callback**, e.g. `let ord = …; list.map(x => ({ …, ord: ord++ }))`. Use the index: `list.map((x, i) => ({ …, ord: base + i }))`. (Found 2026-10-06 while adding the Setup tab.)
-    - **How to check:** `npx eslint src/ScienceFairJudging.jsx -f json` and count findings per rule. The healthy baseline is **27 `react-hooks/purity` + 5 `react-hooks/immutability`**. If those two drop to zero you have caused a bailout — a plain error count is not enough to notice, so compare per-rule before every commit that touches `App`.
+    - **How to check:** `npx eslint src/ScienceFairJudging.jsx -f json` and count findings per rule. The healthy baseline is **26 `react-hooks/purity` + 5 `react-hooks/immutability`** (27 → 26 on 2026-10-06 when the save-then-update rewrite merged two `Date.now()` lines; same findings, not a bailout). If those two drop to zero you have caused a bailout — a plain error count is not enough to notice, so compare per-rule before every commit that touches `App`.
 38. **Discrete score buttons only** — never `<input type="range">`.
 
 **Form scanning**
@@ -781,6 +783,28 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-06 — IT log: no more false successes + new diagnostics.** No migration.
+1. **Seven handlers logged success for saves that failed** and updated the screen first:
+   judge/admin validation, final award, finalize, reopen, open/close deliberation, and the judge's
+   deliberation note. They now save first, show a red "NOT saved" message on failure, change nothing
+   on screen, and log `VALIDATION_SAVE_FAILED`, `ADMIN_VALIDATION_FAILED`, `DECISION_SAVE_FAILED`,
+   `FINALIZE_FAILED`, `REOPEN_FAILED`, `DELIBERATION_OPEN_FAILED` / `_CLOSE_FAILED`, `DELIB_NOTE_FAILED` (rule 55).
+   Reopen now also logs `RESULTS_REOPENED` (it logged nothing before).
+2. **`OFFLINE_SYNC_FAILED`** — a score the server kept rejecting retried forever with no log; only
+   successes were recorded. `SCORE_QUEUED` now says `reason: offline | server_error`.
+3. **`REALTIME_DOWN` / `REALTIME_RECONNECTED`** from the channel's `.subscribe()` status callback.
+4. **`CLIENT_ERROR`** — `window` `error` + `unhandledrejection` listeners; de-duped per message, ≤20 per session.
+5. **`INIT_TIMEOUT` / `LOAD_FAILED`** in `init()`. Note: loaders that get an *error response* (rather
+   than throwing) are still not logged individually.
+Also: the invite code vanished from the admin UI once the first judge registered (the whole
+"Get started" card was gated on `judges.length === 0`, and it is the only place the code is shown)
+— the share box now always renders. And five PIN inputs used `.replace(/D/g,"")` (rule 51 again:
+stripped the letter D, not non-digits) — now `/\D/g`.
+`addItLog` takes an optional `sid` — the mount effect and listeners close over the first render,
+where `currentSchool` is null, so their entries were never saved without it.
+Tests: mock gains `store.failWrites = [table]`; lifecycle E2E +4 checks (sync rejected, validation
+failure, finalize failure, CLIENT_ERROR). 159 browser checks total.
 
 **2026-10-06 — Phase 2: comment-only departments** (migration `2026-10f`, **not** coupled).
 PreK and K-2 are not scored at the 2026-27 fair. `departments.scoring_mode = 'feedback'` makes a

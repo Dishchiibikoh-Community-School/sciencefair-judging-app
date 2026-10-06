@@ -244,7 +244,7 @@ add projects with **+ Add Project** instead.
 - **Judge names:** Judge1 through Judge[N] — where N is the Max Judges value configured per department
   - Example: Elementary has 5 judges → Judge1–Judge5 in that department
   - Middle School also has 5 judges → Judge1–Judge5 in that department (same names are fine — different departments)
-- **Invite code:** shown on your admin Overview tab ("Get started" card). Judges type this to sign in.
+- **Invite code:** shown at the top of your admin Overview tab — in the "Get started" card before any judge signs in, then in the "Judge sign-in details" card (it stays visible for the whole event). Judges type this to sign in.
   It is checked on the server, so a wrong code now returns a clear error — and 5 wrong attempts
   lock sign-in for 5 minutes across the school.
 - **Department:** Tell each judge which department they are assigned to before the event
@@ -571,6 +571,16 @@ Click **"Revoke Link"** to expire the URL immediately.
 - `MAX_JUDGES_UPDATED` — Department max judges changed
 - `FULL_RESET` — All data cleared
 
+**Problems to watch for** (added 2026-10-06):
+- `*_FAILED` (e.g. `FINALIZE_FAILED`, `DECISION_SAVE_FAILED`, `VALIDATION_SAVE_FAILED`, `DELIB_NOTE_FAILED`) — a save did not reach the database. The person saw a red **"NOT saved"** message and nothing changed; they just retry.
+- `OFFLINE_SYNC_FAILED` — a judge's queued scores were rejected by the server when they came back online. Shows the alias, how many scores, the error code and how long the oldest has waited. The scores stay on the judge's device.
+- `SCORE_QUEUED` — now records whether the device was simply **offline** or the **server refused** the score (`reason`).
+- `REALTIME_DOWN` / `REALTIME_RECONNECTED` — the live-update connection dropped / came back. While down, dashboards do not update by themselves; refresh the page.
+- `CLIENT_ERROR` — the app crashed or hit an unexpected error on some device (judge tablets included). Includes screen width and browser. Each distinct error is logged once per session, at most 20.
+- `INIT_TIMEOUT` / `LOAD_FAILED` — the school's data took over 8 seconds or failed to load.
+
+Logs never contain student names or form text.
+
 ---
 
 ## Technical Considerations
@@ -655,6 +665,11 @@ A: Only via judges. Admin provides oversight and final award decisions, but scor
 - Check: Did judge complete all rubric fields and click Submit?
 - Check: Is internet connection stable?
 - Check: IT Logs for errors
+
+### Scenario: A red "NOT saved" / "NOT finalized" message
+- The change did not reach the database, and nothing changed — what you see is the real state
+- Check: internet connection; sign out and back in if your session may have expired
+- Then press the same button again. IT Logs shows the matching `*_FAILED` event with the error code
 
 ### Scenario: Can't finalize results
 - Check: Have ALL judges (across all departments) validated?

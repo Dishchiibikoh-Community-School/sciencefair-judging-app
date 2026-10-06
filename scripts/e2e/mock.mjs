@@ -169,6 +169,10 @@ export function installMock(page, store, log) {
     if (["projects", "registration_submissions", "judges"].includes(table) && method !== "GET" && !isAdmin)
       return json(route, 401, { code: "42501", message: `new row violates row-level security policy for table "${table}"` });
 
+    // Simulated server failure: every write to a listed table fails (tests the "NOT saved" paths).
+    if (method !== "GET" && method !== "HEAD" && (store.failWrites || []).includes(table))
+      return json(route, 503, { code: "PGRST000", message: "simulated database outage" });
+
     if (method === "GET" || method === "HEAD") {
       let out = rows.filter(r => matches(r, params));
       if (single) {

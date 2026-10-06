@@ -174,6 +174,10 @@ After scoring all projects in your department:
 - One score seems inconsistent with others
 - You have concerns about scoring fairness
 
+If you see a red **"Your validation was NOT saved"** message, nothing was recorded — check your
+internet connection and press the button again. The same applies to deliberation notes
+("Your note … was NOT saved").
+
 ### After Validation
 - Admin will see your validation status
 - You cannot change scores after validating

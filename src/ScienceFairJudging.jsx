@@ -168,7 +168,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-06c";
+const ADMIN_HELP_UPDATED = "2026-10-06e";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -250,11 +250,15 @@ const ADMIN_HELP = [
     ["A judge registered in the wrong department.", "Before any scoring: Reset All Data and have them sign in again. After scoring has started, plan departments carefully — a judge cannot move departments."],
   ]},
   { title: "Troubleshooting", icon: "🛠️", faq: [
+    ["Where is the judge invite code?", "Overview tab, at the top. Before any judge signs in it is inside the \"Get started\" card; after that the card becomes \"Judge sign-in details\" and still shows the school address and invite code with Copy buttons."],
     ["\"Email not confirmed\" when signing in.", "Click the link in the confirmation email (check spam / junk), then sign in again."],
     ["PIN entry is locked.", "5 wrong PINs lock PIN entry for 5 minutes. Wait, then try again."],
     ["The lock button says \"Lock failed — retry\".", "The change did not reach the database (often an expired sign-in). Sign out and in, then try again — judges are NOT locked until it succeeds."],
     ["\"Rubric NOT saved\".", "Nothing was changed. Your edits are still on screen — sign in again if needed and press Save Rubric again."],
-    ["Something looks wrong.", "IT Logs tab (Admin PIN) → copy the report and send it to your technical contact."],
+    ["A red message says something was \"NOT saved\" / \"NOT finalized\".", "The change did not reach the database, so nothing changed — the screen shows the real state. Check the internet (or sign out and in), then press the same button again. Applies to validations, awards, deliberation, Finalize and Reopen."],
+    ["Live updates seem frozen (judges' scores are not appearing).", "Refresh the page. IT Logs shows REALTIME_DOWN when the live connection dropped and REALTIME_RECONNECTED when it came back."],
+    ["A judge says their scores will not sync.", "IT Logs → look for OFFLINE_SYNC_FAILED with their alias. It shows how many scores are stuck and how long they have waited. The scores stay safe on their device; do NOT let them clear the browser. Send the report to your technical contact."],
+    ["Something looks wrong.", "IT Logs tab (Admin PIN) → copy the report and send it to your technical contact. App crashes on any device are recorded automatically as CLIENT_ERROR."],
   ]},
 ];
 
@@ -1189,6 +1193,10 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem("sf_offline_queue") || "[]"); } catch { return []; }
   });
   const flushingRef = useRef(false); // guards against concurrent offline-queue flushes
+  // Diagnostics. The mount effect and window error listeners close over the FIRST render,
+  // where currentSchool is still null — they pass the school id to addItLog explicitly.
+  const realtimeDownRef = useRef(false); // true after a realtime drop, so the recovery is logged once
+  const clientErrRef    = useRef({ count: 0, seen: new Set() }); // CLIENT_ERROR de-dupe + per-session cap
   const [lastSyncAt, setLastSyncAt] = useState(() => {
     try {
       const raw = localStorage.getItem("sf_last_sync_at");
@@ -1288,6 +1296,9 @@ export default function App() {
   const [showValForm,        setShowValForm]         = useState(false);
   const [valReviseErr,       setValReviseErr]        = useState("");
   const [lockErr,            setLockErr]             = useState("");
+  const [valErr,             setValErr]              = useState("");  // judge/admin validation save failed
+  const [delibErr,           setDelibErr]            = useState("");  // admin Deliberation tab save failed
+  const [delibNoteErr,       setDelibNoteErr]        = useState("");  // judge deliberation note save failed
   const [judgeSignOutAsk,    setJudgeSignOutAsk]     = useState(false);  // inline "sign out anyway?" step
   const [transferAllowances, setTransferAllowances]  = useState({}); // { [alias]: expiryTs }
 
@@ -1837,7 +1848,11 @@ export default function App() {
         setLoading(false);
         return;
       }
-      const timeout = setTimeout(() => setLoading(false), 8000);
+      const timeout = setTimeout(() => {
+        setLoading(false);
+        addItLog("WARN","SYSTEM","INIT_TIMEOUT","School data did not finish loading within 8 s — showing what is available",
+          { online: navigator.onLine, page: urlRegToken ? "register" : urlShareToken ? "results" : urlProjListToken ? "projects" : "school" }, sid);
+      }, 8000);
       // Validate registration link token if present in URL
       if (urlRegToken) {
         try {
@@ -1886,13 +1901,19 @@ export default function App() {
         loadLog(sid), loadItLogs(sid), loadShare(sid), loadSettings(sid),
         loadDelibNotes(sid), loadFinalDecisions(sid), loadValidations(sid),
         loadScoreBackups(sid), loadRubric(sid),
-      ]);
+      ]).catch(err => {
+        // A loader threw (network drop mid-load, unexpected response). Previously an
+        // unhandled rejection: the screen waited for the 8 s timeout and nothing was logged.
+        addItLog("ERROR","DB","LOAD_FAILED","Loading school data failed",
+          { error: String(err?.message || err).slice(0, 300), online: navigator.onLine }, sid);
+      });
       clearTimeout(timeout);
       setLoading(false);
     }
 
     // ── Step 4: School-scoped realtime ───────────────────────
     let channel;
+    let unmounting = false;
     const setupChannel = (sid) => {
       if (!sid) return;
       const f = (table) => `school_id=eq.${sid}`;
@@ -1950,7 +1971,20 @@ export default function App() {
             loadValidations(sid);
           }
         })
-        .subscribe();
+        .subscribe((status, err) => {
+          // Without this a dropped channel was invisible: the admin dashboard simply stopped
+          // updating. Log each drop once, and the recovery. CLOSED during unmount is expected.
+          if (status === "SUBSCRIBED") {
+            if (realtimeDownRef.current) {
+              realtimeDownRef.current = false;
+              addItLog("INFO","SYSTEM","REALTIME_RECONNECTED","Live updates reconnected", {}, sid);
+            }
+          } else if (!unmounting && !realtimeDownRef.current) {
+            realtimeDownRef.current = true;
+            addItLog("WARN","SYSTEM","REALTIME_DOWN","Live updates disconnected — screens may be stale until it reconnects",
+              { status, error: err?.message || null, online: navigator.onLine }, sid);
+          }
+        });
     };
 
     // Resolve school once, then init data + realtime together
@@ -1960,10 +1994,38 @@ export default function App() {
     });
 
     return () => {
+      unmounting = true;
       authSub.unsubscribe();
       if (channel) supabase.removeChannel(channel);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── CLIENT ERRORS → IT log ────────────────────────────────
+  // A crash on a judge's tablet used to leave no trace. Same message logged once per
+  // session, at most 20 per session, so a render loop cannot flood it_logs.
+  const errSchoolId = currentSchool?.id;
+  useEffect(() => {
+    if (!errSchoolId) return;
+    const report = (kind, message, extra) => {
+      const msg = String(message || "Unknown error").slice(0, 300);
+      const st = clientErrRef.current;
+      if (st.count >= 20 || st.seen.has(msg)) return;
+      st.seen.add(msg); st.count += 1;
+      addItLog("ERROR","SYSTEM","CLIENT_ERROR", `${kind}: ${msg}`,
+        { kind, ...extra, online: navigator.onLine, standalone: window.matchMedia?.("(display-mode: standalone)").matches || false,
+          width: window.innerWidth, ua: navigator.userAgent.slice(0, 160) }, errSchoolId);
+    };
+    const onError = e => report("error", e.message,
+      { source: (e.filename || "").split("/").pop(), line: e.lineno, col: e.colno, stack: String(e.error?.stack || "").slice(0, 600) });
+    const onRejection = e => report("unhandledrejection", e.reason?.message || e.reason,
+      { stack: String(e.reason?.stack || "").slice(0, 600) });
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    };
+  }, [errSchoolId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── INSTANT CACHE RESTORE (runs before Supabase loads) ────
   useEffect(() => {
@@ -2079,11 +2141,21 @@ export default function App() {
   async function runOfflineFlush(queue) {
     const flushedKeys = new Set();
     const failedKeys  = new Set();
+    const failErrors  = [];
     for (const item of queue) {
       const key = `${item.data.judge_id}_${item.data.project_id}`;
       flushedKeys.add(key);
       const { error } = await supabase.from("scores").upsert(item.data, { onConflict: "judge_id,project_id" });
-      if (error) failedKeys.add(key);
+      if (error) { failedKeys.add(key); failErrors.push(error.code || error.message || "unknown"); }
+    }
+    // Before this, a score the server kept REJECTING (e.g. the judge row was removed by a
+    // reset) retried forever with nothing in the log — only successes were recorded.
+    if (failedKeys.size > 0) {
+      const oldest = Math.min(...queue.map(i => i.ts || Date.now()));
+      addItLog("WARN","DB","OFFLINE_SYNC_FAILED",`${failedKeys.size} queued score(s) could not be synced — still on the device`,
+        { failed: failedKeys.size, attempted: queue.length, errors: [...new Set(failErrors)].slice(0, 5),
+          oldestWaitMin: Math.round((Date.now() - oldest) / 60000), online: navigator.onLine,
+          judgeId: judge?.id || null, alias: judge?.alias || null });
     }
     // Re-read localStorage after the async loop — submitScore may have added new items
     // while we were awaiting upserts. Keep items that either failed (need retry) or
@@ -2861,12 +2933,15 @@ export default function App() {
       .then(({ error }) => { if (error) console.warn("[activity_log] not saved:", error.message); });
   }
 
-  function addItLog(level, module, event, detail, payload = {}) {
+  // `sid` is only needed by callers that run outside a render with currentSchool set
+  // (the mount effect, realtime status, window error listeners).
+  function addItLog(level, module, event, detail, payload = {}, sid) {
     const entry = { id: itId(), ts: Date.now(), level, module, event, detail, payload };
     setItLogs(p => [entry, ...p]);
-    if (!currentSchool?.id) return;
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
     // Never call addItLog from this callback — a failing insert would loop.
-    supabase.from("it_logs").insert({ school_id: currentSchool.id, id: entry.id, level, module, event, detail, payload })
+    supabase.from("it_logs").insert({ school_id: schoolId, id: entry.id, level, module, event, detail, payload })
       .then(({ error }) => { if (error) console.warn("[it_logs] not saved:", error.message); });
   }
 
@@ -3388,7 +3463,10 @@ export default function App() {
       filtered.push({ data: payload, ts: Date.now() });
       localStorage.setItem("sf_offline_queue", JSON.stringify(filtered));
       setOfflineQueue(filtered);
-      addItLog("WARN","DB","SCORE_QUEUED","Score saved locally — will sync when online",{ judgeId:judge.id, projectId:scoringPid });
+      addItLog("WARN","DB","SCORE_QUEUED","Score saved locally — will sync when online",
+        { judgeId:judge.id, projectId:scoringPid,
+          // "offline" vs a server rejection need different fixes — record which it was.
+          reason: error ? "server_error" : "offline", error: error ? (error.code || error.message) : null });
     } else {
       const syncedAt = Date.now();
       setLastSyncAt(syncedAt);
@@ -3402,16 +3480,28 @@ export default function App() {
     setView("judge-home");
   }
 
+  // Every handler below saves FIRST and only changes the screen once the database has it
+  // (rule 55). Until 2026-10-06 they updated the screen, ignored the save's error and logged
+  // success anyway, so the IT log could say "finalized" for a save that never happened.
+  const firstErr = results => results.find(r => r?.error)?.error || null;
+  const errInfo  = e => e?.code || e?.message || "unknown";
+
   async function submitDelibNote(pid) {
     if (!deliberationOpen) return;
-    const key = `${judge.id}_${pid}`;
-    const entry = { comment: delibDraftComment, recommendation: delibDraftRec, flagged: delibDraftFlagged, submittedAt: Date.now() };
-    setDeliberationNotes(p => ({ ...p, [key]: entry }));
-    await supabase.from("deliberation_notes").upsert({
+    setDelibNoteErr("");
+    const proj = projects.find(p => p.id === pid);
+    const { error } = await supabase.from("deliberation_notes").upsert({
       school_id: currentSchool.id, judge_id: judge.id, project_id: pid,
       comment: delibDraftComment, recommendation: delibDraftRec, flagged: delibDraftFlagged,
     }, { onConflict: "judge_id,project_id" });
-    const proj = projects.find(p => p.id === pid);
+    if (error) {
+      setDelibNoteErr(`Your note for Project #${proj?.num} was NOT saved. Check your connection and try again.`);
+      addItLog("ERROR","JUDGE","DELIB_NOTE_FAILED","Could not save a deliberation note",
+        { judgeId:judge.id, alias:judge.alias, projectId:pid, error: errInfo(error) });
+      return;
+    }
+    const entry = { comment: delibDraftComment, recommendation: delibDraftRec, flagged: delibDraftFlagged, submittedAt: Date.now() };
+    setDeliberationNotes(p => ({ ...p, [`${judge.id}_${pid}`]: entry }));
     addLog(`${judge.alias} submitted deliberation note for Project #${proj.num}`);
     addItLog("INFO","JUDGE","DELIB_NOTE_SUBMITTED","Judge submitted deliberation note",
       { judgeId:judge.id, alias:judge.alias, projectId:pid, projectNum:proj.num, recommendation:delibDraftRec, flagged:delibDraftFlagged });
@@ -3419,35 +3509,53 @@ export default function App() {
   }
 
   async function openDeliberation(reason) {
-    setDeliberationOpen(true);
-    setDeliberationReason(reason);
+    setDelibErr("");
     const sid = currentSchool.id;
-    await Promise.all([
+    const error = firstErr(await Promise.all([
       supabase.from("app_settings").upsert({ school_id: sid, key: "deliberation_open",  value: "true" }),
       supabase.from("app_settings").upsert({ school_id: sid, key: "deliberation_reason", value: reason }),
-    ]);
+    ]));
+    if (error) {
+      setDelibErr("Deliberation was NOT opened — the change could not be saved. Check your connection and try again.");
+      addItLog("ERROR","ADMIN","DELIBERATION_OPEN_FAILED","Could not open deliberation",{ reason, error: errInfo(error) });
+      return;
+    }
+    setDeliberationOpen(true);
+    setDeliberationReason(reason);
     const msg = reason === "tie" ? "Deliberation triggered due to tied scores" : "Admin manually opened deliberation";
     addLog(msg);
     addItLog("INFO","ADMIN","DELIBERATION_OPENED", msg, { reason, timestamp:fmtISO(Date.now()) });
   }
   async function closeDeliberation() {
-    setDeliberationOpen(false);
-    setDeliberationReason(null);
+    setDelibErr("");
     const sid = currentSchool.id;
-    await Promise.all([
+    const error = firstErr(await Promise.all([
       supabase.from("app_settings").upsert({ school_id: sid, key: "deliberation_open",  value: "false" }),
       supabase.from("app_settings").upsert({ school_id: sid, key: "deliberation_reason", value: "" }),
-    ]);
+    ]));
+    if (error) {
+      setDelibErr("Deliberation was NOT closed — the change could not be saved. Check your connection and try again.");
+      addItLog("ERROR","ADMIN","DELIBERATION_CLOSE_FAILED","Could not close deliberation",{ error: errInfo(error) });
+      return;
+    }
+    setDeliberationOpen(false);
+    setDeliberationReason(null);
     addLog("Admin closed deliberation phase");
     addItLog("INFO","ADMIN","DELIBERATION_CLOSED","Admin closed deliberation phase",{ timestamp:fmtISO(Date.now()) });
   }
   async function submitJudgeValidation(approved) {
-    const entry = { approved, comment: valComment, validatedAt: Date.now() };
-    setJudgeValidations(p => ({ ...p, [judge.id]: entry }));
-    await supabase.from("validations").upsert(
+    setValErr("");
+    const { error } = await supabase.from("validations").upsert(
       { school_id: currentSchool.id, judge_id: judge.id, approved, comment: valComment, validated_at: new Date().toISOString() },
       { onConflict: "school_id,judge_id" }
     );
+    if (error) {
+      setValErr("Your validation was NOT saved. Check your connection and try again.");
+      addItLog("ERROR","JUDGE","VALIDATION_SAVE_FAILED","Could not save the judge's validation",
+        { judgeId:judge.id, alias:judge.alias, approved, online: navigator.onLine, error: errInfo(error) });
+      return;
+    }
+    setJudgeValidations(p => ({ ...p, [judge.id]: { approved, comment: valComment, validatedAt: Date.now() } }));
     addLog(`${judge.alias} ${approved ? "validated" : "raised a concern about"} the computed results`);
     addItLog(approved?"INFO":"WARN","JUDGE", approved?"RESULTS_VALIDATED":"RESULTS_CONCERN",
       approved ? "Judge validated computed results" : "Judge raised concern about results",
@@ -3455,12 +3563,17 @@ export default function App() {
     setValComment(""); setShowValForm(false);
   }
   async function submitAdminValidation(approved) {
-    const entry = { approved, comment: valComment, validatedAt: Date.now() };
-    setAdminValidation(entry);
-    await supabase.from("validations").upsert(
+    setValErr("");
+    const { error } = await supabase.from("validations").upsert(
       { school_id: currentSchool.id, judge_id: "admin", approved, comment: valComment, validated_at: new Date().toISOString() },
       { onConflict: "school_id,judge_id" }
     );
+    if (error) {
+      setValErr("Your validation was NOT saved. Check your connection and try again.");
+      addItLog("ERROR","ADMIN","ADMIN_VALIDATION_FAILED","Could not save the admin's validation",{ approved, error: errInfo(error) });
+      return;
+    }
+    setAdminValidation({ approved, comment: valComment, validatedAt: Date.now() });
     addLog(`Admin ${approved ? "validated" : "flagged concerns with"} the computed results`);
     addItLog(approved?"INFO":"WARN","ADMIN", approved?"ADMIN_RESULTS_VALIDATED":"ADMIN_RESULTS_CONCERN",
       approved ? "Admin validated computed results" : "Admin flagged concerns with results",
@@ -3468,29 +3581,55 @@ export default function App() {
     setValComment(""); setShowValForm(false);
   }
   async function finalizeResults() {
-    setResultsFinalized(true);
-    if (deliberationOpen) { setDeliberationOpen(false); setDeliberationReason(null); }
+    setDelibErr("");
     const sid = currentSchool.id;
-    await Promise.all([
+    const wasOpen = deliberationOpen;
+    const error = firstErr(await Promise.all([
       supabase.from("app_settings").upsert({ school_id: sid, key: "results_finalized", value: "true" }),
-      ...(deliberationOpen ? [
+      ...(wasOpen ? [
         supabase.from("app_settings").upsert({ school_id: sid, key: "deliberation_open",  value: "false" }),
         supabase.from("app_settings").upsert({ school_id: sid, key: "deliberation_reason", value: "" }),
       ] : []),
-    ]);
+    ]));
+    if (error) {
+      setDelibErr("Results were NOT finalized — the change could not be saved. Check your connection and try again.");
+      addItLog("ERROR","ADMIN","FINALIZE_FAILED","Could not finalize results",{ error: errInfo(error) });
+      return;
+    }
+    setResultsFinalized(true);
+    if (wasOpen) { setDeliberationOpen(false); setDeliberationReason(null); }
     addLog("Admin finalized results — public sharing now available");
     addItLog("INFO","ADMIN","RESULTS_FINALIZED","Admin finalized results for public sharing",{ timestamp:fmtISO(Date.now()) });
   }
+  async function reopenResults() {
+    setDelibErr("");
+    const { error } = await supabase.from("app_settings")
+      .upsert({ school_id: currentSchool?.id, key: "results_finalized", value: "false" }, { onConflict: "school_id,key" });
+    if (error) {
+      setDelibErr("Results were NOT reopened — the change could not be saved. Check your connection and try again.");
+      addItLog("ERROR","ADMIN","REOPEN_FAILED","Could not reopen finalized results",{ error: errInfo(error) });
+      return;
+    }
+    setResultsFinalized(false);
+    addLog("Admin reopened results for revision");
+    addItLog("WARN","ADMIN","RESULTS_REOPENED","Admin reopened finalized results for revision",{ timestamp:fmtISO(Date.now()) });
+  }
 
   async function saveFinalDecision(pid, award, adminNotes) {
+    setDelibErr("");
     const isFinalize = award !== "Pending";
-    const entry = { award, adminNotes, finalized: isFinalize, finalizedAt: isFinalize ? Date.now() : null };
-    setFinalDecisions(p => ({ ...p, [pid]: entry }));
-    await supabase.from("final_decisions").upsert({
+    const proj = projects.find(p => p.id === pid);
+    const { error } = await supabase.from("final_decisions").upsert({
       school_id: currentSchool.id, project_id: pid, award, admin_notes: adminNotes,
       finalized: isFinalize, finalized_at: isFinalize ? new Date().toISOString() : null,
     }, { onConflict: "school_id,project_id" });
-    const proj = projects.find(p => p.id === pid);
+    if (error) {
+      setDelibErr(`The award for Project #${proj?.num} was NOT saved. Check your connection and try again.`);
+      addItLog("ERROR","ADMIN","DECISION_SAVE_FAILED","Could not save an award decision",
+        { projectId:pid, projectNum:proj?.num, award, error: errInfo(error) });
+      return;
+    }
+    setFinalDecisions(p => ({ ...p, [pid]: { award, adminNotes, finalized: isFinalize, finalizedAt: isFinalize ? Date.now() : null } }));
     addLog(`Admin ${isFinalize ? "finalized" : "updated"} decision for Project #${proj.num}: ${award}`);
     addItLog("INFO","ADMIN", isFinalize?"DECISION_FINALIZED":"DECISION_UPDATED",
       `Admin ${isFinalize?"finalized":"updated"} award decision for project`,
@@ -4472,6 +4611,7 @@ export default function App() {
                     <textarea placeholder="Describe your concern or observation..." value={valComment} onChange={e => setValComment(e.target.value)} rows={3} />
                   </div>
                 )}
+                {valErr && <div className="err" style={{marginBottom:".75rem"}}>⚠ {valErr}</div>}
                 <div style={{display:"flex",gap:".65rem",flexWrap:"wrap"}}>
                   <button className="btn sm" style={{width:"auto",background:"var(--green)"}} onClick={() => submitJudgeValidation(true)}>
                     ✓ Approve Results
@@ -4492,6 +4632,7 @@ export default function App() {
               <p style={{fontSize:".85rem",color:"var(--dim)",marginBottom:"1rem",lineHeight:1.6}}>
                 Admin has opened deliberation. Add a recommendation and optional comment for each project to help inform the final award decision.
               </p>
+              {delibNoteErr && <div className="err" style={{marginBottom:".75rem"}}>⚠ {delibNoteErr}</div>}
               {myProj.map(proj => {
                 const noteKey = `${judge.id}_${proj.id}`;
                 const existing = deliberationNotes[noteKey];
@@ -4529,12 +4670,20 @@ export default function App() {
                     <button className="btn sm" style={{marginTop:".75rem",width:"auto"}}
                       onClick={async () => {
                         const d = delibDrafts[proj.id] || draft;
-                        const entry = { comment: d.comment, recommendation: d.rec, flagged: d.flagged||false, submittedAt: Date.now() };
-                        setDeliberationNotes(p => ({...p, [noteKey]: entry}));
-                        await supabase.from("deliberation_notes").upsert({
+                        setDelibNoteErr("");
+                        // Save first; only show it as submitted once the database has it.
+                        const { error } = await supabase.from("deliberation_notes").upsert({
                           school_id: currentSchool?.id, judge_id: judge.id, project_id: proj.id,
                           comment: d.comment, recommendation: d.rec, flagged: d.flagged||false,
                         }, { onConflict: "judge_id,project_id" });
+                        if (error) {
+                          setDelibNoteErr(`Your note for Project #${proj.num} was NOT saved. Check your connection and try again.`);
+                          addItLog("ERROR","JUDGE","DELIB_NOTE_FAILED","Could not save a deliberation note",
+                            { judgeId: judge.id, alias: judge.alias, projectId: proj.id, online: navigator.onLine, error: error.code || error.message });
+                          return;
+                        }
+                        const entry = { comment: d.comment, recommendation: d.rec, flagged: d.flagged||false, submittedAt: Date.now() };
+                        setDeliberationNotes(p => ({...p, [noteKey]: entry}));
                         addLog(`${judge.alias} submitted deliberation note for Project #${proj.num}`);
                         addItLog("INFO","JUDGE","DELIB_NOTE_SUBMITTED","Judge submitted deliberation note",
                           { judgeId: judge.id, alias: judge.alias, projectId: proj.id, projectNum: proj.num, recommendation: d.rec, flagged: d.flagged||false });
@@ -5604,12 +5753,17 @@ export default function App() {
               <div className="adm-sub">Live judging progress · Science Fair SY 2025-2026</div>
               {locked && <div className="locked-banner">🔒 Judging LOCKED — judges cannot submit scores</div>}
 
-              {/* SETUP GUIDE — visible only before the first judge registers */}
-              {judges.length === 0 && (
+              {/* SETUP GUIDE — the checklist shows only before the first judge registers; the
+                  school URL + invite code stay visible always. Until 2026-10-06 the whole card
+                  (the only place the invite code is shown) vanished with the first judge, so
+                  the admin could no longer invite the rest. */}
+              {(
                 <div className="setup-guide">
-                  <div className="setup-guide-title">🚀 Get started</div>
-                  <div className="setup-guide-sub">Complete these steps before inviting judges to your fair.</div>
-                  <div className="setup-checklist">
+                  <div className="setup-guide-title">{judges.length === 0 ? "🚀 Get started" : "🔑 Judge sign-in details"}</div>
+                  <div className="setup-guide-sub">{judges.length === 0
+                    ? "Complete these steps before inviting judges to your fair."
+                    : "Give judges this address and invite code. Keep the code private — anyone holding it can sign in as a judge."}</div>
+                  {judges.length === 0 && <div className="setup-checklist">
                     <div className="setup-item">
                       <div className={`setup-check ${projects.length > 0 ? "done" : "todo"}`}>
                         {projects.length > 0 ? "✓" : ""}
@@ -5636,7 +5790,7 @@ export default function App() {
                         Share school URL &amp; invite code with judges
                       </span>
                     </div>
-                  </div>
+                  </div>}
                   <div className="setup-share">
                     <div className="setup-share-lbl">Share with judges</div>
                     <div className="setup-share-row">
@@ -6495,9 +6649,11 @@ export default function App() {
                       <div style={{fontWeight:700,fontSize:".95rem"}}>Results are finalized</div>
                       <div style={{fontSize:".78rem",opacity:.8}}>Public sharing is now available from the Share tab.</div>
                     </div>
-                    <button className="btn danger sm" style={{width:"auto",marginLeft:"auto"}} onClick={async () => { setResultsFinalized(false); await supabase.from("app_settings").upsert({ school_id: currentSchool?.id, key: "results_finalized", value: "false" }); addLog("Admin reopened results for revision"); }}>Reopen</button>
+                    <button className="btn danger sm" style={{width:"auto",marginLeft:"auto"}} onClick={reopenResults}>Reopen</button>
                   </div>
                 )}
+
+                {delibErr && <div className="err" style={{marginBottom:"1rem"}}>⚠ {delibErr}</div>}
 
                 {/* Tie alert */}
                 {tie && !resultsFinalized && (
@@ -6573,6 +6729,7 @@ export default function App() {
                           <textarea placeholder="Describe your concern..." value={valComment} onChange={e => setValComment(e.target.value)} rows={2} />
                         </div>
                       )}
+                      {valErr && <div className="err" style={{marginBottom:".75rem"}}>⚠ {valErr}</div>}
                       <div style={{display:"flex",gap:".65rem",flexWrap:"wrap"}}>
                         <button className="btn sm" style={{width:"auto",background:"var(--green)"}} onClick={() => submitAdminValidation(true)}>✓ Approve Results</button>
                         {!showValForm
