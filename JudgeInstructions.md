@@ -81,8 +81,14 @@ Effort — or type your own in the box underneath. A comment for the students is
 welcome; they get to read it. There is no total and nothing is ranked. Pick a commendation and press
 **Submit Review**. The rest of this section does not apply to you.
 
-**If your department IS scored**, it uses one of two rubrics and the buttons look different in each.
-The app always shows the live total and the maximum on the form itself — trust that over this page.
+**If your department IS scored**, it uses the rubric your organizer chose **for that department** —
+different departments can use different rubrics, so if you judge two departments the form may change
+between them. The app always shows the live total and the maximum on the form itself — trust that over
+this page.
+
+**If the form has headings** (Project Title, Scientific Inquiry, Data and Conclusion, Presentation,
+Further Research) **and about 20 rows**, you are on the detailed 20-item form: rate every item from
+Needs improvement to Excellent (1–5 points each, 100 in total, lowest possible 20).
 
 **If the buttons show words** (Needs improvement · Fair · Good · Very Good · Excellent), you are on
 the 100-point rubric. Tap the rating that fits; the points for that section appear underneath, and

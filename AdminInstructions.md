@@ -58,7 +58,7 @@ judge device transfers. **You choose it when you register the school** — 4 to 
 | **Deliberation** | Validation workflow and award decisions |
 | **Share** | Generate live results link (after results finalized) |
 | **Score Export** | Per-judge CSV export and score backups |
-| **Rubric** | View and edit your school's scoring criteria |
+| **Rubric** | Your rubric library — create, edit, rename, delete, set the default |
 | **IT Logs** | Diagnostic terminal for troubleshooting (PIN-gated) |
 | **Help & FAQ** | How the system works, checklist, do's and don'ts, troubleshooting |
 
@@ -76,7 +76,7 @@ Run through this a few days before, not on the morning of.
 - [ ] **Enter every project/team**, each assigned to a department, with adviser and members.
 - [ ] **Print the project list** (Projects tab) and check advisers/members appear.
 - [ ] **Download Projects CSV** (Projects tab) — your own backup copy of every team. **⬆ Import projects** reads it back in if you ever need to restore.
-- [ ] **Finish the rubric** (Rubric tab) before the first judge signs in.
+- [ ] **Finish the rubrics** (Rubric tab) and **pick one for each department** (Setup) before the first judge signs in.
 - [ ] **Do a dry run:** sign in as judge number 1 on a spare tablet, score one project, confirm it shows in Overview, then **Remove** that judge on the Judges tab.
 - [ ] **Write down** the school link, invite code, and which judge number each judge gets (Overview → "Judge sign-in details" lists the numbers per department).
 - [ ] **Save a score backup** (Score Export tab) at the halfway point on event day.
@@ -112,13 +112,14 @@ A new school starts with **Elementary / Middle School / High School**, but that 
 
 > **⚠️ You cannot delete a department that still has projects or judges in it.** The app blocks it and tells you how many there are. This is deliberate: deleting it would leave those projects unassigned, and an unassigned project is scored by nobody. Move them first (Projects tab → edit a project → Department), then delete.
 
-#### Scored, or comments only?
+#### Which rubric — or comments only?
 
-Each department row has a **how it is judged** dropdown:
+Each department row has a **how it is judged** dropdown listing every rubric in your library
+(the default is marked) plus **Comments only**:
 
-| Mode | What judges see | What happens to results |
+| Choice | What judges see | What happens to results |
 |---|---|---|
-| **Scored (rubric)** | The rubric | Totals, averages, ranking, ties, 1st/2nd/3rd |
+| **A rubric** (e.g. *Upper grades 100-point*) | That rubric — each department can use a different one | Totals, averages, ranking, ties, 1st/2nd/3rd, out of that rubric's points |
 | **Comments only** | A commendation to pick (or type) plus an optional comment | Nothing is scored or ranked. Every project is listed as a winner |
 
 Use **Comments only** for the grades you don't want to rank — PreK and K-2 at the 2026-27 fair.
@@ -512,14 +513,37 @@ Projects and scores are written to the online database the moment you press Save
 Submit. Updates to the app never erase data. What *does* remove data: deleting a project (its scores go
 with it — lock it instead), and Reset All Data (keeps projects, departments and the rubric).
 
-### Choosing a rubric
+### Rubrics: a library, one per department
 
-**Rubric tab → Start from a preset.** Two are built in; a ✓ marks the one you are using.
+Your school can have **several rubrics**, and **each department uses one** (Setup → Departments →
+the dropdown on its row), or is comment-only. Judges automatically get the rubric of the department
+each project belongs to.
+
+**Rubric tab:**
+- The selector at the top chooses which rubric you are looking at; everything below (presets, Edit
+  Rubric, the impact warning) acts on that one.
+- **＋ New rubric** — name it, then start **blank** (write your own criteria), from a **preset**, or
+  as a **copy** of the one on screen.
+- **✏️ Rename**, **★ Make default** (the rubric departments use until you pick another), **🗑 Delete**
+  (only for a rubric no department uses and that is not the default).
+- "Used by: …" shows which departments use the rubric on screen.
+
+**Rules that protect your results:**
+- Once a department **has scores**, its rubric (and comment-only setting) **cannot change** — those
+  scores would suddenly count against different criteria. Remove the scores first (Reset All Data,
+  or remove the judges who gave them).
+- The default can't be switched while a department that follows it has scores — pick that
+  department's rubric explicitly first, then change the default.
+
+### The built-in presets
+
+Three are built in; use them for a new rubric or to replace the criteria of the one on screen.
 
 | Preset | Shape | Score range |
 |---|---|---|
 | **Northeast AZ Regional** | 10 criteria, 0–6 points each. Grades below 5 skip Abstract (so they are judged out of 36). Grades 5+ may not be given a 0. | 0–42 |
 | **Cibecue / ISEF-style** | 5 sections, each rated Needs improvement · Fair · Good · Very Good · Excellent, weighted: Project Title 15, Scientific Inquiry 25, Data and Conclusion 20, Presentation 20, Further Research 20. | 20–100 |
+| **Detailed form — 20 items** | Every item on the judging form rated 1–5 (Needs improvement → Excellent), grouped under five headings: Project Title (5 items), Scientific Inquiry (4), Data and Conclusion (4), Presentation (5), Further Research (2). | 20–100 |
 
 On the 100-point rubric judges tap the **rating word**, not a number — the section's points appear
 underneath. The detailed sub-points from the paper form are listed under each section heading, so a
@@ -532,9 +556,10 @@ Either preset can be edited afterwards (Edit Rubric). Max Points goes up to 100 
 you change a section's step values the rating words are dropped and judges see point numbers
 instead — re-apply the preset to get the words back.
 
-### Changing the rubric
+### Changing a rubric
 
-Totals are always calculated with the **current** rubric. Renaming or rewording a criterion is safe.
+Totals are always calculated with the **current** version of each department's rubric — editing a
+rubric changes the totals of every department that uses it. Renaming or rewording a criterion is safe.
 Removing one, adding one, or changing its points changes every total and ranking — once scores exist,
 the app shows exactly what will change, offers to save a score backup first, and asks you to confirm.
 If a save fails you will see **Rubric NOT saved** and your edits stay on screen. Best practice: finish

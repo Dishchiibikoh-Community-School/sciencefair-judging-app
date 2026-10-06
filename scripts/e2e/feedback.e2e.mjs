@@ -60,7 +60,8 @@ await check("switching a department's mode persists", async () => {
   await row.locator("select.setup-mode").selectOption("feedback");
   await A0.page.waitForTimeout(500);
   assert.equal(store.departments.find(d => d.id === DEPTS.D_HIGH).scoring_mode, "feedback");
-  await row.locator("select.setup-mode").selectOption("scored");
+  // Back to scored = pick a rubric (2026-10j: the selector lists the school's rubrics).
+  await row.locator("select.setup-mode").selectOption({ index: 0 });
   await A0.page.waitForTimeout(400);
   assert.equal(store.departments.find(d => d.id === DEPTS.D_HIGH).scoring_mode, "scored");
 });

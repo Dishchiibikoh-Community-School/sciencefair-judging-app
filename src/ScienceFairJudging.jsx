@@ -79,7 +79,62 @@ const RUBRIC_PRESETS = [
         desc:"The investigation and presentation reflect teamwork · students adhere to safety rules and restrictions." },
     ],
   },
+  {
+    // The detailed Dishchii'bikoh judging form: every one of its 20 items rated 1–5
+    // (Project Title 25 · Scientific Inquiry 20 · Data and Conclusion 20 · Presentation 25 ·
+    // Further Research 10 = 100). The Cibecue preset above folds the same items into five
+    // weighted sections instead — the organiser confirmed that one is the fair's default;
+    // this one is for departments that want item-by-item scoring.
+    id: "dishchiibikoh-20",
+    label: "Detailed form — 20 items, 100 points",
+    desc: "Every item on the judging form rated 1–5 (Needs improvement → Excellent), grouped in five sections. No zero: the lowest possible total is 20.",
+    criteria: () => [
+      ["Project Title", [
+        ["t_meaningful", "Is meaningful"],
+        ["t_creative",   "Reflects the student's creativity"],
+        ["t_purpose",    "Has a clear and focused purpose"],
+        ["t_reallife",   "Relates to real-life experimentation"],
+        ["t_grade",      "Is appropriate for the student's grade level"]]],
+      ["Scientific Inquiry", [
+        ["i_question",   "Proposes a scientific question"],
+        ["i_method",     "Follows the correct order and steps of the scientific method"],
+        ["i_hypothesis", "Has a testable hypothesis"],
+        ["i_organized",  "The experiment / investigation is well organized"]]],
+      ["Data and Conclusion", [
+        ["d_enough",     "Provides enough quantitative and qualitative data"],
+        ["d_own",        "Data were collected from the students' own experiment"],
+        ["d_accurate",   "Data are accurate"],
+        ["d_conclusion", "The conclusion is reliable and answers the scientific question"]]],
+      ["Presentation", [
+        ["p_presented",  "Information is well presented (verbally and written)"],
+        ["p_display",    "Display / trifold is neat and organized"],
+        ["p_clear",      "The project is clearly presented"],
+        ["p_understand", "Students show strong understanding"],
+        ["p_questions",  "Students answer questions about their investigation"]]],
+      ["Further Research", [
+        ["f_teamwork",   "The investigation and presentation reflect teamwork"],
+        ["f_safety",     "Students adhere to safety rules and restrictions"]]],
+    ].flatMap(([section, items]) => items.map(([id, label]) =>
+      ({ id, label, section, desc: "", max: 5, steps: [1, 2, 3, 4, 5], stepLabels: RATING_5 }))),
+  },
 ];
+
+// A rubric row is usable only if every criterion has an id and at least one step.
+// rubrics.criteria defaults to '[]' — an empty or malformed rubric would give judges a
+// scoring form with nothing on it (or crash the app).
+function validCriteria(c) {
+  return Array.isArray(c) && c.length > 0 && c.every(x => x && x.id && Array.isArray(x.steps) && x.steps.length);
+}
+// Every criterion across several rubrics, first occurrence wins (CSV columns when
+// departments use different rubrics). A loop, not a callback — rule 37.
+function unionCriteria(lists) {
+  const seen = new Set(); const out = [];
+  for (const list of lists) for (const c of list || []) {
+    if (seen.has(c.id)) continue;
+    seen.add(c.id); out.push(c);
+  }
+  return out;
+}
 
 // True when a criterion's stepLabels can be trusted to line up with its steps.
 // Anything else (an admin edited the steps, a hand-written rubric) falls back to
@@ -168,7 +223,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-06i";
+const ADMIN_HELP_UPDATED = "2026-10-06j";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -187,6 +242,7 @@ const ADMIN_HELP = [
     "Setup tab → Judge numbers: enter how many judges each department needs. Every judge gets ONE number for the whole school (e.g. PreK = Judge 1–2, K-2 = Judge 3–4) and the number decides their department.",
     "Setup tab: check your project categories. They are yours alone — rename them, delete the ones you don't use, or add your own (a robotics fair can replace all six).",
     "Setup tab: set any department that should NOT be scored (PreK, K-2) to 'Comments only'. This cannot be changed once that department has scores.",
+    "Rubric tab + Setup: build your rubrics and pick one for each department (or Comments only) BEFORE the first judge signs in — a department's rubric locks once it has scores.",
     "Rubric tab: finish the rubric BEFORE the first judge signs in. Press a preset to start from one of the ready-made rubrics (Northeast AZ 42-point, or Cibecue/ISEF-style 100-point), then edit it if you need to.",
     "Projects tab: add every project (📷 Scan forms or + Add Project) and give each one a department — a project with no department is scored by nobody.",
     "Lock (🔒) projects whose details are final, so they cannot be edited or deleted by accident.",
@@ -222,11 +278,15 @@ const ADMIN_HELP = [
     ["I changed a category — do I need to tell the form scanner?", "No. 📷 Scan forms asks the AI to pick from your current list automatically."],
   ]},
   { title: "The rubric", icon: "📐", faq: [
-    ["How do I choose a rubric?", "Rubric tab → press a preset. 'Northeast AZ Regional' is 10 criteria worth 42 points. 'Cibecue / ISEF-style' is 5 sections rated Needs improvement → Excellent, worth 100 points. Either can be edited afterwards, and a preset shows a ✓ when it is the one in use."],
-    ["What do judges see on the 100-point rubric?", "Five sections. Each one has five buttons labelled Needs improvement, Fair, Good, Very Good and Excellent, with that section's points underneath — so a judge picks the rating and never does the arithmetic. The sub-points from the paper form are listed under each section heading."],
-    ["Why is the lowest score 20 and not 0?", "The paper form's scale starts at 1 (Needs improvement), so there is no zero to give. All five sections at the lowest rating comes to 20 out of 100. That is expected, not a bug."],
-    ["Can I change the section points?", "Yes — Rubric tab → Edit Rubric. Max Points goes up to 100 per section. If you change a section's steps the rating words are removed and judges see the point numbers instead, so re-apply the preset if you want the words back."],
-    ["What happens to scores already given if I switch rubric?", "Totals are recalculated with the new rubric, so rankings change. The app shows exactly what changes and offers a backup before saving. Pick your rubric before judging starts."],
+    ["Can departments use different rubrics?", "Yes. Each department picks its own in Setup → Departments (the dropdown on each row): any rubric in your library, or 'Comments only'. Judges automatically get the rubric of the department each project is in — e.g. 3-5 on the 42-point sheet and 6-8 on the 100-point sheet."],
+    ["How do I add a rubric or write my own?", "Rubric tab → ＋ New rubric. Give it a name and start blank (write your own criteria), from a preset, or as a copy of the one on screen. Then choose it for a department in Setup."],
+    ["Which rubrics are built in?", "Three presets: 'Northeast AZ Regional' (10 criteria, 42 points), 'Cibecue / ISEF-style' (5 sections rated Needs improvement → Excellent, 100 points) and 'Detailed form — 20 items' (every item on the judging form rated 1–5, grouped in 5 sections, 100 points)."],
+    ["What is the default rubric?", "The one every scored department uses until you pick another for it. Rubric tab → choose a rubric → ★ Make default. It is refused while a department that follows the default already has scores — pick that department's rubric explicitly first."],
+    ["Can I change a department's rubric after judging started?", "No — once a department has scores its rubric (and comment-only setting) is locked, because those scores would suddenly count against a different rubric. Remove the scores first (Reset All Data, or remove the judges who gave them)."],
+    ["Can I delete a rubric?", "Yes, if no department uses it and it is not the default. The Rubric tab shows 'Used by: …' for each one."],
+    ["What do judges see on the 100-point rubrics?", "Buttons labelled Needs improvement, Fair, Good, Very Good and Excellent with the points underneath — a judge picks the rating and never does the arithmetic. The 20-item form shows section headings (Project Title, Scientific Inquiry, …)."],
+    ["Why is the lowest score 20 and not 0?", "The paper form's scale starts at 1 (Needs improvement), so there is no zero to give. On both 100-point rubrics the lowest possible total is 20. That is expected, not a bug."],
+    ["What happens to scores already given if I edit a rubric?", "Totals are recalculated with the edited rubric for every department that uses it, so rankings change. The app shows exactly what changes and offers a backup before saving. Finish your rubrics before judging starts."],
   ]},
   { title: "Data safety", icon: "🛡️", faq: [
     ["Will updates to the app erase my projects or scores?", "No. Updates replace the website, never your data. Database changes are tested on a copy first and only add or tighten things."],
@@ -578,6 +638,10 @@ const CSS = `
   .imp-tbl td{vertical-align:top;}
   .imp-tbl tr.imp-saved td{opacity:.6;}
   .imp-tbl tr.imp-err td{background:var(--red-l);}
+  .rub-section-head{font-family:var(--ff-d);font-size:1rem;color:var(--navy);margin:1.1rem 0 .45rem;padding-bottom:.25rem;border-bottom:2px solid var(--bd);}
+  .rub-lib{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.9rem;}
+  .rub-lib select{width:auto;min-width:220px;}
+  .rub-lib-meta{font-size:.8rem;color:var(--dim);margin-bottom:1rem;line-height:1.5;}
   .jh-dept-head{font-family:var(--ff-m);font-size:.74rem;letter-spacing:.06em;text-transform:uppercase;color:var(--navy);
     background:var(--s2);padding:.35rem .75rem;border-radius:6px;margin:.6rem 0 .3rem;}
   .jn-max{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.7rem;font-size:.86rem;}
@@ -1205,7 +1269,8 @@ function dbToDept(r) {
   return { id: r.id, name: r.name, code: r.code || "", max_judges: r.max_judges, ord: r.ord,
            scoring_mode: r.scoring_mode === "feedback" ? "feedback" : "scored",
            judge_from: Number.isInteger(r.judge_from) ? r.judge_from : null,
-           judge_to:   Number.isInteger(r.judge_to)   ? r.judge_to   : null };
+           judge_to:   Number.isInteger(r.judge_to)   ? r.judge_to   : null,
+           rubric_id:  r.rubric_id || null };   // 2026-10j; null = the school's default rubric
 }
 // "8", "judge 8", "JUDGE08", "Judge8" → "Judge8". Anything else is returned trimmed,
 // so the server can reject it with its own message.
@@ -1292,8 +1357,14 @@ export default function App() {
   const [schoolLoading, setSchoolLoading] = useState(!!urlSchoolSlug); // true while resolving slug
 
   // ── RUBRIC STATE ─────────────────────────────────────────
-  const [rubric,        setRubric]        = useState(DEFAULT_RUBRIC);  // loaded from rubrics table
-  const [rubricId,      setRubricId]      = useState(null);            // active rubric UUID
+  // The school's rubric LIBRARY (2026-10j): each department uses one of these
+  // (departments.rubric_id; NULL = the default, rubrics.is_active). Never read a single
+  // "the rubric" for scoring — use projRubric(proj) / rubricFor(deptId).
+  const [rubrics,       setRubrics]       = useState([]);              // [{ id, name, criteria, is_active }]
+  const [rubricId,      setRubricId]      = useState(null);            // rubric open in the Rubric tab (null = default)
+  const [rubricNew,     setRubricNew]     = useState(null);            // { name, from } while creating one
+  const [rubricRename,  setRubricRename]  = useState(null);            // draft name while renaming
+  const [rubricDelAsk,  setRubricDelAsk]  = useState(false);
   const [editingRubric, setEditingRubric] = useState(false);           // rubric editor open
   const [rubricDraft,   setRubricDraft]   = useState([]);              // draft criteria during edit
   const [rubricSaving,  setRubricSaving]  = useState(false);
@@ -1753,16 +1824,28 @@ export default function App() {
     const { data } = await supabase.from("final_decisions").select("*").eq("school_id", schoolId);
     if (data) setFinalDecisions(finalDecisionsToMap(data));
   }
-  async function loadRubric(sid) {
+  // Loads EVERY rubric of the school (the library). A malformed one falls back to the
+  // built-in criteria so a judge never gets an empty or crashing scoring form.
+  async function loadRubrics(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
-    const { data } = await supabase.from("rubrics").select("*").eq("school_id", schoolId).eq("is_active", true).single();
-    // rubrics.criteria defaults to '[]'. An empty or malformed rubric would give judges a
-    // scoring form with nothing on it (or crash the app) — fall back to the default instead.
-    const valid = Array.isArray(data?.criteria) && data.criteria.length > 0
-      && data.criteria.every(c => c && c.id && Array.isArray(c.steps) && c.steps.length);
-    if (data) setRubricId(data.id);
-    setRubric(valid ? data.criteria : DEFAULT_RUBRIC);
+    const { data, error } = await supabase.from("rubrics")
+      .select("id, name, criteria, is_active, created_at").eq("school_id", schoolId).order("created_at");
+    if (error || !data) return;
+    setRubrics(data.map(r => ({ id: r.id, name: r.name || "Rubric", is_active: !!r.is_active,
+      criteria: validCriteria(r.criteria) ? r.criteria : DEFAULT_RUBRIC })));
+  }
+  // ── Which rubric judges what (2026-10j) ──
+  function defaultRubricRow() { return rubrics.find(r => r.is_active) || rubrics[0] || null; }
+  function rubricRowFor(deptId) {
+    const d = departments.find(x => x.id === deptId);
+    return (d?.rubric_id && rubrics.find(r => r.id === d.rubric_id)) || defaultRubricRow();
+  }
+  function rubricFor(deptId) { return rubricRowFor(deptId)?.criteria || DEFAULT_RUBRIC; }
+  // THE rubric for scoring/maths on one project: its department's rubric.
+  function projRubric(proj) { return rubricFor(proj?.department_id); }
+  function deptsUsingRubric(rubId) {
+    return departments.filter(d => d.id && d.scoring_mode !== "feedback" && rubricRowFor(d.id)?.id === rubId);
   }
 
   // The school-registration flow fires its seed inserts immediately after signUp(),
@@ -1824,16 +1907,16 @@ export default function App() {
       }
     }
 
+    // Any rubric at all — a school with rubrics but no default is repaired by 2026-10j.
     const { data: rubs } = await supabase.from("rubrics")
-      .select("id").eq("school_id", sid).eq("is_active", true).limit(1);
+      .select("id").eq("school_id", sid).limit(1);
     if (!rubs || rubs.length === 0) {
       const { data: r, error } = await supabase.from("rubrics").insert({
         school_id: sid, name: "Default (Northeast AZ Regional)",
         criteria: DEFAULT_RUBRIC, is_active: true,
       }).select("id").single();
       if (!error && r) {
-        setRubricId(r.id);
-        setRubric(DEFAULT_RUBRIC);
+        await loadRubrics(sid);
         addItLog("WARN","SYSTEM","RUBRIC_RESEEDED",
           "Active rubric was missing for this school and has been re-seeded", { schoolId: sid });
       }
@@ -1842,12 +1925,29 @@ export default function App() {
 
   // What a rubric change does to scores already entered. Totals are ALWAYS computed with the
   // current rubric (getTotal), so removing/adding criteria or changing a max changes them.
+  function viewRubricRow() { return rubrics.find(r => r.id === rubricId) || defaultRubricRow(); }
+  // Scores given under one rubric: every score on a project whose department uses it.
+  function scoresUnderRubric(rubId) {
+    const deptIds = new Set(deptsUsingRubric(rubId).map(d => d.id));
+    return Object.keys(scores).filter(k =>
+      projects.some(p => deptIds.has(p.department_id) && k.endsWith(`_${p.id}`))).length;
+  }
+  // Score keys are `${judgeId}_${projectId}` and BOTH ids contain underscores ("j_ab12",
+  // "p_cd34"), so never cut a key at an underscore — match the project id at the end.
+  // (Until 2026-10-06 two checks did k.slice(lastIndexOf("_")+1) → "cd34", which matched
+  // no project, so "this department already has scores" never fired on screen.)
+  function deptHasScores(deptId) {
+    return Object.keys(scores).some(k =>
+      projects.some(p => p.department_id === deptId && k.endsWith(`_${p.id}`)));
+  }
   function rubricImpact(next) {
-    const cur = new Map(rubric.map(c => [c.id, c]));
+    const row = viewRubricRow();
+    const curList = row?.criteria || DEFAULT_RUBRIC;
+    const cur = new Map(curList.map(c => [c.id, c]));
     const nxt = new Map(next.map(c => [c.id, c]));
     return {
-      scoreCount: Object.keys(scores).length,
-      removed: rubric.filter(c => !nxt.has(c.id)).map(c => c.label),
+      scoreCount: row ? scoresUnderRubric(row.id) : Object.keys(scores).length,
+      removed: curList.filter(c => !nxt.has(c.id)).map(c => c.label),
       added:   next.filter(c => !cur.has(c.id)).map(c => c.label),
       changed: next.filter(c => cur.has(c.id) && (Number(cur.get(c.id).max) !== Number(c.max)
                  || JSON.stringify(cur.get(c.id).steps) !== JSON.stringify(c.steps))).map(c => c.label),
@@ -1874,10 +1974,11 @@ export default function App() {
     setRubricSaving(true);
     setRubricErr("");
     let error = null;
-    if (rubricId) {
+    const row = viewRubricRow();
+    if (row) {
       // .select() so an RLS-filtered update (0 rows, no error) is caught as a failure.
       const res = await supabase.from("rubrics").update({ criteria })
-        .eq("school_id", currentSchool.id).eq("id", rubricId).select("id");
+        .eq("school_id", currentSchool.id).eq("id", row.id).select("id");
       error = res.error || (!res.data?.length ? { message: "nothing was saved (are you still signed in?)" } : null);
     } else {
       const res = await supabase.from("rubrics")
@@ -1893,13 +1994,83 @@ export default function App() {
       addItLog("ERROR","ADMIN","RUBRIC_SAVE_FAILED","Rubric could not be saved",{ error: error.message });
       return false;
     }
-    setRubric(criteria);
+    setRubrics(prev => prev.map(r => r.id === row?.id ? { ...r, criteria } : r));
+    await loadRubrics(currentSchool.id);
     setRubricConfirm(null);
     setEditingRubric(false);
-    addLog("Admin updated the scoring rubric");
+    addLog(`Admin updated the rubric "${row?.name || "Custom Rubric"}"`);
     addItLog("INFO","ADMIN","RUBRIC_UPDATED","Admin saved updated scoring rubric",
-      { criteriaCount: criteria.length, totalMax: criteria.reduce((s,c) => s + c.max, 0) });
+      { rubric: row?.name || null, criteriaCount: criteria.length, totalMax: criteria.reduce((s,c) => s + c.max, 0) });
     return true;
+  }
+
+  // ── Rubric library (2026-10j) ──
+  async function createRubric() {
+    const name = String(rubricNew?.name || "").trim();
+    if (!name) { setRubricErr("Give the new rubric a name."); return; }
+    if (rubrics.some(r => r.name.toLowerCase() === name.toLowerCase())) { setRubricErr(`"${name}" already exists.`); return; }
+    const from = rubricNew?.from || "blank";
+    const preset = RUBRIC_PRESETS.find(p => p.id === from);
+    const criteria = preset ? preset.criteria()
+      : from === "copy" ? (viewRubricRow()?.criteria || DEFAULT_RUBRIC).map(c => ({ ...c }))
+      : [{ id: "c_" + uid(), label: "Criterion 1", desc: "", max: 5, steps: [1, 2, 3, 4, 5] }];
+    setRubricErr("");
+    const { data, error } = await supabase.from("rubrics")
+      .insert({ school_id: currentSchool.id, name, criteria, is_active: rubrics.length === 0 })
+      .select("id").single();
+    if (error) {
+      setRubricErr(`Rubric NOT created: ${error.message}`);
+      addItLog("ERROR","ADMIN","RUBRIC_CREATE_FAILED","A rubric could not be created",{ error: error.code || error.message });
+      return;
+    }
+    await loadRubrics(currentSchool.id);
+    setRubricId(data.id); setRubricNew(null);
+    addLog(`Admin created the rubric "${name}"`);
+    addItLog("INFO","ADMIN","RUBRIC_CREATED","Admin created a rubric",{ name, from });
+    // A blank rubric is useless until it has criteria — open the editor straight away.
+    if (from === "blank") { setRubricDraft(criteria.map(c => ({ ...c }))); setEditingRubric(true); }
+  }
+  async function renameRubric() {
+    const row = viewRubricRow();
+    const name = String(rubricRename || "").trim();
+    if (!row || !name) return;
+    if (rubrics.some(r => r.id !== row.id && r.name.toLowerCase() === name.toLowerCase())) { setRubricErr(`"${name}" already exists.`); return; }
+    const { error } = await supabase.from("rubrics").update({ name }).eq("school_id", currentSchool.id).eq("id", row.id).select("id");
+    if (error) { setRubricErr(`Rubric NOT renamed: ${error.message}`); return; }
+    await loadRubrics(currentSchool.id); setRubricRename(null); setRubricErr("");
+    addLog(`Admin renamed the rubric "${row.name}" to "${name}"`);
+  }
+  async function deleteRubric() {
+    const row = viewRubricRow();
+    setRubricDelAsk(false);
+    if (!row) return;
+    // The server refuses the default and any rubric a department uses (2026-10j);
+    // its message names the department.
+    const { data, error } = await supabase.from("rubrics").delete()
+      .eq("school_id", currentSchool.id).eq("id", row.id).select("id");
+    if (error || !data?.length) {
+      setRubricErr(`Rubric NOT deleted: ${error?.message || "nothing was deleted (are you still signed in?)"}`);
+      addItLog("WARN","ADMIN","RUBRIC_DELETE_FAILED","A rubric could not be deleted",{ rubric: row.name, error: error?.message || "0 rows" });
+      return;
+    }
+    setRubricId(null); setRubricErr("");
+    await loadRubrics(currentSchool.id);
+    addLog(`Admin deleted the rubric "${row.name}"`);
+    addItLog("WARN","ADMIN","RUBRIC_DELETED","Admin deleted a rubric",{ rubric: row.name });
+  }
+  async function makeDefaultRubric() {
+    const row = viewRubricRow();
+    if (!row || row.is_active) return;
+    const { error } = await supabase.rpc("set_default_rubric", { p_school_id: currentSchool.id, p_rubric_id: row.id });
+    if (error) {
+      const missing = /set_default_rubric/.test(error.message || "") && /function|not find/i.test(error.message || "");
+      setRubricErr(missing ? "This needs a database update that has not been run yet (migration 2026-10j)." : `Default NOT changed: ${error.message}`);
+      addItLog("ERROR","ADMIN","RUBRIC_DEFAULT_FAILED","Could not change the default rubric",{ rubric: row.name, error: error.code || error.message });
+      return;
+    }
+    await loadRubrics(currentSchool.id); setRubricErr("");
+    addLog(`Admin made "${row.name}" the default rubric`);
+    addItLog("INFO","ADMIN","RUBRIC_DEFAULT_CHANGED","Admin changed the default rubric",{ rubric: row.name });
   }
 
   function rubricDraftMove(idx, dir) {
@@ -2063,7 +2234,7 @@ export default function App() {
         loadDepartments(sid), loadCategories(sid), loadProjects(sid), loadJudges(sid), loadScores(sid),
         loadLog(sid), loadItLogs(sid), loadShare(sid), loadSettings(sid),
         loadDelibNotes(sid), loadFinalDecisions(sid), loadValidations(sid),
-        loadScoreBackups(sid), loadRubric(sid),
+        loadScoreBackups(sid), loadRubrics(sid),
       ]).catch(err => {
         // A loader threw (network drop mid-load, unexpected response). Previously an
         // unhandled rejection: the screen waited for the 8 s timeout and nothing was logged.
@@ -2084,6 +2255,9 @@ export default function App() {
         // Wrap the loaders: passing them directly hands the realtime payload in as `sid`,
         // so they queried school_id = "[object Object]" and never refreshed (bug until 2026-10-05).
         .on("postgres_changes", { event: "*", schema: "public", table: "departments", filter: f("departments") }, () => loadDepartments(sid))
+        // Judges' screens follow rubric edits live (before 2026-10j nothing listened, so an
+        // open scoring form kept the old rubric until the page was reloaded).
+        .on("postgres_changes", { event: "*", schema: "public", table: "rubrics",     filter: f("rubrics")     }, () => loadRubrics(sid))
         .on("postgres_changes", { event: "*", schema: "public", table: "categories",  filter: f("categories")  }, () => loadCategories(sid))
         .on("postgres_changes", { event: "*", schema: "public", table: "projects",    filter: f("projects")    }, () => loadProjects(sid))
         // Admin-only by RLS (realtime enforces it): judges/public never receive these events.
@@ -2458,7 +2632,7 @@ export default function App() {
     const deptName = (id) => departments.find(d => d.id === id)?.name || "Unassigned";
     const rows = [[
       "Project #","Title","Department","Category","Grade","Room","Teacher / Adviser",
-      "Students (grade)","What they plan to investigate","Why they chose it","Locked","Reviews",`Avg Score (of rubric max ${rubricMax()})`,
+      "Students (grade)","What they plan to investigate","Why they chose it","Locked","Reviews","Avg Score","Out of","Rubric",
     ].map(csvCell)];
     [...projects].sort((a, b) => String(a.num).localeCompare(String(b.num))).forEach(p => {
       const sub = regSubmissions.find(s => s.project_id === p.id);
@@ -2468,6 +2642,7 @@ export default function App() {
         p.advisor_name || sub?.advisor_name || "",
         membersText(p.group_members?.length ? p.group_members : sub?.group_members),
         p.description || "", p.motivation || "", p.locked ? "yes" : "no", reviews, projAvg(p.id) ?? "",
+        isFeedbackProject(p) ? "" : projectMax(p), isFeedbackProject(p) ? "Comments only" : (rubricRowFor(p.department_id)?.name || ""),
       ].map(csvCell));
     });
     // BOM so Excel opens accented names (Navajo, Spanish…) correctly.
@@ -2914,36 +3089,43 @@ export default function App() {
   // anomaly scan so a comment-only department can never appear in a ranking.
   function scoredProjects() { return projects.filter(p => !isFeedbackProject(p)); }
 
-  async function updateDeptScoringMode(deptId, mode) {
+  // How a department is judged (2026-10j): one of the school's rubrics, or "feedback"
+  // (comment-only). The server refuses either change once the department has scores —
+  // checked here first so the message is immediate.
+  function deptJudgingValue(dept) {
+    if (!dept) return "";
+    return dept.scoring_mode === "feedback" ? "feedback" : (rubricRowFor(dept.id)?.id || "default");
+  }
+  async function updateDeptJudging(deptId, value) {
     const dept = departments.find(d => d.id === deptId);
-    if (!dept || (mode !== "scored" && mode !== "feedback")) return;
-    const scored = Object.keys(scores).some(k => {
-      const pid = k.slice(k.lastIndexOf("_") + 1);
-      return projects.some(p => p.id === pid && p.department_id === deptId);
-    });
-    if (scored) {
-      setSetupErr(`"${dept.name}" already has scores. Changing how it is judged now would ` +
-        `strand them — they would stop counting but stay in the database. Reset or finish the event first.`);
+    if (!dept || !value || value === deptJudgingValue(dept)) return;
+    if (deptHasScores(deptId)) {
+      setSetupErr(`"${dept.name}" already has scores. Changing how it is judged now would make them ` +
+        `count against a different rubric. Remove those scores first (Reset All Data, or remove the judges who gave them).`);
       return;
     }
     setSetupErr("");
+    const feedback = value === "feedback";
+    const patch = feedback ? { scoring_mode: "feedback" }
+      : { scoring_mode: "scored", ...(value !== "default" ? { rubric_id: value } : {}) };
     const { error } = await supabase.from("departments")
-      .update({ scoring_mode: mode }).eq("school_id", currentSchool.id).eq("id", deptId);
+      .update(patch).eq("school_id", currentSchool.id).eq("id", deptId);
     if (error) {
-      // 42703 / PGRST204 = migration 2026-10f has not been run on this project.
+      // 42703 / PGRST204 = a column from 2026-10f (scoring_mode) or 2026-10j (rubric_id) is missing.
       const missing = error.code === "42703" || error.code === "PGRST204";
       setSetupErr(missing
-        ? "This needs a database update that has not been run yet (migration 2026-10f). Scoring stays as it is until then."
+        ? "This needs a database update that has not been run yet (migrations 2026-10f / 2026-10j). Nothing was changed."
         : `Could not change how "${dept.name}" is judged: ${error.message}`);
       addItLog(missing ? "WARN" : "ERROR","DB",
-        missing ? "SCORING_MODE_COLS_MISSING" : "SCORING_MODE_UPDATE_FAILED",
-        "departments.scoring_mode could not be written", { dept: dept.name, error: error.message });
+        missing ? "DEPT_JUDGING_COLS_MISSING" : "DEPT_JUDGING_UPDATE_FAILED",
+        "A department's rubric / comment-only setting could not be written", { dept: dept.name, value, error: error.message });
       return;
     }
-    setDepartments(prev => prev.map(d => d.id === deptId ? { ...d, scoring_mode: mode } : d));
-    addLog(`Admin set ${dept.name} to ${mode === "feedback" ? "comments only (not scored)" : "scored"}`);
-    addItLog("INFO","ADMIN","SCORING_MODE_CHANGED","Admin changed a department's scoring mode",
-      { dept: dept.name, mode });
+    setDepartments(prev => prev.map(d => d.id === deptId ? { ...d, ...patch } : d));
+    const label = feedback ? "comments only (not scored)" : `the rubric "${rubrics.find(r => r.id === value)?.name || "default"}"`;
+    addLog(`Admin set ${dept.name} to ${label}`);
+    addItLog("INFO","ADMIN","DEPT_JUDGING_CHANGED","Admin changed how a department is judged",
+      { dept: dept.name, mode: feedback ? "feedback" : "scored", rubric: feedback ? null : (rubrics.find(r => r.id === value)?.name || null) });
   }
   // Short code used for registration numbers; derived from the name if unset.
   function autoCode(name) {
@@ -3214,7 +3396,8 @@ export default function App() {
           // v2 stores every criterion under `criteria` — copy the whole object so the
           // snapshot survives rubric changes and can be restored criterion-by-criterion.
           criteria:   { ...(sc.criteria || {}) },
-          total:        getTotal(sc),
+          total:        getTotal(sc, proj),
+          rubricName:   rubricRowFor(proj?.department_id)?.name || "",
           notes:        sc.notes || "",
           submittedAt:  sc.time ? new Date(sc.time).toISOString() : "",
         });
@@ -3225,9 +3408,11 @@ export default function App() {
       judgeCount:    judges.length,
       projectCount:  projects.length,
       scoreCount:    entries.length,
-      // Snapshot the rubric too, so an old backup can still be rendered correctly
-      // after the school edits its criteria.
-      rubric,
+      // Snapshot the rubrics too, so an old backup can still be rendered correctly after
+      // the school edits them. `rubric` (the default) keeps pre-2026-10j readers working.
+      rubric:   defaultRubricRow()?.criteria || DEFAULT_RUBRIC,
+      rubrics:  rubrics.map(r => ({ id: r.id, name: r.name, criteria: r.criteria, is_active: r.is_active })),
+      deptRubrics: Object.fromEntries(departments.filter(d => d.id).map(d => [d.id, rubricRowFor(d.id)?.id || null])),
       entries,
     };
     const label = `Backup — ${new Date().toLocaleString()}`;
@@ -3294,13 +3479,13 @@ export default function App() {
   }
 
   function exportJudgeScoresCSV() {
-    // Columns are driven by the live rubric — a school with a custom rubric
-    // gets its own criteria, not the hardcoded Northeast AZ 10.
-    const maxTotal = rubric.reduce((s, r) => s + (Number(r.max) || 0), 0);
+    // Columns are every criterion of every rubric a scored department uses (2026-10j:
+    // departments can use different rubrics). A row leaves other rubrics' columns empty.
+    const cols = unionCriteria(departments.filter(d => d.id && d.scoring_mode !== "feedback").map(d => rubricFor(d.id)));
     const header = [
-      "Judge","Department","Project #","Project Title","Category","Grade",
-      ...rubric.map(r => `${r.label} (${r.max})`),
-      `Total (${maxTotal})`,"Notes","Submitted"
+      "Judge","Department","Project #","Project Title","Category","Grade","Rubric",
+      ...cols.map(r => `${r.label} (${r.max})`),
+      "Total","Out of","Notes","Submitted"
     ];
     const rows = [header.map(csvCell)];
     for (const judge of [...judges].sort((a,b) => a.alias.localeCompare(b.alias))) {
@@ -3316,8 +3501,10 @@ export default function App() {
           proj.title || "",
           proj.cat,
           proj.grade,
-          ...rubric.map(r => critVal(sc, r.id)),
-          getTotal(sc),
+          isFeedbackProject(proj) ? "Comments only" : (rubricRowFor(proj.department_id)?.name || ""),
+          ...cols.map(r => projRubric(proj).some(c => c.id === r.id) ? critVal(sc, r.id) : ""),
+          isFeedbackProject(proj) ? "" : getTotal(sc, proj),
+          isFeedbackProject(proj) ? "" : projectMax(proj),
           sc.notes || "",
           sc.time ? new Date(sc.time).toISOString() : "",
         ].map(csvCell));
@@ -3334,14 +3521,15 @@ export default function App() {
   function downloadBackupCSV(backup) {
     const entries = backup?.snapshot?.entries;
     if (!entries?.length) return;
-    // Prefer the rubric captured inside the backup; fall back to the live one for
-    // older snapshots that predate rubric capture.
-    const snapRubric = backup?.snapshot?.rubric?.length ? backup.snapshot.rubric : rubric;
-    const maxTotal = snapRubric.reduce((s, r) => s + (Number(r.max) || 0), 0);
+    // Prefer the rubrics captured inside the backup (all of them since 2026-10j, the one
+    // default before that); fall back to the live default for the oldest snapshots.
+    const snapRubric = backup?.snapshot?.rubrics?.length
+      ? unionCriteria(backup.snapshot.rubrics.map(r => r.criteria))
+      : backup?.snapshot?.rubric?.length ? backup.snapshot.rubric : (defaultRubricRow()?.criteria || DEFAULT_RUBRIC);
     const header = [
-      "Judge","Department","Project #","Project Title","Category","Grade",
+      "Judge","Department","Project #","Project Title","Category","Grade","Rubric",
       ...snapRubric.map(r => `${r.label} (${r.max})`),
-      `Total (${maxTotal})`,"Notes","Submitted"
+      "Total","Notes","Submitted"
     ];
     const rows = [header.map(csvCell), ...entries.map(e => [
       e.judgeAlias,
@@ -3349,8 +3537,9 @@ export default function App() {
       e.projectNum,
       e.projectTitle || "",
       e.category, e.grade,
+      e.rubricName || "",
       // critVal handles both v2 ({criteria:{...}}) and legacy flat-field entries.
-      ...snapRubric.map(r => critVal(e, r.id)),
+      ...snapRubric.map(r => critVal(e, r.id) ?? ""),
       e.total,
       e.notes || "",
       e.submittedAt,
@@ -3366,7 +3555,7 @@ export default function App() {
   function exportResultsCSV() {
     // Rank within each department — projects are only comparable inside their own dept.
     const rows = [
-      ["Department","Rank","Project #","Title","Category","Grade",`Avg Score (of ${rubricMax()})`,"Reviews","Award"].map(csvCell),
+      ["Department","Rank","Project #","Title","Category","Grade","Avg Score","Out of","Reviews","Award"].map(csvCell),
     ];
     const deptGroups = [
       ...departments.filter(d => d.id).map(d => ({ name: d.name, projs: rankedProjectsIn(d.id) })),
@@ -3577,15 +3766,18 @@ export default function App() {
       { lockedBy:"admin", timestamp:fmtISO(Date.now()) });
   }
 
-  function getTotal(s) {
+  // Total of one score under ITS project's rubric (2026-10j: departments differ). Pass the
+  // project (or its id); without one the default rubric is used.
+  function getTotal(s, p) {
+    const proj = typeof p === "string" ? projects.find(x => x.id === p) : p;
     const crit = s?.criteria || s || {};
-    return rubric.reduce((t, r) => t + (Number(crit[r.id]) || 0), 0);
+    return projRubric(proj).reduce((t, r) => t + (Number(crit[r.id]) || 0), 0);
   }
 
   function projAvg(pid) {
     const hits = Object.entries(scores).filter(([k]) => k.endsWith(`_${pid}`));
     if (!hits.length) return null;
-    return (hits.reduce((s,[,v]) => s + getTotal(v), 0) / hits.length).toFixed(1);
+    return (hits.reduce((s,[,v]) => s + getTotal(v, pid), 0) / hits.length).toFixed(1);
   }
 
   function rubAvg(pid, rid) {
@@ -3594,13 +3786,15 @@ export default function App() {
     return (hits.reduce((s,[,v]) => s + (v.criteria?.[rid] || 0), 0) / hits.length).toFixed(1);
   }
 
-  // Total points available under the active rubric (replaces the hardcoded 42).
+  // Total points of the DEFAULT rubric. Only a fallback now — anything about one project
+  // must use projectMax(proj), because departments can use different rubrics.
   function rubricMax() {
-    return rubric.reduce((s, r) => s + (Number(r.max) || 0), 0);
+    return (defaultRubricRow()?.criteria || DEFAULT_RUBRIC).reduce((s, r) => s + (Number(r.max) || 0), 0);
   }
-  // Points available for one project — grades below 5 are exempt from the abstract.
+  // Points available for one project under its department's rubric — grades below 5
+  // are exempt from the abstract (a no-op on rubrics that have none).
   function projectMax(proj) {
-    return rubric.reduce((s, r) => {
+    return projRubric(proj).reduce((s, r) => {
       if (r.id === "abstract" && proj && !requiresAbstract(proj)) return s;
       return s + (Number(r.max) || 0);
     }, 0);
@@ -3647,14 +3841,14 @@ export default function App() {
   function possible()     { return judges.reduce((s,j) => s + j.projects.length, 0); }
   function draftTotal() {
     const proj = projects.find(p => p.id === scoringPid);
-    return rubric.reduce((s,r) => {
+    return projRubric(proj).reduce((s,r) => {
       if (r.id === "abstract" && proj && !requiresAbstract(proj)) return s;
       return s + (Number(draftSc[r.id])||0);
     }, 0);
   }
   function maxDraftScore() {
     const proj = projects.find(p => p.id === scoringPid);
-    return rubric.reduce((s,r) => {
+    return projRubric(proj).reduce((s,r) => {
       if (r.id === "abstract" && proj && !requiresAbstract(proj)) return s;
       return s + r.max;
     }, 0);
@@ -3664,7 +3858,7 @@ export default function App() {
     // Comment-only: there are no criteria to move. A commendation is what makes
     // the review complete (the comment itself stays optional).
     if (isFeedbackProject(proj)) return draftCommend.trim().length > 0;
-    return rubric.every(r => {
+    return projRubric(proj).every(r => {
       if (r.id === "abstract" && proj && !requiresAbstract(proj)) return true;
       return draftSc[r.id] !== undefined;
     });
@@ -3672,7 +3866,7 @@ export default function App() {
   function hasZeroScore() {
     const proj = projects.find(p => p.id === scoringPid);
     if (!proj || !requiresAbstract(proj)) return false;
-    return rubric.some(r => draftSc[r.id] === 0);
+    return projRubric(proj).some(r => draftSc[r.id] === 0);
   }
 
   // An outlier is a judge whose total sits more than ANOMALY_PCT of the project's
@@ -3691,10 +3885,10 @@ export default function App() {
       const max = projectMax(p);
       if (!max) return;
       const limit = max * ANOMALY_PCT;
-      const tots = hits.map(([,s]) => getTotal(s));
+      const tots = hits.map(([,s]) => getTotal(s, p));
       const avg  = tots.reduce((a,b) => a+b, 0) / tots.length;
       hits.forEach(([key,s]) => {
-        const t = getTotal(s);
+        const t = getTotal(s, p);
         if (Math.abs(t - avg) > limit) {
           // Exact id match — startsWith() could pick the wrong judge if one id
           // happened to be a prefix of another.
@@ -5062,7 +5256,7 @@ export default function App() {
                     <div className="proj-title">{proj.title}</div>
                     <div className="proj-meta">{proj.cat} · Grade {proj.grade}</div>
                   </div>
-                  {scored ? <span className="proj-st st-done">{isFeedbackProject(proj) ? "✓ Reviewed" : `✓ ${getTotal(ex)}pts`}</span>
+                  {scored ? <span className="proj-st st-done">{isFeedbackProject(proj) ? "✓ Reviewed" : `✓ ${getTotal(ex, proj)}pts`}</span>
                           : <span className="proj-st st-pend">Pending →</span>}
                 </div>
                 </div>
@@ -5323,15 +5517,19 @@ export default function App() {
                     onChange={e => setDraftCommend(e.target.value)} />
                 </div>
               </>
-            ) : rubric.map(r => {
+            ) : projRubric(proj).map((r, ri, all) => {
               if (r.id === "abstract" && !requiresAbstract(proj)) return null;
+              // Item-by-item rubrics (the 20-item form) group their criteria in sections.
+              const head = r.section && (ri === 0 || all[ri - 1].section !== r.section) ? r.section : null;
               return (
-                <div className="rub-item" key={r.id}>
+                <div key={r.id}>
+                {head && <div className="rub-section-head">{head}</div>}
+                <div className="rub-item">
                   <div className="rub-top">
                     <span className="rub-lbl">{r.label}</span>
                     <span className="rub-val">{draftSc[r.id] !== undefined ? draftSc[r.id] : "—"} / {r.max}</span>
                   </div>
-                  <div className="rub-desc">{r.desc}</div>
+                  {r.desc && <div className="rub-desc">{r.desc}</div>}
                   <div className="rub-steps">
                     {r.steps.map((v, i) => {
                       const lab = stepLabel(r, v, i);
@@ -5344,6 +5542,7 @@ export default function App() {
                       );
                     })}
                   </div>
+                </div>
                 </div>
               );
             })}
@@ -6657,11 +6856,17 @@ export default function App() {
                                       onKeyDown={e => e.key==="Enter" && updateDeptMaxJudges(dept.id, maxDraft)} />
                                   </>}
                             </span>}
-                            <select className="setup-mode" value={dept.scoring_mode || "scored"}
-                              title="How this department is judged"
-                              onChange={e => updateDeptScoringMode(dept.id, e.target.value)}>
-                              <option value="scored">Scored (rubric)</option>
-                              <option value="feedback">Comments only</option>
+                            <select className="setup-mode" value={deptJudgingValue(dept)}
+                              title="How this department is judged — which rubric, or comments only"
+                              aria-label={`How ${dept.name} is judged`}
+                              onChange={e => updateDeptJudging(dept.id, e.target.value)}>
+                              {rubrics.length === 0 && <option value="default">Default rubric</option>}
+                              {rubrics.map(r => (
+                                <option key={r.id} value={r.id}>
+                                  {r.name} · {r.criteria.reduce((t, c) => t + (Number(c.max) || 0), 0)} pts{r.is_active ? " (default)" : ""}
+                                </option>
+                              ))}
+                              <option value="feedback">Comments only (not scored)</option>
                             </select>
                             <button className="proj-act-btn" title="Rename"
                               onClick={() => { setSetupErr(""); setDeptEdits(p => ({...p, [dept.id]: { name: dept.name, code: dept.code || "" }})); }}>✏️</button>
@@ -7283,7 +7488,7 @@ export default function App() {
                     </div>
                     {hits.length > 0 && (
                       <div style={{marginTop:".75rem",borderTop:"1px solid var(--bd)",paddingTop:".75rem"}}>
-                        {rubric.map(r => {
+                        {projRubric(p).map(r => {
                           const avgR = hits.reduce((s,[,sc]) => s+(sc.criteria?.[r.id]||0),0) / hits.length;
                           return (
                             <div key={r.id} style={{display:"flex",alignItems:"center",gap:".65rem",marginBottom:".35rem"}}>
@@ -7629,7 +7834,7 @@ export default function App() {
                               <div style={{background:"var(--s1)",border:"1px solid var(--bd)",borderRadius:"8px",padding:".65rem .85rem",marginBottom:".6rem"}}>
                                 <div style={{fontSize:".7rem",fontFamily:"var(--ff-m)",color:"var(--dim)",marginBottom:".45rem",textTransform:"uppercase",letterSpacing:".04em"}}>Judge Scores</div>
                                 {judgeScores.map(({alias, sc}) => {
-                                  const total = getTotal(sc);
+                                  const total = getTotal(sc, p);
                                   return (
                                     <div key={alias} style={{marginBottom:".5rem"}}>
                                       <div style={{display:"flex",alignItems:"center",gap:".6rem",marginBottom:".2rem"}}>
@@ -8043,9 +8248,13 @@ export default function App() {
             </>}
 
             {adminTab==="rubric" && (() => {
+              // Everything below acts on the rubric chosen in the library bar (2026-10j).
+              const viewRow    = viewRubricRow();
+              const rubric     = viewRow?.criteria || DEFAULT_RUBRIC;
+              const usedBy     = viewRow ? deptsUsingRubric(viewRow.id) : [];
               const draftTotal = rubricDraft.reduce((s,c) => s + (Number(c.max)||0), 0);
-              const hasScores  = Object.keys(scores).length > 0;
-              const scoreCount = Object.keys(scores).length;
+              const scoreCount = viewRow ? scoresUnderRubric(viewRow.id) : Object.keys(scores).length;
+              const hasScores  = scoreCount > 0;
               // Shown in both edit and view mode (Reset to Default uses it too).
               const confirmPanel = rubricConfirm && (
                 <div className="scan-msg warn" style={{ padding:"1rem", marginBottom:"1rem", fontSize:".86rem" }}>
@@ -8072,7 +8281,7 @@ export default function App() {
               if (editingRubric) return (
                 <div>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1.25rem", flexWrap:"wrap", gap:".75rem" }}>
-                    <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.2rem", color:"var(--navy)" }}>Edit Rubric</h2>
+                    <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.2rem", color:"var(--navy)" }}>Edit Rubric — {viewRow?.name || "Default"}</h2>
                     <div style={{ display:"flex", gap:".5rem" }}>
                       <button className="btn sec sm" style={{ width:"auto" }} onClick={() => { setEditingRubric(false); setRubricDraft([]); setRubricConfirm(null); setRubricErr(""); }}>Cancel</button>
                       <button className="btn sm" style={{ width:"auto" }} disabled={rubricSaving || rubricDraft.length === 0 || !!rubricConfirm}
@@ -8086,7 +8295,7 @@ export default function App() {
                   {confirmPanel}
                   {hasScores && !rubricConfirm && (
                     <div style={{ background:"var(--amber-l)", border:"1px solid #d9770630", borderRadius:"var(--r)", padding:".85rem 1rem", marginBottom:"1rem", fontSize:".88rem", color:"var(--amber)" }}>
-                      ⚠️ {scoreCount} score{scoreCount!==1?"s":""} already exist. Totals are always calculated with the <b>current</b> rubric —
+                      ⚠️ {scoreCount} score{scoreCount!==1?"s":""} already exist under this rubric ({usedBy.map(d => d.name).join(", ")}). Totals are always calculated with the <b>current</b> rubric —
                       removing a criterion, adding one, or changing its points will change every project&apos;s total and ranking.
                       Renaming a criterion or editing its description is safe. You will be asked to confirm before saving.
                     </div>
@@ -8176,8 +8385,63 @@ export default function App() {
               // ── VIEW MODE ─────────────────────────────────────────
               return (
                 <div>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1.25rem", flexWrap:"wrap", gap:".75rem" }}>
-                    <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.2rem", color:"var(--navy)" }}>Scoring Rubric</h2>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:".9rem", flexWrap:"wrap", gap:".75rem" }}>
+                    <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.2rem", color:"var(--navy)" }}>Scoring Rubrics</h2>
+                  </div>
+
+                  {/* ── Library: which rubric is shown / edited below ── */}
+                  <div className="card" style={{ marginBottom:"1rem" }}>
+                    <div className="rub-lib">
+                      <select aria-label="Rubric to view" value={viewRow?.id || ""}
+                        onChange={e => { setRubricId(e.target.value); setRubricRename(null); setRubricDelAsk(false); setRubricErr(""); setRubricConfirm(null); }}>
+                        {rubrics.length === 0 && <option value="">Built-in default — not saved yet</option>}
+                        {rubrics.map(r => <option key={r.id} value={r.id}>{r.name}{r.is_active ? " (default)" : ""}</option>)}
+                      </select>
+                      <button className="btn sec sm" style={{ width:"auto" }} onClick={() => { setRubricErr(""); setRubricNew({ name: "", from: "blank" }); }}>＋ New rubric</button>
+                      {viewRow && rubricRename === null && <button className="btn sec sm" style={{ width:"auto" }} onClick={() => setRubricRename(viewRow.name)}>✏️ Rename</button>}
+                      {viewRow && !viewRow.is_active && <button className="btn sec sm" style={{ width:"auto" }} onClick={makeDefaultRubric}>★ Make default</button>}
+                      {viewRow && !viewRow.is_active && usedBy.length === 0 && !rubricDelAsk &&
+                        <button className="btn sec sm" style={{ width:"auto" }} onClick={() => setRubricDelAsk(true)}>🗑 Delete</button>}
+                    </div>
+                    {rubricRename !== null && (
+                      <div className="rub-lib">
+                        <input type="text" value={rubricRename} aria-label="Rubric name" onChange={e => setRubricRename(e.target.value)} style={{ maxWidth:"320px" }} />
+                        <button className="btn sm" style={{ width:"auto" }} onClick={renameRubric}>Save name</button>
+                        <button className="btn sec sm" style={{ width:"auto" }} onClick={() => setRubricRename(null)}>Cancel</button>
+                      </div>
+                    )}
+                    {rubricDelAsk && (
+                      <div className="scan-msg warn" style={{ padding:".7rem .9rem", marginBottom:".6rem" }}>
+                        Delete the rubric <b>{viewRow?.name}</b>? No department uses it. This cannot be undone.{" "}
+                        <button className="btn danger sm" style={{ width:"auto", marginLeft:".4rem" }} onClick={deleteRubric}>Delete rubric</button>{" "}
+                        <button className="btn sec sm" style={{ width:"auto" }} onClick={() => setRubricDelAsk(false)}>Cancel</button>
+                      </div>
+                    )}
+                    {rubricNew && (
+                      <div className="scan-msg" style={{ padding:".8rem .9rem", marginBottom:".6rem", background:"var(--s1)", border:"1px solid var(--bd)" }}>
+                        <div className="lbl" style={{ marginBottom:".35rem" }}>New rubric</div>
+                        <div className="rub-lib">
+                          <input type="text" placeholder="Name, e.g. Upper grades 100-point" value={rubricNew.name} aria-label="New rubric name"
+                            onChange={e => setRubricNew(n => ({ ...n, name: e.target.value }))} style={{ maxWidth:"320px" }} />
+                          <select aria-label="Start from" value={rubricNew.from} onChange={e => setRubricNew(n => ({ ...n, from: e.target.value }))}>
+                            <option value="blank">Start blank (write my own)</option>
+                            {RUBRIC_PRESETS.map(pr => <option key={pr.id} value={pr.id}>Start from: {pr.label}</option>)}
+                            {viewRow && <option value="copy">Copy of “{viewRow.name}”</option>}
+                          </select>
+                          <button className="btn sm" style={{ width:"auto" }} onClick={createRubric}>Create</button>
+                          <button className="btn sec sm" style={{ width:"auto" }} onClick={() => setRubricNew(null)}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
+                    <div className="rub-lib-meta">
+                      {viewRow?.is_active && <><b>Default rubric</b> — used by every scored department that has not picked another one. </>}
+                      {usedBy.length ? <>Used by: <b>{usedBy.map(d => d.name).join(", ")}</b>. </> : <>Not used by any department yet. </>}
+                      Choose which rubric each department uses in <a href="#" onClick={e => { e.preventDefault(); setAdminTab("setup"); }}>Setup → Departments</a>.
+                    </div>
+                  </div>
+
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1rem", flexWrap:"wrap", gap:".75rem" }}>
+                    <div style={{ fontWeight:700, color:"var(--navy)" }}>{viewRow?.name || "Default rubric"}</div>
                     <div style={{ display:"flex", gap:".5rem" }}>
                       <button className="btn sec sm" style={{ width:"auto" }} onClick={() => {
                         setRubricDraft(rubric.map(c => ({ ...c })));
@@ -8194,9 +8458,10 @@ export default function App() {
                       fully editable afterwards. Routed through requestSaveRubric() so an
                       existing set of scores still triggers the impact warning + backup offer. */}
                   <div className="card" style={{ marginBottom:"1rem" }}>
-                    <div className="lbl" style={{ marginBottom:".35rem" }}>Start from a preset</div>
+                    <div className="lbl" style={{ marginBottom:".35rem" }}>Replace “{viewRow?.name || "this rubric"}” with a preset</div>
                     <p style={{ fontSize:".8rem", color:"var(--dim)", marginBottom:".6rem" }}>
-                      Replaces the whole rubric. If scores already exist you will be shown what changes and offered a backup first.
+                      Replaces this rubric's criteria. To keep this one and ALSO have a preset, use ＋ New rubric instead.
+                      If scores already exist under it you will be shown what changes and offered a backup first.
                     </p>
                     <div className="setup-preset-grid">
                       {RUBRIC_PRESETS.map(p => {
@@ -8252,9 +8517,9 @@ export default function App() {
                     <span className="rub-total-pts">{rubric.reduce((s,r) => s + r.max, 0)} pts</span>
                   </div>
 
-                  {rubricId && (
+                  {viewRow && (
                     <div style={{ marginTop:".75rem", fontSize:".78rem", color:"var(--dim)", fontFamily:"var(--ff-m)" }}>
-                      Rubric ID: {rubricId}
+                      Rubric ID: {viewRow.id}
                     </div>
                   )}
                 </div>
@@ -8589,7 +8854,7 @@ export default function App() {
                   <div className="res-meta">{p.cat} · Grade {p.grade} · {p.revs} review{p.revs!==1?"s":""}</div>
                   {shareShowRubric && (
                     <div className="rub-chips">
-                      {rubric.map(r => {
+                      {projRubric(p).map(r => {
                         const avg = rubAvg(p.id, r.id);
                         if (!avg) return null;
                         return <span key={r.id} className="rub-chip">{r.label.split(" ")[0]}: {avg}/{r.max}</span>;

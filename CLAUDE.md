@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + real-Postgres (PGlite) migration/RLS suite. Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 215 checks across 10 files |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 233 checks across 11 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -57,6 +57,7 @@ always serves and cannot be redirected — never share it.
 | `migration-2026-10c-secure-school-signup.sql` | **`create_school()`** RPC; closes direct INSERT on `schools` and `school_admins` (anyone could make themselves admin of any school) | **Yes** — the sign-up form calls `create_school()`. Run before anyone registers a school |
 | `migration-2026-10d-judge-revise-validation.sql` | Judges may delete their own validation until results are finalized (never the admin's) | No — without it "Revise my validation" shows an error instead of unlocking |
 | `migration-2026-10e-categories-and-department-codes.sql` | **`categories`** table (per-school project categories) + seeds the six for every existing school; **`departments.code`** | No — **additive only**. Old app ignores both; new app falls back to `DEFAULT_CATEGORIES` and logs `CATEGORIES_TABLE_MISSING`. Safe to run in either order |
+| `migration-2026-10j-department-rubrics.sql` | **Each department picks its rubric**: `departments.rubric_id` (NULL = the school default = `rubrics.is_active`); one default per school (unique partial index, duplicates resolved to the newest); guard trigger — a department's rubric / comment-only setting cannot change once it has scores, and only its own school's rubrics; delete guard — the default and any rubric in use cannot be deleted; **`set_default_rubric()`** | No — old app keeps using the default for every department |
 | `migration-2026-10i-judge-max.sql` | **Maximum judge number**: `app_settings.judge_max` (default 15, clamped 1–90 by `judge_max()`), backfilled to clamp(highest number in use, 15, 90); **`set_judge_max()`**; `set_judge_numbers()` refuses ranges past it; new departments are numbered only if they fit | No. ⚠️ Supersedes `set_judge_numbers()` (10h) and the numbering trigger (10g) — re-run 10i after re-running either |
 | `migration-2026-10h-shared-judges.sql` | **Departments can share judges** (opt-in): `judges.department_ids` (backfilled `[department_id]`), `register_judge()` covers every department whose range holds the number, `set_judge_numbers()` accepts overlaps, re-syncs signed-in judges and refuses to take a department away from one | No. ⚠️ Re-running **10g** after this re-creates the older functions — always re-run 10h after 10g |
 | `migration-2026-10g-school-judge-numbers.sql` | **One judge list per school** (default): `departments.judge_from` / `judge_to`, numbering trigger + backfill, `app_settings.judge_numbering`, new **`register_judge()`**, **`set_judge_numbers()`**, **`remove_judge()`** | No — new app without it keeps per-department numbering; old app with it still works (the number overrides the department it sends). Run it, then set the counts in Setup |
@@ -284,8 +285,8 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 |---|---|
 | `schools` | id, name, slug, invite_code, admin_pin (bcrypt) |
 | `school_admins` | Links a Supabase Auth user to a school |
-| `rubrics` | Per-school rubric — `criteria` JSONB array, `is_active` |
-| `departments` | name, `code`, `max_judges`, `ord`, **`scoring_mode`**, **`judge_from` / `judge_to`** (2026-10g — this department's judge numbers; a trigger numbers new rows after the school's last number) — seeded from `DEPT_PRESETS[0]`, fully admin-editable. `code` (2026-10e) is reserved for registration numbers; `locked` / `finalized_at` / `award_grouping` (2026-10f) are reserved for Phase 3. Nothing reads those four yet |
+| `rubrics` | Per-school rubric **library** (2026-10j) — name, `criteria` JSONB array, `is_active` = **the school default** (exactly one). Departments point at one via `departments.rubric_id` |
+| `departments` | name, `code`, `max_judges`, `ord`, **`scoring_mode`**, **`rubric_id`** (2026-10j; NULL = default rubric), **`judge_from` / `judge_to`** (2026-10g — this department's judge numbers; a trigger numbers new rows after the school's last number) — seeded from `DEPT_PRESETS[0]`, fully admin-editable. `code` (2026-10e) is reserved for registration numbers; `locked` / `finalized_at` / `award_grouping` (2026-10f) are reserved for Phase 3. Nothing reads those four yet |
 | `categories` | Per-school project categories: name, `code`, `ord` (2026-10e). UNIQUE(school_id, name). **No FK from `projects`** — `projects.cat` is a free-text snapshot, so deleting a category never alters a project |
 | `projects` | num, title, cat, grade, locked, department_id, room, description, motivation — **public, no names** |
 | `project_private` | PK `(project_id, school_id)`, FK → projects **ON DELETE CASCADE**: advisor_name, group_members (JSONB), updated_at — **admin-only** |
@@ -370,6 +371,7 @@ Scoring UI is discrete tap buttons (`.rub-step-btn`), never sliders.
 | Preset | Shape |
 |---|---|
 | `northeast-az` | `DEFAULT_RUBRIC` — 10 criteria, 0–6 each, 42 pts. Has an `abstract` criterion, allows 0 |
+| `dishchiibikoh-20` | The detailed judging form: **20 items rated 1–5**, grouped by an optional `section` field (Project Title 5 · Scientific Inquiry 4 · Data and Conclusion 4 · Presentation 5 · Further Research 2) = 100 pts, floor 20. `section` is display-only (headings in the scoring form) |
 | `cibecue-100` | 5 weighted sections rated 1–5, **100 pts**: Project Title 15 · Scientific Inquiry 25 · Data and Conclusion 20 · Presentation 20 · Further Research 20. **No zero step — the floor is 20/100.** No `abstract` criterion |
 
 Applying a preset goes through `requestSaveRubric()`, so the impact warning + backup offer
@@ -572,9 +574,12 @@ cards), then scan the same form in the app.
 
 ```js
 // Scoring math
-getTotal(score)              // sum of score.criteria
+getTotal(score, proj)        // sum of score.criteria under THAT PROJECT's rubric (2026-10j) — always pass proj
+projRubric(proj), rubricFor(deptId), rubricRowFor(deptId), defaultRubricRow(), deptsUsingRubric(id)
+deptHasScores(deptId)        // score keys end with `_${projectId}` — never cut a key at "_" (rule 60)
+loadRubrics(sid), createRubric(), renameRubric(), deleteRubric(), makeDefaultRubric(), updateDeptJudging(id, rubricId|"feedback")
 critVal(scoreOrEntry, rid)   // module helper: one criterion from .criteria (legacy flat-field fallback)
-rubricMax()                  // max points under the active rubric — never hardcode 42
+rubricMax()                  // max of the DEFAULT rubric — fallback only; per project use projectMax(proj)
 projectMax(proj)             // max for ONE project (drops abstract when grade < 5) — use this
                              // for anything shown next to a single project's score
 stepLabel(r, v, i)           // module helper: a criterion's rating word for step i, or null
@@ -680,7 +685,7 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 2. **`app_settings` PK is `(school_id, key)`.** Upserts include `school_id`; never `.eq("key", x)` alone.
 3. **Upsert conflicts:** `validations` → `onConflict: "school_id,judge_id"`; `final_decisions` → `"school_id,project_id"`.
 4. **Scores are JSONB.** `scores.criteria = { [criterionId]: value }`. Read through `getTotal()` / `critVal()` — never `score.presentation` etc. (v1 columns that no longer exist; this silently emptied backups and CSVs for months).
-5. **The rubric is dynamic.** Use the `rubric` state everywhere; `DEFAULT_RUBRIC` is only a seed/fallback, and `RUBRIC_PRESETS` are starting points. **Never assume a rubric has 42 points, an `abstract` criterion, a `0` step, or any particular criterion id** — the Cibecue preset has none of those. Guard with `r.id === "abstract"`-style checks that no-op, never with "the rubric always has N criteria".
+5. **The rubric is dynamic AND per department (2026-10j).** There is no single "the rubric": use **`projRubric(proj)`** / **`rubricFor(deptId)`** for anything about a project (scoring form, totals, maxima, breakdowns, CSV values) and pass the project to **`getTotal(score, proj)`** — without it the DEFAULT rubric is used and a department on another rubric totals 0. The Rubric tab works on `viewRubricRow()`. Previously: use the `rubric` state everywhere; `DEFAULT_RUBRIC` is only a seed/fallback, and `RUBRIC_PRESETS` are starting points. **Never assume a rubric has 42 points, an `abstract` criterion, a `0` step, or any particular criterion id** — the Cibecue preset has none of those. Guard with `r.id === "abstract"`-style checks that no-op, never with "the rubric always has N criteria".
 6. **Never hardcode the max score, or anything derived from it.** Use `rubricMax()` for "the whole rubric" and **`projectMax(proj)` for anything about one project** — they differ whenever a criterion is exempt (grade < 5 skips `abstract`: 36, not 42). A literal `42` is a bug, and so was `getAnomalies()`'s hardcoded "> 8 points", which is ~19% of 42 but only 8% of 100 — it would have flagged nearly every judge on the Cibecue rubric. It is now `projectMax(p) * ANOMALY_PCT`. Six per-project displays showed `/rubricMax()` and were fixed 2026-10-06 (public podium + results rows, deliberation header and per-judge bars, `buildDelibReport()`).
 7. **Score key format is `${judgeId}_${projectId}`.** Do not change it.
 8. **Ranking and tie detection are per department.** Use `rankedProjectsIn(deptId)`; cross-department ties are meaningless.
@@ -764,6 +769,15 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
     `participantsIn(deptId)` — ordered by project number, never by score. Public results show those
     departments with no rank, no denominator and no medal: the whole point is that nobody is ranked.
 
+60. **Never parse a score key by splitting on "_".** Keys are `${judgeId}_${projectId}` and both ids
+    contain underscores (`j_ab12_p_cd34`). Match with `key.endsWith(`_${p.id}`)` (see `deptHasScores()`,
+    `projAvg()`). Two checks did `k.slice(k.lastIndexOf("_") + 1)` → `"cd34"`, matched nothing, and the
+    "department already has scores" guard never fired on screen (2026-10f → 2026-10-06).
+61. **A department's rubric or comment-only mode may not change once it has scores** — enforced by the
+    `departments_guard_judging` trigger (2026-10j) and in `updateDeptJudging()`. Editing a rubric's
+    criteria is different: it is allowed, behind `requestSaveRubric()`'s impact warning, and changes
+    every department that uses it.
+
 **Supabase client pitfalls (both shipped as real bugs)**
 48. **Every Supabase query must be awaited, returned, inside `Promise.all`, or end in `.then()`.** A supabase-js query builder is lazy — a bare `supabase.from(x).insert(y);` statement sends **nothing**. This silently disabled the activity log, the IT log and "Revise my validation" for all of v2.
 49. **Never `await` a Supabase call inside `onAuthStateChange`.** supabase-js holds its auth lock while notifying listeners; an awaited query waits for that lock → deadlock. It made Sign Out hang forever. Defer with `setTimeout(() => …, 0)` (see `onAuthChanged`).
@@ -812,6 +826,29 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-06 — Each department picks its rubric; rubric library** (migration `2026-10j`, not coupled).
+Setup → each department's dropdown lists every rubric in the school's library plus **Comments only**;
+judges get the rubric of each project's department. Rubric tab is a library: ＋ New rubric (blank /
+preset / copy), rename, ★ make default (`set_default_rubric()`), delete (refused for the default or a
+rubric in use). Third preset added: the **detailed 20-item form** (the Cibecue sheet's items rated
+individually), with section headings in the scoring form.
+- Every scoring path now takes the project: `getTotal(score, proj)`, `projectMax`, `draftTotal`,
+  `allMoved`, `hasZeroScore`, the scoring form, the Projects-tab breakdown, public rubric chips.
+  Exports: judge-scores and backup CSVs list every criterion of every rubric in use plus Rubric /
+  Out of columns; backups store every rubric and the department→rubric map; projects/results CSVs
+  got Out of (+ Rubric) instead of a single "of N" header.
+- **"Judges still see the old rubric"** — two causes: (1) the live school had only ever saved the
+  42-point rubric (nothing to sync to); (2) nothing listened for rubric changes, so an open judge
+  screen kept the old one until reload — `rubrics` now has a realtime handler.
+- **Bug found:** the "department already has scores" check parsed score keys at the last `_`, which
+  never matches (rule 60) — so the comment-only switch (2026-10f) was never actually guarded on screen.
+  Fixed, and now also enforced by a trigger.
+- Latent race: first sign-in can run `ensureSeedData()` twice; before 10j both runs could insert a
+  default rubric. The unique default index now rejects the second.
+Tests: DB 164 (17 new: one default, own-school rubric only, scored-department lock incl. comment-only,
+same-rubric re-save allowed, rename allowed, delete guards, default switching + its guard, anon can read
+rubric_id, school delete still cascades); new `scripts/e2e/rubrics.e2e.mjs` 18 checks.
 
 **2026-10-06 — Maximum judge number (default 15, up to 90)** (migration `2026-10i`, not coupled).
 Numbers could run to 999 and the 10g backfill gave the live school Judge 1–90. Setup → Judge numbers

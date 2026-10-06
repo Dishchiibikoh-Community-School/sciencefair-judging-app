@@ -139,6 +139,13 @@ export function installMock(page, store, log) {
         store.judges.push(row);
         return json(route, 200, row);
       }
+      if (fn === "set_default_rubric") {
+        // Mirrors migration 2026-10j (the score guard is covered by the DB suite).
+        if (!isAdmin) return json(route, 400, { code: "P0001", message: "Not authorised" });
+        if (!store.rubrics.some(r => r.id === body.p_rubric_id)) return json(route, 400, { code: "P0001", message: "That rubric does not belong to this school." });
+        store.rubrics.forEach(r => { r.is_active = r.id === body.p_rubric_id; });
+        return json(route, 200, null);
+      }
       if (fn === "set_judge_max") {
         if (!isAdmin) return json(route, 400, { code: "P0001", message: "Not authorised" });
         const n = body.p_max;
@@ -244,6 +251,10 @@ export function installMock(page, store, log) {
       }
       return json(route, 200, out, { "content-range": `0-${Math.max(out.length - 1, 0)}/${out.length}` });
     }
+    // 2026-10j: at most one default rubric per school (unique partial index).
+    if (method === "POST" && table === "rubrics" && (Array.isArray(body) ? body : [body]).some(r => r.is_active)
+        && rows.some(r => r.is_active))
+      return json(route, 409, { code: "23505", message: 'duplicate key value violates unique constraint "rubrics_one_default_per_school"' });
     if (method === "POST") {
       const items = Array.isArray(body) ? body : [body];
       // PostgREST upserts on the PRIMARY KEY when on_conflict is not given.
@@ -260,6 +271,13 @@ export function installMock(page, store, log) {
       }
       if (prefer.includes("return=representation")) return json(route, 201, single ? out[0] : out);
       return route.fulfill({ status: 201, headers: { "access-control-allow-origin": "*" } });
+    }
+    // 2026-10j guards: the default rubric and a rubric a department uses cannot be deleted.
+    if (method === "DELETE" && table === "rubrics") {
+      const target = rows.find(r => matches(r, params));
+      if (target?.is_active) return json(route, 400, { code: "P0001", message: `"${target.name}" is the default rubric. Make another rubric the default first.` });
+      const user = target && store.departments.find(d => d.rubric_id === target.id);
+      if (user) return json(route, 400, { code: "P0001", message: `"${target.name}" is used by ${user.name}. Give that department another rubric first.` });
     }
     if (method === "PATCH" && table === "rubrics" && store.failRubricSave)
       return json(route, 401, { code: "42501", message: "JWT expired" });

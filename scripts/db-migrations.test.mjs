@@ -90,7 +90,8 @@ for (const round of [1, 2]) {
   await db.exec(mig("migration-2026-10g-school-judge-numbers.sql"));
   await db.exec(mig("migration-2026-10h-shared-judges.sql"));
   await db.exec(mig("migration-2026-10i-judge-max.sql"));
-  ok(`migrations 2026-10, 10b, 10c, 10d, 10e, 10f, 10g, 10h, 10i applied (round ${round} — re-runnable)`);
+  await db.exec(mig("migration-2026-10j-department-rubrics.sql"));
+  ok(`migrations 2026-10 … 10j applied (round ${round} — re-runnable)`);
 }
 
 // ── PART 1: names are private ──
@@ -609,5 +610,77 @@ assert.equal((await as("anon", "", "SELECT judge_max($1) m", [S5])).rows[0].m, 9
 ok("judge max: a stored value above 90 is still capped at 90");
 assert.equal((await db.query("SELECT value FROM app_settings WHERE school_id=$1 AND key='judge_max'", [S3])).rows[0]?.value, "19");
 ok("judge max: backfill keeps an existing school at the size it already uses (Judge 1-19 → 19)");
+
+// ── PART 8: each department picks its rubric (migration 2026-10j) ──
+const S6 = "66666666-6666-6666-6666-666666666666";
+const RB = (n) => `b0000000-0000-0000-0000-00000000000${n}`;
+const DD = (n) => `c0000000-0000-0000-0000-00000000000${n}`;
+await db.exec(`
+  INSERT INTO schools (id, name, slug, invite_code, admin_pin) VALUES ('${S6}', 'Six', 'six', 'CODE6', '4821');
+  INSERT INTO school_admins (school_id, user_id) VALUES ('${S6}', '${ADMIN}');
+  INSERT INTO rubrics (id, school_id, name, criteria, is_active) VALUES
+    ('${RB(1)}', '${S6}', 'Northeast AZ', '[{"id":"presentation","max":6,"steps":[0,2,4,6]}]', true),
+    ('${RB(2)}', '${S6}', 'Cibecue 100',  '[{"id":"title","max":15,"steps":[3,6,9,12,15]}]', false),
+    ('${RB(3)}', '${S6}', 'Detailed 20',  '[{"id":"t1","max":5,"steps":[1,2,3,4,5]}]', false),
+    ('${RB(4)}', '${S6}', 'Spare',        '[{"id":"x","max":3,"steps":[0,3]}]', false);
+  INSERT INTO departments (id, school_id, name, max_judges, ord) VALUES
+    ('${DD(1)}', '${S6}', 'Lower', 2, 0), ('${DD(2)}', '${S6}', 'Upper', 2, 1);
+  INSERT INTO projects (id, school_id, num, title, cat, grade, department_id) VALUES
+    ('r_lo', '${S6}', '001', 'Lower one', 'Life Science', '3', '${DD(1)}'),
+    ('r_up', '${S6}', '002', 'Upper one', 'Life Science', '8', '${DD(2)}');
+`);
+await fails("authenticated", ADMIN, `INSERT INTO rubrics (school_id, name, criteria, is_active) VALUES ('${S6}', 'Second default', '[]', true)`,
+  /rubrics_one_default_per_school/, "rubrics: a school cannot have two default rubrics");
+const setDeptRub = (d, r) => as("authenticated", ADMIN, "UPDATE departments SET rubric_id = $2 WHERE id = $1 RETURNING rubric_id", [d, r]);
+await setDeptRub(DD(2), RB(2));
+assert.equal((await db.query("SELECT rubric_id FROM departments WHERE id=$1", [DD(2)])).rows[0].rubric_id, RB(2));
+ok("rubrics: admin gives Upper the Cibecue rubric (Lower keeps the default)");
+const OTHER_RUB = "b0000000-0000-0000-0000-000000000099";
+await db.exec(`INSERT INTO rubrics (id, school_id, name, criteria, is_active) VALUES ('${OTHER_RUB}', '${S5}', 'Five default', '[]', true)
+  ON CONFLICT DO NOTHING`);
+await fails("authenticated", ADMIN, "UPDATE departments SET rubric_id = $2 WHERE id = $1", /does not belong to this school/,
+  "rubrics: a department cannot use another school's rubric", [DD(1), OTHER_RUB]);
+await fails("anon", "", "UPDATE departments SET rubric_id = $2 WHERE id = $1 RETURNING 1", null,
+  "rubrics: anon cannot change a department's rubric", [DD(2), RB(3)]).catch(async () => {
+  const r = await as("anon", "", "UPDATE departments SET rubric_id = $2 WHERE id = $1 RETURNING 1", [DD(2), RB(3)]);
+  assert.equal(r.rows.length, 0); ok("rubrics: anon cannot change a department's rubric (0 rows)");
+});
+
+// A judge scores in both departments.
+const rj = (await as("anon", "", RJ, [S6, DD(1), "Judge1", "CODE6"])).rows[0].j;
+await as("anon", "", UPSERT_SCORE, [S6, rj.id, "r_up", JSON.stringify({ title: 12 }), ""]);
+await fails("authenticated", ADMIN, "UPDATE departments SET rubric_id = $2 WHERE id = $1", /Upper already has scores/,
+  "rubrics: a scored department's rubric cannot change", [DD(2), RB(3)]);
+await fails("authenticated", ADMIN, "UPDATE departments SET scoring_mode = 'feedback' WHERE id = $1", /Upper already has scores/,
+  "rubrics: a scored department cannot switch to comment-only (now enforced on the server)", [DD(2)]);
+await setDeptRub(DD(2), RB(2));
+ok("rubrics: saving the SAME rubric on a scored department is fine");
+await as("authenticated", ADMIN, "UPDATE departments SET name = 'Upper grades' WHERE id = $1", [DD(2)]);
+ok("rubrics: renaming a scored department is still allowed");
+
+// Delete guards
+await fails("authenticated", ADMIN, "DELETE FROM rubrics WHERE id = $1", /is used by Upper grades/, "rubrics: a rubric in use cannot be deleted", [RB(2)]);
+await fails("authenticated", ADMIN, "DELETE FROM rubrics WHERE id = $1", /is the default rubric/, "rubrics: the default rubric cannot be deleted", [RB(1)]);
+assert.equal((await as("authenticated", ADMIN, "DELETE FROM rubrics WHERE id = $1 RETURNING 1", [RB(4)])).rows.length, 1);
+ok("rubrics: an unused rubric can be deleted");
+
+// Default switching
+const SDR = "SELECT set_default_rubric($1, $2)";
+await fails("anon", "", SDR, /Not authorised/, "set_default_rubric: anon refused", [S6, RB(3)]);
+await as("anon", "", UPSERT_SCORE, [S6, rj.id, "r_lo", JSON.stringify({ presentation: 4 }), ""]);
+await fails("authenticated", ADMIN, SDR, /Lower follows the default rubric and already has scores/,
+  "set_default_rubric: refused while a scored department follows the default", [S6, RB(3)]);
+await setDeptRub(DD(1), RB(1));
+ok("rubrics: pinning Lower to the rubric it already uses is allowed even with scores");
+await as("authenticated", ADMIN, SDR, [S6, RB(3)]);
+assert.deepEqual((await db.query("SELECT id FROM rubrics WHERE school_id=$1 AND is_active", [S6])).rows.map(r => r.id), [RB(3)]);
+ok("set_default_rubric: switches the default in one step (exactly one default)");
+assert.equal((await as("anon", "", "SELECT name, rubric_id FROM departments WHERE id=$1", [DD(2)])).rows[0].rubric_id, RB(2));
+ok("rubrics: judges (anon) can read each department's rubric_id");
+
+// Deleting the whole school is not blocked by the guards.
+await db.exec(`DELETE FROM scores WHERE school_id = '${S6}'; DELETE FROM judges WHERE school_id = '${S6}'; DELETE FROM schools WHERE id = '${S6}'`);
+assert.equal((await db.query("SELECT count(*)::int n FROM rubrics WHERE school_id=$1", [S6])).rows[0].n, 0);
+ok("rubrics: deleting a school still cascades through its rubrics");
 
 console.log(`\nALL ${pass} CHECKS PASSED`);
