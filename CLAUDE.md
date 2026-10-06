@@ -30,8 +30,8 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Vercel | `sciencefair-v2` — the **only** Vercel project |
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
-| Tests | `npm test` — mocked scan API + real-Postgres (PGlite) migration/RLS suite. Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 269 checks across 14 files |
+| Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite. Run after any `supabase/*.sql` or `api/` change |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 325 checks across 15 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -58,6 +58,7 @@ always serves and cannot be redirected — never share it.
 | `migration-2026-10d-judge-revise-validation.sql` | Judges may delete their own validation until results are finalized (never the admin's) | No — without it "Revise my validation" shows an error instead of unlocking |
 | `migration-2026-10e-categories-and-department-codes.sql` | **`categories`** table (per-school project categories) + seeds the six for every existing school; **`departments.code`** | No — **additive only**. Old app ignores both; new app falls back to `DEFAULT_CATEGORIES` and logs `CATEGORIES_TABLE_MISSING`. Safe to run in either order |
 | `migration-2026-10k-judge-roster-and-panels.sql` | **Judge roster grid + N judges per project**: `judge_roster` (number ↔ department, public read, RPC-only writes), `judge_labels` (admin-only private names), `departments.judges_per_project`, `project_judges` (stored panel assignments); `register_judge()` / `set_judge_roster()` / `set_judges_per_project()` / `assign_panels(fill\|rebuild\|rebalance)` / `sync_judge_projects()`; `set_judge_numbers()` kept as a ranges→roster wrapper for cached apps; new departments still get a default block (now also in the roster) | **Yes — run it, then deploy the matching app.** The previous app keeps working (its range editor saves through the wrapper) but cannot show the grid or panels. ⚠️ Supersedes register_judge (10h), set_judge_numbers / set_judge_max / the numbering trigger (10i), departments_guard_judging (10j) — re-run 10k after any of those |
+| `migration-2026-10l-school-branding.sql` | **Per-school logo + fair poster**: `school_branding` (paths + poster description; public read, writes only via **`set_school_branding()`**), Storage bucket **`school-branding`** (public read, 2 MB, WebP/PNG/JPEG) + `storage.objects` policies (admin of THAT school, own folder, app-generated names, no overwrite), `can_manage_branding_object()`; seeds `builtin:dishchiibikoh` for the one school whose id **and** slug match | **No** — either order. Without it Dishchii'bikoh keeps its bundled logo, everyone else gets the monogram, and Setup says the migration is needed. ⚠️ Its storage part needs the Supabase SQL editor (`storage` schema); it is skipped on a database without one |
 | `migration-2026-10j-department-rubrics.sql` | **Each department picks its rubric**: `departments.rubric_id` (NULL = the school default = `rubrics.is_active`); one default per school (unique partial index, duplicates resolved to the newest); guard trigger — a department's rubric / comment-only setting cannot change once it has scores, and only its own school's rubrics; delete guard — the default and any rubric in use cannot be deleted; **`set_default_rubric()`** | No — old app keeps using the default for every department |
 | `migration-2026-10i-judge-max.sql` | **Maximum judge number**: `app_settings.judge_max` (default 15, clamped 1–90 by `judge_max()`), backfilled to clamp(highest number in use, 15, 90); **`set_judge_max()`**; `set_judge_numbers()` refuses ranges past it; new departments are numbered only if they fit | No. ⚠️ Supersedes `set_judge_numbers()` (10h) and the numbering trigger (10g) — re-run 10i after re-running either |
 | `migration-2026-10h-shared-judges.sql` | **Departments can share judges** (opt-in): `judges.department_ids` (backfilled `[department_id]`), `register_judge()` covers every department whose range holds the number, `set_judge_numbers()` accepts overlaps, re-syncs signed-in judges and refuses to take a department away from one | No. ⚠️ Re-running **10g** after this re-creates the older functions — always re-run 10h after 10g |
@@ -85,20 +86,22 @@ The v1 Vercel project was deleted 2026-09-30. **Do not resurrect v1.**
 │   ├── supabaseClient.js        ← Supabase client init (reads .env)
 │   └── main.jsx                 ← React root + PWA service-worker registration
 ├── api/
-│   ├── send-registration-email.js ← Vercel function: registration confirmation via Resend
+│   ├── send-registration-email.js ← Vercel function: registration confirmation via Resend (looks up the school's name + logo itself)
 │   └── scan-form.js             ← Vercel function: reads participation forms with Gemini (admin-only)
 ├── scripts/
 │   ├── scan-form.test.mjs       ← mocked tests for api/scan-form.js (free, offline)
 │   ├── db-migrations.test.mjs   ← schema + all migrations on real Postgres (PGlite): RLS, RPCs
 │   ├── e2e/                     ← browser tests (playwright-core + mocked backend); screenshots in e2e/out/ (gitignored)
 │   │                              scan · judge-reg · signup · setup (departments/categories) · lifecycle
+│   ├── registration-email.test.mjs ← mocked tests for the email: only the school's OWN branding, HTML escaping
 │   └── scan-form-smoke.mjs      ← real-Gemini smoke test for form scanning (needs GEMINI_API_KEY)
 ├── supabase/
 │   ├── schema-v2.sql            ← v2 multi-tenant base schema
 │   ├── migration-2026-09*.sql   ← see Migrations table above
 │   ├── registration-migration.sql ← historical
 │   └── schema.sql               ← v1 schema — historical, do not apply
-├── public/                      ← favicon.svg, logo.png (also PWA icon), icons.svg
+├── public/                      ← favicon.svg + icons/ (the Qritiko mark: favicon, PWA, apple-touch — never a school's logo),
+│                                  branding/dishchiibikoh-logo.png (one school's bundled logo, see 🎨), icons.svg (unused Vite leftover)
 ├── graphify-out/                ← knowledge graph (GRAPH_REPORT.md, graph.json)
 ├── index.html                   ← PWA meta tags
 ├── vite.config.js               ← Vite + vite-plugin-pwa
@@ -183,7 +186,7 @@ files, no Tailwind, no CSS modules.
 | `adminTab` | Content |
 |---|---|
 | `overview` | Stats, per-department leaderboards, "Get started" card (checklist only until the first judge registers; school URL + invite code **always** — it becomes "Judge sign-in details"), Change PIN card, Lock Judging, a summary card linking to Setup |
-| `setup` | **Departments** (add / rename / reorder / delete / max judges / presets) and **project categories** (add / rename / reorder / delete / restore defaults). Both are per-school data — see rule 14 |
+| `setup` | **Departments** (add / rename / reorder / delete / max judges / presets), the **judge grid**, **project categories** (add / rename / reorder / delete / restore defaults), project codes, **School year** and **School branding** (logo + poster, see 🎨). Departments and categories are per-school data — see rule 14 |
 | `judges` | Per-judge progress grouped by department; Allow Transfer (PIN) |
 | `projects` | Add/edit/remove/lock projects, **📷 Scan forms** (AI form reader), rubric breakdown, project-list PDF |
 | `registration` | Student registration links + submissions, registration CSV |
@@ -214,7 +217,7 @@ the only real controls. "The UI does not expose it" is never a control.
 | Admin dashboard | Supabase Auth email + password (set at school sign-up) | Supabase Auth |
 | Judge sign-in | Alias + `schools.invite_code` | `register_judge()` — invite code never sent to anon clients |
 | IT Logs, Reset All Data, judge transfer | `schools.admin_pin` — **bcrypt hash**, 4–8 digits chosen at sign-up | `verify_school_pin()` |
-| Registration email | `RESEND_API_KEY`, `EMAIL_FROM` (Vercel server env only — never `VITE_`) | `api/send-registration-email.js` |
+| Registration email | `RESEND_API_KEY`, `EMAIL_FROM` (Vercel server env only — never `VITE_`); reuses `VITE_SUPABASE_URL` / `_ANON_KEY` to look up the school's name + logo | `api/send-registration-email.js` |
 | Form scanning (Gemini) | `GEMINI_API_KEY` (Vercel server env only, **paid** key), caller's Supabase session | `api/scan-form.js` — checks `school_admins` before calling Gemini |
 
 ### Server-side functions (migration 2026-09b unless noted)
@@ -236,6 +239,8 @@ the only real controls. "The UI does not expose it" is never a control.
 | `registration_count(school)` | anon | Count only (hardening migration). No longer used by the app since 2026-10b |
 | `create_school(user_id, name, slug, invite_code, pin, rubric)` | anon/auth | **The only way to create a school** (2026-10c). Creates school + owner link + 3 settings + 3 departments + rubric in one transaction. Owner must be the caller (signed in) or an account < 24 h old with no school (email-confirm path). Slug, name, invite code and PIN validated server-side |
 | `submit_registration(token, form)` | anon | **The only way a public registration gets in** (2026-10b). Validates the link token, then creates project + `project_private` + submission in one transaction, numbering under a per-school advisory lock. Errors raised as `P0001` are written for the student |
+| `set_school_branding(school, kind, path, alt)` | admin | **The only way to change branding** (2026-10l). `kind` = `logo` \| `poster` (path NULL = remove) \| `poster_alt`. Path must be `<that school id>/<kind>-<random>.(webp\|png\|jpg)` AND already in `storage.objects`; a poster needs a 3–250 char description. Returns the row + `old_path` (the app then deletes that file through the Storage API) |
+| `can_manage_branding_object(name)` | storage policies | True only for an app-generated name in the caller's own school folder (2026-10l) |
 | `is_school_admin(school)` | policies | Admin check used throughout RLS (base schema) |
 | `hash_admin_pin()` trigger | — | Hashes `admin_pin` on INSERT/UPDATE; leaves existing bcrypt values alone |
 
@@ -255,6 +260,8 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `projects` | SELECT open (judges + public pages need titles/room/description). **Must never hold names** — see rule 45 |
 | `categories` | SELECT open (the public registration form and judge views render the list without a session); INSERT/UPDATE/DELETE `is_school_admin(school_id)`. No personal data, so an open read is fine |
 | `project_private` | Adviser + student names. All operations `is_school_admin(school_id)`; anon has **no privileges at all**. Realtime enforces the same RLS |
+| `school_branding` | SELECT open (public pages); INSERT/UPDATE/DELETE revoked + policies `false` — `set_school_branding()` only (2026-10l) |
+| `storage.objects` (bucket `school-branding`) | Public bucket: files readable **by URL** only (no anon SELECT policy → no listing). INSERT / SELECT / DELETE for `authenticated` only where `can_manage_branding_object(name)`; **no UPDATE policy** (never overwrite — new name per upload) |
 | `activity_log`, `it_logs` | INSERT open; SELECT admin-only |
 | `score_backups` | Admin-only |
 
@@ -305,7 +312,7 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `validations` | Judge/admin validation; `judge_id = 'admin'` for the admin. Conflict `(school_id, judge_id)` |
 | `deliberation_notes` | Judge recommendation/comment/flag per project |
 | `final_decisions` | Admin award per project. Conflict `(school_id, project_id)` |
-| `app_settings` | Key/value, PK `(school_id, key)`: `locked`, `deliberation_open`, `results_finalized`, `judge_transfer_allowances`, `project_list_token`, `judge_numbering` (`school` default when absent \| `department`), `judge_sharing`, `judge_max`, **`project_code_format`** (default `{DEPT}-{CAT}-{NUM}`) |
+| `app_settings` | Key/value, PK `(school_id, key)`: `locked`, `deliberation_open`, `results_finalized`, `judge_transfer_allowances`, `project_list_token`, `judge_numbering` (`school` default when absent \| `department`), `judge_sharing`, `judge_max`, **`project_code_format`** (default `{DEPT}-{CAT}-{NUM}`), **`school_year`** (`2026-2027`; empty/missing = automatic — August starts a new year) |
 | `share_links` | Public results tokens, expiry, `revoked_at` |
 | `score_backups` | Admin snapshots — scores **and a copy of the rubric** |
 | `registration_links` | Student registration tokens |
@@ -313,6 +320,7 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `activity_log` | Human audit trail — never deleted |
 | `it_logs` | Structured diagnostics |
 | `security_attempts` | Failure counters for PIN / invite-code rate limiting |
+| `school_branding` | PK school_id (→ schools ON DELETE CASCADE): `logo_path`, `poster_path`, `poster_alt`, updated_at (2026-10l). Paths are Storage object names, or `builtin:dishchiibikoh` (seeded for that school only) |
 
 ⚠️ **`group_members` comes in three shapes — always read it through `normMembers(raw)`:**
 
@@ -337,6 +345,7 @@ the grade < 5 abstract exemption, so a mixed group is judged at its oldest membe
 ```js
 departments  // [{ id, name, code, max_judges, ord }] — fallback DEFAULT_DEPARTMENTS (ids null) until loaded
 categories   // [{ id, name, code, ord }]             — fallback DEFAULT_CATEGORIES   (ids null) until loaded
+branding     // { schoolId, logoPath, posterPath, posterAlt, missing } — schoolId = whose paths these are
              // catNames() is the ONLY way to build a category dropdown (rule 14)
 projects     // [{ id, num, title, cat, grade, locked, department_id, advisor_name,
              //    group_members: [{ name, grade }], room, description, motivation }]
@@ -457,6 +466,30 @@ Rankings are auto-computed (`projAvg`, `rankedProjectsIn`). The workflow validat
 - `isLinkLive()` = `shareEnabled && shareToken && !expired`. While live, a "● LIVE RESULTS" card shows on the school landing page.
 - Public page: results **split by department**, podium (2nd-1st-3rd), ranked table, award badges
   for finalized decisions, optional rubric chips. **Never judge names.**
+
+---
+
+## 🎨 School branding (logo + fair poster) — added 2026-10-06
+
+| Piece | Where |
+|---|---|
+| Admin UI | Setup tab → `#branding` card: preview before saving, Replace, Remove (inline confirm), poster description |
+| Storage | Public bucket `school-branding`, object names `<school id>/(logo\|poster)-<20 hex>.(webp\|png\|jpg)`, `cacheControl` 1 year |
+| Row | `school_branding` via `set_school_branding()` (see Security) |
+| Display | `brandingUrl()` → `<SchoolLogo>` (88 px landing, 64–72 px registration/results/project list) and `<BrandPoster>` |
+| Offline | workbox `runtimeCaching` CacheFirst for `/storage/v1/object/public/school-branding/` (safe: names never reused) |
+| Email | `api/send-registration-email.js` → `loadSchoolBranding(schoolId)` reads `schools` + `school_branding` with the anon key |
+
+**Save order** (`saveBrandDraft`): upload new file → RPC → on RPC error delete the upload → on success
+delete `old_path` (best effort, WARN on failure). Logs: `BRANDING_UPDATED`, `BRANDING_REMOVED`,
+`BRANDING_SAVE_FAILED`, `BRANDING_OLD_FILE_NOT_REMOVED`, `BRANDING_TABLE_MISSING` — sizes and kinds only.
+
+**Poster placement:** landing — after `.role-grid`, `max-height: min(75vh, 760px)`; registration form —
+after the heading, `min(45vh, 420px)`; public results — after the hero, `min(45vh, 440px)`.
+
+**The bundled logo:** `LEGACY_LOGOS` (JSX **and** `api/send-registration-email.js` — keep both in step) maps
+the Dishchii'bikoh school id → `{ slug, path: "builtin:dishchiibikoh", src }`. Used only when the row says
+that path (or the table is missing) and both id and slug match. Removing it in Setup is permanent.
 
 ---
 
@@ -669,6 +702,17 @@ addLog(msg), addItLog(level, module, event, detail, payload, sid?)
                              // first render, where currentSchool is still null (entry would not be saved)
 buildSnapshot()
 
+// School year — app_settings.school_year ("" = automatic). Never hardcode "SY 20xx-20xx".
+schoolYearFor(date), AUTO_SCHOOL_YEAR, cleanSchoolYear(v), validateSchoolYear(v)   // module helpers
+saveSchoolYear()             // upsert + error check (rule 55); syText / defaultResultsTitle are derived in App
+// shareTitle "" = defaultResultsTitle; generateLink() stores the resolved title on the share_links row
+
+// School branding (2026-10l) — see 🎨
+brandingUrl(path)            // public URL ONLY for the school on screen (own folder / its own builtin) else null
+loadBranding(sid), pickBrandFile(kind, file), saveBrandDraft(), removeBrand(kind), savePosterAlt()
+prepareBrandImage(file, kind), decodeBrandImage(file), schoolInitials(name)   // module helpers
+<SchoolLogo src name size pending/>, <BrandPoster src alt maxH/>                // module components
+
 // Exports & sharing (every cell through csvCell())
 csvCell(v)                   // module helper: quotes + neutralises leading = + - @
 exportResultsCSV(), exportJudgeScoresCSV(), downloadBackupCSV(), exportRegCSV()
@@ -684,7 +728,7 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 - `scores`, `judges`, `deliberation_notes`, `final_decisions`, `validations` — INSERT/UPDATE
   patch state from `payload.new`; full reload only on DELETE.
 - `activity_log`, `it_logs` — INSERT-only, prepend `payload.new`.
-- `departments`, `categories`, `projects`, `project_private`, `share_links`, `app_settings` — full `loadX(sid)` (rare admin changes).
+- `departments`, `categories`, `projects`, `project_private`, `share_links`, `app_settings`, `school_branding` — full `loadX(sid)` (rare admin changes).
 - ⚠️ **Always wrap loaders: `() => loadProjects(sid)`.** Passing `loadProjects` directly hands it the
   realtime payload as `sid`; it then queried `school_id = "[object Object]"`, so projects/departments
   never refreshed live from the v2 rewrite until 2026-10-05.
@@ -791,6 +835,21 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
     criteria is different: it is allowed, behind `requestSaveRubric()`'s impact warning, and changes
     every department that uses it.
 
+**Branding (2026-10l)**
+62. **A school's pages show only that school's branding.** Resolve every image through `brandingUrl()` — it
+    refuses paths outside `<currentSchool.id>/` and `builtin:` logos the school does not own (id AND slug).
+    No logo → `<SchoolLogo>` monogram. Never hardcode a school's logo, name or email domain anywhere a
+    different school can see it (that is how the wildcat ended up on every school, 2026-06 → 2026-10).
+63. **The favicon / PWA icon / apple-touch-icon are the Qritiko mark.** One origin serves every school
+    (rule 33), so the installed-app icon can never be a school's logo.
+64. **Branding files are immutable.** Each upload gets a new random name (so the CDN, browser and the
+    service worker's CacheFirst rule can cache forever); the old file is deleted *after* the row points at
+    the new one; if the row update fails the new upload is deleted. Delete files through the Storage API,
+    never `DELETE FROM storage.objects` (orphans the stored object). Uploads are shrunk + re-encoded in the
+    browser (`prepareBrandImage`): never upload the picked file as-is, never accept SVG.
+65. **The poster never goes on judges' screens** and always sits below the primary controls; posters are
+    sized with max-width + max-height only (never a fixed width/height, never cropped).
+
 **Supabase client pitfalls (both shipped as real bugs)**
 48. **Every Supabase query must be awaited, returned, inside `Promise.all`, or end in `.then()`.** A supabase-js query builder is lazy — a bare `supabase.from(x).insert(y);` statement sends **nothing**. This silently disabled the activity log, the IT log and "Revise my validation" for all of v2.
 49. **Never `await` a Supabase call inside `onAuthStateChange`.** supabase-js holds its auth lock while notifying listeners; an awaited query waits for that lock → deadlock. It made Sign Out hang forever. Defer with `setTimeout(() => …, 0)` (see `onAuthChanged`).
@@ -839,6 +898,33 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-06 — Per-school branding: logo + fair poster** (migration `2026-10l`, **not** coupled).
+Every school's pages showed Dishchii'bikoh's wildcat (`public/logo.png`, 5000 px / 5 MB) and the text
+"Dishchiibikoh Community School": landing page, registration form (3 states + email placeholders), public
+project list footer, project-list printout, the confirmation email, and the favicon / PWA / iOS icon.
+- **Setup → School branding**: upload / preview / replace / remove a logo and an optional poster (with a
+  required description). Images are shrunk + re-encoded in the browser (logo 512 px, poster 1600 px; WebP,
+  PNG/JPEG fallback), uploaded to Supabase Storage under `<school id>/`, then `set_school_branding()`.
+- Shown on: landing (poster **below** the role cards), registration (3 states), public results, public
+  project list, project-list printout, deliberation report header (name), confirmation email (server looks
+  the school up itself). Never on judge screens. No logo → initials monogram.
+- The wildcat is kept **for Dishchii'bikoh only** (`public/branding/dishchiibikoh-logo.png`, 512 px / 116 KB),
+  via a `builtin:` path seeded for the school whose id AND slug match. Platform icons are a new Qritiko mark
+  (`public/icons/`, `favicon.svg` — it was still Vite's default lightning bolt). Precache 5.9 MB → 0.95 MB.
+- Homepage nav says **Qritiko**; page title is the school's name on its pages.
+- **Also fixed:** the confirmation email inserted student-typed fields into HTML unescaped.
+- **School year is per school** (Setup → School year, `app_settings.school_year`, no migration): replaces the
+  hardcoded "SY 2025-2026" on the registration form (heading + success message), the dashboard subtitle and
+  the public-results default title / footer / landing card. Empty = automatic from the calendar (August starts
+  a new year). Existing share links keep the title stored with them.
+Tests: DB 228 (33 new: RLS, RPC path rules incl. another school's folder / builtin / kind mismatch / never
+uploaded, storage policies incl. `../`, `.svg`, nested paths, listing; seed needs id+slug; removal permanent;
+cascade); new `scripts/registration-email.test.mjs` (9); new `scripts/e2e/branding.e2e.mjs` (60: isolation,
+upload/replace/remove, failed upload + failed save leave no orphan, refused files, poster description, every
+public page, printout, judges never see the poster, 6 viewports × 3 pages with overflow / aspect-ratio /
+overlap checks, school year: automatic default, refused input, failed save, SY prefix stripped, registration
+form, back to automatic). Mock gained Storage (multipart upload, public GET, remove).
 
 **2026-10-06 — Judge roster grid + "N judges per project" panels** (migration `2026-10k`, **coupled**).
 Ranges could not express every sharing pattern (A+B share #1, B+C #2, A+C #3) and every judge scored every
@@ -1256,6 +1342,20 @@ Options to evaluate (not yet decided): Supabase Pro + PITR; a scheduled `pg_dump
 school controls; or a nightly export job. Whatever is chosen must keep
 `registration_submissions` (student + guardian PII) out of the repo and off shared drives.
 
+### Future work — registration email API (parked 2026-10-06 by the organiser; do it when asked)
+`api/send-registration-email.js` — the organiser said "not needed for now". When asked what is next for it:
+1. **School year:** it still prints "SY 2025-2026" (header + footer). Look up `app_settings.school_year`
+   server-side in `loadSchoolBranding()` (fallback = the same calendar rule as `schoolYearFor()`), never
+   from the request body.
+2. **Unauthenticated:** anyone can POST it and send an email with arbitrary text to any address — now with a
+   real school's name/logo. Gate it: have `submit_registration()` return a one-time email token (or check
+   the `reg_number` exists for that school and was created in the last few minutes) and verify it here.
+3. **Rate limit** per school / recipient (Resend quota, abuse).
+4. **PII in logs:** the app's `REG_EMAIL_FAILED` IT-log entry stores the student's email address — log the
+   reg number only.
+Already done (2026-10-06): school name + logo looked up server-side, all typed values HTML-escaped,
+`scripts/registration-email.test.mjs`.
+
 ### Known gaps (not yet fixed)
 - `projListUrl()`, `generateProjListLink()`, `revokeProjListLink()` have no UI callers, so `public-projects` is unreachable in practice.
 - `submitDelibNote()` and `reviseDecision()` are defined but unreferenced (ESLint `no-unused-vars`).
@@ -1274,8 +1374,8 @@ school controls; or a nightly export job. Whatever is chosen must keep
   `npm test` (real-Postgres RPC/RLS). The scanner UI has `scripts/e2e/scan.e2e.mjs`.
 - `submit_registration()` is gated only by the registration token: anyone holding an active link
   can submit repeatedly. Deactivate the link when registration closes.
-- The public registration page and some headers show hardcoded **Dishchiibikoh Community School**
-  branding (logo + name) for every school — not multi-tenant. Cosmetic, but wrong for other schools.
+- Branding storage cleanup is best-effort: a replaced file whose delete failed (IT log
+  `BRANDING_OLD_FILE_NOT_REMOVED`) and the files of a deleted school stay in the bucket (never shown).
 - A real-Gemini scan through the deployed `/api/scan-form` needs an admin session, so it is verified
   by an admin scanning one form after each deploy (the smoke script tests Gemini directly).
 - Judge identity — see "Open risks".

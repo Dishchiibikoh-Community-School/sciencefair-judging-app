@@ -21,7 +21,7 @@ async function openSignup(store) {
   return { page, log };
 }
 async function fill(page, { name = "Dishchii'bikoh Community School", slug, email = "kent+test@example.com", pin = "4821", pin2 } = {}) {
-  await page.locator('input[placeholder="Dishchiibikoh Community School"]').fill(name);
+  await page.locator('input[placeholder="e.g. Lincoln Middle School"]').fill(name);
   if (slug !== undefined) await page.locator('input[placeholder="my-school"]').fill(slug);
   await page.locator('input[type=email]').fill(email);
   await page.locator('input[placeholder="At least 8 characters"]').fill("correct-horse-9");

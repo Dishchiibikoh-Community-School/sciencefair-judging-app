@@ -5,16 +5,71 @@
  *   RESEND_API_KEY  — API key from https://resend.com
  *   EMAIL_FROM      — Verified sender address, e.g. "Science Fair <noreply@yourdomain.com>"
  *                     For testing you can use "onboarding@resend.dev" (Resend sandbox)
+ *   VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY — already set for the build; reused here to look
+ *                     up the school's name and logo (SUPABASE_URL / SUPABASE_ANON_KEY also accepted).
  *
  * POST /api/send-registration-email
- * Body: { studentEmail, studentName, regNumber, projectTitle, category, division }
+ * Body: { studentEmail, advisorEmail, studentName, regNumber, projectTitle, category, division, schoolId }
+ *
+ * The school's name and logo are looked up HERE from schoolId (public data) — never taken from
+ * the request — so an email can only carry the branding that school actually set (migration
+ * 2026-10l). Without a school (or if the lookup fails) the email is sent unbranded.
  */
+const APP_ORIGIN = "https://qritiko.com";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+// Keep in step with LEGACY_LOGOS in src/ScienceFairJudging.jsx.
+const LEGACY_LOGOS = {
+  "5667eba1-2f45-4830-96b7-6a6467113dfc": {
+    slug: "dishchiibikoh-community-school", path: "builtin:dishchiibikoh", src: "/branding/dishchiibikoh-logo.png",
+  },
+};
+
+// Everything placed into the HTML goes through this — form fields are typed by students.
+export function esc(v) {
+  return String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// → { name, logoUrl } for the school, or empty strings. Never throws.
+export async function loadSchoolBranding(schoolId, env = process.env) {
+  const base = env.VITE_SUPABASE_URL || env.SUPABASE_URL;
+  const key  = env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY;
+  const none = { name: "", logoUrl: "" };
+  if (!base || !key || !UUID_RE.test(String(schoolId || ""))) return none;
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 4000);
+  const get = async (path) => {
+    const r = await fetch(`${base}/rest/v1/${path}`, { headers: { apikey: key, Authorization: `Bearer ${key}` }, signal: ctl.signal });
+    return r.ok ? r.json() : [];
+  };
+  try {
+    const [schools, rows] = await Promise.all([
+      get(`schools?id=eq.${schoolId}&select=id,name,slug`),
+      get(`school_branding?school_id=eq.${schoolId}&select=logo_path`).catch(() => []),
+    ]);
+    const school = Array.isArray(schools) ? schools[0] : null;
+    if (!school || school.id !== schoolId) return none;
+    const path = (Array.isArray(rows) ? rows[0]?.logo_path : null) || "";
+    let logoUrl = "";
+    if (path.startsWith(`${schoolId}/`)) {
+      logoUrl = `${base}/storage/v1/object/public/school-branding/${path.split("/").map(encodeURIComponent).join("/")}`;
+    } else if (path.startsWith("builtin:")) {
+      const l = LEGACY_LOGOS[schoolId];
+      if (l && l.slug === school.slug && l.path === path) logoUrl = `${APP_ORIGIN}${l.src}`;
+    }
+    return { name: String(school.name || ""), logoUrl };
+  } catch {
+    return none;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { studentEmail, advisorEmail, studentName, regNumber, projectTitle, category, division } = req.body || {};
+  const { studentEmail, advisorEmail, studentName, regNumber, projectTitle, category, division, schoolId } = req.body || {};
 
   if (!studentEmail || !studentName || !regNumber || !projectTitle) {
     return res.status(400).json({ error: "Missing required fields" });
@@ -28,6 +83,7 @@ export default async function handler(req, res) {
   }
 
   const FROM = process.env.EMAIL_FROM || "onboarding@resend.dev";
+  const { name: schoolName, logoUrl } = await loadSchoolBranding(schoolId);
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -40,11 +96,14 @@ export default async function handler(req, res) {
         <!-- Header -->
         <tr>
           <td style="background:linear-gradient(135deg,#1e3a5f,#2d5a8e);padding:28px 32px;text-align:center;">
-            <div style="font-size:2.5rem;margin-bottom:8px;">🔬</div>
+            ${logoUrl
+              ? `<img src="${esc(logoUrl)}" alt="${esc(schoolName ? `${schoolName} logo` : "School logo")}" width="64" height="64"
+                  style="width:64px;height:64px;object-fit:contain;background:#ffffff;border-radius:12px;padding:6px;margin-bottom:10px;">`
+              : `<div style="font-size:2.5rem;margin-bottom:8px;">🔬</div>`}
             <div style="font-family:Georgia,serif;font-size:1.35rem;font-weight:700;color:#ffffff;margin-bottom:4px;">
               Science Fair SY 2025-2026
             </div>
-            <div style="font-size:.85rem;color:rgba(255,255,255,.7);">Dishchiibikoh Community School</div>
+            ${schoolName ? `<div style="font-size:.85rem;color:rgba(255,255,255,.7);">${esc(schoolName)}</div>` : ""}
           </td>
         </tr>
 
@@ -59,7 +118,7 @@ export default async function handler(req, res) {
                     Your Registration Number
                   </div>
                   <div style="font-family:'DM Mono',monospace,Courier New;font-size:2rem;font-weight:700;color:#1e3a5f;letter-spacing:.05em;">
-                    ${regNumber}
+                    ${esc(regNumber)}
                   </div>
                   <div style="font-size:.78rem;color:#64748b;margin-top:8px;">
                     Write this number on your project trifold board
@@ -83,25 +142,25 @@ export default async function handler(req, res) {
               <tr>
                 <td style="padding:4px 0;">
                   <span style="color:#64748b;font-size:.82rem;display:inline-block;width:130px;">Student Name</span>
-                  <span style="font-weight:600;font-size:.9rem;">${studentName}</span>
+                  <span style="font-weight:600;font-size:.9rem;">${esc(studentName)}</span>
                 </td>
               </tr>
               <tr>
                 <td style="padding:4px 0;">
                   <span style="color:#64748b;font-size:.82rem;display:inline-block;width:130px;">Project Title</span>
-                  <span style="font-weight:600;font-size:.9rem;">${projectTitle}</span>
+                  <span style="font-weight:600;font-size:.9rem;">${esc(projectTitle)}</span>
                 </td>
               </tr>
               <tr>
                 <td style="padding:4px 0;">
                   <span style="color:#64748b;font-size:.82rem;display:inline-block;width:130px;">Category</span>
-                  <span style="font-weight:600;font-size:.9rem;">${category}</span>
+                  <span style="font-weight:600;font-size:.9rem;">${esc(category)}</span>
                 </td>
               </tr>
               <tr>
                 <td style="padding:4px 0;">
                   <span style="color:#64748b;font-size:.82rem;display:inline-block;width:130px;">Division</span>
-                  <span style="font-weight:600;font-size:.9rem;">${division}</span>
+                  <span style="font-weight:600;font-size:.9rem;">${esc(division)}</span>
                 </td>
               </tr>
             </table>
@@ -116,7 +175,7 @@ export default async function handler(req, res) {
               <tr>
                 <td style="font-size:.88rem;color:#92400e;line-height:1.6;">
                   <strong>Important:</strong> Please write your registration number
-                  <strong style="font-family:monospace;">&nbsp;${regNumber}&nbsp;</strong>
+                  <strong style="font-family:monospace;">&nbsp;${esc(regNumber)}&nbsp;</strong>
                   on your project trifold board and bring it to the venue on event day.
                 </td>
               </tr>
@@ -128,8 +187,8 @@ export default async function handler(req, res) {
         <tr>
           <td style="padding:24px 32px;text-align:center;border-top:1px solid #e2e8f0;margin-top:20px;">
             <div style="font-size:.82rem;color:#64748b;line-height:1.8;">
-              Thank you for participating in the Science Fair SY 2025-2026!<br>
-              <strong style="color:#1e3a5f;">Dishchiibikoh Community School</strong>
+              Thank you for participating in the Science Fair SY 2025-2026!
+              ${schoolName ? `<br><strong style="color:#1e3a5f;">${esc(schoolName)}</strong>` : ""}
             </div>
           </td>
         </tr>

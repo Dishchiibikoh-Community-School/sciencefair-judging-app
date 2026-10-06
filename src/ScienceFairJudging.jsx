@@ -327,7 +327,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-06o";
+const ADMIN_HELP_UPDATED = "2026-10-06q";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -346,6 +346,8 @@ const ADMIN_HELP = [
     "Setup tab → Judges: tick the departments each judge number covers (one judge can cover several departments; a department can use any numbers, e.g. 1, 2, 5, 8). Judges type only their number and the invite code. Add a private name per number if you like — only admins see it.",
     "Big department? Under its column choose '3 judges per project' — each project is then scored by 3 judges and the app shares the projects out evenly, instead of every judge scoring every project.",
     "Setup tab: check your project categories. They are yours alone — rename them, delete the ones you don't use, or add your own (a robotics fair can replace all six).",
+    "Setup tab → School year: check it shows the right year (e.g. SY 2026-2027).",
+    "Setup tab → School branding: upload your school logo (and, if you like, your fair poster). Without a logo your pages show your school's initials.",
     "Setup tab: set any department that should NOT be scored (PreK, K-2) to 'Comments only'. This cannot be changed once that department has scores.",
     "Rubric tab + Setup: build your rubrics and pick one for each department (or Comments only) BEFORE the first judge signs in — a department's rubric locks once it has scores.",
     "Rubric tab: finish the rubric BEFORE the first judge signs in. Press a preset to start from one of the ready-made rubrics (Northeast AZ 42-point, or Cibecue/ISEF-style 100-point), then edit it if you need to.",
@@ -388,6 +390,16 @@ const ADMIN_HELP = [
     ["Can we use our own format?", "Yes. Setup → Project codes. Combine {DEPT}, {CAT}, {NUM} and {GRADE} with your own text, e.g. SF26/{DEPT}/{NUM} → SF26/PK/001. The examples underneath update as you type. {NUM} is required so every code stays unique. Reset puts back {DEPT}-{CAT}-{NUM}."],
     ["It says some projects share a code.", "Two projects have the same number in the same department and category. Give one of them a new number on the Projects tab."],
     ["A project's code has no department part.", "The project has no department yet (e.g. a student registration). Give it one on the Projects tab and the code completes itself."],
+  ]},
+  { title: "School year, logo & poster", icon: "🎨", faq: [
+    ["Where do I add our school logo?", "Setup → School branding → ⬆ Upload logo. Pick a PNG, JPG or WebP (square works best; a transparent background is fine), check the preview, then press ✓ Save logo. It appears on your landing page, the student registration form, the public results, the public project list and the printed project list."],
+    ["What is the fair poster for?", "Optional decoration for your fair. It shows below the Judge / Admin buttons on your landing page and on the registration and results pages — never on judges' scoring screens. It is never cropped or stretched. You must describe it in a few words: screen readers read that out instead of the picture."],
+    ["We have no logo. What do visitors see?", "A circle with your school's initials. Never another school's logo."],
+    ["How do I change or remove them?", "Replace logo / Replace poster picks a new image (the old one is deleted after the new one is saved). Remove asks first, then takes it off every page. Edit description changes only the poster's description. Removing cannot be undone — you would upload the image again."],
+    ["Do I need to make the image small first?", "No. Big photos are shrunk in your browser before upload (logo to 512 px, poster to 1600 px). iPhone HEIC photos can't be used — take a screenshot or export as JPG first. SVG files are not accepted."],
+    ["It says 'NOT saved'.", "Nothing changed — your old logo/poster is still showing. Usually the connection dropped or your sign-in expired: sign in again on your school's own address and press Save again. If it says the migration is needed, the platform owner has to run migration 2026-10l."],
+    ["How do I change the school year (SY 2025-2026)?", "Setup → School year → ✏️ Change, type e.g. 2026-2027, Save. It appears on the registration form, the dashboard and the default title of your public results. Leave it empty to follow the calendar — a new school year starts in August. A results link you already created keeps the title it was made with; change the title on the Share tab and generate a new link."],
+    ["Does it change the app icon on judges' tablets?", "No. The browser tab and installed-app icon are the Qritiko mark for every school — one address serves every school, so it can't be one school's logo."],
   ]},
   { title: "The rubric", icon: "📐", faq: [
     ["Can departments use different rubrics?", "Yes. Each department picks its own in Setup → Departments (the dropdown on each row): one of 'Your rubrics', a built-in preset under 'Add from a preset' (picking it adds it to your rubrics and assigns it in one step), or 'Comments only'. Judges automatically get the rubric of the department each project is in — e.g. 3-5 on the 42-point sheet and 6-8 on the 100-point sheet."],
@@ -500,6 +512,147 @@ function blankProjForm(num = "", defaultCat = "") {
 // untrusted input — a stray "<" must never become markup.
 function escHtml(v) {
   return String(v ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+
+// ── School year ("SY 2026-2027") ──
+// Each school sets its own in Setup (app_settings.school_year — "" or missing = automatic).
+// Automatic follows the calendar: a new school year starts in August.
+function schoolYearFor(d) {
+  const y = d.getFullYear();
+  return d.getMonth() >= 7 ? `${y}-${y + 1}` : `${y - 1}-${y}`;
+}
+const AUTO_SCHOOL_YEAR = schoolYearFor(new Date());
+// "SY 2026-2027" / " 2026-2027 " → "2026-2027". Returns the cleaned text.
+function cleanSchoolYear(v) {
+  return String(v ?? "").trim().replace(/^SY\s*/i, "").replace(/\s+/g, " ");
+}
+// "" when fine (empty = automatic), else a sentence for the admin.
+function validateSchoolYear(v) {
+  const t = cleanSchoolYear(v);
+  if (!t) return "";
+  if (t.length > 20) return "Keep it short — 20 characters at most (e.g. 2026-2027).";
+  if (!/^[\p{L}\p{N} ./–-]+$/u.test(t)) return "Use only letters, numbers, spaces, - and / (e.g. 2026-2027).";
+  if (!/\d{2}/.test(t)) return "Include the year (e.g. 2026-2027).";
+  return "";
+}
+
+// ── School branding (migration 2026-10l) ──
+// Each school's logo / poster lives in the public Storage bucket under "<school id>/…" with a
+// NEW name per upload (so caches never go stale); school_branding holds the paths.
+const BRANDING_BUCKET = "school-branding";
+// The one logo bundled with the app — Dishchii'bikoh's wildcat, which used to be shown for
+// EVERY school. Kept for that school only: id and slug verified on the live project 2026-10-06.
+const LEGACY_LOGOS = {
+  "5667eba1-2f45-4830-96b7-6a6467113dfc": {
+    slug: "dishchiibikoh-community-school", path: "builtin:dishchiibikoh", src: "/branding/dishchiibikoh-logo.png",
+  },
+};
+const BRAND_SPECS = {
+  logo:   { max: 512,  minSide: 48,  quality: 0.9  },   // shown at ≤ 96 px; 512 covers 3× screens
+  poster: { max: 1600, minSide: 300, quality: 0.82 },
+};
+const BRAND_INPUT_TYPES = ["image/png", "image/jpeg", "image/webp"];
+const BRAND_MAX_INPUT   = 20 * 1024 * 1024;    // what the admin may pick (shrunk before upload)
+const BRAND_MAX_OUTPUT  = 1.5 * 1024 * 1024;   // what is uploaded (the bucket allows 2 MB)
+const BRAND_EXT = { "image/webp": "webp", "image/png": "png", "image/jpeg": "jpg" };
+
+function schoolInitials(name) {
+  const words = String(name || "").replace(/['’]/g, "").split(/[^\p{L}\p{N}]+/u)
+    .filter(w => w && !/^(of|the|and|for|at)$/i.test(w));
+  const s = words.length > 1 ? words[0][0] + words[1][0] : (words[0] || "S").slice(0, 2);
+  return s.toUpperCase();
+}
+
+// A school's logo — or, when it has none or the file will not load, a neutral monogram of the
+// school's initials. Never another school's image: callers pass a URL from brandingUrl().
+// `pending` keeps the space (no monogram flash) while the branding row is still loading.
+function SchoolLogo({ src, name, size = 88, pending = false, className = "" }) {
+  const [broken, setBroken] = useState(null);   // the src that failed to load
+  if (pending) return <div className={`school-logo-box ${className}`} style={{ width: size, height: size }} aria-hidden="true" />;
+  if (src && broken !== src) return (
+    <img className={`school-logo ${className}`} src={src} alt={name ? `${name} logo` : "School logo"}
+      width={size} height={size} style={{ width: size, height: size }} decoding="async" onError={() => setBroken(src)} />
+  );
+  return (
+    <div className={`school-mono ${className}`} aria-hidden="true"
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.36) }}>
+      {schoolInitials(name)}
+    </div>
+  );
+}
+
+// The optional fair poster: always proportional (max-width + max-height, never stretched or
+// cropped), lazy-loaded, and gone without a trace if the file cannot load.
+function BrandPoster({ src, alt, maxH = "60vh", className = "" }) {
+  const [broken, setBroken] = useState(null);
+  if (!src || broken === src) return null;
+  return (
+    <figure className={`brand-poster ${className}`}>
+      <img src={src} alt={alt || "Science fair poster"} loading="lazy" decoding="async"
+        style={{ maxHeight: maxH }} onError={() => setBroken(src)} />
+    </figure>
+  );
+}
+
+// Decode an uploaded image (EXIF orientation applied) → { src, width, height, close }.
+async function decodeBrandImage(file) {
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+      return { src: bmp, width: bmp.width, height: bmp.height, close: () => bmp.close?.() };
+    } catch { /* some browsers reject the options or the format — try an <img> */ }
+  }
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  const ok = await new Promise(res => { img.onload = () => res(true); img.onerror = () => res(false); img.src = url; });
+  if (!ok || !img.naturalWidth) { URL.revokeObjectURL(url); return null; }
+  return { src: img, width: img.naturalWidth, height: img.naturalHeight, close: () => URL.revokeObjectURL(url) };
+}
+const canvasBlob = (canvas, type, q) => new Promise(res => canvas.toBlob(res, type, q));
+
+// Shrink + re-encode a picked image in the browser before it is uploaded. Re-drawing through a
+// canvas also guarantees the upload is a plain image (no SVG, no scripts, no metadata/GPS).
+// Returns { blob, width, height, type } or { error } (a sentence for the admin).
+async function prepareBrandImage(file, kind) {
+  const spec = BRAND_SPECS[kind];
+  if (!file) return { error: "No file was chosen." };
+  if (/heic|heif/i.test(`${file.type} ${file.name}`))
+    return { error: "iPhone HEIC photos can't be used. Take a screenshot of it, or export it as JPG, and pick that." };
+  if (!BRAND_INPUT_TYPES.includes(file.type)) return { error: "Use a PNG, JPG or WebP image." };
+  if (file.size > BRAND_MAX_INPUT) return { error: "That image is larger than 20 MB. Pick a smaller one." };
+  const pic = await decodeBrandImage(file);
+  if (!pic) return { error: "That file could not be read as an image." };
+  if (Math.min(pic.width, pic.height) < spec.minSide) {
+    pic.close();
+    return { error: `That image is too small (${pic.width}×${pic.height}). Use one at least ${spec.minSide} px on each side.` };
+  }
+  let scale = Math.min(1, spec.max / Math.max(pic.width, pic.height));
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const w = Math.max(1, Math.round(pic.width * scale)), h = Math.max(1, Math.round(pic.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(pic.src, 0, 0, w, h);
+    let blob = await canvasBlob(canvas, "image/webp", spec.quality);
+    if (!blob || blob.type !== "image/webp") {
+      // This browser cannot write WebP (older Safari): PNG keeps a logo's transparency,
+      // JPEG (on white) keeps a poster small.
+      if (kind === "logo") blob = await canvasBlob(canvas, "image/png");
+      else {
+        ctx.globalCompositeOperation = "destination-over";
+        ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, w, h);
+        blob = await canvasBlob(canvas, "image/jpeg", spec.quality);
+      }
+    }
+    if (blob && BRAND_EXT[blob.type] && blob.size <= BRAND_MAX_OUTPUT) {
+      pic.close();
+      return { blob, width: w, height: h, type: blob.type };
+    }
+    scale *= 0.75;
+  }
+  pic.close();
+  return { error: "That image could not be made small enough to upload. Try a simpler image." };
 }
 
 function uid()      { return Math.random().toString(36).slice(2, 10); }
@@ -699,6 +852,39 @@ const CSS = `
   .glow.purple{background:radial-gradient(ellipse at 50% 0%,#1e3a5f08 0%,transparent 70%);}
   .school-banner{display:flex;flex-direction:column;align-items:center;gap:.6rem;margin-bottom:2rem;}
   .school-banner img{width:88px;height:88px;object-fit:contain;filter:drop-shadow(0 4px 12px rgba(30,58,95,.15));}
+
+  /* SCHOOL BRANDING (2026-10l) — logo, monogram fallback, poster. Images keep their proportions:
+     logos are contained in a square box, posters get max-width + max-height, never a fixed size. */
+  .school-logo{display:block;object-fit:contain;flex:none;max-width:100%;}
+  .school-logo-box{flex:none;}
+  .school-mono{display:flex;align-items:center;justify-content:center;flex:none;border-radius:50%;
+    background:linear-gradient(135deg,var(--navy),var(--navy-l));color:#fff;font-family:var(--ff-d);font-weight:700;
+    letter-spacing:.02em;line-height:1;box-shadow:0 4px 12px rgba(30,58,95,.18);user-select:none;}
+  .reg-logo,.pub-logo{margin:0 auto .75rem;}
+  .brand-poster{margin:0 auto 1.5rem;width:100%;display:flex;justify-content:center;}
+  .brand-poster img{display:block;width:auto;height:auto;max-width:100%;object-fit:contain;border-radius:12px;
+    border:1px solid var(--bd);box-shadow:var(--shadow);background:var(--s1);}
+  .land-poster{width:100%;max-width:760px;margin-top:2.25rem;}
+  .land-poster .brand-poster{margin-bottom:0;}
+  .brand-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:1rem;}
+  .brand-item{border:1px solid var(--bd);border-radius:10px;padding:1rem;background:var(--s1);min-width:0;}
+  .brand-item-h{font-weight:700;color:var(--navy);margin-bottom:.6rem;}
+  .brand-item-h span{font-weight:400;color:var(--dim);font-size:.85rem;}
+  .brand-preview{display:flex;align-items:center;justify-content:center;border:1px dashed var(--bd);border-radius:8px;
+    background:#fff;padding:.75rem;margin-bottom:.7rem;overflow:hidden;}
+  .brand-preview.logo{height:124px;}
+  .brand-preview.logo img{width:96px;height:96px;object-fit:contain;}
+  .brand-preview.poster{min-height:124px;}
+  .brand-preview.poster img{display:block;max-width:100%;max-height:220px;width:auto;height:auto;object-fit:contain;border-radius:6px;}
+  .brand-empty{color:var(--dim);font-size:.85rem;}
+  .brand-meta{font-size:.8rem;color:var(--text);margin-bottom:.5rem;overflow-wrap:anywhere;}
+  .brand-meta span{color:var(--dim);}
+  .brand-acts{display:flex;flex-wrap:wrap;gap:.45rem;align-items:center;margin-bottom:.5rem;}
+  .brand-confirm{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem;font-size:.82rem;color:var(--red);}
+  .brand-hint{font-size:.76rem;color:var(--dim);line-height:1.45;}
+  .brand-ok{margin-top:.5rem;font-size:.82rem;color:var(--green);background:var(--green-l);border-radius:8px;padding:.45rem .65rem;}
+  .brand-err{margin-top:.5rem;font-size:.82rem;color:var(--red);background:var(--red-l);border-radius:8px;padding:.45rem .65rem;}
+  .brand-file{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;}
   .school-name{font-family:var(--ff-d);font-size:clamp(1rem,3.5vw,1.25rem);font-weight:700;
     color:var(--navy);text-align:center;letter-spacing:.01em;line-height:1.25;}
   .school-name span{color:var(--navy-l);}
@@ -1339,6 +1525,8 @@ const CSS = `
   .mkt-nav{display:flex;align-items:center;justify-content:space-between;padding:1.1rem 2rem;max-width:1100px;margin:0 auto;width:100%;}
   .mkt-nav-brand{display:flex;align-items:center;gap:.6rem;font-family:var(--ff-d);font-size:1.05rem;font-weight:700;color:var(--navy);}
   .mkt-nav-brand .mkt-ico{font-size:1.35rem;}
+  .mkt-nav-sub{font-family:var(--ff-b);font-size:.8rem;font-weight:600;color:var(--dim);margin-left:.15rem;}
+  @media(max-width:480px){.mkt-nav-sub{display:none;}}
   .mkt-hero{text-align:center;padding:4rem 1.5rem 3rem;max-width:760px;margin:0 auto;width:100%;}
   .mkt-hero-badge{display:inline-block;font-family:var(--ff-m);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);background:var(--blue-l);border:1px solid #2563eb30;padding:.35rem .9rem;border-radius:100px;margin-bottom:1.5rem;}
   .mkt-h1{font-family:var(--ff-d);font-size:clamp(2rem,5vw,3rem);color:var(--navy);line-height:1.2;margin-bottom:1rem;font-weight:900;}
@@ -1581,6 +1769,28 @@ export default function App() {
   // Project code template (Setup → Project codes). Default {DEPT}-{CAT}-{NUM} → "PK-LS-001".
   const [codeFormat,       setCodeFormat]       = useState(DEFAULT_CODE_FORMAT);
   const [codeFormatDraft,  setCodeFormatDraft]  = useState(null);  // null = not editing
+  // School year shown as "SY …" (Setup → School year). "" = automatic (AUTO_SCHOOL_YEAR).
+  const [schoolYear,       setSchoolYear]       = useState("");
+  const [schoolYearDraft,  setSchoolYearDraft]  = useState(null);  // null = not editing
+  const [schoolYearMsg,    setSchoolYearMsg]    = useState(null);  // { ok, text }
+  const syText              = schoolYear || AUTO_SCHOOL_YEAR;
+  const defaultResultsTitle = `Science Fair SY ${syText} — Final Results`;
+  // School branding (migration 2026-10l). schoolId says WHICH school these paths belong to —
+  // brandingUrl() refuses to show them for any other school.
+  const [branding,         setBranding]         = useState({ schoolId: null, logoPath: null, posterPath: null, posterAlt: "", missing: false });
+  const [brandDraft,       setBrandDraft]       = useState(null);  // picked + shrunk, not yet saved: { kind, blob, url, width, height, type }
+  const [posterAltDraft,   setPosterAltDraft]   = useState(null);  // null = not editing the description
+  const [brandBusy,        setBrandBusy]        = useState("");    // "logo" | "poster" while saving
+  const [brandMsg,         setBrandMsg]         = useState(null);  // { kind, ok, text }
+  const [brandConfirm,     setBrandConfirm]     = useState("");    // kind waiting for "Remove?" confirmation
+  const logoInputRef   = useRef(null);
+  const posterInputRef = useRef(null);
+  const brandUrlRef    = useRef(null);                             // preview object URL, revoked on unmount
+  useEffect(() => () => { if (brandUrlRef.current) URL.revokeObjectURL(brandUrlRef.current); }, []);
+  // Tab / window title: the school's name on its pages, the platform name on the homepage.
+  useEffect(() => {
+    document.title = currentSchool?.name ? `${currentSchool.name} · Science Fair` : "Qritiko — Science Fair Judging";
+  }, [currentSchool?.name]);
   const [removeJudgeAsk,   setRemoveJudgeAsk]   = useState(null); // judge being removed (PIN modal)
   const [removeJudgePin,   setRemoveJudgePin]   = useState("");
   const [removeJudgeErr,   setRemoveJudgeErr]   = useState("");
@@ -1606,7 +1816,7 @@ export default function App() {
   const [shareExpiry,     setShareExpiry]     = useState("never");
   const [shareCreated,    setShareCreated]    = useState(null);
   const [shareShowRubric, setShareShowRubric] = useState(true);
-  const [shareTitle,      setShareTitle]      = useState("Science Fair SY 2025-2026 — Final Results");
+  const [shareTitle,      setShareTitle]      = useState("");   // "" = the default title below
   const [copied,          setCopied]          = useState(false);
 
   // Project list share state
@@ -1757,6 +1967,25 @@ export default function App() {
       setCategories(data.map(r => ({ id: r.id, name: r.name, code: r.code || "", ord: r.ord })));
     }
   }
+  // School branding (migration 2026-10l). Public read, so judges and visitors get it too.
+  async function loadBranding(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
+    const { data, error } = await supabase.from("school_branding")
+      .select("logo_path, poster_path, poster_alt").eq("school_id", schoolId).maybeSingle();
+    if (error) {
+      // 42P01 / PGRST205 = migration 2026-10l not run: the one school with a bundled logo keeps
+      // it, everyone else gets the monogram. Any other error (offline…) keeps what is showing.
+      const missing = error.code === "42P01" || error.code === "PGRST205";
+      if (missing) addItLog("WARN", "DB", "BRANDING_TABLE_MISSING",
+        "The school_branding table is missing — run migration 2026-10l.", { error: error.message }, schoolId);
+      setBranding(prev => (prev.schoolId === schoolId && !missing) ? prev
+        : { schoolId, logoPath: LEGACY_LOGOS[schoolId]?.path || null, posterPath: null, posterAlt: "", missing });
+      return;
+    }
+    setBranding({ schoolId, logoPath: data?.logo_path || null, posterPath: data?.poster_path || null,
+      posterAlt: data?.poster_alt || "", missing: false });
+  }
   async function loadProjects(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
@@ -1845,6 +2074,8 @@ export default function App() {
       setCodeFormat(map.project_code_format && !validateCodeFormat(map.project_code_format)
         ? map.project_code_format.trim() : DEFAULT_CODE_FORMAT);
       setJudgeMaxSetting(/^\d{1,3}$/.test(map.judge_max || "") ? Math.min(90, Math.max(1, parseInt(map.judge_max, 10))) : null);
+      // A hand-edited / invalid value falls back to automatic rather than printing garbage.
+      setSchoolYear(validateSchoolYear(map.school_year) ? "" : cleanSchoolYear(map.school_year));
       // Note: judge/admin validations are loaded separately by loadValidations()
       // from the validations table — not from app_settings.
     }
@@ -2402,7 +2633,7 @@ export default function App() {
         loadDepartments(sid), loadCategories(sid), loadProjects(sid), loadJudges(sid), loadScores(sid),
         loadLog(sid), loadItLogs(sid), loadShare(sid), loadSettings(sid),
         loadDelibNotes(sid), loadFinalDecisions(sid), loadValidations(sid),
-        loadScoreBackups(sid), loadRubrics(sid), loadRoster(sid), loadProjectJudges(sid),
+        loadScoreBackups(sid), loadRubrics(sid), loadRoster(sid), loadProjectJudges(sid), loadBranding(sid),
       ]).catch(err => {
         // A loader threw (network drop mid-load, unexpected response). Previously an
         // unhandled rejection: the screen waited for the 8 s timeout and nothing was logged.
@@ -2431,6 +2662,8 @@ export default function App() {
         // Admin-only by RLS (realtime enforces it): nobody else ever receives a judge's name.
         .on("postgres_changes", { event: "*", schema: "public", table: "judge_labels", filter: f("judge_labels") }, () => loadJudgeLabels(sid))
         .on("postgres_changes", { event: "*", schema: "public", table: "categories",  filter: f("categories")  }, () => loadCategories(sid))
+        // A new logo / poster appears on open landing and results pages without a reload.
+        .on("postgres_changes", { event: "*", schema: "public", table: "school_branding", filter: f("school_branding") }, () => loadBranding(sid))
         .on("postgres_changes", { event: "*", schema: "public", table: "projects",    filter: f("projects")    }, () => loadProjects(sid))
         // Admin-only by RLS (realtime enforces it): judges/public never receive these events.
         .on("postgres_changes", { event: "*", schema: "public", table: "project_private", filter: f("project_private") }, () => loadProjects(sid))
@@ -2771,7 +3004,7 @@ export default function App() {
   async function generateLink() {
     const t = genToken();
     const { error } = await supabase.from("share_links").insert({
-      school_id: currentSchool.id, token: t, expiry: shareExpiry, show_rubric: shareShowRubric, title: shareTitle,
+      school_id: currentSchool.id, token: t, expiry: shareExpiry, show_rubric: shareShowRubric, title: shareTitle.trim() || defaultResultsTitle,
     });
     if (!error) {
       setShareToken(t); setShareEnabled(true); setShareCreated(Date.now());
@@ -3016,8 +3249,12 @@ export default function App() {
         </table>
       </div>` : "";
 
+    // This school's logo (absolute URL: the print window is about:blank) — or none at all.
+    const logoRel   = brandingUrl(branding.logoPath);
+    const logoAbs   = logoRel ? new URL(logoRel, window.location.origin).href : "";
+    const schoolNm  = currentSchool?.name || "";
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-      <title>Science Fair — Project List</title>
+      <title>${escHtml(schoolNm ? `${schoolNm} — Project List` : "Science Fair — Project List")}</title>
       <style>
         body{font-family:"Segoe UI",Arial,sans-serif;color:#1e293b;margin:0;padding:2rem 2.5rem;font-size:.9rem}
         table td{padding:.45rem .5rem;border-bottom:1px solid #f1f5f9;vertical-align:top}
@@ -3025,8 +3262,9 @@ export default function App() {
       </style>
     </head><body>
       <div style="display:flex;align-items:center;gap:1rem;margin-bottom:.25rem">
-        <img src="/logo.png" style="height:48px;border-radius:6px" onerror="this.style.display='none'">
+        ${logoAbs ? `<img src="${escHtml(logoAbs)}" alt="" style="height:56px;width:56px;object-fit:contain" onerror="this.remove()">` : ""}
         <div>
+          ${schoolNm ? `<div style="font-size:.85rem;font-weight:700;color:#2d5a8e">${escHtml(schoolNm)}</div>` : ""}
           <div style="font-size:1.3rem;font-weight:800;color:#1e3a5f">Science Fair — Project List</div>
           <div style="color:#64748b;font-size:.8rem">Generated ${dateStr} · ${projects.length} project${projects.length!==1?"s":""}</div>
         </div>
@@ -3666,6 +3904,163 @@ export default function App() {
     addItLog("INFO","ADMIN","CATEGORIES_RESTORED","Admin restored built-in categories",{ added: missing.map(c => c.name) });
   }
 
+  // ── School year (Setup → School year) — app_settings.school_year, admin-write by RLS ──
+  async function saveSchoolYear() {
+    const sid = currentSchool?.id;
+    if (!sid) return;
+    const value = cleanSchoolYear(schoolYearDraft);
+    const problem = validateSchoolYear(value);
+    if (problem) { setSchoolYearMsg({ ok: false, text: problem }); return; }
+    const { error } = await supabase.from("app_settings").upsert({ school_id: sid, key: "school_year", value });
+    if (error) {
+      setSchoolYearMsg({ ok: false, text: `NOT saved — ${error.message}` });
+      addItLog("ERROR","ADMIN","SCHOOL_YEAR_SAVE_FAILED","The school year could not be saved",{ error: error.message });
+      return;
+    }
+    setSchoolYear(value);
+    setSchoolYearDraft(null);
+    setSchoolYearMsg({ ok: true, text: value
+      ? `Saved — your pages now show SY ${value}.`
+      : `Saved — the school year now follows the calendar (SY ${AUTO_SCHOOL_YEAR}).` });
+    addLog(`Admin set the school year to ${value ? `SY ${value}` : `automatic (SY ${AUTO_SCHOOL_YEAR})`}`);
+    addItLog("INFO","ADMIN","SCHOOL_YEAR_SET","School year changed",{ value: value || "auto" });
+  }
+
+  // ── School branding (Setup → School branding, migration 2026-10l) ──
+  // Public URL of a branding path — ONLY for the school on screen. "builtin:" paths resolve to
+  // the bundled file for the one school they were made for; storage paths must sit in this
+  // school's own folder. Anything else → null → the neutral monogram.
+  function brandingUrl(path) {
+    const school = currentSchool;
+    if (!path || !school || branding.schoolId !== school.id) return null;
+    if (path.startsWith("builtin:")) {
+      const l = LEGACY_LOGOS[school.id];
+      return l && l.slug === school.slug && l.path === path ? l.src : null;
+    }
+    if (!path.startsWith(`${school.id}/`)) return null;
+    return supabase.storage.from(BRANDING_BUCKET).getPublicUrl(path).data.publicUrl;
+  }
+  function brandErrText(err) {
+    const m = `${err?.code || ""} ${err?.statusCode || ""} ${err?.error || ""} ${err?.message || err || ""}`;
+    if (err?.code === "P0001" && !/Not authorised/i.test(m)) return err.message;   // written for the admin
+    if (/bucket not found|set_school_branding|PGRST202|42883|school_branding/i.test(m))
+      return "Branding is not set up on the server yet — run migration 2026-10l in Supabase.";
+    if (/row-level security|unauthori[sz]ed|Not authorised|\b403\b|JWT/i.test(m))
+      return "Not allowed — sign in again as this school's admin, on this school's own address.";
+    if (/too large|\b413\b|maximum allowed size|exceeded/i.test(m)) return "The image is too large for the server (2 MB). Pick a smaller image.";
+    if (/mime|\b415\b/i.test(m)) return "That image type is not accepted. Use PNG, JPG or WebP.";
+    if (/failed to fetch|networkerror|network|load failed/i.test(m)) return "No connection to the server.";
+    return String(err?.message || err || "Unknown error").slice(0, 160);
+  }
+  function applyBrandRow(sid, row) {
+    setBranding({ schoolId: sid, logoPath: row?.logo_path || null, posterPath: row?.poster_path || null,
+      posterAlt: row?.poster_alt || "", missing: false });
+  }
+  function dropBrandDraft() {
+    if (brandUrlRef.current) URL.revokeObjectURL(brandUrlRef.current);
+    brandUrlRef.current = null;
+    setBrandDraft(null);
+    setPosterAltDraft(null);
+  }
+  // Delete a file the school no longer uses. Best effort: if it fails the file is merely
+  // orphaned (never shown — the row no longer points at it), so it is logged, not shown.
+  async function removeBrandFile(sid, path, kind) {
+    if (!path || !path.startsWith(`${sid}/`)) return;   // "builtin:…" files ship with the app
+    const { error } = await supabase.storage.from(BRANDING_BUCKET).remove([path]);
+    if (error) addItLog("WARN","ADMIN","BRANDING_OLD_FILE_NOT_REMOVED",
+      "A replaced branding image could not be deleted from storage (it is no longer shown).",
+      { kind, error: String(error.message || error).slice(0, 200) });
+  }
+  async function pickBrandFile(kind, file) {
+    setBrandMsg(null); setBrandConfirm("");
+    if (!file) return;
+    const prepared = await prepareBrandImage(file, kind);
+    if (prepared.error) { setBrandMsg({ kind, ok: false, text: prepared.error }); return; }
+    const altBefore = kind === "poster" ? (branding.posterAlt || "") : null;
+    dropBrandDraft();
+    const url = URL.createObjectURL(prepared.blob);
+    brandUrlRef.current = url;
+    setBrandDraft({ kind, ...prepared, url, inBytes: file.size });
+    if (kind === "poster") setPosterAltDraft(altBefore);
+  }
+  function brandFail(kind, stage, err) {
+    setBrandBusy("");
+    setBrandMsg({ kind, ok: false, text: `NOT saved — ${brandErrText(err)}` });
+    addItLog("ERROR","ADMIN","BRANDING_SAVE_FAILED", `School ${kind} could not be saved (${stage})`,
+      { kind, stage, error: String(err?.message || err).slice(0, 200), online: navigator.onLine });
+  }
+  // Upload the new file under a NEW name, point the school at it, then delete the old one.
+  // If pointing at it fails, the upload is deleted again — no orphan, nothing changes on screen.
+  async function saveBrandDraft() {
+    const d = brandDraft, sid = currentSchool?.id;
+    if (!d || !sid || brandBusy) return;
+    const alt = (posterAltDraft ?? "").trim();
+    if (d.kind === "poster" && alt.length < 3) {
+      setBrandMsg({ kind: "poster", ok: false, text: "Describe the poster in a few words first — screen readers read it out." });
+      return;
+    }
+    setBrandBusy(d.kind); setBrandMsg(null);
+    const path = `${sid}/${d.kind}-${newUuid().replace(/-/g, "").slice(0, 20)}.${BRAND_EXT[d.type]}`;
+    const bucket = supabase.storage.from(BRANDING_BUCKET);
+    try {
+      const up = await bucket.upload(path, d.blob, { cacheControl: "31536000", upsert: false, contentType: d.type });
+      if (up.error) { brandFail(d.kind, "upload", up.error); return; }
+      const { data: row, error } = await supabase.rpc("set_school_branding",
+        { p_school_id: sid, p_kind: d.kind, p_path: path, p_alt: d.kind === "poster" ? alt : null });
+      if (error) {
+        await bucket.remove([path]);
+        brandFail(d.kind, "save", error);
+        return;
+      }
+      applyBrandRow(sid, row);
+      dropBrandDraft();
+      setBrandBusy("");
+      setBrandMsg({ kind: d.kind, ok: true, text: d.kind === "logo" ? "Logo saved." : "Poster saved." });
+      addLog(`🎨 Admin ${row?.old_path ? "replaced" : "added"} the school ${d.kind}`);
+      addItLog("INFO","ADMIN","BRANDING_UPDATED", `School ${d.kind} saved`,
+        { kind: d.kind, bytes: d.blob.size, width: d.width, height: d.height, type: d.type, replaced: !!row?.old_path });
+      await removeBrandFile(sid, row?.old_path, d.kind);
+    } catch (e) {
+      brandFail(d.kind, "network", e);
+    }
+  }
+  async function removeBrand(kind) {
+    const sid = currentSchool?.id;
+    if (!sid || brandBusy) return;
+    setBrandBusy(kind); setBrandMsg(null); setBrandConfirm("");
+    try {
+      const { data: row, error } = await supabase.rpc("set_school_branding", { p_school_id: sid, p_kind: kind, p_path: null, p_alt: null });
+      if (error) { brandFail(kind, "remove", error); return; }
+      applyBrandRow(sid, row);
+      setBrandBusy("");
+      setBrandMsg({ kind, ok: true, text: kind === "logo"
+        ? "Logo removed — your pages now show your school's initials." : "Poster removed." });
+      addLog(`🎨 Admin removed the school ${kind}`);
+      addItLog("INFO","ADMIN","BRANDING_REMOVED", `School ${kind} removed`, { kind });
+      await removeBrandFile(sid, row?.old_path, kind);
+    } catch (e) {
+      brandFail(kind, "network", e);
+    }
+  }
+  async function savePosterAlt() {
+    const sid = currentSchool?.id;
+    const alt = (posterAltDraft ?? "").trim();
+    if (!sid || brandBusy) return;
+    if (alt.length < 3) { setBrandMsg({ kind: "poster", ok: false, text: "Describe the poster in a few words." }); return; }
+    setBrandBusy("poster"); setBrandMsg(null);
+    try {
+      const { data: row, error } = await supabase.rpc("set_school_branding", { p_school_id: sid, p_kind: "poster_alt", p_path: null, p_alt: alt });
+      if (error) { brandFail("poster", "description", error); return; }
+      applyBrandRow(sid, row);
+      setPosterAltDraft(null);
+      setBrandBusy("");
+      setBrandMsg({ kind: "poster", ok: true, text: "Description saved." });
+      addItLog("INFO","ADMIN","BRANDING_UPDATED", "Poster description saved", { kind: "poster_alt", length: alt.length });
+    } catch (e) {
+      brandFail("poster", "network", e);
+    }
+  }
+
   function handleCopy() {
     navigator.clipboard.writeText(shareUrl()).catch(()=>{});
     setCopied(true); setTimeout(() => setCopied(false), 2000);
@@ -4014,7 +4409,7 @@ export default function App() {
     setShareToken("");
     setShareCreated(null);
     setShareExpiry("never");
-    setShareTitle("Science Fair SY 2025-2026 — Final Results");
+    setShareTitle("");
     setProjListToken("");
     setDeliberationNotes({});
     setFinalDecisions({});
@@ -4280,6 +4675,7 @@ export default function App() {
       "╔══════════════════════════════════════════════════════════════╗",
       "║     SCIENCE FAIR APP — DELIBERATION SUMMARY REPORT          ║",
       "╚══════════════════════════════════════════════════════════════╝",
+      `School: ${currentSchool?.name || "—"}`,
       `Generated: ${now}`,
       "",
       "── PROJECTS (RANKED BY SCORE) ─────────────────────────────────",
@@ -5318,6 +5714,8 @@ export default function App() {
             projectTitle: f.projectTitle.trim(),
             category:     f.category,
             division:     f.division,
+            // The server looks the school's name + logo up itself (never trusts text from here).
+            schoolId:     currentSchool?.id,
           }),
         });
       } catch {
@@ -5334,6 +5732,10 @@ export default function App() {
   }
 
   // ─── VIEWS ───
+  // This school's branding, resolved for the school on screen only (see brandingUrl()).
+  const logoUrl      = brandingUrl(branding.logoPath);
+  const posterUrl    = brandingUrl(branding.posterPath);
+  const brandPending = !!currentSchool && branding.schoolId !== currentSchool.id;
 
   /* LOADING */
   if (loading && !judge) return (
@@ -5374,7 +5776,7 @@ export default function App() {
       <div className="glow" />
       <div className="center" style={{ position:"relative" }}>
         <div className="school-banner">
-          <img src="/logo.png" alt={currentSchool?.name || "Science Fair"} />
+          <SchoolLogo src={logoUrl} name={currentSchool?.name} size={88} pending={brandPending} />
           <div className="school-name">{currentSchool?.name || <span>Science Fair</span>}</div>
           <div className="school-div" />
         </div>
@@ -5396,11 +5798,17 @@ export default function App() {
               <div>
                 <div className="pub-pill">● LIVE RESULTS</div>
                 <h3 style={{ marginBottom:".2rem" }}>View Results Dashboard</h3>
-                <p>{shareTitle}</p>
+                <p>{shareTitle || defaultResultsTitle}</p>
               </div>
             </div>
           )}
         </div>
+        {/* The fair poster goes BELOW the sign-in cards, so it never pushes them off a phone screen. */}
+        {posterUrl && (
+          <div className="land-poster">
+            <BrandPoster src={posterUrl} alt={branding.posterAlt} maxH="min(75vh, 760px)" />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -5903,8 +6311,8 @@ export default function App() {
         <div className="reg-wrap">
           <div className="reg-inner">
             <div className="reg-hero">
-              <img src="/logo.png" alt="Dishchiibikoh Community School" style={{ width:64, marginBottom:"1rem" }} />
-              <div className="school-name">Dishchiibikoh <span>Community School</span></div>
+              <SchoolLogo src={logoUrl} name={currentSchool?.name} size={64} pending={brandPending} className="reg-logo" />
+              <div className="school-name">{currentSchool?.name || "Science Fair"}</div>
             </div>
             <div className="reg-invalid-banner">
               <div style={{ fontSize:"2rem", marginBottom:".75rem" }}>🔗</div>
@@ -5923,14 +6331,14 @@ export default function App() {
         <div className="reg-wrap">
           <div className="reg-inner">
             <div className="reg-hero">
-              <img src="/logo.png" alt="Dishchiibikoh Community School" style={{ width:64, marginBottom:".75rem" }} />
-              <div className="school-name">Dishchiibikoh <span>Community School</span></div>
+              <SchoolLogo src={logoUrl} name={currentSchool?.name} size={64} pending={brandPending} className="reg-logo" />
+              <div className="school-name">{currentSchool?.name || "Science Fair"}</div>
             </div>
             <div className="card reg-success">
               <div className="ico">🎉</div>
               <h2>Registration Successful!</h2>
               <p style={{ color:"var(--dim)", fontSize:".95rem", marginBottom:"1.25rem" }}>
-                Your project has been registered for the Science Fair SY 2025-2026.
+                Your project has been registered for the Science Fair SY {syText}.
               </p>
               <div className="reg-number-wrap">
                 <div className="lbl" style={{ marginBottom:".35rem" }}>Your Registration Number</div>
@@ -5962,11 +6370,12 @@ export default function App() {
         <div className="reg-wrap">
           <div className="reg-inner">
             <div className="reg-hero">
-              <img src="/logo.png" alt="Dishchiibikoh Community School" style={{ width:72, marginBottom:".75rem" }} />
-              <div className="school-name">Dishchiibikoh <span>Community School</span></div>
+              <SchoolLogo src={logoUrl} name={currentSchool?.name} size={72} pending={brandPending} className="reg-logo" />
+              <div className="school-name">{currentSchool?.name || "Science Fair"}</div>
               <h1 style={{ fontFamily:"var(--ff-d)", fontSize:"clamp(1.4rem,4vw,1.9rem)", color:"var(--navy)", margin:"1rem 0 .4rem" }}>Science Fair Registration</h1>
-              <p style={{ color:"var(--dim)", fontSize:".9rem" }}>SY 2025-2026 · Required fields are marked <span style={{ color:"var(--red)" }}>*</span></p>
+              <p style={{ color:"var(--dim)", fontSize:".9rem" }}>SY {syText} · Required fields are marked <span style={{ color:"var(--red)" }}>*</span></p>
             </div>
+            <BrandPoster src={posterUrl} alt={branding.posterAlt} maxH="min(45vh, 420px)" />
 
             {/* Instructions */}
             <div className="reg-instructions">
@@ -6012,15 +6421,15 @@ export default function App() {
               </div>
               <div className="reg-field">
                 <div className="lbl">School Name <span className="reg-req">*</span></div>
-                <input type="text" placeholder="e.g. Dishchiibikoh Community School" value={regForm.schoolName}
+                <input type="text" placeholder={currentSchool?.name ? `e.g. ${currentSchool.name}` : "Your school's name"} value={regForm.schoolName}
                   onChange={e => setRegForm(p => ({...p, schoolName: e.target.value}))} />
               </div>
               <div className="reg-field">
                 <div className="lbl">Student Email Address <span className="reg-req">*</span></div>
-                <input type="email" placeholder="yourname@dishchiibikoh.org" value={regForm.studentEmail}
+                <input type="email" placeholder="yourname@school.org" value={regForm.studentEmail}
                   onChange={e => setRegForm(p => ({...p, studentEmail: e.target.value}))} />
                 <div style={{ fontSize:".78rem", color:"var(--dim)", marginTop:".3rem" }}>
-                  Use your school email (e.g. yourname@dishchiibikoh.org). If you don't have one, use your teacher's email address.
+                  Use your school email (e.g. yourname@school.org). If you don't have one, use your teacher's email address.
                 </div>
               </div>
               <div className="reg-field">
@@ -6096,7 +6505,7 @@ export default function App() {
               </div>
               <div className="reg-field">
                 <div className="lbl">Teacher/Advisor Email</div>
-                <input type="email" placeholder="advisor@dishchiibikoh.org" value={regForm.advisorEmail}
+                <input type="email" placeholder="advisor@school.org" value={regForm.advisorEmail}
                   onChange={e => setRegForm(p => ({...p, advisorEmail: e.target.value}))} />
               </div>
               <div className="reg-field">
@@ -6222,7 +6631,7 @@ export default function App() {
       {/* NAV */}
       <nav className="mkt-nav">
         <div className="mkt-nav-brand">
-          <span className="mkt-ico">⚗️</span> Science Fair Judging
+          <span className="mkt-ico">⚗️</span> Qritiko <span className="mkt-nav-sub">Science Fair Judging</span>
         </div>
         <button className="btn sm" onClick={() => setView("school-register")}>Register Free →</button>
       </nav>
@@ -6361,7 +6770,7 @@ export default function App() {
           </div>
           <div style={{ marginBottom:"1rem" }}>
             <div className="lbl">School Name</div>
-            <input type="text" placeholder="Dishchiibikoh Community School" value={schoolForm.name}
+            <input type="text" placeholder="e.g. Lincoln Middle School" value={schoolForm.name}
               onChange={e => {
                 const n = e.target.value;
                 // ≤50 chars, no leading/trailing dash — create_school() enforces the same rule.
@@ -6826,7 +7235,7 @@ export default function App() {
             {/* OVERVIEW */}
             {adminTab==="overview" && <>
               <div className="adm-h1">Dashboard Overview</div>
-              <div className="adm-sub">Live judging progress · Science Fair SY 2025-2026</div>
+              <div className="adm-sub">Live judging progress · Science Fair SY {syText}</div>
               {locked && <div className="locked-banner">🔒 Judging LOCKED — judges cannot submit scores</div>}
 
               {/* SETUP GUIDE — the checklist shows only before the first judge registers; the
@@ -7471,6 +7880,150 @@ export default function App() {
                   </button>
                 </div>
               </div>
+
+              {/* ── School year ("SY 2026-2027") ── */}
+              <div className="card" id="school-year">
+                <div className="lbl" style={{marginBottom:".4rem"}}>School year</div>
+                <p style={{fontSize:".82rem",color:"var(--dim)",marginBottom:".7rem"}}>
+                  Shown as <b>SY {syText}</b> on the student registration form, the dashboard and the default title of your
+                  public results. Leave it empty to follow the calendar (a new school year starts in August).
+                </p>
+                {schoolYearDraft === null ? (
+                  <div className="brand-acts">
+                    <b style={{fontFamily:"var(--ff-m)"}}>SY {syText}</b>
+                    {!schoolYear && <span style={{fontSize:".8rem",color:"var(--dim)"}}>(automatic)</span>}
+                    <button className="btn sec sm" style={{width:"auto"}}
+                      onClick={() => { setSchoolYearDraft(schoolYear); setSchoolYearMsg(null); }}>✏️ Change</button>
+                  </div>
+                ) : (
+                  <div className="setup-add">
+                    <input type="text" aria-label="School year" maxLength={24} placeholder={`${AUTO_SCHOOL_YEAR} (empty = automatic)`}
+                      value={schoolYearDraft} onChange={e => { setSchoolYearDraft(e.target.value); setSchoolYearMsg(null); }}
+                      onKeyDown={e => e.key === "Enter" && saveSchoolYear()} />
+                    <button className="btn sm" style={{width:"auto"}} onClick={saveSchoolYear}>Save</button>
+                    <button className="btn sec sm" style={{width:"auto"}}
+                      onClick={() => { setSchoolYearDraft(null); setSchoolYearMsg(null); }}>Cancel</button>
+                  </div>
+                )}
+                {schoolYearMsg && (
+                  <div className={schoolYearMsg.ok ? "brand-ok" : "brand-err"} role={schoolYearMsg.ok ? "status" : "alert"}>{schoolYearMsg.text}</div>
+                )}
+              </div>
+
+              {/* ── School branding (migration 2026-10l) ── */}
+              {(() => {
+                const kb = (n) => `${Math.max(1, Math.round(n / 1024))} KB`;
+                const fmtName = (t) => ({ "image/webp": "WebP", "image/png": "PNG", "image/jpeg": "JPG" }[t] || t);
+                const msgFor = (kind) => brandMsg?.kind === kind && (
+                  <div className={brandMsg.ok ? "brand-ok" : "brand-err"} role={brandMsg.ok ? "status" : "alert"}>{brandMsg.text}</div>);
+                const draftFor = (kind) => brandDraft?.kind === kind ? brandDraft : null;
+                const picker = (kind, ref) => (
+                  <input ref={ref} type="file" accept={BRAND_INPUT_TYPES.join(",")} className="brand-file"
+                    aria-label={kind === "logo" ? "Choose a logo image" : "Choose a poster image"} tabIndex={-1}
+                    onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; pickBrandFile(kind, f); }} />
+                );
+                const removeBtn = (kind, label) => brandConfirm === kind ? (
+                  <span className="brand-confirm">
+                    {kind === "logo" ? "Remove the logo? Your pages will show your initials until you upload one again." : "Remove the poster?"}
+                    <button className="btn danger sm" style={{width:"auto"}} disabled={!!brandBusy} onClick={() => removeBrand(kind)}>Remove</button>
+                    <button className="btn sec sm" style={{width:"auto"}} onClick={() => setBrandConfirm("")}>Keep</button>
+                  </span>
+                ) : (
+                  <button className="btn sec sm" style={{width:"auto"}} disabled={!!brandBusy} onClick={() => { setBrandConfirm(kind); setBrandMsg(null); }}>{label}</button>
+                );
+                const ld = draftFor("logo"), pd = draftFor("poster");
+                const altEditing = posterAltDraft !== null;
+                return (
+                  <div className="card" id="branding">
+                    <div className="lbl" style={{marginBottom:".4rem"}}>School branding</div>
+                    <p style={{fontSize:".82rem",color:"var(--dim)",marginBottom:".9rem"}}>
+                      Your <b>logo</b> appears on your school's landing page, the student registration form, the public results,
+                      the public project list and printouts. The <b>poster</b> (optional) appears below the sign-in buttons and on the
+                      registration and results pages — never on judges' scoring screens. Images are shrunk in your browser before
+                      upload (logo to 512 px, poster to 1600 px). Visitors see the change straight away.
+                    </p>
+                    {branding.missing && (
+                      <div className="brand-err" style={{marginBottom:".8rem"}}>
+                        Branding is not set up on the server yet — run <b>migration-2026-10l-school-branding.sql</b> in the Supabase
+                        SQL editor. Until then your pages show {logoUrl ? "your current logo" : "your school's initials"}.
+                      </div>
+                    )}
+                    <div className="brand-grid">
+                      {/* Logo */}
+                      <div className="brand-item">
+                        <div className="brand-item-h">Logo</div>
+                        <div className="brand-preview logo">
+                          {ld ? <img src={ld.url} alt="New logo (not saved yet)" />
+                              : <SchoolLogo src={logoUrl} name={currentSchool?.name} size={96} pending={brandPending} />}
+                        </div>
+                        {picker("logo", logoInputRef)}
+                        {ld ? (<>
+                          <div className="brand-meta">New logo · {ld.width}×{ld.height} · {kb(ld.blob.size)} {fmtName(ld.type)} <span>(not saved yet)</span></div>
+                          <div className="brand-acts">
+                            <button className="btn sm" style={{width:"auto"}} disabled={!!brandBusy} onClick={saveBrandDraft}>
+                              {brandBusy === "logo" ? "Saving…" : "✓ Save logo"}</button>
+                            <button className="btn sec sm" style={{width:"auto"}} disabled={!!brandBusy} onClick={dropBrandDraft}>Cancel</button>
+                          </div>
+                        </>) : (
+                          <div className="brand-acts">
+                            <button className="btn sec sm" style={{width:"auto"}} disabled={!!brandBusy || branding.missing}
+                              onClick={() => logoInputRef.current?.click()}>{logoUrl ? "Replace logo" : "⬆ Upload logo"}</button>
+                            {branding.logoPath && !branding.missing && removeBtn("logo", "Remove")}
+                          </div>
+                        )}
+                        <div className="brand-hint">PNG, JPG or WebP. Square works best; a transparent background is fine.
+                          Without a logo your pages show your school's initials.</div>
+                        {msgFor("logo")}
+                      </div>
+
+                      {/* Poster */}
+                      <div className="brand-item">
+                        <div className="brand-item-h">Fair poster <span>(optional)</span></div>
+                        <div className="brand-preview poster">
+                          {pd ? <img src={pd.url} alt="New poster (not saved yet)" />
+                              : posterUrl ? <img src={posterUrl} alt={branding.posterAlt || "Fair poster"} />
+                              : <div className="brand-empty">No poster</div>}
+                        </div>
+                        {picker("poster", posterInputRef)}
+                        {(pd || (posterUrl && altEditing)) && (
+                          <div className="reg-field" style={{marginTop:".6rem"}}>
+                            <label className="lbl" htmlFor="poster-alt">Describe the poster <span className="reg-req">*</span></label>
+                            <input id="poster-alt" type="text" maxLength={250} value={posterAltDraft ?? ""}
+                              placeholder="e.g. 2026 Science Fair poster: a rocket over the mesa, March 12, gym"
+                              onChange={e => setPosterAltDraft(e.target.value)} />
+                            <div className="brand-hint">Read aloud by screen readers instead of the picture. Include any date or place shown on it.</div>
+                          </div>
+                        )}
+                        {pd ? (<>
+                          <div className="brand-meta">New poster · {pd.width}×{pd.height} · {kb(pd.blob.size)} {fmtName(pd.type)} <span>(not saved yet)</span></div>
+                          <div className="brand-acts">
+                            <button className="btn sm" style={{width:"auto"}} disabled={!!brandBusy || (posterAltDraft ?? "").trim().length < 3}
+                              onClick={saveBrandDraft}>{brandBusy === "poster" ? "Saving…" : "✓ Save poster"}</button>
+                            <button className="btn sec sm" style={{width:"auto"}} disabled={!!brandBusy} onClick={dropBrandDraft}>Cancel</button>
+                          </div>
+                        </>) : altEditing && posterUrl ? (
+                          <div className="brand-acts">
+                            <button className="btn sm" style={{width:"auto"}} disabled={!!brandBusy || (posterAltDraft ?? "").trim().length < 3}
+                              onClick={savePosterAlt}>{brandBusy === "poster" ? "Saving…" : "✓ Save description"}</button>
+                            <button className="btn sec sm" style={{width:"auto"}} disabled={!!brandBusy} onClick={() => setPosterAltDraft(null)}>Cancel</button>
+                          </div>
+                        ) : (<>
+                          {posterUrl && <div className="brand-meta">Description: <span>{branding.posterAlt || "—"}</span></div>}
+                          <div className="brand-acts">
+                            <button className="btn sec sm" style={{width:"auto"}} disabled={!!brandBusy || branding.missing}
+                              onClick={() => posterInputRef.current?.click()}>{posterUrl ? "Replace poster" : "⬆ Upload poster"}</button>
+                            {posterUrl && <button className="btn sec sm" style={{width:"auto"}} disabled={!!brandBusy}
+                              onClick={() => { setPosterAltDraft(branding.posterAlt || ""); setBrandMsg(null); }}>Edit description</button>}
+                            {branding.posterPath && removeBtn("poster", "Remove")}
+                          </div>
+                        </>)}
+                        <div className="brand-hint">PNG, JPG or WebP, any shape — it is never cropped or stretched.</div>
+                        {msgFor("poster")}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </>}
 
             {/* JUDGES */}
@@ -8364,7 +8917,7 @@ export default function App() {
 
                 <div style={{marginBottom:"1.2rem"}}>
                   <div className="lbl">Page Title (shown to public)</div>
-                  <input type="text" value={shareTitle} onChange={e => setShareTitle(e.target.value)} placeholder="Science Fair SY 2025-2026 — Final Results" />
+                  <input type="text" value={shareTitle} onChange={e => setShareTitle(e.target.value)} placeholder={defaultResultsTitle} />
                 </div>
 
                 <div style={{marginBottom:"1.2rem"}}>
@@ -9101,7 +9654,8 @@ export default function App() {
       <div className="pub-wrap">
         <div className="pub-inner">
           <div className="pub-hero">
-            <img src="/logo.png" alt="School logo" style={{height:"60px",marginBottom:"1rem",borderRadius:"8px"}} onError={e => e.target.style.display="none"} />
+            <SchoolLogo src={logoUrl} name={currentSchool?.name} size={64} pending={brandPending} className="pub-logo" />
+            {currentSchool?.name && <div className="school-name" style={{marginBottom:".35rem"}}>{currentSchool.name}</div>}
             <div style={{fontFamily:"var(--ff-d)",fontSize:"1.6rem",fontWeight:900,color:"var(--navy)",marginBottom:".35rem"}}>
               Science Fair — Project List
             </div>
@@ -9166,7 +9720,7 @@ export default function App() {
           })()}
 
           <div style={{textAlign:"center",marginTop:"2rem",fontSize:".75rem",color:"var(--dim)"}}>
-            Powered by Dishchiibikoh Community School · Science Fair Judging System
+            Powered by Qritiko · Science Fair Judging
           </div>
         </div>
       </div>
@@ -9291,11 +9845,15 @@ export default function App() {
 
             {/* Hero */}
             <div className="pub-hero">
-              <div style={{fontSize:"3.5rem",marginBottom:".5rem"}}>🏆</div>
-              <h1>{shareTitle || "Science Fair SY 2025-2026 — Final Results"}</h1>
+              {logoUrl || brandPending
+                ? <SchoolLogo src={logoUrl} name={currentSchool?.name} size={72} pending={brandPending} className="pub-logo" />
+                : <div style={{fontSize:"3.5rem",marginBottom:".5rem"}}>🏆</div>}
+              {currentSchool?.name && <div className="school-name" style={{marginBottom:".4rem"}}>{currentSchool.name}</div>}
+              <h1>{shareTitle || defaultResultsTitle}</h1>
               <p>Final rankings · {judges.length} judges · {totalScored()} evaluations</p>
               <div className="live-chip">● RESULTS PUBLISHED · {shareCreated ? fmtFull(shareCreated) : "Today"}</div>
             </div>
+            <BrandPoster src={posterUrl} alt={branding.posterAlt} maxH="min(45vh, 440px)" />
 
             {/* Per-department sections */}
             {departments.map(dept => {
@@ -9356,7 +9914,7 @@ export default function App() {
             })()}
 
             <div className="pub-footer">
-              <strong>{shareTitle || "Science Fair SY 2025-2026"}</strong><br />
+              <strong>{shareTitle || `Science Fair SY ${syText}`}</strong><br />
               Scores are final averages across all assigned judges.<br />
               All judge identities remain anonymous.
             </div>

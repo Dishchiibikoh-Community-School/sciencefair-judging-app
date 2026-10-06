@@ -10,7 +10,7 @@ import { freshStore, installMock, installScanMock, DEPTS } from "./mock.mjs";
 const BASE = "http://localhost:5199";
 const DIR = new URL("./out/", import.meta.url).pathname.replace(/^\/(\w:)/, "$1");
 mkdirSync(DIR, { recursive: true });
-const SAMPLE = process.env.SAMPLE_IMG || new URL("../../public/logo.png", import.meta.url).pathname.replace(/^\/(\w:)/, "$1");
+const SAMPLE = process.env.SAMPLE_IMG || new URL("../../public/branding/dishchiibikoh-logo.png", import.meta.url).pathname.replace(/^\/(\w:)/, "$1");
 
 // Fixture files
 const fx = (name, content) => { const p = DIR + name; writeFileSync(p, content); return p; };

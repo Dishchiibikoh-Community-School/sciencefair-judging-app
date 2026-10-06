@@ -49,7 +49,7 @@ judge device transfers. **You choose it when you register the school** — 4 to 
 | Tab | Purpose |
 |---|---|
 | **Overview** | Stats, completion tracking, per-department leaderboards |
-| **Setup** | Your departments, **judge numbers** and project categories — add, rename, reorder, delete |
+| **Setup** | Your departments, **judge grid**, project categories, project codes, **school year** and **school logo / poster** |
 | **Judges** | Track judge registration and scoring progress, grouped by department |
 | **Projects** | Add, edit, remove, or lock projects — each assigned to a department |
 | **Registration** | Generate/deactivate student registration link; view all submitted registrations |
@@ -72,7 +72,9 @@ Run through this a few days before, not on the morning of.
 - [ ] **Change the admin PIN** (Overview tab → Admin PIN card) if it has not been changed since the school was created.
 - [ ] **Set up your departments** (Setup tab). A new school starts with Elementary / Middle School / High School — change them to whatever your fair uses, or press a preset. If the list is empty, sign out and back in; they re-seed on admin sign-in.
 - [ ] **Check your project categories** (Setup tab) — rename, remove or add so they match your entry form.
-- [ ] **Set the judge numbers** (Setup tab → Judge numbers): how many judges each department gets.
+- [ ] **Set up the judges** (Setup tab → Judges grid): tick the departments each judge number covers.
+- [ ] **Check the school year** (Setup tab → School year) shows the right year, e.g. SY 2026-2027.
+- [ ] **Upload your school logo** (Setup tab → School branding) — and your fair poster if you have one.
 - [ ] **Enter every project/team**, each assigned to a department, with adviser and members.
 - [ ] **Print the project list** (Projects tab) and check advisers/members appear.
 - [ ] **Download Projects CSV** (Projects tab) — your own backup copy of every team. **⬆ Import projects** reads it back in if you ever need to restore.
@@ -228,6 +230,37 @@ The six built-in ones match the 2026-27 participation form, but you can replace 
 > **Deleting or renaming a category never changes existing projects.** A project keeps the category text it was saved with; only the choice disappears from the dropdowns. When you edit such a project it shows the old value as *"(old category)"* so you can pick a new one.
 
 > The 📷 form scanner reads your current category list automatically — there is nothing to keep in sync.
+
+#### School year (e.g. SY 2026-2027)
+
+**Setup → School year → ✏️ Change**, type the year (e.g. `2026-2027` — "SY" is added for you), **Save**.
+
+- Shown on the student registration form (heading and the success message), the admin dashboard, and the
+  **default title** of your public results ("Science Fair SY 2026-2027 — Final Results").
+- **Leave it empty** to follow the calendar automatically: a new school year starts in **August**.
+- A results link you already created keeps the title it was made with. To change it, edit the title on the
+  Share tab and generate a new link.
+- The registration **confirmation email** still says SY 2025-2026 — it will be updated separately.
+
+#### School branding — logo and fair poster
+
+**Setup → School branding.** Your logo replaces the school initials on every page visitors see; the poster is optional decoration.
+
+| | Logo | Fair poster (optional) |
+|---|---|---|
+| Shown on | Landing page, student registration form, public results, public project list, printed project list, registration confirmation email | Landing page (**below** the Judge / Admin buttons), registration form, public results |
+| Never on | — | Judges' project list and scoring screens |
+| File | PNG, JPG or WebP. Square works best; transparent background is fine | PNG, JPG or WebP, any shape — never cropped or stretched |
+| Size | Shrunk in your browser to 512 px before upload | Shrunk to 1600 px |
+| Required | — | A short **description** (read aloud by screen readers instead of the picture — include any date/place on the poster) |
+
+- **Upload / Replace:** pick the image → check the preview → **✓ Save**. Nothing is uploaded until you press Save. When you replace an image, the old one is deleted after the new one is saved.
+- **Remove:** asks first, then takes it off every page. It cannot be undone — you would upload the image again.
+- **Edit description:** changes the poster's description without re-uploading it.
+- **No logo?** Visitors see a circle with your school's initials — never another school's logo.
+- **"NOT saved"** means nothing changed: your old logo/poster is still showing. Sign in again on your school's own address and press Save again.
+- Not accepted: iPhone **HEIC** photos (take a screenshot or export as JPG), **SVG** files, images smaller than 48 px (logo) / 300 px (poster).
+- The browser-tab icon and the installed-app icon are the **Qritiko** mark for every school: one address serves every school, so it cannot be one school's logo.
 
 ### ⚠️ Order matters: add ALL projects BEFORE judges sign in
 

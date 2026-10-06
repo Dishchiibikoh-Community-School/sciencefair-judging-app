@@ -47,7 +47,27 @@ export function freshStore() {
     rubrics: [],
     registration_links: [{ id: "rl1", school_id: SID, token: "REG-TOKEN", active: true, expires_at: null, created_at: now }],
     registration_submissions: [],
+    // 2026-10l branding: the table, and the Storage bucket as { path: { type, bytes } }.
+    school_branding: [], storage: {}, storageLog: [],
   };
+}
+
+// Pull the file out of a supabase-js storage upload (multipart: cacheControl + the file part).
+function multipartFile(buf, ctype) {
+  const m = /boundary=("?)([^";]+)\1/.exec(ctype || "");
+  if (!m) return { type: ctype, bytes: buf };
+  const b = Buffer.from("--" + m[2]);
+  let pos = buf.indexOf(b);
+  while (pos !== -1) {
+    const start = pos + b.length, next = buf.indexOf(b, start);
+    if (next === -1) break;
+    const part = buf.subarray(start, next), sep = part.indexOf("\r\n\r\n");
+    const head = sep === -1 ? "" : part.subarray(0, sep).toString();
+    const t = /content-type:\s*([^\r\n]+)/i.exec(head);
+    if (t && /filename=/i.test(head)) return { type: t[1].trim(), bytes: part.subarray(sep + 4, part.length - 2) };
+    pos = next;
+  }
+  return null;
 }
 
 function matches(row, params) {
@@ -70,6 +90,10 @@ function matches(row, params) {
 export function installMock(page, store, log) {
   // ── 2026-10k roster / panels, mirrored from the SQL ──
   store.judge_roster = store.judge_roster || [];
+  // ── 2026-10l branding: Storage bucket "school-branding" (path → { type, bytes }) ──
+  store.storage = store.storage || {};
+  store.storageLog = store.storageLog || [];
+  store.school_branding = store.school_branding || [];
   store.project_judges = store.project_judges || [];
   const roster = () => store.judge_roster;
   const byOrd = () => [...store.departments].sort((a, b) => a.ord - b.ord);
@@ -124,8 +148,43 @@ export function installMock(page, store, log) {
       "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "*" } });
     const auth = req.headers()["authorization"] || "";
     const isAdmin = auth.includes(ADMIN_TOKEN);
-    const body = req.postData() ? JSON.parse(req.postData()) : null;
     const path = url.pathname;
+
+    // ── Storage (before the JSON body parse: uploads are multipart) ──
+    // Mirrors the 2026-10l policies: an admin may add / delete files only in their own school's
+    // folder with app-generated names; files are public to read by URL; nobody overwrites.
+    const BR = "/storage/v1/object/";
+    if (path.startsWith(BR)) {
+      const cors = { "access-control-allow-origin": "*" };
+      const nameOk = (n) => new RegExp(`^${SID}/(logo|poster)-[A-Za-z0-9_-]{8,64}\.(webp|png|jpg)$`).test(n);
+      if (method === "GET" && path.startsWith(BR + "public/school-branding/")) {
+        const f = store.storage[decodeURIComponent(path.slice((BR + "public/school-branding/").length))];
+        if (!f) return route.fulfill({ status: 400, contentType: "application/json", headers: cors, body: JSON.stringify({ statusCode: "404", error: "not_found", message: "Object not found" }) });
+        return route.fulfill({ status: 200, contentType: f.type, headers: { ...cors, "cache-control": "max-age=31536000" }, body: f.bytes });
+      }
+      if (method === "POST" && path.startsWith(BR + "school-branding/")) {
+        const name = decodeURIComponent(path.slice((BR + "school-branding/").length));
+        const file = multipartFile(req.postDataBuffer(), req.headers()["content-type"]);
+        store.storageLog.push({ op: "upload", name, type: file?.type, size: file?.bytes?.length, admin: isAdmin, upsert: req.headers()["x-upsert"] });
+        if (store.failStorage) return json(route, 500, { statusCode: "500", error: "internal", message: "simulated storage outage" });
+        if (!isAdmin || !nameOk(name)) return json(route, 403, { statusCode: "403", error: "Unauthorized", message: "new row violates row-level security policy" });
+        if (!file || !["image/webp", "image/png", "image/jpeg"].includes(file.type)) return json(route, 400, { statusCode: "415", error: "invalid_mime_type", message: `mime type ${file?.type} is not supported` });
+        if (file.bytes.length > 2097152) return json(route, 400, { statusCode: "413", error: "Payload too large", message: "The object exceeded the maximum allowed size" });
+        if (store.storage[name]) return json(route, 400, { statusCode: "409", error: "Duplicate", message: "The resource already exists" });
+        store.storage[name] = { type: file.type, bytes: Buffer.from(file.bytes) };
+        return json(route, 200, { Key: `school-branding/${name}`, Id: "obj_" + Object.keys(store.storage).length });
+      }
+      if (method === "DELETE" && path === BR + "school-branding") {
+        const names = JSON.parse(req.postData() || "{}").prefixes || [];
+        store.storageLog.push({ op: "remove", names, admin: isAdmin });
+        if (store.failStorageDelete) return json(route, 500, { statusCode: "500", error: "internal", message: "simulated storage outage" });
+        const gone = isAdmin ? names.filter(n => nameOk(n) && store.storage[n]) : [];   // RLS: others match 0 rows
+        for (const n of gone) delete store.storage[n];
+        return json(route, 200, gone.map(name => ({ name, bucket_id: "school-branding" })));
+      }
+      return json(route, 400, { statusCode: "400", error: "unsupported", message: `mock storage: ${method} ${path}` });
+    }
+    const body = req.postData() ? JSON.parse(req.postData()) : null;
     log.push(`${method} ${path}${url.search} ${isAdmin ? "[admin]" : "[anon]"}`);
 
     // ── Auth ──
@@ -153,6 +212,32 @@ export function installMock(page, store, log) {
     // ── RPC ──
     if (path.startsWith("/rest/v1/rpc/")) {
       const fn = path.split("/").pop();
+      if (fn === "set_school_branding") {
+        const { p_school_id: sid, p_kind: kind, p_path: bpath, p_alt } = body;
+        const err = (message) => json(route, 400, { code: "P0001", message });
+        if (!isAdmin || sid !== SID) return err("Not authorised");
+        if (store.failBrandingRpc) return json(route, 503, { code: "PGRST000", message: "simulated database outage" });
+        if (!["logo", "poster", "poster_alt"].includes(kind)) return err("Unknown branding item.");
+        const alt = String(p_alt ?? "").trim();
+        if (kind !== "poster_alt" && bpath != null) {
+          if (!new RegExp(`^${sid}/${kind}-[A-Za-z0-9_-]{8,64}\.(webp|png|jpg)$`).test(bpath)) return err("That image does not belong to this school.");
+          if (!store.storage[bpath]) return err("The image was not uploaded. Please try again.");
+        }
+        if (kind === "poster" && bpath != null && alt.length < 3) return err("Describe the poster in a few words (for people using screen readers).");
+        if (alt.length > 250) return err("The poster description is too long (250 characters at most).");
+        let row = store.school_branding.find(r => r.school_id === sid);
+        if (!row) { row = { school_id: sid, logo_path: null, poster_path: null, poster_alt: "" }; store.school_branding.push(row); }
+        let old = null;
+        if (kind === "logo") { old = row.logo_path; row.logo_path = bpath; }
+        else if (kind === "poster") { old = row.poster_path; row.poster_path = bpath; row.poster_alt = bpath == null ? "" : alt; }
+        else {
+          if (!row.poster_path) return err("Upload a poster first.");
+          if (alt.length < 3) return err("Describe the poster in a few words (for people using screen readers).");
+          row.poster_alt = alt;
+        }
+        row.updated_at = new Date().toISOString();
+        return json(route, 200, { ...row, old_path: old !== bpath ? old : null });
+      }
       if (fn === "school_invite_code") return isAdmin ? json(route, 200, "ABC123") : json(route, 400, { code: "P0001", message: "Not authorised" });
       if (fn === "verify_school_pin") return json(route, 200, body.p_pin === (store.pin || "4821"));
       if (fn === "registration_count") return json(route, 200, store.registration_submissions.length);
@@ -333,6 +418,10 @@ export function installMock(page, store, log) {
     const prefer = req.headers()["prefer"] || "";
 
     // RLS that matters for these tests.
+    if (table === "school_branding" && store.brandingTableMissing)   // migration 2026-10l not run
+      return json(route, 404, { code: "PGRST205", message: "Could not find the table 'public.school_branding' in the schema cache" });
+    if (table === "school_branding" && method !== "GET" && method !== "HEAD")
+      return json(route, 401, { code: "42501", message: "permission denied for table school_branding" });
     if (table === "judge_labels" && !isAdmin)
       return json(route, 401, { code: "42501", message: "permission denied for table judge_labels" });
     if (table === "project_private" && !isAdmin)

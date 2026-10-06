@@ -67,6 +67,17 @@ await db.exec(`
   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;
   ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon, authenticated;
   CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+  -- Supabase Storage, reduced to what migration 2026-10l touches: buckets, objects (RLS on,
+  -- anon/authenticated granted — policies are the gate, as on Supabase).
+  CREATE SCHEMA storage;
+  CREATE TABLE storage.buckets (id text PRIMARY KEY, name text NOT NULL, public boolean DEFAULT false,
+    file_size_limit bigint, allowed_mime_types text[]);
+  CREATE TABLE storage.objects (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), bucket_id text REFERENCES storage.buckets(id),
+    name text NOT NULL, owner uuid, metadata jsonb, created_at timestamptz DEFAULT now(), UNIQUE (bucket_id, name));
+  ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+  GRANT USAGE ON SCHEMA storage TO anon, authenticated;
+  GRANT SELECT, INSERT, UPDATE, DELETE ON storage.objects TO anon, authenticated;
+  GRANT SELECT ON storage.buckets TO anon, authenticated;
 `);
 await db.exec("SET search_path = public, extensions;");
 
@@ -111,7 +122,8 @@ for (const round of [1, 2]) {
   await db.exec(mig("migration-2026-10i-judge-max.sql"));
   await db.exec(mig("migration-2026-10j-department-rubrics.sql"));
   await db.exec(mig("migration-2026-10k-judge-roster-and-panels.sql"));
-  ok(`migrations 2026-10 … 10k applied (round ${round} — re-runnable)`);
+  await db.exec(mig("migration-2026-10l-school-branding.sql"));
+  ok(`migrations 2026-10 … 10l applied (round ${round} — re-runnable)`);
 }
 
 // ── PART 1: names are private ──
@@ -853,5 +865,113 @@ ok("panels: clearing judges-per-project goes back to every judge scoring every p
 await as("authenticated", ADMIN, "SELECT set_judge_numbers($1, $2::jsonb)", [S7, JSON.stringify([{ department_id: G(3), from: 5, to: 9 }])]);
 assert.ok((await roster(S7)).filter(x => x.endsWith(":Gamma")).map(x => +x.split(":")[0]).join() === "5,6,7,8,9");
 ok("compat: set_judge_numbers (old range editor) writes the roster");
+
+// ── PART 10: per-school branding (migration 2026-10l) ──
+{
+  const LEG = "5667eba1-2f45-4830-96b7-6a6467113dfc";   // Dishchii'bikoh on the live project
+  const SB = "SELECT set_school_branding($1, $2, $3, $4) AS r";
+  const brand = async (sid) => (await db.query("SELECT * FROM school_branding WHERE school_id=$1", [sid])).rows[0];
+  const upload = (uid, name) => as("authenticated", uid,
+    "INSERT INTO storage.objects (bucket_id, name, owner) VALUES ('school-branding', $1, $2) RETURNING name", [name, uid]);
+
+  await db.exec(`INSERT INTO schools (id, name, slug, invite_code, admin_pin)
+    VALUES ('${LEG}', 'Dishchii''bikoh', 'dishchiibikoh-community-school', 'LEGCODE1', '4821')`);
+  await db.exec(mig("migration-2026-10l-school-branding.sql"));
+  assert.equal((await brand(LEG))?.logo_path, "builtin:dishchiibikoh");
+  assert.equal(await brand(SID), undefined);
+  ok("branding: the existing logo is kept for Dishchii'bikoh only (id + slug); other schools get no row");
+
+  await db.exec(`DELETE FROM school_branding WHERE school_id = '${LEG}'`);
+  await db.exec(`UPDATE schools SET slug = 'someone-else' WHERE id = '${LEG}'`);
+  await db.exec(mig("migration-2026-10l-school-branding.sql"));
+  assert.equal(await brand(LEG), undefined);
+  await db.exec(`UPDATE schools SET slug = 'dishchiibikoh-community-school' WHERE id = '${LEG}'`);
+  await db.exec(mig("migration-2026-10l-school-branding.sql"));
+  assert.equal((await brand(LEG))?.logo_path, "builtin:dishchiibikoh");
+  ok("branding: the seed needs BOTH the id and the slug to match");
+
+  const bucket = (await db.query("SELECT * FROM storage.buckets WHERE id='school-branding'")).rows[0];
+  assert.equal(bucket.public, true);
+  assert.equal(Number(bucket.file_size_limit), 2097152);
+  assert.deepEqual(bucket.allowed_mime_types, ["image/webp", "image/png", "image/jpeg"]);
+  ok("branding: public bucket, 2 MB limit, WebP/PNG/JPEG only");
+
+  assert.equal((await as("anon", "", "SELECT logo_path FROM school_branding WHERE school_id=$1", [LEG])).rows.length, 1);
+  ok("branding: anon can READ a school's branding (landing / registration / results pages)");
+  await fails("anon", "", `INSERT INTO school_branding (school_id, logo_path) VALUES ('${SID}', 'x')`, /permission denied/, "branding: anon cannot write the table");
+  await fails("authenticated", ADMIN, `INSERT INTO school_branding (school_id, logo_path) VALUES ('${SID}', 'x')`, /permission denied/, "branding: even an admin cannot write the table directly (RPC only)");
+  await fails("authenticated", ADMIN, `UPDATE school_branding SET logo_path = NULL WHERE school_id = '${LEG}'`, /permission denied/, "branding: …nor change another school's row");
+  await fails("anon", "", SB, /permission denied for function/, "branding: anon cannot call set_school_branding", [SID, "logo", null, null]);
+  await fails("authenticated", OTHER, SB, /Not authorised/, "branding: a signed-in NON-admin is refused", [SID, "logo", null, null]);
+  await fails("authenticated", ADMIN, SB, /Not authorised/, "branding: an admin cannot change ANOTHER school's branding", [LEG, "logo", null, null]);
+
+  // Storage: only into your own school's folder, only names the app generates.
+  const LP = `${SID}/logo-abcdef123456.webp`;
+  assert.equal((await upload(ADMIN, LP)).rows[0].name, LP);
+  ok("storage: an admin can upload into their own school's folder");
+  await fails("authenticated", ADMIN, "INSERT INTO storage.objects (bucket_id, name) VALUES ('school-branding', $1)", /row-level security/,
+    "storage: …but NOT into another school's folder", [`${LEG}/logo-abcdef123456.webp`]);
+  await fails("authenticated", OTHER, "INSERT INTO storage.objects (bucket_id, name) VALUES ('school-branding', $1)", /row-level security/,
+    "storage: a signed-in non-admin cannot upload", [`${SID}/logo-zzzzzz123456.webp`]);
+  await fails("anon", "", "INSERT INTO storage.objects (bucket_id, name) VALUES ('school-branding', $1)", /row-level security/,
+    "storage: anon cannot upload", [`${SID}/logo-yyyyyy123456.webp`]);
+  for (const bad of [`${SID}/page.html`, `${SID}/logo-abcdef123456.svg`, `${SID}/x/logo-abcdef123456.webp`, `${SID}/logo-short.webp`, `../${SID}/logo-abcdef123456.webp`]) {
+    await fails("authenticated", ADMIN, "INSERT INTO storage.objects (bucket_id, name) VALUES ('school-branding', $1)", /row-level security/,
+      `storage: name refused — ${bad.replace(SID, "<sid>")}`, [bad]);
+  }
+
+  // set_school_branding: path rules
+  await fails("authenticated", ADMIN, SB, /does not belong/, "rpc: another school's file is refused", [SID, "logo", `${LEG}/logo-abcdef123456.webp`, null]);
+  await fails("authenticated", ADMIN, SB, /does not belong/, "rpc: the built-in logo cannot be claimed by another school", [SID, "logo", "builtin:dishchiibikoh", null]);
+  await fails("authenticated", ADMIN, SB, /does not belong/, "rpc: a poster file cannot be used as the logo", [SID, "logo", `${SID}/poster-abcdef123456.webp`, null]);
+  await fails("authenticated", ADMIN, SB, /was not uploaded/, "rpc: a file that was never uploaded is refused", [SID, "logo", `${SID}/logo-neveruploaded.webp`, null]);
+  const r1 = (await as("authenticated", ADMIN, SB, [SID, "logo", LP, null])).rows[0].r;
+  assert.equal(r1.logo_path, LP); assert.equal(r1.old_path, null);
+  const LP2 = `${SID}/logo-bbbbbb123456.png`;
+  await upload(ADMIN, LP2);
+  const r2 = (await as("authenticated", ADMIN, SB, [SID, "logo", LP2, null])).rows[0].r;
+  assert.equal(r2.logo_path, LP2); assert.equal(r2.old_path, LP);
+  ok("rpc: upload → set logo; replacing it returns the old path so the app can delete that file");
+
+  const PP = `${SID}/poster-cccccc123456.jpg`;
+  await upload(ADMIN, PP);
+  await fails("authenticated", ADMIN, SB, /Describe the poster/, "rpc: a poster needs a description", [SID, "poster", PP, " "]);
+  await fails("authenticated", ADMIN, SB, /too long/, "rpc: description is capped at 250 characters", [SID, "poster", PP, "x".repeat(251)]);
+  const r3 = (await as("authenticated", ADMIN, SB, [SID, "poster", PP, "  Science fair 2026 poster  "])).rows[0].r;
+  assert.equal(r3.poster_path, PP); assert.equal(r3.poster_alt, "Science fair 2026 poster"); assert.equal(r3.logo_path, LP2);
+  const r4 = (await as("authenticated", ADMIN, SB, [SID, "poster_alt", null, "Poster: volcano and planets"])).rows[0].r;
+  assert.equal(r4.poster_path, PP); assert.equal(r4.poster_alt, "Poster: volcano and planets");
+  ok("rpc: poster with description; the description can be changed on its own");
+  const r5 = (await as("authenticated", ADMIN, SB, [SID, "poster", null, null])).rows[0].r;
+  assert.equal(r5.poster_path, null); assert.equal(r5.poster_alt, ""); assert.equal(r5.old_path, PP); assert.equal(r5.logo_path, LP2);
+  await fails("authenticated", ADMIN, SB, /Upload a poster first/, "rpc: no description without a poster", [SID, "poster_alt", null, "words"]);
+  ok("rpc: removing the poster clears its description and keeps the logo");
+
+  // Storage delete / read: own school only.
+  await db.exec(`INSERT INTO storage.objects (bucket_id, name) VALUES ('school-branding', '${LEG}/logo-legacy123456.webp')`);
+  assert.equal((await as("authenticated", ADMIN, "DELETE FROM storage.objects WHERE name=$1 RETURNING 1", [`${LEG}/logo-legacy123456.webp`])).rows.length, 0);
+  assert.equal((await as("authenticated", ADMIN, "SELECT name FROM storage.objects WHERE bucket_id='school-branding'")).rows.every(r => r.name.startsWith(SID)), true);
+  assert.equal((await as("anon", "", "SELECT name FROM storage.objects")).rows.length, 0);
+  ok("storage: an admin cannot see or delete another school's files; anon cannot list any");
+  assert.equal((await as("authenticated", ADMIN, "DELETE FROM storage.objects WHERE name=$1 RETURNING 1", [LP])).rows.length, 1);
+  ok("storage: an admin can delete their own school's replaced file");
+
+  // Removing the built-in logo is permanent — a re-run of the migration must not bring it back.
+  await db.exec(`INSERT INTO school_admins (school_id, user_id) VALUES ('${LEG}', '${OTHER}')`);
+  const r6 = (await as("authenticated", OTHER, SB, [LEG, "logo", null, null])).rows[0].r;
+  assert.equal(r6.logo_path, null); assert.equal(r6.old_path, "builtin:dishchiibikoh");
+  await db.exec(mig("migration-2026-10l-school-branding.sql"));
+  assert.equal((await brand(LEG)).logo_path, null);
+  ok("branding: removing the built-in logo is permanent (a re-run does not restore it)");
+
+  const TMP = "99999999-9999-9999-9999-999999999990";
+  await db.exec(`INSERT INTO schools (id, name, slug, invite_code, admin_pin) VALUES ('${TMP}', 'Tmp', 'tmp-brand', 'TMPCODE1', '4821');
+    INSERT INTO school_admins (school_id, user_id) VALUES ('${TMP}', '${ADMIN}');`);
+  await upload(ADMIN, `${TMP}/logo-tmptmp123456.webp`);
+  await as("authenticated", ADMIN, SB, [TMP, "logo", `${TMP}/logo-tmptmp123456.webp`, null]);
+  await db.exec(`DELETE FROM schools WHERE id = '${TMP}'`);
+  assert.equal(await brand(TMP), undefined);
+  ok("branding: deleting a school deletes its branding row");
+}
 
 console.log(`\nALL ${pass} CHECKS PASSED`);
