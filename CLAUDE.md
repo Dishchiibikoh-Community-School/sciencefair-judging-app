@@ -3,7 +3,7 @@
 > Single source of truth for AI-assisted development. Read it before changing anything.
 > Do not delete it. When code and this file disagree, the code wins — then fix this file.
 >
-> Last reviewed: 2026-10-01 (cleaned up after the 2026-09 audit + security work).
+> Last reviewed: 2026-10-06 (per-school categories + Setup tab; see Change History).
 
 ---
 
@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + real-Postgres (PGlite) migration/RLS suite. Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, public registration, phone/tablet widths. Start the dev server first (see the file header) |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 122 checks across 5 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -56,6 +56,7 @@ always serves and cannot be redirected — never share it.
 | `migration-2026-10b-private-members-and-registration.sql` | Moves adviser + student names to admin-only **`project_private`** (drops `projects.advisor_name` / `group_members`); adds 12 missing `registration_submissions` columns; **`submit_registration()`** RPC; closes direct anon INSERT on submissions | **Yes — run it, then deploy the matching app immediately.** Old app + new SQL saves projects without names |
 | `migration-2026-10c-secure-school-signup.sql` | **`create_school()`** RPC; closes direct INSERT on `schools` and `school_admins` (anyone could make themselves admin of any school) | **Yes** — the sign-up form calls `create_school()`. Run before anyone registers a school |
 | `migration-2026-10d-judge-revise-validation.sql` | Judges may delete their own validation until results are finalized (never the admin's) | No — without it "Revise my validation" shows an error instead of unlocking |
+| `migration-2026-10e-categories-and-department-codes.sql` | **`categories`** table (per-school project categories) + seeds the six for every existing school; **`departments.code`** | No — **additive only**. Old app ignores both; new app falls back to `DEFAULT_CATEGORIES` and logs `CATEGORIES_TABLE_MISSING`. Safe to run in either order |
 
 `registration-migration.sql` and `schema.sql` are historical (the latter is the v1 schema).
 
@@ -84,6 +85,7 @@ The v1 Vercel project was deleted 2026-09-30. **Do not resurrect v1.**
 │   ├── scan-form.test.mjs       ← mocked tests for api/scan-form.js (free, offline)
 │   ├── db-migrations.test.mjs   ← schema + all migrations on real Postgres (PGlite): RLS, RPCs
 │   ├── e2e/                     ← browser tests (playwright-core + mocked backend); screenshots in e2e/out/ (gitignored)
+│   │                              scan · judge-reg · signup · setup (departments/categories) · lifecycle
 │   └── scan-form-smoke.mjs      ← real-Gemini smoke test for form scanning (needs GEMINI_API_KEY)
 ├── supabase/
 │   ├── schema-v2.sql            ← v2 multi-tenant base schema
@@ -130,6 +132,10 @@ files, no Tailwind, no CSS modules.
 - After sign-in it also runs `ensureSeedData()`, `loadLog()`, `loadItLogs()`,
   `loadScoreBackups()` and `loadInviteCode()` — those tables are admin-read-only, so the
   anonymous `init()` load returned nothing.
+- **`ensureSeedData()` is the only place that seeds** departments, categories, the rubric and
+  baseline `app_settings`. Loaders never seed: RLS makes those inserts admin-only, so an inline
+  seed in a loader silently failed for every judge and visitor. If a table is empty the app keeps
+  its `DEFAULT_*` fallback (with `id: null`) so the UI still renders.
 - The admin PIN and invite code are **never** loaded into `currentSchool`. Use
   `verifyAdminPin(pin)` / `changeAdminPin()` and `loadInviteCode()` (`school_invite_code` RPC).
 - `handleAdminLogout()` → `supabase.auth.signOut()`.
@@ -162,7 +168,8 @@ files, no Tailwind, no CSS modules.
 
 | `adminTab` | Content |
 |---|---|
-| `overview` | Stats, per-department leaderboards + max-judges settings, "Get started" card (invite code, school URL), Change PIN card, Lock Judging |
+| `overview` | Stats, per-department leaderboards, "Get started" card (invite code, school URL), Change PIN card, Lock Judging, a summary card linking to Setup |
+| `setup` | **Departments** (add / rename / reorder / delete / max judges / presets) and **project categories** (add / rename / reorder / delete / restore defaults). Both are per-school data — see rule 14 |
 | `judges` | Per-judge progress grouped by department; Allow Transfer (PIN) |
 | `projects` | Add/edit/remove/lock projects, **📷 Scan forms** (AI form reader), rubric breakdown, project-list PDF |
 | `registration` | Student registration links + submissions, registration CSV |
@@ -225,6 +232,7 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `app_settings` | Read open (judges need `locked`, `deliberation_open`, transfer allowances); **write admin-only** |
 | `registration_submissions` | INSERT `WITH CHECK (false)` — only via `submit_registration()`; SELECT/UPDATE admin-only (student PII) |
 | `projects` | SELECT open (judges + public pages need titles/room/description). **Must never hold names** — see rule 45 |
+| `categories` | SELECT open (the public registration form and judge views render the list without a session); INSERT/UPDATE/DELETE `is_school_admin(school_id)`. No personal data, so an open read is fine |
 | `project_private` | Adviser + student names. All operations `is_school_admin(school_id)`; anon has **no privileges at all**. Realtime enforces the same RLS |
 | `activity_log`, `it_logs` | INSERT open; SELECT admin-only |
 | `score_backups` | Admin-only |
@@ -264,7 +272,8 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `schools` | id, name, slug, invite_code, admin_pin (bcrypt) |
 | `school_admins` | Links a Supabase Auth user to a school |
 | `rubrics` | Per-school rubric — `criteria` JSONB array, `is_active` |
-| `departments` | name, `max_judges`, `ord` — seeded Elementary / Middle School / High School |
+| `departments` | name, `code`, `max_judges`, `ord` — seeded from `DEPT_PRESETS[0]`, fully admin-editable. `code` (2026-10e) is reserved for registration numbers; nothing reads it yet |
+| `categories` | Per-school project categories: name, `code`, `ord` (2026-10e). UNIQUE(school_id, name). **No FK from `projects`** — `projects.cat` is a free-text snapshot, so deleting a category never alters a project |
 | `projects` | num, title, cat, grade, locked, department_id, room, description, motivation — **public, no names** |
 | `project_private` | PK `(project_id, school_id)`, FK → projects **ON DELETE CASCADE**: advisor_name, group_members (JSONB), updated_at — **admin-only** |
 | `judges` | alias, `projects` (JSON array of pids), department_id, joined_at. UNIQUE(department_id, alias) |
@@ -302,10 +311,14 @@ the grade < 5 abstract exemption, so a mixed group is judged at its oldest membe
 ### Client state shapes
 
 ```js
-departments  // [{ id, name, max_judges, ord }]
+departments  // [{ id, name, code, max_judges, ord }] — fallback DEFAULT_DEPARTMENTS (ids null) until loaded
+categories   // [{ id, name, code, ord }]             — fallback DEFAULT_CATEGORIES   (ids null) until loaded
+             // catNames() is the ONLY way to build a category dropdown (rule 14)
 projects     // [{ id, num, title, cat, grade, locked, department_id, advisor_name,
              //    group_members: [{ name, grade }], room, description, motivation }]
-             // id "p_xxxxxx" (admin-added); cat ∈ REG_CATEGORIES (older rows may hold a legacy category)
+             // id "p_xxxxxx" (admin-added); `cat` is free TEXT holding the category NAME at save
+             // time — a snapshot, not a reference. Renaming or deleting a category never changes it,
+             // so older rows may hold a name no longer in `categories` (shown as "(old category)").
 projForm     // blankProjForm(num) → { title, cat, grade, num, department_id, advisor_name,
              //    members: [{ name, grade }], room, description, motivation }
 scanCards    // form-scanner review cards, memory only — see "📷 Form scanning"
@@ -441,10 +454,14 @@ functions keep the old value.
 - Failed read → **Retry** or **Enter manually** (blank card beside the photo).
 
 ### Category mapping
-The six `REG_CATEGORIES` are copied **verbatim** in `api/scan-form.js` (`CATEGORIES`). Gemini's
-category is an enum of those six + `"Not sure yet"` + `"None"`; anything else becomes blank.
-**If you change `REG_CATEGORIES`, change `CATEGORIES` in the API too**, or every scan will come
-back with an empty category.
+`api/scan-form.js` reads **this school's own `categories` rows** on every request (alongside its
+departments) and builds the Gemini enum from them: that school's categories + `"Not sure yet"` +
+`"None"`. Anything else comes back blank for the admin to pick.
+
+There is **no list to keep in sync** any more — that was the old failure mode, where the JSX's
+`REG_CATEGORIES` and a hand-copied `CATEGORIES` in the API could drift and silently blank the
+category on every scan. The API's `DEFAULT_CATEGORIES` is a pure fallback, used only when the
+`categories` table is empty or migration 2026-10e has not been run.
 
 ### Privacy (do not weaken)
 - Photos exist only in the admin's browser memory (object URLs, revoked on close) and in the single
@@ -474,7 +491,7 @@ back with an empty category.
 | "Too many forms in one file" (`UNREADABLE`, MAX_TOKENS) | Huge multi-page PDF | Split into ≤ 10 pages |
 | "The AI took too long" (`TIMEOUT`) | Slow model / big PDF | Retry; split PDF |
 | "The AI refused this file" (`BLOCKED`) | Safety filter | Enter manually |
-| Every scan has empty category | `REG_CATEGORIES` and API `CATEGORIES` out of sync | Make them identical |
+| Every scan has empty category | The form's categories don't match this school's list in Setup | Fix the list in Setup → Project Categories (the API reads it live; nothing to sync) |
 | Saved project has no room/description | `migration-2026-10-project-details.sql` not run (IT log `PROJECT_DETAIL_COLS_MISSING`) | Run the migration, re-edit those projects |
 | IT log `PROJECT_PRIVATE_TABLE_MISSING` | 2026-10b not run — names were saved on the **public** `projects` row | Run 2026-10b (it moves them) |
 | IT log `PROJECT_PRIVATE_WRITE_FAILED` / "Could not save" on a card | Names could not be written; the project was rolled back | Check the admin is signed in on their own school's URL; retry |
@@ -502,7 +519,8 @@ cards), then scan the same form in the app.
 - Deliberation: `.delib-section`, `.delib-proj`, `.delib-rec-select`, `.delib-flag-wrap`, `.delib-submitted`, `.delib-comment-card`, `.delib-rec-pill` (`.award` `.strong` `.good` `.needs`), `.delib-flag-badge`, `.delib-discuss`, `.delib-phase-toggle`, `.delib-finalized`, `.award-badge` (`.gold` `.silver` `.bronze` `.hm` `.best` `.none`)
 - Projects: `.proj-mgmt-header`, `.proj-mgmt-table`, `.proj-act-btn`, `.proj-form-overlay`/`.proj-form-card`, `.proj-form-grid`, `.proj-lock-badge`
 - Banners/modals: `.offline-banner`, `.locked-banner`, `.modal-overlay`/`.modal-box`, `.pin-gate`, `.it-term`
-- Onboarding: `.mkt-*` (homepage), `.setup-*` (admin "Get started" card)
+- Onboarding: `.mkt-*` (homepage), `.setup-guide*` / `.setup-check*` / `.setup-share*` (admin "Get started" card)
+- Setup tab: `.setup-rows`, `.setup-row`, `.setup-ord`, `.setup-main`, `.setup-name`, `.setup-meta`, `.setup-acts`, `.setup-maxj`, `.setup-edit`, `.setup-code-in`, `.setup-add`, `.setup-presets`, `.setup-preset-grid`, `.setup-preset`
 
 ---
 
@@ -541,8 +559,20 @@ writeProjectRow(mode, row, pid)        // public columns only; drops 2026-10 col
 writeProjectPrivate(pid, adviser, members)  // names → project_private (falls back to legacy columns pre-2026-10b)
 nextProjectNum(list?), exportProjListPDF(), exportProjectsCSV()
 normMembers(raw), membersText(raw), highestGrade(members), normGrade(g)  // module helpers
-blankProjForm(num?), escHtml(v)        // module helpers — escHtml for any hand-built HTML (print windows)
-loadDepartments(), updateDeptMaxJudges(deptId, max)
+blankProjForm(num?, defaultCat?), escHtml(v)  // module helpers — escHtml for any hand-built HTML (print windows)
+
+// Setup tab — departments & categories (both per-school rows; see rule 14)
+catNames()                   // the school's category names, in order. Hoisted `function` on purpose:
+                             // the projForm useState initializer calls it before its definition
+autoCode(name)               // derives a short code ("Life Science" → "LS") when the admin leaves it blank
+loadDepartments(sid), loadCategories(sid)     // load only — they never seed (see ensureSeedData)
+updateDeptMaxJudges(deptId, max)
+addDepartment(name, code), saveDepartment(id), moveDepartment(id, ±1)
+requestDeleteDepartment(id) → deleteDepartment(id)   // request() holds the guardrail, see rule 14a
+applyDeptPreset(presetId)    // DEPT_PRESETS — only ADDS what is missing, never deletes
+addCategory(name, code), saveCategory(id), moveCategory(id, ±1)
+requestDeleteCategory(id) → deleteCategory(id)       // warns if projects use it; deletion is safe
+restoreDefaultCategories()   // adds back any missing DEFAULT_CATEGORIES; keeps the school's own
 submitScore()                // enforces judging lock + already-validated gate
 flushOfflineQueue()          // guarded; body in runOfflineFlush(queue)
 
@@ -572,7 +602,7 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 - `scores`, `judges`, `deliberation_notes`, `final_decisions`, `validations` — INSERT/UPDATE
   patch state from `payload.new`; full reload only on DELETE.
 - `activity_log`, `it_logs` — INSERT-only, prepend `payload.new`.
-- `departments`, `projects`, `project_private`, `share_links`, `app_settings` — full `loadX(sid)` (rare admin changes).
+- `departments`, `categories`, `projects`, `project_private`, `share_links`, `app_settings` — full `loadX(sid)` (rare admin changes).
 - ⚠️ **Always wrap loaders: `() => loadProjects(sid)`.** Passing `loadProjects` directly hands it the
   realtime payload as `sid`; it then queried `school_id = "[object Object]"`, so projects/departments
   never refreshed live from the v2 rewrite until 2026-10-05.
@@ -597,7 +627,8 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 11. **`max_judges` is per department and locks** once that department's first judge registers. The old global `maxJudges` / `app_settings.max_judges` was removed 2026-09-25 — do not reintroduce it. `JUDGE_NAMES` pre-generates Judge1–Judge100.
 12. **Locked projects cannot be edited or removed.** Only `toggleProjectLock()` changes the lock.
 13. **Removing a project cascades:** its scores, deliberation notes, final decision and every judge's assignment entry. No orphans.
-14. **Categories come from `REG_CATEGORIES`** — the six on the 2026-27 participation form: `Life Science`, `Earth & Environmental Science`, `Chemistry & Material Science`, `Physics, Math & Astronomy`, `Engineering, Robotics & Technology`, `Energy, Sustainability & Design` (reg codes `LS EES CMS PMA ERT ESD`). Changed 2026-10 from the old four. **Keep `CATEGORIES` in `api/scan-form.js` identical.** "Not sure yet" is never a category. The legacy `CATEGORIES` constant in the JSX is unused — do not revert to it.
+14. **Departments AND categories are per-school data, not constants** (changed 2026-10-06, migration 2026-10e). Build every category dropdown from `catNames()` and every department dropdown from the `departments` state — never from a module constant. `DEFAULT_CATEGORIES` / `DEPT_PRESETS` are **only** fallbacks-and-seeds: they are what a school starts with, never the set that exists. The old `REG_CATEGORIES`, `CAT_CODES` and the dead `CATEGORIES` constant are gone; do not reintroduce them. `api/scan-form.js` loads the school's categories per request (its `DEFAULT_CATEGORIES` is a fallback only), so there is no longer a list to keep in sync. "Not sure yet" is never a category.
+14a. **A department may not be deleted while judges or projects point at it.** `judges.department_id` and `projects.department_id` are `ON DELETE SET NULL`, so Postgres would *accept* the delete and silently unassign everything — an unassigned project is scored by nobody. The guard lives in `requestDeleteDepartment()`; keep it there. Deleting a **category** is safe by contrast (`projects.cat` is free text with no FK) — projects keep their label and the edit form shows it as "(old category)".
 15. **`executeReset()` clears** judges, scores, validations, deliberation notes, final decisions, share link, project-list token, judge transfer allowances, `locked`, `deliberation_open`, `results_finalized`. **It never clears** projects, departments, registration data or the activity log.
 
 **Workflow gates**
@@ -628,7 +659,10 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 34. **All CSS is inline** in the `CSS` template literal.
 35. **No routing library.** Navigate with `setView(...)`.
 36. **Never use `window.prompt` / `window.confirm`** — blocked in PWA standalone mode on iOS/Android. Use the `modal-overlay` / `modal-box` pattern.
-37. **Never use `try/finally` inside `App`.** It makes the React Compiler bail out, silently disabling the `react-hooks/purity` and `react-hooks/immutability` lint rules for the whole file. Use `.finally()` on a promise (see `flushOfflineQueue()`).
+37. **Never write anything that makes the React Compiler bail out of `App`.** A bailout silently disables `react-hooks/purity` and `react-hooks/immutability` **for the entire file** — the findings do not move or change, they vanish, so the lint report looks *better* when you have just broken it. Two confirmed triggers:
+    - `try/finally` inside `App` — use `.finally()` on a promise instead (see `flushOfflineQueue()`).
+    - **Mutating a closed-over variable inside a callback**, e.g. `let ord = …; list.map(x => ({ …, ord: ord++ }))`. Use the index: `list.map((x, i) => ({ …, ord: base + i }))`. (Found 2026-10-06 while adding the Setup tab.)
+    - **How to check:** `npx eslint src/ScienceFairJudging.jsx -f json` and count findings per rule. The healthy baseline is **27 `react-hooks/purity` + 5 `react-hooks/immutability`**. If those two drop to zero you have caused a bailout — a plain error count is not enough to notice, so compare per-rule before every commit that touches `App`.
 38. **Discrete score buttons only** — never `<input type="range">`.
 
 **Form scanning**
@@ -686,7 +720,7 @@ invite code → `set_school_invite_code()` RPC (no UI yet). Never via env vars.
 
 **Adding projects from paper forms:** Projects tab → "📷 Scan forms" — see "📷 Form scanning".
 
-**Changing project categories:** edit `REG_CATEGORIES` **and** `CATEGORIES` in `api/scan-form.js` **and** `CAT_CODES` (registration numbers), then update the category table in AdminInstructions.md.
+**Changing a school's project categories or departments:** admin **Setup tab** — no code, no schema change, no deploy. Each school's list is its own. Only edit `DEFAULT_CATEGORIES` / `DEPT_PRESETS` to change what a *brand-new* school starts with (existing schools keep theirs).
 
 **Changing what the scanner reads:** add the field to `buildSchema()` (+ `required`), the prompt, `normaliseForm()`, `scanCardFromForm()`, `emptyScanData()`, the card UI, and — if it is saved — a migration + `createProject()` / `writeProjectRow()`'s optional-column list. Then run the smoke script.
 
@@ -698,6 +732,34 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-06 — Per-school categories + Setup tab** (migration `2026-10e`, **not** coupled).
+Phase 1 of the departments/awards redesign. Everything here is additive: run the SQL and the
+old build keeps working, deploy the new build without the SQL and it falls back to its built-in
+lists. Rollback is a redeploy.
+1. **Categories were a platform-wide constant.** `REG_CATEGORIES` lived in the JSX and
+   `api/scan-form.js` kept a hand-synced copy, so a robotics fair could not change its categories
+   without a code deploy — the opposite of multi-tenant. They are now rows in a new per-school
+   `categories` table, edited in the UI. The scan API loads the school's list per request, so the
+   two lists can no longer drift (that drift silently blanked every scanned category).
+2. **New ⚙️ Setup admin tab** — departments and categories: add, rename, reorder, delete, set
+   max judges, and four department presets (school levels · PreK–12 bands · bands + SPED · single
+   pool). Presets only *add*, so they can never destroy an existing setup. The judge-slots editor
+   moved here from Overview, which now shows a summary card linking across.
+3. **Department delete guardrail** (rule 14a). The FKs are `ON DELETE SET NULL`, so Postgres
+   would have accepted the delete and quietly unassigned every judge and project.
+4. **Seeding collapsed.** Departments were hardcoded in four places (`DEFAULT_DEPARTMENTS`, the
+   `loadDepartments` fallback, `ensureSeedData`, and `create_school()` in SQL). Loaders no longer
+   seed at all — that inline insert could only ever succeed for an admin and silently failed for
+   every judge and visitor. `ensureSeedData()` is now the single seeding path and also seeds
+   categories, which `create_school()` (older than the table) does not create.
+5. Removed the dead `CATEGORIES` constant (the pre-2026-10 Biology/Physics list).
+6. **Found while testing: `ord++` inside a `.map()` callback bails the React Compiler**, silently
+   dropping all 32 purity/immutability lint findings — the same trap as `try/finally`. Rule 37 now
+   covers it and says how to detect it.
+Tests: DB suite 96 checks (16 new: seeding, re-run safety, RLS as anon / non-admin / cross-school
+admin, non-destructive delete); scan-form gains per-school-category, custom-category and
+missing-table cases; new `scripts/e2e/setup.e2e.mjs` — 18 browser checks. 122 browser checks total.
 
 **2026-10-05 — Data-safety pass + in-app Help & FAQ.**
 1. **Judge Sign Out deleted unsynced scores** (`sf_offline_queue`) — now blocked while scores are only on
@@ -799,10 +861,15 @@ its absence. See the `group_members` type split above.
 - `projListUrl()`, `generateProjListLink()`, `revokeProjListLink()` have no UI callers, so `public-projects` is unreachable in practice.
 - `submitDelibNote()` and `reviseDecision()` are defined but unreferenced (ESLint `no-unused-vars`).
 - No UI for `set_school_invite_code()`.
-- Legacy `CATEGORIES` and `SEED_SCORES` constants are unused.
-- The scanner UI and the public registration form have no automated browser test. Their server
-  sides are covered by `npm test` (mocked scan API + real-Postgres RPC/RLS) and the real-Gemini
-  smoke script.
+- The `SEED_SCORES` constant is unused. (`CATEGORIES` was removed 2026-10-06.)
+- **`DIVISIONS` / `DIV_CODES` / `getDivision()` still duplicate what `departments` now holds** —
+  three disagreeing grade-band schemes (the registration form's divisions, its `reg_prefix` codes,
+  and a display-only label). `departments.code` exists for this; unifying them is the next piece of
+  Phase 1, and it also lets `submit_registration()` set a project's `department_id`.
+- **`submit_registration()` creates projects with no `department_id`**, so a student-registered
+  project is in no judge's list until an admin assigns it by hand. Fixed by the unification above.
+- The public registration form has no automated browser test; its server side is covered by
+  `npm test` (real-Postgres RPC/RLS). The scanner UI has `scripts/e2e/scan.e2e.mjs`.
 - `submit_registration()` is gated only by the registration token: anyone holding an active link
   can submit repeatedly. Deactivate the link when registration closes.
 - The public registration page and some headers show hardcoded **Dishchiibikoh Community School**

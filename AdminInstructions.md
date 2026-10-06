@@ -48,7 +48,8 @@ judge device transfers. **You choose it when you register the school** — 4 to 
 
 | Tab | Purpose |
 |---|---|
-| **Overview** | Stats, completion tracking, per-department leaderboards, department settings |
+| **Overview** | Stats, completion tracking, per-department leaderboards |
+| **Setup** | Your departments and project categories — add, rename, reorder, delete, set max judges |
 | **Judges** | Track judge registration and scoring progress, grouped by department |
 | **Projects** | Add, edit, remove, or lock projects — each assigned to a department |
 | **Registration** | Generate/deactivate student registration link; view all submitted registrations |
@@ -69,8 +70,9 @@ Run through this a few days before, not on the morning of.
 
 - [ ] **Check the app is awake.** Open `https://qritiko.com/s/your-school`. The free Supabase tier pauses a project after ~7 days with no traffic, and a paused project takes the whole app down. If anything fails to load, resume it from the Supabase dashboard and re-check.
 - [ ] **Change the admin PIN** (Overview tab → Admin PIN card) if it has not been changed since the school was created.
-- [ ] **Confirm departments exist** — the Overview tab should list Elementary / Middle School / High School. If it does not, sign out and back in; they re-seed on admin sign-in.
-- [ ] **Set max judges per department** (locks per department once its first judge registers).
+- [ ] **Set up your departments** (Setup tab). A new school starts with Elementary / Middle School / High School — change them to whatever your fair uses, or press a preset. If the list is empty, sign out and back in; they re-seed on admin sign-in.
+- [ ] **Check your project categories** (Setup tab) — rename, remove or add so they match your entry form.
+- [ ] **Set max judges per department** (Setup tab; locks per department once its first judge registers).
 - [ ] **Enter every project/team**, each assigned to a department, with adviser and members.
 - [ ] **Print the project list** (Projects tab) and check advisers/members appear.
 - [ ] **Download Projects CSV** (Projects tab) — your own backup copy of every team.
@@ -83,24 +85,54 @@ Run through this a few days before, not on the morning of.
 
 ## Pre-Event Setup
 
-### 1. Configure Department Settings
+### 1. Set up departments and categories (Setup tab)
 
-The app has three departments: **Elementary**, **Middle School**, and **High School**. Each department has its own judge pool, project list, and leaderboard.
+Everything in this section lives on the **⚙️ Setup** tab. Do it before judges sign in.
 
-**On the Overview tab, before any judges register:**
+#### Departments
 
-- **Set Max Judges per Department** — Each department shows its own max judges setting
-  - Click the number next to a department's max judges field
-  - Enter the new number (e.g., 5, 8, 10)
-  - Click **"Save"**
-  - Default is **5 judges per department**
-  - Once the first judge registers in a department, that department's max locks
-  - Other departments remain editable until their first judge registers
+A **department** is one judging pool. Judges sign in to a department and score every project in it. Results, ties and awards are worked out *inside* each department — projects in different departments never compete.
 
-**Why this matters:**
-- Elementary, Middle School, and High School may have different judge counts
-- Each department is independent — locking one does not affect the others
-- After a reset, all department max judges become editable again
+A new school starts with **Elementary / Middle School / High School**, but that is only a starting point. Your fair can use anything:
+
+- **Add one** — type a name in the box at the bottom of the list and press **+ Add**.
+- **Rename / change the code** — press ✏️ on the row, edit, press **Save**. Renaming is completely safe: projects, judges and scores stay attached.
+- **Reorder** — the ↑ ↓ buttons. This controls the order of leaderboards and dropdowns.
+- **Delete** — press 🗑. You will be asked to confirm.
+- **Start from a preset** — one click adds a whole set:
+
+| Preset | Departments |
+|---|---|
+| Elementary / Middle / High | Elementary · Middle School · High School |
+| Grade bands (PreK–12) | PreK · K-2 · 3-5 · 6-8 · 9-12 |
+| Grade bands + SPED | PreK · K-2 · 3-5 · 6-8 · 9-12 · SPED |
+| One department | All Projects |
+
+> A preset only **adds** the departments you don't already have — it never deletes. Remove the ones you don't want afterwards, one at a time.
+
+> **⚠️ You cannot delete a department that still has projects or judges in it.** The app blocks it and tells you how many there are. This is deliberate: deleting it would leave those projects unassigned, and an unassigned project is scored by nobody. Move them first (Projects tab → edit a project → Department), then delete.
+
+#### Max Judges per department
+
+On each department row, set **Max judges** (default 5). This is the highest judge number that can sign in to that department — set it to 8 and judges can be Judge1–Judge8.
+
+- Once the first judge registers in a department, that department's number **locks** (🔒).
+- Each department is independent — locking one does not affect the others.
+- After a Reset All Data, every department becomes editable again.
+
+#### Project categories
+
+The subject areas students pick from. **These belong to your school alone** — no other school on the platform sees or shares your list.
+
+The six built-in ones match the 2026-27 participation form, but you can replace all of them. A robotics fair might use *Autonomous*, *Remote-Operated* and *Innovation & Design* instead.
+
+- **Add / rename / reorder / delete** — exactly like departments.
+- **Code** — a short tag used in student registration numbers (`JHS-LS-001`). Leave it blank and the app builds one from the name.
+- **↺ Restore built-in categories** — adds back any of the original six that are missing. It never removes your own.
+
+> **Deleting or renaming a category never changes existing projects.** A project keeps the category text it was saved with; only the choice disappears from the dropdowns. When you edit such a project it shows the old value as *"(old category)"* so you can pick a new one.
+
+> The 📷 form scanner reads your current category list automatically — there is nothing to keep in sync.
 
 ### ⚠️ Order matters: add ALL projects BEFORE judges sign in
 

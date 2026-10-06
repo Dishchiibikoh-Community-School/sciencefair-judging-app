@@ -35,44 +35,78 @@ const MEDALS = ["🥇","🥈","🥉"];
 const RECOMMENDATIONS = ["Recommend for Award","Strong Contender","Good Work","Needs Improvement"];
 const AWARD_OPTIONS   = ["1st Place","2nd Place","3rd Place","Honorable Mention","Best in Category","No Award","Pending"];
 
-const CATEGORIES = ["Biology","Physics","Computer Sci.","Chemistry","Earth Science","Engineering","Math","Environmental Sci."];
+// ── DEPARTMENTS ──────────────────────────────────────────────
+// Departments are per-school rows in the `departments` table, fully editable in
+// the admin Setup tab (add / rename / reorder / delete / max judges). The lists
+// below are only STARTING POINTS offered to a school that has not set its own —
+// never treat them as the set of departments that exists (CLAUDE.md rule 11a).
+// DEPT_PRESETS[0] is what a brand-new school is seeded with.
+const DEPT_PRESETS = [
+  { id: "levels", label: "Elementary / Middle / High",
+    desc: "Three school levels. The classic setup and what new schools start with.",
+    depts: [
+      { name: "Elementary",    code: "Elem" },
+      { name: "Middle School", code: "JHS"  },
+      { name: "High School",   code: "SHS"  },
+    ] },
+  { id: "bands", label: "Grade bands (PreK–12)",
+    desc: "Five grade bands. Each one is judged and awarded on its own.",
+    depts: [
+      { name: "PreK",  code: "PK"   },
+      { name: "K-2",   code: "K2"   },
+      { name: "3-5",   code: "G35"  },
+      { name: "6-8",   code: "G68"  },
+      { name: "9-12",  code: "G912" },
+    ] },
+  { id: "bands-sped", label: "Grade bands + SPED",
+    desc: "The five grade bands plus a separate SPED division.",
+    depts: [
+      { name: "PreK",  code: "PK"   },
+      { name: "K-2",   code: "K2"   },
+      { name: "3-5",   code: "G35"  },
+      { name: "6-8",   code: "G68"  },
+      { name: "9-12",  code: "G912" },
+      { name: "SPED",  code: "SPED" },
+    ] },
+  { id: "single", label: "One department",
+    desc: "A single pool — every judge sees every project.",
+    depts: [{ name: "All Projects", code: "ALL" }] },
+];
+const DEFAULT_DEPARTMENTS = DEPT_PRESETS[0].depts.map((d, i) =>
+  ({ id: null, name: d.name, code: d.code, max_judges: 5, ord: i }));
 
-const DEFAULT_DEPARTMENTS = [
-  { id: null, name: "Elementary",    max_judges: 5, ord: 0 },
-  { id: null, name: "Middle School", max_judges: 5, ord: 1 },
-  { id: null, name: "High School",   max_judges: 5, ord: 2 },
+// ── PROJECT CATEGORIES ───────────────────────────────────────
+// Categories are per-school rows in the `categories` table (migration 2026-10e),
+// editable in the admin Setup tab. A robotics fair defines its own; nothing here
+// is shared between schools.
+// This list is ONLY the fallback: it is used before the table has loaded, and if
+// migration 2026-10e has not been run yet (logged as CATEGORIES_TABLE_MISSING).
+// It is also what "Reset to default" and ensureSeedData() seed.
+// The six are the ones printed on the 2026-27 participation form. "Not sure yet"
+// on the paper form is deliberately NOT a category — the admin must pick a real
+// one before a scanned project can be saved. A project saved under a category
+// that is later deleted keeps its text and still displays (there is no FK).
+const DEFAULT_CATEGORIES = [
+  { name: "Life Science",                       code: "LS"  },
+  { name: "Earth & Environmental Science",      code: "EES" },
+  { name: "Chemistry & Material Science",       code: "CMS" },
+  { name: "Physics, Math & Astronomy",          code: "PMA" },
+  { name: "Engineering, Robotics & Technology", code: "ERT" },
+  { name: "Energy, Sustainability & Design",    code: "ESD" },
 ];
 
 // ── REGISTRATION FORM CONSTANTS ──────────────────────────────
+// TODO (Phase 1, next change): DIVISIONS/DIV_CODES still duplicate what the
+// `departments` table now holds, and `departments.code` exists for exactly this.
+// Unifying them also lets submit_registration() set a project's department.
 const DIVISIONS     = ["Elementary", "Junior High School", "Senior High School"];
-// The six categories printed on the 2026-27 student participation form (changed 2026-10
-// from the old four). "Not sure yet" on the paper form is deliberately NOT a category —
-// the admin must pick one of these before a scanned project can be saved.
-// Projects saved under an older category keep it and display it as-is; only the
-// dropdowns are limited to this list.
-const REG_CATEGORIES = [
-  "Life Science",
-  "Earth & Environmental Science",
-  "Chemistry & Material Science",
-  "Physics, Math & Astronomy",
-  "Engineering, Robotics & Technology",
-  "Energy, Sustainability & Design",
-];
 const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Senior High School": "SHS" };
-const CAT_CODES     = {
-  "Life Science": "LS",
-  "Earth & Environmental Science": "EES",
-  "Chemistry & Material Science": "CMS",
-  "Physics, Math & Astronomy": "PMA",
-  "Engineering, Robotics & Technology": "ERT",
-  "Energy, Sustainability & Design": "ESD",
-};
 
 // ── ADMIN HELP & FAQ (admin "Help & FAQ" tab) ───────────────────────────────
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-05";
+const ADMIN_HELP_UPDATED = "2026-10-06";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -85,7 +119,8 @@ const ADMIN_HELP = [
   ]},
   { title: "Before the event — checklist", icon: "✅", items: [
     "Remember your Admin PIN (4–8 digits). It cannot be recovered, only changed (Overview → Admin PIN). 5 wrong tries lock PIN entry for 5 minutes.",
-    "Overview: check the departments and set Max Judges for each one. It locks for a department once its first judge signs in.",
+    "Setup tab: set your departments first — add, rename or reorder them, or start from a preset (school levels, PreK–12 grade bands, grade bands + SPED). Then set Max Judges for each. Max Judges locks for a department once its first judge signs in.",
+    "Setup tab: check your project categories. They are yours alone — rename them, delete the ones you don't use, or add your own (a robotics fair can replace all six).",
     "Rubric tab: finish the rubric BEFORE the first judge signs in.",
     "Projects tab: add every project (📷 Scan forms or + Add Project) and give each one a department — a project with no department is scored by nobody.",
     "Lock (🔒) projects whose details are final, so they cannot be edited or deleted by accident.",
@@ -107,6 +142,16 @@ const ADMIN_HELP = [
     "Don't post the invite code or the Admin PIN publicly. 5 wrong invite codes lock judge sign-in for 5 minutes for the whole school.",
     "Don't share exports that contain student names (Projects CSV, Project List PDF, registrations) outside your staff.",
     "Don't open the app on any address other than qritiko.com.",
+  ]},
+  { title: "Departments & categories (Setup tab)", icon: "⚙️", faq: [
+    ["What is a department?", "One judging pool. Judges sign in to a department and score every project in it. Results, ties and awards are worked out inside each department — projects in different departments never compete. Use whatever fits your fair: school levels, grade bands (PreK, K-2, 3-5, 6-8, 9-12), a SPED division, or a single pool."],
+    ["How do I change my departments?", "Setup tab → Departments. Add one, ✏️ rename it, ↑↓ reorder, or 🗑 delete it. Or press a preset to add a whole set at once — a preset only ADDS what you don't have, it never deletes."],
+    ["Why won't it let me delete a department?", "Because projects or judges are still in it. Deleting it would leave them unassigned, and an unassigned project is scored by nobody. Move them to another department first (Projects tab → edit → Department), then delete."],
+    ["Is it safe to rename a department?", "Yes. Projects, judges and scores stay attached — only the label changes."],
+    ["Can I use my own project categories?", "Yes. Setup tab → Project Categories. They belong to your school only; no other school sees your list. Add, rename, reorder or delete freely — a robotics fair can replace all six."],
+    ["What happens to projects if I delete or rename a category?", "Nothing. A project keeps the category text it was saved with; only the choice disappears from the dropdowns. A project on a category you removed shows it as \"(old category)\" when you edit it, and you can pick a new one."],
+    ["What is the little Code for?", "A short code used to build student registration numbers, like JHS-LS-001. Leave it blank and the app makes one from the name."],
+    ["I changed a category — do I need to tell the form scanner?", "No. 📷 Scan forms asks the AI to pick from your current list automatically."],
   ]},
   { title: "Data safety", icon: "🛡️", faq: [
     ["Will updates to the app erase my projects or scores?", "No. Updates replace the website, never your data. Database changes are tested on a copy first and only add or tighten things."],
@@ -174,8 +219,10 @@ function highestGrade(members) {
   const max = Math.max(...nums);
   return max === 0 ? "K" : String(max);
 }
-function blankProjForm(num = "") {
-  return { title:"", cat:REG_CATEGORIES[0], grade:"", num, department_id:"", advisor_name:"",
+// defaultCat comes from the school's own category list (catNames()[0]); it is a
+// parameter rather than a constant because categories are per-school now.
+function blankProjForm(num = "", defaultCat = "") {
+  return { title:"", cat:defaultCat, grade:"", num, department_id:"", advisor_name:"",
     members:[{ name:"", grade:"" }], room:"", description:"", motivation:"" };
 }
 // Escape text placed into hand-built HTML (print windows). Scanned/handwritten text is
@@ -706,6 +753,45 @@ const CSS = `
   .proj-act-btn.edit:hover{background:var(--blue-l);}
   .proj-act-btn.del{color:var(--red);border-color:var(--red)30;}
   .proj-act-btn.del:hover{background:var(--red-l);}
+  .proj-act-btn:disabled{opacity:.3;cursor:not-allowed;}
+  .proj-act-btn:disabled:hover{border-color:var(--bd);color:var(--dim);background:var(--bg);}
+
+  /* ── Setup tab: departments + project categories ── */
+  .setup-rows{display:flex;flex-direction:column;gap:.4rem;margin-bottom:1rem;}
+  .setup-row{display:flex;align-items:center;gap:.6rem;padding:.55rem .7rem;background:var(--s1);
+    border:1px solid var(--bd);border-radius:10px;}
+  .setup-ord{display:flex;flex-direction:column;gap:.15rem;flex-shrink:0;}
+  .setup-ord .proj-act-btn{padding:.05rem .4rem;font-size:.7rem;line-height:1.2;}
+  .setup-main{flex:1;min-width:0;}
+  .setup-name{font-weight:600;font-size:.92rem;color:var(--text);word-break:break-word;}
+  .setup-meta{font-size:.76rem;color:var(--dim);font-family:var(--ff-m);margin-top:.15rem;}
+  .setup-acts{display:flex;align-items:center;gap:.4rem;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;}
+  .setup-maxj{font-size:.76rem;color:var(--dim);display:flex;align-items:center;gap:.35rem;white-space:nowrap;}
+  .setup-maxj input[type=number]{width:58px;padding:.25rem .4rem;border:1px solid var(--bd);
+    border-radius:6px;font-family:var(--ff-m);font-size:.82rem;}
+  .setup-edit{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;}
+  .setup-edit input[type=text]{flex:1;min-width:140px;margin:0;}
+  .setup-code-in{max-width:88px;flex:0 0 88px !important;text-transform:uppercase;font-family:var(--ff-m);}
+  .setup-add{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;padding-top:.3rem;}
+  .setup-add input[type=text]{flex:1;min-width:150px;margin:0;}
+  .setup-presets{margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--bd);}
+  .setup-preset-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.5rem;}
+  .setup-preset{text-align:left;padding:.7rem .85rem;border:1px solid var(--bd);border-radius:10px;
+    background:var(--bg);cursor:pointer;transition:all .15s;display:flex;flex-direction:column;gap:.2rem;}
+  .setup-preset:hover{border-color:var(--navy);background:var(--s1);}
+  .setup-preset strong{font-size:.86rem;color:var(--navy);}
+  .setup-preset span{font-size:.76rem;color:var(--dim);line-height:1.4;}
+  .setup-preset em{font-size:.72rem;color:var(--dim);font-family:var(--ff-m);font-style:normal;opacity:.8;margin-top:.15rem;}
+  @media(max-width:640px){
+    .setup-row{flex-wrap:wrap;}
+    /* Actions drop to their own line. Max-judges (departments only) keeps the left,
+       so a category row's two buttons sit together on the right instead of being
+       flung to opposite edges. */
+    .setup-acts{width:100%;justify-content:flex-end;}
+    .setup-maxj{margin-right:auto;}
+    /* Give the name its own full-width line; code + Add share the next one. */
+    .setup-add input[type=text]:not(.setup-code-in){flex:1 0 100%;}
+  }
   .proj-form{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:1.25rem;margin-bottom:.75rem;}
   .proj-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;}
   .proj-form-grid.full{grid-template-columns:1fr;}
@@ -980,6 +1066,10 @@ export default function App() {
     urlSchoolSlug    ? "landing"          : "school-select"
   );
   const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
+  // Per-school project categories (migration 2026-10e). Falls back to
+  // DEFAULT_CATEGORIES until the table loads, or if the migration is missing.
+  const [categories,  setCategories]  = useState(
+    DEFAULT_CATEGORIES.map((c, i) => ({ id: null, name: c.name, code: c.code, ord: i })));
   const [projects,    setProjects]   = useState([]);
   const [judges,      setJudges]     = useState([]);
   const [scores,     setScores]  = useState({});
@@ -1014,6 +1104,14 @@ export default function App() {
   const [adminLockoutUntil,  setAdminLockoutUntil]  = useState(null);
   const [deptMaxDrafts, setDeptMaxDrafts] = useState({});  // { [deptId]: string }
   const [adminTab,   setAdminTab]    = useState("overview");
+
+  // Setup tab (departments + project categories)
+  const [deptEdits,    setDeptEdits]    = useState({});  // { [deptId]: { name, code } } — only while editing
+  const [catEdits,     setCatEdits]     = useState({});  // { [catId]:  { name, code } }
+  const [newDept,      setNewDept]      = useState({ name: "", code: "" });
+  const [newCat,       setNewCat]       = useState({ name: "", code: "" });
+  const [setupErr,     setSetupErr]     = useState("");
+  const [setupConfirm, setSetupConfirm] = useState(null); // { kind:"dept"|"cat", id, name, used? }
 
   // Share state
   const [shareToken,      setShareToken]      = useState("");
@@ -1100,7 +1198,7 @@ export default function App() {
   const [scanDiscardAsk,     setScanDiscardAsk]      = useState(false);
   const scanUrlsRef = useRef([]);   // object URLs for thumbnails — revoked when the scanner closes
   const [editingProject,     setEditingProject]      = useState(null); // project id being edited
-  const [projForm,           setProjForm]            = useState(blankProjForm());
+  const [projForm,           setProjForm]            = useState(blankProjForm("", catNames()[0] || ""));
   const [showDeleteConfirm,  setShowDeleteConfirm]   = useState(false);
   const [deleteProjectId,    setDeleteProjectId]     = useState(null);
 
@@ -1129,21 +1227,37 @@ export default function App() {
   const backdrop = null;
 
   // ── SUPABASE LOADERS ──────────────────────────────────────
+  // Loaders never seed. Seeding is ensureSeedData()'s job (it runs once the admin
+  // is authenticated — RLS blocks anonymous inserts anyway, so an inline seed here
+  // silently failed for judges and the public). If the table is empty we keep the
+  // DEFAULT_* fallback so the UI still renders.
   async function loadDepartments(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
     const { data } = await supabase.from("departments").select("*").eq("school_id", schoolId).order("ord");
     if (data && data.length > 0) {
-      setDepartments(data.map(r => ({ id: r.id, name: r.name, max_judges: r.max_judges, ord: r.ord })));
-    } else {
-      // Seed defaults on first run (table empty for this school)
-      const defaults = [
-        { school_id: schoolId, name: "Elementary",    max_judges: 5, ord: 0 },
-        { school_id: schoolId, name: "Middle School", max_judges: 5, ord: 1 },
-        { school_id: schoolId, name: "High School",   max_judges: 5, ord: 2 },
-      ];
-      const { data: seeded } = await supabase.from("departments").insert(defaults).select();
-      if (seeded) setDepartments(seeded.map(r => ({ id: r.id, name: r.name, max_judges: r.max_judges, ord: r.ord })));
+      setDepartments(data.map(r =>
+        ({ id: r.id, name: r.name, code: r.code || "", max_judges: r.max_judges, ord: r.ord })));
+    }
+  }
+
+  async function loadCategories(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
+    const { data, error } = await supabase.from("categories")
+      .select("*").eq("school_id", schoolId).order("ord");
+    if (error) {
+      // 42P01 / PGRST205 = migration 2026-10e has not been run on this project.
+      // Keep the built-in list so every dropdown still works.
+      if (error.code === "42P01" || error.code === "PGRST205") {
+        addItLog("WARN","DB","CATEGORIES_TABLE_MISSING",
+          "The categories table is missing — using the built-in list. Run migration 2026-10e.",
+          { error: error.message });
+      }
+      return;
+    }
+    if (data && data.length > 0) {
+      setCategories(data.map(r => ({ id: r.id, name: r.name, code: r.code || "", ord: r.ord })));
     }
   }
   async function loadProjects(sid) {
@@ -1375,15 +1489,32 @@ export default function App() {
     const { data: depts } = await supabase.from("departments")
       .select("id").eq("school_id", sid).limit(1);
     if (!depts || depts.length === 0) {
-      const { data: seeded, error } = await supabase.from("departments").insert([
-        { school_id: sid, name: "Elementary",    max_judges: 5, ord: 0 },
-        { school_id: sid, name: "Middle School", max_judges: 5, ord: 1 },
-        { school_id: sid, name: "High School",   max_judges: 5, ord: 2 },
-      ]).select();
+      const { data: seeded, error } = await supabase.from("departments")
+        .insert(DEPT_PRESETS[0].depts.map((d, i) =>
+          ({ school_id: sid, name: d.name, code: d.code, max_judges: 5, ord: i })))
+        .select();
       if (!error && seeded) {
-        setDepartments(seeded.map(r => ({ id: r.id, name: r.name, max_judges: r.max_judges, ord: r.ord })));
+        setDepartments(seeded.map(r =>
+          ({ id: r.id, name: r.name, code: r.code || "", max_judges: r.max_judges, ord: r.ord })));
         addItLog("WARN","SYSTEM","DEPARTMENTS_RESEEDED",
           "Departments were missing for this school and have been re-seeded", { schoolId: sid });
+      }
+    }
+
+    // Categories (migration 2026-10e). A school created by create_school() has
+    // none — the RPC predates the table — so this is the normal seeding path for
+    // every new school, not just a repair.
+    const { data: cats, error: catErr } = await supabase.from("categories")
+      .select("id").eq("school_id", sid).limit(1);
+    if (!catErr && (!cats || cats.length === 0)) {
+      const { data: seeded, error } = await supabase.from("categories")
+        .insert(DEFAULT_CATEGORIES.map((c, i) =>
+          ({ school_id: sid, name: c.name, code: c.code, ord: i })))
+        .select();
+      if (!error && seeded) {
+        setCategories(seeded.map(r => ({ id: r.id, name: r.name, code: r.code || "", ord: r.ord })));
+        addItLog("INFO","SYSTEM","CATEGORIES_SEEDED",
+          "Project categories were missing for this school and have been seeded", { schoolId: sid });
       }
     }
 
@@ -1638,7 +1769,7 @@ export default function App() {
         setShareTokenChecked(true);
       }
       await Promise.all([
-        loadDepartments(sid), loadProjects(sid), loadJudges(sid), loadScores(sid),
+        loadDepartments(sid), loadCategories(sid), loadProjects(sid), loadJudges(sid), loadScores(sid),
         loadLog(sid), loadItLogs(sid), loadShare(sid), loadSettings(sid),
         loadDelibNotes(sid), loadFinalDecisions(sid), loadValidations(sid),
         loadScoreBackups(sid), loadRubric(sid),
@@ -1656,6 +1787,7 @@ export default function App() {
         // Wrap the loaders: passing them directly hands the realtime payload in as `sid`,
         // so they queried school_id = "[object Object]" and never refreshed (bug until 2026-10-05).
         .on("postgres_changes", { event: "*", schema: "public", table: "departments", filter: f("departments") }, () => loadDepartments(sid))
+        .on("postgres_changes", { event: "*", schema: "public", table: "categories",  filter: f("categories")  }, () => loadCategories(sid))
         .on("postgres_changes", { event: "*", schema: "public", table: "projects",    filter: f("projects")    }, () => loadProjects(sid))
         // Admin-only by RLS (realtime enforces it): judges/public never receive these events.
         .on("postgres_changes", { event: "*", schema: "public", table: "project_private", filter: f("project_private") }, () => loadProjects(sid))
@@ -2096,6 +2228,253 @@ export default function App() {
     setDepartments(prev => prev.map(d => d.id === deptId ? { ...d, max_judges: num } : d));
     addLog(`Admin set max judges for ${dept.name} to ${num}`);
     addItLog("INFO","ADMIN","MAX_JUDGES_UPDATED","Admin updated max judges for department",{ dept: dept.name, newMax: num, currentCount });
+  }
+
+  // ── SETUP TAB: departments + categories ───────────────────────────────────
+  // Both are plain per-school rows. The guardrails below are the whole reason
+  // these are functions and not raw queries:
+  //   • a department is referenced by judges.department_id and projects.department_id
+  //     (both ON DELETE SET NULL), so deleting a used one silently orphans judges
+  //     and makes projects invisible to everyone — blocked outright.
+  //   • a category is NOT referenced by anything (projects.cat is free text), so
+  //     deleting one is safe; existing projects keep their label. We only warn.
+  // Declared (not a const arrow) so it is hoisted — the projForm useState
+  // initializer near the top of the component calls it.
+  function catNames() { return categories.map(c => c.name); }
+  // Short code used for registration numbers; derived from the name if unset.
+  function autoCode(name) {
+    const words = String(name || "").trim().split(/[\s/&-]+/).filter(Boolean);
+    const raw = words.length > 1
+      ? words.map(w => w[0]).join("")
+      : String(name || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 4);
+    return raw.toUpperCase().slice(0, 5);
+  }
+
+  async function addDepartment(name, code) {
+    const nm = String(name || "").trim();
+    if (!nm) { setSetupErr("Give the department a name."); return; }
+    if (departments.some(d => d.name.toLowerCase() === nm.toLowerCase())) {
+      setSetupErr(`"${nm}" already exists.`); return;
+    }
+    setSetupErr("");
+    const ord = departments.reduce((m, d) => Math.max(m, d.ord), -1) + 1;
+    const { data, error } = await supabase.from("departments")
+      .insert({ school_id: currentSchool.id, name: nm, code: (code || autoCode(nm)).trim(), max_judges: 5, ord })
+      .select().single();
+    if (error) {
+      setSetupErr(`Could not add "${nm}": ${error.message}`);
+      addItLog("ERROR","ADMIN","DEPARTMENT_ADD_FAILED","Department could not be added",{ name: nm, error: error.message });
+      return;
+    }
+    setDepartments(prev => [...prev, { id: data.id, name: data.name, code: data.code || "", max_judges: data.max_judges, ord: data.ord }]);
+    setNewDept({ name: "", code: "" });
+    addLog(`Admin added the department "${nm}"`);
+    addItLog("INFO","ADMIN","DEPARTMENT_ADDED","Admin added a department",{ name: nm });
+  }
+
+  async function saveDepartment(deptId) {
+    const dept = departments.find(d => d.id === deptId);
+    const draft = deptEdits[deptId];
+    if (!dept || !draft) return;
+    const nm = String(draft.name || "").trim();
+    if (!nm) { setSetupErr("A department needs a name."); return; }
+    if (departments.some(d => d.id !== deptId && d.name.toLowerCase() === nm.toLowerCase())) {
+      setSetupErr(`"${nm}" already exists.`); return;
+    }
+    setSetupErr("");
+    const code = String(draft.code || "").trim();
+    const { error } = await supabase.from("departments")
+      .update({ name: nm, code }).eq("school_id", currentSchool.id).eq("id", deptId);
+    if (error) {
+      setSetupErr(`Could not rename "${dept.name}": ${error.message}`);
+      addItLog("ERROR","ADMIN","DEPARTMENT_SAVE_FAILED","Department could not be saved",{ id: deptId, error: error.message });
+      return;
+    }
+    setDepartments(prev => prev.map(d => d.id === deptId ? { ...d, name: nm, code } : d));
+    setDeptEdits(p => { const n = { ...p }; delete n[deptId]; return n; });
+    if (nm !== dept.name) addLog(`Admin renamed the department "${dept.name}" to "${nm}"`);
+    addItLog("INFO","ADMIN","DEPARTMENT_SAVED","Admin saved a department",{ from: dept.name, to: nm, code });
+  }
+
+  // Reordering swaps `ord` with the neighbour. Order is cosmetic (it drives the
+  // display order of leaderboards and dropdowns), so a half-applied swap is
+  // harmless — but both writes are awaited so state and DB cannot diverge.
+  async function moveDepartment(deptId, dir) {
+    const sorted = [...departments].sort((a, b) => a.ord - b.ord);
+    const i = sorted.findIndex(d => d.id === deptId);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= sorted.length) return;
+    const a = sorted[i], b = sorted[j];
+    const [{ error: e1 }, { error: e2 }] = await Promise.all([
+      supabase.from("departments").update({ ord: b.ord }).eq("school_id", currentSchool.id).eq("id", a.id),
+      supabase.from("departments").update({ ord: a.ord }).eq("school_id", currentSchool.id).eq("id", b.id),
+    ]);
+    if (e1 || e2) { setSetupErr("Could not reorder — try again."); return; }
+    setDepartments(prev => prev.map(d =>
+      d.id === a.id ? { ...d, ord: b.ord } : d.id === b.id ? { ...d, ord: a.ord } : d));
+  }
+
+  // Blocked whenever anything points at the department. ON DELETE SET NULL means
+  // Postgres would happily accept this and quietly unassign every judge and
+  // project instead of refusing — so the check has to live here.
+  function requestDeleteDepartment(deptId) {
+    const dept = departments.find(d => d.id === deptId);
+    if (!dept) return;
+    const nJudges = judges.filter(j => j.department_id === deptId).length;
+    const nProjects = projects.filter(p => p.department_id === deptId).length;
+    if (nJudges || nProjects) {
+      setSetupErr(`"${dept.name}" still has ${nProjects} project${nProjects !== 1 ? "s" : ""} and ` +
+        `${nJudges} judge${nJudges !== 1 ? "s" : ""}. Move them to another department first — ` +
+        `deleting it now would leave them unassigned and invisible to judges.`);
+      return;
+    }
+    setSetupErr("");
+    setSetupConfirm({ kind: "dept", id: deptId, name: dept.name });
+  }
+
+  async function deleteDepartment(deptId) {
+    const dept = departments.find(d => d.id === deptId);
+    if (!dept) return;
+    const { error } = await supabase.from("departments")
+      .delete().eq("school_id", currentSchool.id).eq("id", deptId);
+    if (error) {
+      setSetupErr(`Could not delete "${dept.name}": ${error.message}`);
+      addItLog("ERROR","ADMIN","DEPARTMENT_DELETE_FAILED","Department could not be deleted",{ name: dept.name, error: error.message });
+      return;
+    }
+    setDepartments(prev => prev.filter(d => d.id !== deptId));
+    addLog(`Admin deleted the department "${dept.name}"`);
+    addItLog("WARN","ADMIN","DEPARTMENT_DELETED","Admin deleted a department",{ name: dept.name });
+  }
+
+  // Presets only ADD the departments a school does not have yet — they never
+  // delete, so applying one can't destroy anything. Unwanted leftovers are
+  // removed one at a time through the guarded delete above.
+  async function applyDeptPreset(presetId) {
+    const preset = DEPT_PRESETS.find(p => p.id === presetId);
+    if (!preset) return;
+    const have = new Set(departments.map(d => d.name.toLowerCase()));
+    const missing = preset.depts.filter(d => !have.has(d.name.toLowerCase()));
+    if (!missing.length) { setSetupErr(`You already have every department in "${preset.label}".`); return; }
+    setSetupErr("");
+    const base = departments.reduce((m, d) => Math.max(m, d.ord), -1) + 1;
+    const rows = missing.map((d, i) =>
+      ({ school_id: currentSchool.id, name: d.name, code: d.code, max_judges: 5, ord: base + i }));
+    const { data, error } = await supabase.from("departments").insert(rows).select();
+    if (error) {
+      setSetupErr(`Could not apply "${preset.label}": ${error.message}`);
+      addItLog("ERROR","ADMIN","DEPT_PRESET_FAILED","Department preset could not be applied",{ preset: preset.id, error: error.message });
+      return;
+    }
+    setDepartments(prev => [...prev, ...data.map(r =>
+      ({ id: r.id, name: r.name, code: r.code || "", max_judges: r.max_judges, ord: r.ord }))]);
+    addLog(`Admin added ${missing.length} department${missing.length !== 1 ? "s" : ""} from "${preset.label}"`);
+    addItLog("INFO","ADMIN","DEPT_PRESET_APPLIED","Admin applied a department preset",
+      { preset: preset.id, added: missing.map(d => d.name) });
+  }
+
+  async function addCategory(name, code) {
+    const nm = String(name || "").trim();
+    if (!nm) { setSetupErr("Give the category a name."); return; }
+    if (categories.some(c => c.name.toLowerCase() === nm.toLowerCase())) {
+      setSetupErr(`"${nm}" already exists.`); return;
+    }
+    setSetupErr("");
+    const ord = categories.reduce((m, c) => Math.max(m, c.ord), -1) + 1;
+    const { data, error } = await supabase.from("categories")
+      .insert({ school_id: currentSchool.id, name: nm, code: (code || autoCode(nm)).trim(), ord })
+      .select().single();
+    if (error) {
+      setSetupErr(`Could not add "${nm}": ${error.message}`);
+      addItLog("ERROR","ADMIN","CATEGORY_ADD_FAILED","Category could not be added",{ name: nm, error: error.message });
+      return;
+    }
+    setCategories(prev => [...prev, { id: data.id, name: data.name, code: data.code || "", ord: data.ord }]);
+    setNewCat({ name: "", code: "" });
+    addLog(`Admin added the project category "${nm}"`);
+    addItLog("INFO","ADMIN","CATEGORY_ADDED","Admin added a project category",{ name: nm });
+  }
+
+  // Renaming a category does NOT rewrite the projects already saved under the old
+  // name — projects.cat is a text snapshot with no foreign key. Those projects keep
+  // the old label and the edit form shows it as "(old category)". The UI says so.
+  async function saveCategory(catId) {
+    const cat = categories.find(c => c.id === catId);
+    const draft = catEdits[catId];
+    if (!cat || !draft) return;
+    const nm = String(draft.name || "").trim();
+    if (!nm) { setSetupErr("A category needs a name."); return; }
+    if (categories.some(c => c.id !== catId && c.name.toLowerCase() === nm.toLowerCase())) {
+      setSetupErr(`"${nm}" already exists.`); return;
+    }
+    setSetupErr("");
+    const code = String(draft.code || "").trim();
+    const { error } = await supabase.from("categories")
+      .update({ name: nm, code }).eq("school_id", currentSchool.id).eq("id", catId);
+    if (error) {
+      setSetupErr(`Could not save "${cat.name}": ${error.message}`);
+      addItLog("ERROR","ADMIN","CATEGORY_SAVE_FAILED","Category could not be saved",{ id: catId, error: error.message });
+      return;
+    }
+    setCategories(prev => prev.map(c => c.id === catId ? { ...c, name: nm, code } : c));
+    setCatEdits(p => { const n = { ...p }; delete n[catId]; return n; });
+    if (nm !== cat.name) addLog(`Admin renamed the category "${cat.name}" to "${nm}"`);
+    addItLog("INFO","ADMIN","CATEGORY_SAVED","Admin saved a project category",{ from: cat.name, to: nm, code });
+  }
+
+  async function moveCategory(catId, dir) {
+    const sorted = [...categories].sort((a, b) => a.ord - b.ord);
+    const i = sorted.findIndex(c => c.id === catId);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= sorted.length) return;
+    const a = sorted[i], b = sorted[j];
+    const [{ error: e1 }, { error: e2 }] = await Promise.all([
+      supabase.from("categories").update({ ord: b.ord }).eq("school_id", currentSchool.id).eq("id", a.id),
+      supabase.from("categories").update({ ord: a.ord }).eq("school_id", currentSchool.id).eq("id", b.id),
+    ]);
+    if (e1 || e2) { setSetupErr("Could not reorder — try again."); return; }
+    setCategories(prev => prev.map(c =>
+      c.id === a.id ? { ...c, ord: b.ord } : c.id === b.id ? { ...c, ord: a.ord } : c));
+  }
+
+  function requestDeleteCategory(catId) {
+    const cat = categories.find(c => c.id === catId);
+    if (!cat) return;
+    setSetupErr("");
+    const used = projects.filter(p => p.cat === cat.name).length;
+    setSetupConfirm({ kind: "cat", id: catId, name: cat.name, used });
+  }
+
+  async function deleteCategory(catId) {
+    const cat = categories.find(c => c.id === catId);
+    if (!cat) return;
+    const { error } = await supabase.from("categories")
+      .delete().eq("school_id", currentSchool.id).eq("id", catId);
+    if (error) {
+      setSetupErr(`Could not delete "${cat.name}": ${error.message}`);
+      addItLog("ERROR","ADMIN","CATEGORY_DELETE_FAILED","Category could not be deleted",{ name: cat.name, error: error.message });
+      return;
+    }
+    setCategories(prev => prev.filter(c => c.id !== catId));
+    addLog(`Admin deleted the project category "${cat.name}"`);
+    addItLog("WARN","ADMIN","CATEGORY_DELETED","Admin deleted a project category",{ name: cat.name });
+  }
+
+  // Adds back any of the six built-in categories that are missing. Like the
+  // department presets it never deletes, so a school's own categories survive.
+  async function restoreDefaultCategories() {
+    const have = new Set(categories.map(c => c.name.toLowerCase()));
+    const missing = DEFAULT_CATEGORIES.filter(c => !have.has(c.name.toLowerCase()));
+    if (!missing.length) { setSetupErr("All of the built-in categories are already in your list."); return; }
+    setSetupErr("");
+    const base = categories.reduce((m, c) => Math.max(m, c.ord), -1) + 1;
+    const { data, error } = await supabase.from("categories")
+      .insert(missing.map((c, i) => ({ school_id: currentSchool.id, name: c.name, code: c.code, ord: base + i })))
+      .select();
+    if (error) { setSetupErr(`Could not restore the built-in categories: ${error.message}`); return; }
+    setCategories(prev => [...prev, ...data.map(r => ({ id: r.id, name: r.name, code: r.code || "", ord: r.ord }))]);
+    addLog(`Admin restored ${missing.length} built-in project categor${missing.length !== 1 ? "ies" : "y"}`);
+    addItLog("INFO","ADMIN","CATEGORIES_RESTORED","Admin restored built-in categories",{ added: missing.map(c => c.name) });
   }
 
   function handleCopy() {
@@ -3041,7 +3420,7 @@ export default function App() {
     if (!projForm.title.trim()) return;
     const { error } = await createProject(projForm);
     if (error) return;
-    setProjForm(blankProjForm());
+    setProjForm(blankProjForm("", catNames()[0] || ""));
     setShowAddProject(false);
   }
 
@@ -3101,7 +3480,7 @@ export default function App() {
     addItLog("INFO","ADMIN","PROJECT_UPDATED","Admin updated project details",
       { projectId:pid, title:updated.title, num:updated.num, timestamp:fmtISO(Date.now()) });
     setEditingProject(null);
-    setProjForm(blankProjForm());
+    setProjForm(blankProjForm("", catNames()[0] || ""));
   }
 
   // ── PARTICIPATION-FORM SCANNER ──────────────────────────────
@@ -3275,7 +3654,7 @@ export default function App() {
     if (!card.data.title.trim()) p.push("Project title is required.");
     if (!card.data.department_id) p.push(card.deptRaw && card.deptRaw !== "None"
       ? `Pick a department (form says “${card.deptRaw}”).` : "Pick a department.");
-    if (!REG_CATEGORIES.includes(card.data.cat)) p.push(card.notSure
+    if (!catNames().includes(card.data.cat)) p.push(card.notSure
       ? "The student ticked “Not sure yet” — pick a category." : "Pick a category.");
     if (!normMembers(card.data.members).length) p.push("Add at least one student.");
     return p;
@@ -3390,7 +3769,7 @@ export default function App() {
                 <select className={`delib-rec-select ${unsure(cf.cat)}`} value={card.data.cat}
                   onChange={e => editScanField(card.key, "cat", e.target.value)}>
                   <option value="">{card.notSure ? "— Student was not sure: pick one —" : "— Pick a category —"}</option>
-                  {REG_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  {catNames().map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
             </div>
@@ -3576,8 +3955,10 @@ export default function App() {
           agrees_to_rules:    !!f.agreesToRules,
           guardian_name:      f.guardianName.trim(),
           guardian_signature: f.guardianSignature.trim(),
-          // "JHS-PMA" — the server appends the next number. Codes live in DIV_CODES/CAT_CODES.
-          reg_prefix: `${DIV_CODES[f.division] || "UNK"}-${CAT_CODES[f.category] || "OTH"}`,
+          // "JHS-PMA" — the server appends the next number. The division code is
+          // still the hardcoded DIV_CODES map; the category code now comes from
+          // the school's own category row.
+          reg_prefix: `${DIV_CODES[f.division] || "UNK"}-${categories.find(c => c.name === f.category)?.code || "OTH"}`,
         },
       });
       if (rpcErr || !res?.reg_number) {
@@ -4250,7 +4631,7 @@ export default function App() {
               <div className="reg-field">
                 <div className="lbl">Category <span className="reg-req">*</span></div>
                 <div className="reg-radio-group">
-                  {REG_CATEGORIES.map(c => (
+                  {catNames().map(c => (
                     <label key={c} className={`reg-radio-item${regForm.category === c ? " sel" : ""}`}>
                       <input type="radio" name="category" value={c} checked={regForm.category === c}
                         onChange={() => setRegForm(p => ({...p, category: c}))} />
@@ -4751,6 +5132,7 @@ export default function App() {
 
     const navItems = [
       { id:"overview", ico:"📊", label:"Overview"     },
+      { id:"setup",    ico:"⚙️", label:"Setup"        },
       { id:"judges",   ico:"👥", label:"Judges"       },
       { id:"projects", ico:"🔬", label:"Projects"     },
       { id:"activity", ico:"📋", label:"Activity Log" },
@@ -4943,6 +5325,40 @@ export default function App() {
             );
           })()}
 
+          {/* Setup tab: delete a department / category. Never window.confirm (rule 36). */}
+          {setupConfirm && (
+            <div className="modal-overlay" onClick={e => { if(e.target===e.currentTarget) setSetupConfirm(null); }}>
+              <div className="modal-box">
+                <div className="ico">🗑️</div>
+                <h2>Delete {setupConfirm.kind === "dept" ? "Department" : "Category"}?</h2>
+                <p>Delete <strong>"{setupConfirm.name}"</strong>?</p>
+                {setupConfirm.kind === "cat" && setupConfirm.used > 0 && (
+                  <p style={{color:"var(--dim)",fontSize:".85rem",marginTop:".5rem"}}>
+                    {setupConfirm.used} project{setupConfirm.used!==1?"s":""} already use this category.
+                    They keep it as their label — only the choice is removed from the dropdowns.
+                  </p>
+                )}
+                {setupConfirm.kind === "cat" && setupConfirm.used === 0 && (
+                  <p style={{color:"var(--dim)",fontSize:".85rem",marginTop:".5rem"}}>No projects use it.</p>
+                )}
+                {setupConfirm.kind === "dept" && (
+                  <p style={{color:"var(--dim)",fontSize:".85rem",marginTop:".5rem"}}>
+                    It has no projects and no judges, so nothing is lost. You can add it back at any time.
+                  </p>
+                )}
+                <div className="modal-btn-row" style={{marginTop:"1.5rem"}}>
+                  <button className="btn sec" onClick={() => setSetupConfirm(null)}>Cancel</button>
+                  <button className="btn danger sm" style={{width:"auto"}}
+                    onClick={() => {
+                      const c = setupConfirm;
+                      setSetupConfirm(null);
+                      if (c.kind === "dept") deleteDepartment(c.id); else deleteCategory(c.id);
+                    }}>Delete</button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="adm-main">
 
             {/* OVERVIEW */}
@@ -5073,36 +5489,14 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Per-department judge slots config */}
+              {/* Departments + categories moved to the Setup tab (2026-10-05) */}
               <div className="card" style={{backgroundColor:"var(--s1)",border:"1px solid var(--bd)"}}>
-                <div className="lbl" style={{marginBottom:".5rem"}}>Departments — Judge Slots</div>
-                <p style={{fontSize:".82rem",color:"var(--dim)",marginBottom:".75rem"}}>
-                  Set max judges per department before judging begins. Locked once that department's first judge registers.
+                <div className="lbl" style={{marginBottom:".5rem"}}>Departments &amp; Categories</div>
+                <p style={{fontSize:".82rem",color:"var(--dim)",marginBottom:".6rem"}}>
+                  {departments.length} department{departments.length!==1?"s":""} · {categories.length} project categor{categories.length!==1?"ies":"y"}.
+                  {" "}Add, rename, reorder or set judge slots in the Setup tab.
                 </p>
-                <div style={{display:"flex",flexDirection:"column",gap:".5rem"}}>
-                  {departments.map(dept => {
-                    const deptCount = judges.filter(j => j.department_id === dept.id).length;
-                    const locked = deptCount > 0;
-                    const draft = deptMaxDrafts[dept.id] ?? String(dept.max_judges);
-                    return (
-                      <div key={dept.id} style={{display:"flex",alignItems:"center",gap:".75rem",flexWrap:"wrap"}}>
-                        <div style={{minWidth:"120px",fontWeight:600,fontSize:".9rem"}}>{dept.name}</div>
-                        <div style={{fontSize:".8rem",color:"var(--dim)",fontFamily:"var(--ff-m)",minWidth:"60px"}}>{deptCount}/{dept.max_judges} judges</div>
-                        {locked
-                          ? <span style={{fontSize:".78rem",color:"var(--amber)"}}>🔒 Locked (judges registered)</span>
-                          : <>
-                              <input type="number" min="1" max="50" value={draft}
-                                onChange={e => setDeptMaxDrafts(p => ({...p, [dept.id]: e.target.value}))}
-                                onBlur={e => updateDeptMaxJudges(dept.id, e.target.value)}
-                                onKeyDown={e => e.key==="Enter" && updateDeptMaxJudges(dept.id, draft)}
-                                style={{width:"64px",padding:".3rem .5rem",border:"1px solid var(--bd)",borderRadius:"var(--r)",fontFamily:"var(--ff-m)",fontSize:".9rem"}} />
-                              <button className="btn sm" style={{width:"auto"}} onClick={() => updateDeptMaxJudges(dept.id, draft)}>Save</button>
-                            </>
-                        }
-                      </div>
-                    );
-                  })}
-                </div>
+                <button className="btn sec sm" style={{width:"auto"}} onClick={() => setAdminTab("setup")}>⚙️ Open Setup</button>
               </div>
 
               <div className="card">
@@ -5182,6 +5576,186 @@ export default function App() {
                   </div>
                 );
               })()}
+            </>}
+
+            {/* SETUP — departments + project categories */}
+            {adminTab==="setup" && <>
+              <div className="adm-h1">Setup</div>
+              <div className="adm-sub">Departments and project categories for your fair · set these before judging begins</div>
+
+              {setupErr && (
+                <div className="card" style={{borderColor:"var(--red)",background:"var(--red-l)",color:"var(--red)",fontSize:".85rem"}}>
+                  ⚠ {setupErr}
+                </div>
+              )}
+
+              {/* ── Departments ── */}
+              <div className="card">
+                <div className="lbl" style={{marginBottom:".4rem"}}>Departments</div>
+                <p style={{fontSize:".82rem",color:"var(--dim)",marginBottom:".9rem"}}>
+                  A department is one judging pool. Judges sign in to a department and score every project in it,
+                  and results, ties and awards are worked out inside each one — projects in different departments never compete.
+                  Max Judges locks once that department's first judge signs in.
+                </p>
+
+                <div className="setup-rows">
+                  {[...departments].sort((a,b)=>a.ord-b.ord).map((dept, i, arr) => {
+                    const deptCount = judges.filter(j => j.department_id === dept.id).length;
+                    const projCount = projects.filter(p => p.department_id === dept.id).length;
+                    const judgeLock = deptCount > 0;
+                    const inUse     = deptCount > 0 || projCount > 0;
+                    const edit      = deptEdits[dept.id];
+                    const maxDraft  = deptMaxDrafts[dept.id] ?? String(dept.max_judges);
+                    return (
+                      <div key={dept.id || dept.name} className="setup-row">
+                        <div className="setup-ord">
+                          <button className="proj-act-btn" disabled={i===0} title="Move up"
+                            onClick={() => moveDepartment(dept.id, -1)}>↑</button>
+                          <button className="proj-act-btn" disabled={i===arr.length-1} title="Move down"
+                            onClick={() => moveDepartment(dept.id, 1)}>↓</button>
+                        </div>
+                        <div className="setup-main">
+                          {edit ? (
+                            <div className="setup-edit">
+                              <input type="text" value={edit.name} placeholder="Department name"
+                                onChange={e => setDeptEdits(p => ({...p, [dept.id]: {...p[dept.id], name: e.target.value}}))} />
+                              <input type="text" value={edit.code} placeholder="Code" maxLength={5} className="setup-code-in"
+                                onChange={e => setDeptEdits(p => ({...p, [dept.id]: {...p[dept.id], code: e.target.value}}))} />
+                              <button className="btn sm" style={{width:"auto"}} onClick={() => saveDepartment(dept.id)}>Save</button>
+                              <button className="btn sec sm" style={{width:"auto"}}
+                                onClick={() => { setSetupErr(""); setDeptEdits(p => { const n={...p}; delete n[dept.id]; return n; }); }}>Cancel</button>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="setup-name">{dept.name}</div>
+                              <div className="setup-meta">
+                                {dept.code && <span className="badge bb">{dept.code}</span>}
+                                {" "}{projCount} project{projCount!==1?"s":""} · {deptCount}/{dept.max_judges} judge{deptCount!==1?"s":""}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                        {!edit && (
+                          <div className="setup-acts">
+                            <span className="setup-maxj">
+                              Max judges:{" "}
+                              {judgeLock
+                                ? <><strong>{dept.max_judges}</strong> <span title="Locked — judges have signed in">🔒</span></>
+                                : <>
+                                    <input type="number" min="1" max="100" value={maxDraft}
+                                      onChange={e => setDeptMaxDrafts(p => ({...p, [dept.id]: e.target.value}))}
+                                      onBlur={e => updateDeptMaxJudges(dept.id, e.target.value)}
+                                      onKeyDown={e => e.key==="Enter" && updateDeptMaxJudges(dept.id, maxDraft)} />
+                                  </>}
+                            </span>
+                            <button className="proj-act-btn" title="Rename"
+                              onClick={() => { setSetupErr(""); setDeptEdits(p => ({...p, [dept.id]: { name: dept.name, code: dept.code || "" }})); }}>✏️</button>
+                            <button className="proj-act-btn del" title={inUse ? "In use — move its projects and judges first" : "Delete"}
+                              onClick={() => requestDeleteDepartment(dept.id)}>🗑</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="setup-add">
+                  <input type="text" placeholder="New department name" value={newDept.name}
+                    onChange={e => setNewDept(p => ({...p, name: e.target.value}))}
+                    onKeyDown={e => e.key==="Enter" && addDepartment(newDept.name, newDept.code)} />
+                  <input type="text" placeholder="Code" maxLength={5} className="setup-code-in" value={newDept.code}
+                    onChange={e => setNewDept(p => ({...p, code: e.target.value}))}
+                    onKeyDown={e => e.key==="Enter" && addDepartment(newDept.name, newDept.code)} />
+                  <button className="btn sm" style={{width:"auto"}} onClick={() => addDepartment(newDept.name, newDept.code)}>+ Add</button>
+                </div>
+
+                <div className="setup-presets">
+                  <div className="lbl" style={{marginBottom:".35rem"}}>Or start from a preset</div>
+                  <p style={{fontSize:".78rem",color:"var(--dim)",marginBottom:".5rem"}}>
+                    A preset only adds the departments you don't have yet — it never deletes. Remove any you don't want afterwards.
+                  </p>
+                  <div className="setup-preset-grid">
+                    {DEPT_PRESETS.map(p => (
+                      <button key={p.id} className="setup-preset" onClick={() => applyDeptPreset(p.id)}>
+                        <strong>{p.label}</strong>
+                        <span>{p.desc}</span>
+                        <em>{p.depts.map(d => d.name).join(" · ")}</em>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Project categories ── */}
+              <div className="card">
+                <div className="lbl" style={{marginBottom:".4rem"}}>Project Categories</div>
+                <p style={{fontSize:".82rem",color:"var(--dim)",marginBottom:".9rem"}}>
+                  The subject areas students pick from — yours alone, not shared with other schools.
+                  A robotics fair can replace all of these. The code is used to build registration numbers (e.g. <code>JHS-LS-001</code>).
+                  Renaming or deleting one never changes projects already saved under it: they keep their old label.
+                </p>
+
+                <div className="setup-rows">
+                  {[...categories].sort((a,b)=>a.ord-b.ord).map((cat, i, arr) => {
+                    const used = projects.filter(p => p.cat === cat.name).length;
+                    const edit = catEdits[cat.id];
+                    return (
+                      <div key={cat.id || cat.name} className="setup-row">
+                        <div className="setup-ord">
+                          <button className="proj-act-btn" disabled={i===0} title="Move up"
+                            onClick={() => moveCategory(cat.id, -1)}>↑</button>
+                          <button className="proj-act-btn" disabled={i===arr.length-1} title="Move down"
+                            onClick={() => moveCategory(cat.id, 1)}>↓</button>
+                        </div>
+                        <div className="setup-main">
+                          {edit ? (
+                            <div className="setup-edit">
+                              <input type="text" value={edit.name} placeholder="Category name"
+                                onChange={e => setCatEdits(p => ({...p, [cat.id]: {...p[cat.id], name: e.target.value}}))} />
+                              <input type="text" value={edit.code} placeholder="Code" maxLength={5} className="setup-code-in"
+                                onChange={e => setCatEdits(p => ({...p, [cat.id]: {...p[cat.id], code: e.target.value}}))} />
+                              <button className="btn sm" style={{width:"auto"}} onClick={() => saveCategory(cat.id)}>Save</button>
+                              <button className="btn sec sm" style={{width:"auto"}}
+                                onClick={() => { setSetupErr(""); setCatEdits(p => { const n={...p}; delete n[cat.id]; return n; }); }}>Cancel</button>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="setup-name">{cat.name}</div>
+                              <div className="setup-meta">
+                                {cat.code && <span className="badge bp">{cat.code}</span>}
+                                {" "}{used} project{used!==1?"s":""}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                        {!edit && (
+                          <div className="setup-acts">
+                            <button className="proj-act-btn" title="Rename"
+                              onClick={() => { setSetupErr(""); setCatEdits(p => ({...p, [cat.id]: { name: cat.name, code: cat.code || "" }})); }}>✏️</button>
+                            <button className="proj-act-btn del" title="Delete"
+                              onClick={() => requestDeleteCategory(cat.id)}>🗑</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="setup-add">
+                  <input type="text" placeholder="New category name" value={newCat.name}
+                    onChange={e => setNewCat(p => ({...p, name: e.target.value}))}
+                    onKeyDown={e => e.key==="Enter" && addCategory(newCat.name, newCat.code)} />
+                  <input type="text" placeholder="Code" maxLength={5} className="setup-code-in" value={newCat.code}
+                    onChange={e => setNewCat(p => ({...p, code: e.target.value}))}
+                    onKeyDown={e => e.key==="Enter" && addCategory(newCat.name, newCat.code)} />
+                  <button className="btn sm" style={{width:"auto"}} onClick={() => addCategory(newCat.name, newCat.code)}>+ Add</button>
+                </div>
+                <div style={{marginTop:".75rem"}}>
+                  <button className="btn sec sm" style={{width:"auto"}} onClick={restoreDefaultCategories}>
+                    ↺ Restore built-in categories
+                  </button>
+                </div>
+              </div>
             </>}
 
             {/* JUDGES */}
@@ -5282,7 +5856,7 @@ export default function App() {
                     📷 Scan forms
                   </button>
                   <button className="btn sm" style={{width:"auto"}} onClick={() => {
-                    setProjForm(blankProjForm(nextProjectNum()));
+                    setProjForm(blankProjForm(nextProjectNum(), catNames()[0] || ""));
                     setShowAddProject(true); setEditingProject(null);
                   }}>
                     + Add Project
@@ -5378,9 +5952,9 @@ export default function App() {
                       <select className="delib-rec-select" value={projForm.cat}
                         onChange={e => setProjForm(f => ({...f, cat:e.target.value}))}>
                         {/* A project saved under a pre-2026-10 category keeps it until changed */}
-                        {projForm.cat && !REG_CATEGORIES.includes(projForm.cat) &&
+                        {projForm.cat && !catNames().includes(projForm.cat) &&
                           <option value={projForm.cat}>{projForm.cat} (old category)</option>}
-                        {REG_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        {catNames().map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                   </div>
@@ -5448,7 +6022,7 @@ export default function App() {
                       {editingProject ? "Save Changes" : "Add Project"}
                     </button>
                     <button className="btn sec sm" style={{width:"auto"}}
-                      onClick={() => { setShowAddProject(false); setEditingProject(null); setProjForm(blankProjForm()); }}>
+                      onClick={() => { setShowAddProject(false); setEditingProject(null); setProjForm(blankProjForm("", catNames()[0] || "")); }}>
                       Cancel
                     </button>
                   </div>

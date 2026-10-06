@@ -26,8 +26,12 @@
  * candidateCount — Gemini 3+ models reject them.
  */
 
-// Must match REG_CATEGORIES in src/ScienceFairJudging.jsx.
-const CATEGORIES = [
+// Fallback only. Categories are per-school rows in the `categories` table
+// (migration 2026-10e) and are loaded per request below — a robotics fair's
+// own categories are what Gemini is asked to choose from. This list is used
+// when that table is empty or missing, and matches DEFAULT_CATEGORIES in
+// src/ScienceFairJudging.jsx.
+const DEFAULT_CATEGORIES = [
   "Life Science",
   "Earth & Environmental Science",
   "Chemistry & Material Science",
@@ -66,7 +70,7 @@ const CONF = ["high", "low", "unreadable"];
 function conf(c) { return CONF.includes(c) ? c : "low"; }
 
 // ── Schema (OpenAPI subset used by generationConfig.responseSchema) ─────────────
-function buildSchema(deptNames) {
+function buildSchema(deptNames, catNames) {
   const confidence = { type: "STRING", enum: CONF };
   const text = (description) => ({
     type: "OBJECT", description,
@@ -104,7 +108,7 @@ function buildSchema(deptNames) {
             title: text("Proposed project title exactly as written"),
             description: text("Answer to 'what do you plan to investigate, test, design or build'"),
             motivation: text("Answer to 'why did you choose this project'"),
-            category: choice("The ticked project category", [...CATEGORIES, NOT_SURE, NONE]),
+            category: choice("The ticked project category", [...catNames, NOT_SURE, NONE]),
             notes: { type: "STRING", description: "Anything the reviewer should double-check (crossed-out text, two boxes ticked, etc.). Empty if nothing." },
           },
           required: ["is_participation_form", "students", "teacher", "room", "department", "work_mode",
@@ -116,7 +120,7 @@ function buildSchema(deptNames) {
   };
 }
 
-function buildPrompt(deptNames) {
+function buildPrompt(deptNames, catNames) {
   return [
     "You are transcribing handwritten school science-fair STUDENT PARTICIPATION FORMS for an administrator,",
     "who will review and correct everything you return before it is saved.",
@@ -128,7 +132,9 @@ function buildPrompt(deptNames) {
     `  If no box is marked, return "${NONE}". If two are marked, pick the clearest and say so in notes.`,
     `- Department options for this school: ${deptNames.length ? deptNames.join(", ") : "(none configured)"}.`,
     "  Match the ticked level to the closest option (e.g. 'Junior High' → Middle School if that exists).",
-    `- Category: return one of the listed categories exactly. If 'Not sure yet' is ticked, return "${NOT_SURE}".`,
+    `- Category options for this school: ${catNames.length ? catNames.join(", ") : "(none configured)"}.`,
+    `  Return one of them exactly. If 'Not sure yet' is ticked, return "${NOT_SURE}".`,
+    "  If the form lists a category this school does not use, pick the closest option and say so in notes.",
     "- confidence: 'high' = clearly legible; 'low' = you are not sure of some letters/words;",
     "  'unreadable' = cannot be read (then value is your best partial reading or empty).",
     "- A blank field → value \"\" with confidence 'high'.",
@@ -147,18 +153,18 @@ async function sbGet(base, anon, token, path) {
 }
 
 // ── Gemini ─────────────────────────────────────────────────────────────────────
-export async function callGemini({ key, model, mimeType, data, deptNames, withStore }) {
+export async function callGemini({ key, model, mimeType, data, deptNames, catNames, withStore }) {
   const body = {
     contents: [{
       role: "user",
       parts: [
         { inlineData: { mimeType, data } },
-        { text: buildPrompt(deptNames) },
+        { text: buildPrompt(deptNames, catNames) },
       ],
     }],
     generationConfig: {
       responseMimeType: "application/json",
-      responseSchema: buildSchema(deptNames),
+      responseSchema: buildSchema(deptNames, catNames),
       maxOutputTokens: 16384,
     },
   };
@@ -180,13 +186,13 @@ export async function callGemini({ key, model, mimeType, data, deptNames, withSt
 }
 
 // Turn Gemini's raw form into the shape the admin review card uses.
-export function normaliseForm(f, depts) {
+export function normaliseForm(f, depts, catNames) {
   const t = (field, max) => ({ value: clip(field?.value, max), confidence: conf(field?.confidence) });
 
   const deptRaw = clip(f?.department?.value, 80);
   const dept = depts.find(d => d.name.toLowerCase() === deptRaw.toLowerCase());
   const catRaw = clip(f?.category?.value, 80);
-  const cat = CATEGORIES.includes(catRaw) ? catRaw : "";
+  const cat = catNames.includes(catRaw) ? catRaw : "";
 
   const students = (Array.isArray(f?.students) ? f.students : [])
     .map(s => ({
@@ -238,17 +244,25 @@ export default async function handler(req, res) {
   if (!admin.ok || !Array.isArray(admin.json) || admin.json.length === 0) {
     return fail(res, 403, "FORBIDDEN", "You are not an admin of this school.");
   }
-  const deptRes = await sbGet(SB_URL, SB_ANON, token,
-    `/rest/v1/departments?select=id,name&school_id=eq.${schoolId}&order=ord`);
+  // This school's own departments and categories drive the enums Gemini must
+  // choose from. If `categories` is missing (migration 2026-10e not run) or
+  // empty, fall back to the built-in six so scanning keeps working.
+  const [deptRes, catRes] = await Promise.all([
+    sbGet(SB_URL, SB_ANON, token, `/rest/v1/departments?select=id,name&school_id=eq.${schoolId}&order=ord`),
+    sbGet(SB_URL, SB_ANON, token, `/rest/v1/categories?select=name&school_id=eq.${schoolId}&order=ord`),
+  ]);
   const depts = deptRes.ok && Array.isArray(deptRes.json) ? deptRes.json.filter(d => d?.id && d?.name) : [];
   const deptNames = [...new Set(depts.map(d => String(d.name).slice(0, 80)))];
+  const loadedCats = catRes.ok && Array.isArray(catRes.json)
+    ? catRes.json.map(c => String(c?.name || "").slice(0, 80)).filter(Boolean) : [];
+  const catNames = [...new Set(loadedCats.length ? loadedCats : DEFAULT_CATEGORIES)];
 
   // ── Gemini ──
-  let r = await callGemini({ key: KEY, model: MODEL, mimeType, data, deptNames, withStore: true });
+  let r = await callGemini({ key: KEY, model: MODEL, mimeType, data, deptNames, catNames, withStore: true });
   if (r.status === 400) {
     // If this API version does not accept `store`, retry once without it.
     const txt = await r.clone().text().catch(() => "");
-    if (/store/i.test(txt)) r = await callGemini({ key: KEY, model: MODEL, mimeType, data, deptNames, withStore: false });
+    if (/store/i.test(txt)) r = await callGemini({ key: KEY, model: MODEL, mimeType, data, deptNames, catNames, withStore: false });
   }
   if (r.fetchError) {
     const timedOut = r.fetchError?.name === "AbortError";
@@ -280,7 +294,7 @@ export default async function handler(req, res) {
         : "The AI could not read this file. Retry or enter it manually.");
   }
 
-  const forms = parsed.forms.slice(0, MAX_FORMS).map(f => normaliseForm(f, depts));
+  const forms = parsed.forms.slice(0, MAX_FORMS).map(f => normaliseForm(f, depts, catNames));
   console.log("scan-form: ok", { forms: forms.length, mimeType, model: MODEL }); // counts only
   return res.status(200).json({ forms, model: MODEL });
 }

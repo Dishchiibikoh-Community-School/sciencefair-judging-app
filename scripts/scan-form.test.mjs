@@ -7,6 +7,8 @@ const { default: handler } = await import(new URL("../api/scan-form.js", import.
 
 const SID = "11111111-2222-3333-4444-555555555555";
 const DEPTS = [{id:"d-elem",name:"Elementary"},{id:"d-mid",name:"Middle School"},{id:"d-high",name:"High School"}];
+const BUILTIN_CATS = ["Life Science","Earth & Environmental Science","Chemistry & Material Science",
+  "Physics, Math & Astronomy","Engineering, Robotics & Technology","Energy, Sustainability & Design"];
 let geminiCalls = [], scenario = {};
 globalThis.fetch = async (url, opts={}) => {
   url = String(url);
@@ -14,6 +16,12 @@ globalThis.fetch = async (url, opts={}) => {
   if (url.includes("/auth/v1/user")) return scenario.badToken ? j(401,{}) : j(200,{id:"u1"});
   if (url.includes("/school_admins")) return j(200, scenario.notAdmin ? [] : [{school_id:SID}]);
   if (url.includes("/departments")) return j(200, DEPTS);
+  // Per-school categories (migration 2026-10e). scenario.cats overrides them;
+  // scenario.catsMissing simulates a project where the migration has not run.
+  if (url.includes("/categories")) {
+    if (scenario.catsMissing) return j(404, { message: "relation does not exist" });
+    return j(200, (scenario.cats ?? BUILTIN_CATS).map(name => ({ name })));
+  }
   if (url.includes("generativelanguage")) {
     const body = JSON.parse(opts.body); geminiCalls.push({ url, body, headers: opts.headers });
     if (scenario.gemini) return scenario.gemini(body, geminiCalls.length);
@@ -66,6 +74,8 @@ assert.equal(g.contents[0].parts[0].inlineData.mimeType, "image/jpeg");
 assert.ok(!("temperature" in g.generationConfig) && !("topP" in g.generationConfig), "no sampling params for Gemini 3");
 assert.deepEqual(g.generationConfig.responseSchema.properties.forms.items.properties.department.properties.value.enum,
   ["Elementary","Middle School","High School","None"]);
+assert.deepEqual(g.generationConfig.responseSchema.properties.forms.items.properties.category.properties.value.enum,
+  [...BUILTIN_CATS, "Not sure yet", "None"]);
 const [f1, f2] = r.payload.forms;
 assert.equal(f1.department_id.value, "d-mid");
 assert.equal(f1.cat.value, "Engineering, Robotics & Technology");
@@ -92,4 +102,35 @@ scenario = { gemini: () => new Response(JSON.stringify({candidates:[{finishReaso
 r = await call(good); assert.equal(r.status, 422); assert.match(r.payload.error, /Split/);
 scenario = { gemini: () => { const e = new Error("aborted"); e.name = "AbortError"; throw e; } };
 assert.equal((await call(good)).payload.code, "TIMEOUT");
+
+// 6. per-school categories (migration 2026-10e) drive the enum, not a constant
+const ROBOTICS = ["Autonomous Robotics", "Remote-Operated", "Innovation & Design"];
+geminiCalls = [];
+scenario = { cats: ROBOTICS, gemini: () => new Response(JSON.stringify({ candidates:[{ finishReason:"STOP",
+  content:{ parts:[{ text: JSON.stringify({ forms: [{ ...formJson.forms[0],
+    category: { value: "Autonomous Robotics", confidence: "high" } }] }) }] } }] }), { status:200 }) };
+r = await call(good);
+assert.equal(r.status, 200, JSON.stringify(r.payload));
+assert.deepEqual(
+  geminiCalls[0].body.generationConfig.responseSchema.properties.forms.items.properties.category.properties.value.enum,
+  [...ROBOTICS, "Not sure yet", "None"], "a robotics fair's own categories must reach Gemini");
+assert.match(geminiCalls[0].body.contents[0].parts[1].text, /Autonomous Robotics/, "prompt lists this school's categories");
+assert.equal(r.payload.forms[0].cat.value, "Autonomous Robotics");
+
+// A category this school does NOT have is rejected, not passed through
+geminiCalls = [];
+scenario = { cats: ROBOTICS, gemini: ok };
+r = await call(good);
+assert.equal(r.payload.forms[0].cat.value, "", "a category outside this school's list is blanked for the admin to pick");
+
+// 7. categories table missing (migration not run) → built-in six, still works
+geminiCalls = [];
+scenario = { catsMissing: true, gemini: ok };
+r = await call(good);
+assert.equal(r.status, 200);
+assert.deepEqual(
+  geminiCalls[0].body.generationConfig.responseSchema.properties.forms.items.properties.category.properties.value.enum,
+  [...BUILTIN_CATS, "Not sure yet", "None"], "falls back to the built-in list when the table is missing");
+assert.equal(r.payload.forms[0].cat.value, "Engineering, Robotics & Technology");
+
 console.log("scan-form: all", "tests passed");

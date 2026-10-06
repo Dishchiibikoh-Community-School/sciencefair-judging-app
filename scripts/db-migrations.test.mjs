@@ -85,7 +85,8 @@ for (const round of [1, 2]) {
   await db.exec(mig("migration-2026-10b-private-members-and-registration.sql"));
   await db.exec(mig("migration-2026-10c-secure-school-signup.sql"));
   await db.exec(mig("migration-2026-10d-judge-revise-validation.sql"));
-  ok(`migrations 2026-10, 10b, 10c, 10d applied (round ${round} — re-runnable)`);
+  await db.exec(mig("migration-2026-10e-categories-and-department-codes.sql"));
+  ok(`migrations 2026-10, 10b, 10c, 10d, 10e applied (round ${round} — re-runnable)`);
 }
 
 // ── PART 1: names are private ──
@@ -222,6 +223,71 @@ await db.exec(`INSERT INTO auth.users (id) VALUES ('${SIGNED}')`);
 const c2 = (await as("authenticated", SIGNED, "SELECT create_school($1, 'Signed School', 'signed-school', 'INV12345', '4821', NULL) AS r", [SIGNED])).rows[0].r;
 assert.equal(c2.slug, "signed-school");
 ok("create_school (signed-in path) works for your own account");
+
+// ── PART 3b: per-school categories (migration 2026-10e) ──
+const catNames = async (sid) =>
+  (await db.query("SELECT name FROM categories WHERE school_id=$1 ORDER BY ord", [sid])).rows.map(r => r.name);
+assert.deepEqual(await catNames(SID), [
+  "Life Science", "Earth & Environmental Science", "Chemistry & Material Science",
+  "Physics, Math & Astronomy", "Engineering, Robotics & Technology", "Energy, Sustainability & Design",
+]);
+ok("categories: the six shipped categories were seeded for the existing school, in order");
+assert.equal((await db.query("SELECT code FROM categories WHERE school_id=$1 AND name='Life Science'", [SID])).rows[0].code, "LS");
+ok("categories: registration codes (LS/EES/…) came across");
+
+// A school created AFTER the migration has none — the app's ensureSeedData()
+// seeds it on first admin load, and falls back to its built-in list until then.
+assert.equal((await catNames(nsid)).length, 0);
+ok("categories: a school created later starts empty (app ensureSeedData seeds it)");
+
+// Re-running the migration must not resurrect a category the admin deleted,
+// but it SHOULD seed a school that has none yet (self-healing for schools
+// created between the migration and the app deploy).
+await as("authenticated", ADMIN, "DELETE FROM categories WHERE school_id=$1 AND name='Physics, Math & Astronomy'", [SID]);
+await db.exec(mig("migration-2026-10e-categories-and-department-codes.sql"));
+assert.ok(!(await catNames(SID)).includes("Physics, Math & Astronomy"));
+assert.equal((await catNames(SID)).length, 5);
+ok("categories: re-running the migration does NOT resurrect a deleted category");
+assert.equal((await catNames(nsid)).length, 6);
+ok("categories: …but a re-run DOES seed a school that had none (self-healing)");
+
+// RLS: everyone reads (public registration form + judges), only admins write.
+assert.equal((await as("anon", "", "SELECT name FROM categories WHERE school_id=$1", [SID])).rows.length, 5);
+ok("categories: anon can read (public registration form needs them)");
+await fails("anon", "", "INSERT INTO categories (school_id, name) VALUES ($1, 'Hacked')", /row-level security/,
+  "categories: anon cannot add one", [SID]);
+await fails("authenticated", OTHER, "INSERT INTO categories (school_id, name) VALUES ($1, 'Hacked')", /row-level security/,
+  "categories: a non-admin of this school cannot add one", [SID]);
+assert.equal((await as("authenticated", OTHER, "UPDATE categories SET name='x' WHERE school_id=$1 RETURNING 1", [SID])).rows.length, 0);
+assert.equal((await as("authenticated", OTHER, "DELETE FROM categories WHERE school_id=$1 RETURNING 1", [SID])).rows.length, 0);
+ok("categories: a non-admin's update/delete affects 0 rows");
+
+await as("authenticated", ADMIN, "INSERT INTO categories (school_id, name, code, ord) VALUES ($1, 'Autonomous Robotics', 'AR', 9)", [SID]);
+await as("authenticated", ADMIN, "UPDATE categories SET name='Robotics — Autonomous' WHERE school_id=$1 AND code='AR'", [SID]);
+assert.ok((await catNames(SID)).includes("Robotics — Autonomous"));
+ok("categories: admin can add and rename (a robotics fair can define its own)");
+await fails("authenticated", ADMIN, "INSERT INTO categories (school_id, name) VALUES ($1, 'Life Science')",
+  /duplicate key|unique/i, "categories: duplicate name in the same school rejected", [SID]);
+await fails("authenticated", ADMIN, "INSERT INTO categories (school_id, name) VALUES ($1, 'Robotics — Autonomous')", /row-level security/,
+  "categories: an admin of school A cannot add a category to school B", [nsid]);
+await as("authenticated", NEWU, "INSERT INTO categories (school_id, name) VALUES ($1, 'Robotics — Autonomous')", [nsid]);
+ok("categories: the same name in a DIFFERENT school is fine (per-school isolation)");
+
+// Removing a category must never touch projects already saved under it.
+assert.equal((await db.query("SELECT cat FROM projects WHERE id='p_old'")).rows[0].cat, "Life Science");
+await as("authenticated", ADMIN, "DELETE FROM categories WHERE school_id=$1 AND name='Life Science'", [SID]);
+assert.equal((await db.query("SELECT cat FROM projects WHERE id='p_old'")).rows[0].cat, "Life Science");
+ok("categories: deleting one leaves existing projects' category text untouched (no FK, non-destructive)");
+await as("authenticated", ADMIN, "INSERT INTO categories (school_id, name, code, ord) VALUES ($1, 'Life Science', 'LS', 0)", [SID]);
+
+assert.equal((await db.query("SELECT 1 FROM pg_publication_tables WHERE pubname='supabase_realtime' AND tablename='categories'")).rows.length, 1);
+ok("categories: in the realtime publication");
+
+// departments.code — added now, wired up when registration numbers are unified.
+const dcode = (await db.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='departments' AND column_name='code'")).rows;
+assert.equal(dcode.length, 1);
+assert.equal((await db.query("SELECT code FROM departments WHERE school_id=$1 AND name='Elementary'", [nsid])).rows[0].code, "Elem");
+ok("departments.code exists and the three default departments were backfilled (Elem/JHS/SHS)");
 
 // ── PART 4: the judging lifecycle, as the app calls it (anon judges, signed-in admin) ──
 const D = "d1111111-1111-1111-1111-111111111111";

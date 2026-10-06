@@ -19,9 +19,18 @@ export function freshStore() {
     schools: [{ id: SID, name: "Dishchii'bikoh Test", slug: "test", created_at: now }],
     school_admins: [{ school_id: SID, user_id: ADMIN_ID }],
     departments: [
-      { id: D_ELEM, school_id: SID, name: "Elementary", max_judges: 5, ord: 0 },
-      { id: D_MID,  school_id: SID, name: "Middle School", max_judges: 5, ord: 1 },
-      { id: D_HIGH, school_id: SID, name: "High School", max_judges: 5, ord: 2 },
+      { id: D_ELEM, school_id: SID, name: "Elementary", code: "Elem", max_judges: 5, ord: 0 },
+      { id: D_MID,  school_id: SID, name: "Middle School", code: "JHS", max_judges: 5, ord: 1 },
+      { id: D_HIGH, school_id: SID, name: "High School", code: "SHS", max_judges: 5, ord: 2 },
+    ],
+    // Per-school project categories (migration 2026-10e), seeded as the migration does.
+    categories: [
+      { id: "c1", school_id: SID, name: "Life Science",                       code: "LS",  ord: 0 },
+      { id: "c2", school_id: SID, name: "Earth & Environmental Science",      code: "EES", ord: 1 },
+      { id: "c3", school_id: SID, name: "Chemistry & Material Science",       code: "CMS", ord: 2 },
+      { id: "c4", school_id: SID, name: "Physics, Math & Astronomy",          code: "PMA", ord: 3 },
+      { id: "c5", school_id: SID, name: "Engineering, Robotics & Technology", code: "ERT", ord: 4 },
+      { id: "c6", school_id: SID, name: "Energy, Sustainability & Design",    code: "ESD", ord: 5 },
     ],
     projects: [{ id: "p_seed", school_id: SID, num: "001", title: "Existing Volcano Study", cat: "Earth & Environmental Science",
       grade: "6", locked: false, department_id: D_MID, room: "B12", description: "How lava cools", motivation: "", created_at: now }],

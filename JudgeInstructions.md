@@ -11,7 +11,7 @@ This guide will walk you through how to use the app to score science fair projec
 **You'll need:**
 - **Your school's app link** — it looks like `https://qritiko.com/s/your-school`. Your organizer will give you the exact address. Bookmark it.
 - Your judge name: **Judge1** through **Judge[N]** — provided by your event organizer
-- Your **department**: Elementary, Middle School, or High School — your organizer will tell you which one
+- Your **department** — your organizer will tell you which one. Every school names these differently: it might be Elementary / Middle School / High School, grade bands like 3-5 or 6-8, SPED, or something else. The sign-in screen lists the ones your school uses.
 - Invite code: **provided by your event organizer** (a short code set by your school)
 - A tablet, phone, or laptop with internet access
 - About 30–45 minutes to score all projects
@@ -22,7 +22,7 @@ This guide will walk you through how to use the app to score science fair projec
 
 1. **Open your school's link** — `https://qritiko.com/s/your-school` (ask your organizer for the exact address; a plain `qritiko.com` with no `/s/...` will NOT show your fair)
 2. **Click "I'm a Judge"**
-3. **Select your department** — tap the button for Elementary, Middle School, or High School
+3. **Select your department** — tap the button your organizer told you to use (the list shows your school's own departments)
 4. **Enter your judge name** (e.g., "Judge1", "Judge2", etc.)
 5. **Enter the invite code** provided by organizers
 6. **Click "Register"**
