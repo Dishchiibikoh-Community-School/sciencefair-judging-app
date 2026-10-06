@@ -432,6 +432,26 @@ Projects and scores are written to the online database the moment you press Save
 Submit. Updates to the app never erase data. What *does* remove data: deleting a project (its scores go
 with it — lock it instead), and Reset All Data (keeps projects, departments and the rubric).
 
+### Choosing a rubric
+
+**Rubric tab → Start from a preset.** Two are built in; a ✓ marks the one you are using.
+
+| Preset | Shape | Score range |
+|---|---|---|
+| **Northeast AZ Regional** | 10 criteria, 0–6 points each. Grades below 5 skip Abstract (so they are judged out of 36). Grades 5+ may not be given a 0. | 0–42 |
+| **Cibecue / ISEF-style** | 5 sections, each rated Needs improvement · Fair · Good · Very Good · Excellent, weighted: Project Title 15, Scientific Inquiry 25, Data and Conclusion 20, Presentation 20, Further Research 20. | 20–100 |
+
+On the 100-point rubric judges tap the **rating word**, not a number — the section's points appear
+underneath. The detailed sub-points from the paper form are listed under each section heading, so a
+judge reads all of them and then gives one rating for the section.
+
+**Why the lowest score is 20, not 0:** the paper scale starts at 1 (Needs improvement), so there is
+no zero to give. Five sections at the lowest rating = 20/100. That is correct, not a bug.
+
+Either preset can be edited afterwards (Edit Rubric). Max Points goes up to 100 per criterion. If
+you change a section's step values the rating words are dropped and judges see point numbers
+instead — re-apply the preset to get the words back.
+
 ### Changing the rubric
 
 Totals are always calculated with the **current** rubric. Renaming or rewording a criterion is safe.

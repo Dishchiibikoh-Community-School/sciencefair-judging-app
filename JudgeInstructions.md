@@ -64,14 +64,26 @@ When you open a project to score, you'll see:
 
 1. **Project heading** — Project number, title, category, grade, room (if given), and a short
    description of what the students planned to investigate or build
-2. **10 Scoring Criteria** — Each with buttons showing allowed scores
+2. **The scoring criteria** — each with buttons to tap
 3. **Notes field** — Optional: add comments about the project
-4. **Total score** — Automatically calculated at the top
-5. **Submit & Next button** — Save and move to the next project
+4. **Total score** — Automatically calculated at the bottom
+5. **Submit Score button** — Save and go back to your project list
 
 ### How Scoring Works
 
-Each criterion shows **discrete buttons** (not a slider). Tap the score button you want:
+Each criterion shows **discrete buttons** (never a slider). Tap the one you want. You cannot
+submit until every criterion has been given a score.
+
+**Your school uses one of two rubrics, and the buttons look different in each.** The app always
+shows the live total and the maximum on the form itself — trust that over this page.
+
+**If the buttons show words** (Needs improvement · Fair · Good · Very Good · Excellent), you are on
+the 100-point rubric. Tap the rating that fits; the points for that section appear underneath, and
+they differ per section because some sections are worth more. There is no zero — the lowest rating
+is still worth points, so the lowest possible total is 20 out of 100. Each section lists the things
+to look at underneath its name; read them, then give the section one rating.
+
+**If the buttons show only numbers**, you are on the 42-point rubric:
 
 | Points | Meaning |
 |---|---|
@@ -79,6 +91,9 @@ Each criterion shows **discrete buttons** (not a slider). Tap the score button y
 | 1 or 2 | Partial (shows progress but incomplete) |
 | 2 or 4 | Complete (meets all requirements) |
 | 3 or 6 | Exceptional (exceeds expectations) |
+
+On that rubric, projects below grade 5 skip the Abstract criterion (so they are scored out of 36),
+and projects in grade 5 and up cannot be given a 0 — the form will tell you if you try.
 
 ### Scoring Rubric (10 Criteria, 42 Points Max)
 

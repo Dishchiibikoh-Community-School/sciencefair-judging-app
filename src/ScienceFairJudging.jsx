@@ -27,6 +27,53 @@ const DEFAULT_RUBRIC = [
 // Scoring guide: 0=not present, 1/2=partial, 2/4=complete, 3/6=exceptional
 // DEFAULT_RUBRIC is used as the fallback if no custom rubric is defined for the school.
 
+// ── RUBRIC PRESETS ───────────────────────────────────────────
+// One-click starting points in the admin Rubric tab. A school can still edit any
+// criterion afterwards — these are seeds, never a constraint (same idea as
+// DEPT_PRESETS / DEFAULT_CATEGORIES).
+//
+// `stepLabels` is OPTIONAL and display-only: when it has exactly one entry per
+// `steps` value the scoring buttons show the word instead of the raw number.
+// It exists because a 1–5 rating scaled into differently-weighted sections gives
+// a different number for the SAME rating in each section (a "Good" is 9 points
+// in a 15-pt section but 15 in a 25-pt section) — judges would be doing mental
+// arithmetic. Nothing in the scoring maths reads it; if it ever desyncs from
+// `steps` the UI silently falls back to numbers.
+const RATING_5 = ["Needs improvement", "Fair", "Good", "Very Good", "Excellent"];
+const RUBRIC_PRESETS = [
+  {
+    id: "northeast-az",
+    label: "Northeast AZ Regional — 42 points",
+    desc: "10 criteria, 0–6 points each. Grades below 5 skip the Abstract criterion.",
+    criteria: () => DEFAULT_RUBRIC,
+  },
+  {
+    id: "cibecue-100",
+    label: "Cibecue / ISEF-style — 100 points",
+    desc: "5 sections rated 1–5 (Needs improvement → Excellent), weighted to 100 points. No zero: the lowest possible total is 20.",
+    criteria: () => [
+      { id:"title", label:"Project Title", max:15, steps:[3,6,9,12,15], stepLabels:RATING_5,
+        desc:"Is meaningful · reflects the student's creativity · has a clear and focused purpose · relates to real-life experimentation · is appropriate for the student's grade level." },
+      { id:"inquiry", label:"Scientific Inquiry", max:25, steps:[5,10,15,20,25], stepLabels:RATING_5,
+        desc:"Proposes a scientific question · follows the correct order and steps of the scientific method · has a testable hypothesis · the experiment/investigation is well organized." },
+      { id:"data_conclusion", label:"Data and Conclusion", max:20, steps:[4,8,12,16,20], stepLabels:RATING_5,
+        desc:"Provides enough quantitative and qualitative data · data collected from the students' own experiment · data are accurate · the conclusion is reliable and answers the scientific question." },
+      { id:"presentation", label:"Presentation", max:20, steps:[4,8,12,16,20], stepLabels:RATING_5,
+        desc:"Information is well presented (verbally and written) · display/trifold is neat and organized · the project is clearly presented · students show strong understanding · students answer questions about their investigation." },
+      { id:"further_research", label:"Further Research", max:20, steps:[4,8,12,16,20], stepLabels:RATING_5,
+        desc:"The investigation and presentation reflect teamwork · students adhere to safety rules and restrictions." },
+    ],
+  },
+];
+
+// True when a criterion's stepLabels can be trusted to line up with its steps.
+// Anything else (an admin edited the steps, a hand-written rubric) falls back to
+// showing the point value, which is always correct.
+function stepLabel(r, v, i) {
+  const ls = r?.stepLabels;
+  return Array.isArray(ls) && ls.length === r.steps?.length ? ls[i] : null;
+}
+
 // (DEFAULT_PROJECTS seed array removed 2026-09 — unused dead code since projects
 //  have been loaded exclusively from the per-school `projects` table.)
 
@@ -106,14 +153,15 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-06";
+const ADMIN_HELP_UPDATED = "2026-10-06b";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
     "Everything is saved to a secure online database the moment you press Save or a judge presses Submit. App updates never erase your data.",
     "The flow: set up → add projects → judges sign in → judges score → judges validate → (deliberation if there is a tie) → you finalize → you share the results link.",
     "Each judge scores every project in their own department, and only those.",
-    "Totals are always calculated with the CURRENT rubric. Grades below 5 skip the Abstract criterion; grades 5 and up cannot be given a 0.",
+    "Totals are always calculated with the CURRENT rubric. On the 42-point rubric, grades below 5 skip the Abstract criterion and grades 5 and up cannot be given a 0; the 100-point rubric has neither rule (its lowest possible total is 20).",
+    "Score outliers in the Alerts tab are judges more than about a fifth of a project's total away from its average — so the alert means the same thing on a 42-point and a 100-point rubric.",
     "Rankings, ties and the public results are per department — projects in different departments never compete.",
     "Student names are visible only to signed-in admins of your school. Judges and the public results page never see them.",
   ]},
@@ -121,7 +169,7 @@ const ADMIN_HELP = [
     "Remember your Admin PIN (4–8 digits). It cannot be recovered, only changed (Overview → Admin PIN). 5 wrong tries lock PIN entry for 5 minutes.",
     "Setup tab: set your departments first — add, rename or reorder them, or start from a preset (school levels, PreK–12 grade bands, grade bands + SPED). Then set Max Judges for each. Max Judges locks for a department once its first judge signs in.",
     "Setup tab: check your project categories. They are yours alone — rename them, delete the ones you don't use, or add your own (a robotics fair can replace all six).",
-    "Rubric tab: finish the rubric BEFORE the first judge signs in.",
+    "Rubric tab: finish the rubric BEFORE the first judge signs in. Press a preset to start from one of the ready-made rubrics (Northeast AZ 42-point, or Cibecue/ISEF-style 100-point), then edit it if you need to.",
     "Projects tab: add every project (📷 Scan forms or + Add Project) and give each one a department — a project with no department is scored by nobody.",
     "Lock (🔒) projects whose details are final, so they cannot be edited or deleted by accident.",
     "Download Projects CSV and the Project List PDF as your own backup copy.",
@@ -152,6 +200,13 @@ const ADMIN_HELP = [
     ["What happens to projects if I delete or rename a category?", "Nothing. A project keeps the category text it was saved with; only the choice disappears from the dropdowns. A project on a category you removed shows it as \"(old category)\" when you edit it, and you can pick a new one."],
     ["What is the little Code for?", "A short code used to build student registration numbers, like JHS-LS-001. Leave it blank and the app makes one from the name."],
     ["I changed a category — do I need to tell the form scanner?", "No. 📷 Scan forms asks the AI to pick from your current list automatically."],
+  ]},
+  { title: "The rubric", icon: "📐", faq: [
+    ["How do I choose a rubric?", "Rubric tab → press a preset. 'Northeast AZ Regional' is 10 criteria worth 42 points. 'Cibecue / ISEF-style' is 5 sections rated Needs improvement → Excellent, worth 100 points. Either can be edited afterwards, and a preset shows a ✓ when it is the one in use."],
+    ["What do judges see on the 100-point rubric?", "Five sections. Each one has five buttons labelled Needs improvement, Fair, Good, Very Good and Excellent, with that section's points underneath — so a judge picks the rating and never does the arithmetic. The sub-points from the paper form are listed under each section heading."],
+    ["Why is the lowest score 20 and not 0?", "The paper form's scale starts at 1 (Needs improvement), so there is no zero to give. All five sections at the lowest rating comes to 20 out of 100. That is expected, not a bug."],
+    ["Can I change the section points?", "Yes — Rubric tab → Edit Rubric. Max Points goes up to 100 per section. If you change a section's steps the rating words are removed and judges see the point numbers instead, so re-apply the preset if you want the words back."],
+    ["What happens to scores already given if I switch rubric?", "Totals are recalculated with the new rubric, so rankings change. The app shows exactly what changes and offers a backup before saving. Pick your rubric before judging starts."],
   ]},
   { title: "Data safety", icon: "🛡️", faq: [
     ["Will updates to the app erase my projects or scores?", "No. Updates replace the website, never your data. Database changes are tested on a copy first and only add or tighten things."],
@@ -482,7 +537,9 @@ const CSS = `
   .rub-lbl{font-weight:700;font-size:1rem;color:var(--text);}
   .rub-val{font-family:var(--ff-m);font-size:1.1rem;color:var(--navy);white-space:nowrap;font-weight:500;}
   .rub-desc{font-size:.88rem;color:var(--dim);margin-bottom:.85rem;line-height:1.5;}
-  .rub-steps{display:flex;gap:.6rem;margin-top:.5rem;}
+  /* wrap: labelled steps ("Very Good") are far wider than "4", and 5 of them
+     overflow a phone card otherwise — the last option ended up off-screen. */
+  .rub-steps{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:.5rem;}
   .rub-step-btn{flex:1;padding:.65rem 0;border:2px solid var(--bd);border-radius:8px;background:var(--s1);
     color:var(--dim);font-family:var(--ff-m);font-size:1.1rem;font-weight:600;cursor:pointer;transition:.15s;}
   .rub-step-btn:hover{border-color:var(--navy);color:var(--text);}
@@ -755,6 +812,15 @@ const CSS = `
   .proj-act-btn.del:hover{background:var(--red-l);}
   .proj-act-btn:disabled{opacity:.3;cursor:not-allowed;}
   .proj-act-btn:disabled:hover{border-color:var(--bd);color:var(--dim);background:var(--bg);}
+
+  /* Scoring buttons that carry a rating word (rubric stepLabels), e.g. the
+     Cibecue 100-pt preset where the same rating is a different number per section. */
+  /* flex-basis (not min-width) so they shrink to fit and wrap to a second row on a
+     phone instead of overflowing the card. */
+  .rub-step-btn.labelled{display:flex;flex-direction:column;align-items:center;gap:.1rem;
+    line-height:1.15;padding:.5rem .3rem;flex:1 1 84px;}
+  .rub-step-lab{font-size:.74rem;font-weight:600;font-family:var(--ff-b);}
+  .rub-step-pts{font-size:.68rem;opacity:.65;font-family:var(--ff-m);}
 
   /* ── Setup tab: departments + project categories ── */
   .setup-rows{display:flex;flex-direction:column;gap:.4rem;margin-bottom:1rem;}
@@ -2948,16 +3014,26 @@ export default function App() {
     return rubric.some(r => draftSc[r.id] === 0);
   }
 
+  // An outlier is a judge whose total sits more than ANOMALY_PCT of the project's
+  // available points away from the project average.
+  // This was a hardcoded "> 8 points" until 2026-10-06, which only made sense on the
+  // 42-point default rubric (≈19%). On a 100-point rubric 8 points is 8% — ordinary
+  // disagreement — so the Alerts tab would have flagged almost every judge. Rule 22:
+  // never hardcode anything derived from the max score.
+  const ANOMALY_PCT = 0.19;
   function getAnomalies() {
     const out = [];
     projects.forEach(p => {
       const hits = Object.entries(scores).filter(([k]) => k.endsWith(`_${p.id}`));
       if (hits.length < 2) return;
+      const max = projectMax(p);
+      if (!max) return;
+      const limit = max * ANOMALY_PCT;
       const tots = hits.map(([,s]) => getTotal(s));
       const avg  = tots.reduce((a,b) => a+b, 0) / tots.length;
       hits.forEach(([key,s]) => {
         const t = getTotal(s);
-        if (Math.abs(t - avg) > 8) {
+        if (Math.abs(t - avg) > limit) {
           // Exact id match — startsWith() could pick the wrong judge if one id
           // happened to be a prefix of another.
           const judgeId = key.slice(0, key.lastIndexOf(`_${p.id}`));
@@ -3052,7 +3128,7 @@ export default function App() {
       const breakdown = getRecBreakdown(p.id);
       const flags = getFlagCount(p.id);
       lines.push(`#${i+1} — ${p.title} (${p.cat}, Grade ${p.grade})`);
-      lines.push(`  Avg Score: ${p.avg ?? "N/A"} / ${rubricMax()}  |  Reviews: ${p.revs}`);
+      lines.push(`  Avg Score: ${p.avg ?? "N/A"} / ${projectMax(p)}  |  Reviews: ${p.revs}`);
       lines.push(`  Award Decision: ${decision?.award || "Pending"}${decision?.finalized ? " [FINALIZED]" : ""}`);
       if (decision?.adminNotes) lines.push(`  Admin Notes: ${decision.adminNotes}`);
       lines.push(`  Recommendations: ${RECOMMENDATIONS.map(r => `${r}: ${breakdown[r]}`).join(", ")}`);
@@ -4428,13 +4504,16 @@ export default function App() {
                   </div>
                   <div className="rub-desc">{r.desc}</div>
                   <div className="rub-steps">
-                    {r.steps.map(v => (
-                      <button key={v} type="button"
-                        className={"rub-step-btn" + (draftSc[r.id] === v ? " selected" : "")}
-                        onClick={() => setDraftSc(p => ({ ...p, [r.id]: v }))}>
-                        {v}
-                      </button>
-                    ))}
+                    {r.steps.map((v, i) => {
+                      const lab = stepLabel(r, v, i);
+                      return (
+                        <button key={v} type="button"
+                          className={"rub-step-btn" + (draftSc[r.id] === v ? " selected" : "") + (lab ? " labelled" : "")}
+                          onClick={() => setDraftSc(p => ({ ...p, [r.id]: v }))}>
+                          {lab ? <><span className="rub-step-lab">{lab}</span><span className="rub-step-pts">{v}</span></> : v}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -6187,7 +6266,7 @@ export default function App() {
                       <div className="alert-ico">⚠️</div>
                       <div className="alert-msg">
                         <strong>Score Outlier — Review Recommended</strong>
-                        <span><strong>{a.judge}</strong> scored <strong>{a.score}/{a.max ?? rubricMax()}</strong> — group avg is <strong>{a.avg}</strong>. Deviation &gt; 8 pts.</span>
+                        <span><strong>{a.judge}</strong> scored <strong>{a.score}/{a.max ?? rubricMax()}</strong> — group avg is <strong>{a.avg}</strong>. Deviation &gt; {Math.round((a.max ?? rubricMax()) * ANOMALY_PCT)} pts ({Math.round(ANOMALY_PCT*100)}% of this project&apos;s total).</span>
                       </div>
                     </div>
                   ))
@@ -6338,7 +6417,7 @@ export default function App() {
                             </div>
                             <div style={{textAlign:"right",flexShrink:0}}>
                               <div style={{fontFamily:"var(--ff-d)",fontSize:"1.5rem",color:"var(--navy)"}}>{p.avg ?? "—"}</div>
-                              <div style={{fontSize:".65rem",color:"var(--dim)"}}>avg / {rubricMax()}</div>
+                              <div style={{fontSize:".65rem",color:"var(--dim)"}}>avg / {projectMax(p)}</div>
                             </div>
                           </div>
                           {/* Per-judge score breakdown */}
@@ -6357,9 +6436,9 @@ export default function App() {
                                       <div style={{display:"flex",alignItems:"center",gap:".6rem",marginBottom:".2rem"}}>
                                         <span style={{fontFamily:"var(--ff-m)",fontSize:".75rem",color:"var(--dim)",width:"60px",flexShrink:0}}>{alias}</span>
                                         <div className="pbar" style={{flex:1,height:"5px"}}>
-                                          <div className="pfill" style={{width:`${(total/rubricMax())*100}%`,height:"5px"}} />
+                                          <div className="pfill" style={{width:`${(total/(projectMax(p)||1))*100}%`,height:"5px"}} />
                                         </div>
-                                        <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",fontWeight:600,width:"42px",textAlign:"right",color:"var(--navy)"}}>{total}/{rubricMax()}</span>
+                                        <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",fontWeight:600,width:"52px",textAlign:"right",color:"var(--navy)"}}>{total}/{projectMax(p)}</span>
                                       </div>
                                       {sc.notes && sc.notes.trim() && (
                                         <div style={{marginLeft:"68px",fontSize:".78rem",color:"var(--dim)",fontStyle:"italic",lineHeight:1.5,borderLeft:"2px solid var(--bd)",paddingLeft:".5rem"}}>
@@ -6833,12 +6912,23 @@ export default function App() {
                         </div>
                         <div>
                           <div className="lbl" style={{ marginBottom:".35rem" }}>Max Points</div>
-                          <input type="number" min="1" max="20" value={c.max}
+                          {/* Cap is 100, not 20: a weighted section can legitimately be worth
+                              25 (Cibecue "Scientific Inquiry"). The old cap silently blocked it. */}
+                          <input type="number" min="1" max="100" value={c.max}
                             onChange={e => {
                               const max = parseInt(e.target.value) || 1;
-                              const steps = [...new Set([0, ...c.steps.filter(s => s <= max)])].sort((a,b)=>a-b);
+                              // Keep the steps that still fit and make sure the new max is one of
+                              // them. Do NOT force a 0 — a no-zero rubric (ratings 1–5) is valid,
+                              // and injecting 0 would let judges score below the intended floor.
+                              const kept = c.steps.filter(s => s <= max);
+                              const steps = [...new Set([...kept, max])].sort((a,b)=>a-b);
                               rubricDraftUpdate(idx, "max", max);
                               rubricDraftUpdate(idx, "steps", steps);
+                              // Labels are positional; once the step count changes they no longer
+                              // line up, so drop them rather than mislabel a button.
+                              if (Array.isArray(c.stepLabels) && c.stepLabels.length !== steps.length) {
+                                rubricDraftUpdate(idx, "stepLabels", undefined);
+                              }
                             }} />
                         </div>
                       </div>
@@ -6848,15 +6938,24 @@ export default function App() {
                           onChange={e => rubricDraftUpdate(idx, "desc", e.target.value)} />
                       </div>
                       <div>
-                        <div className="lbl" style={{ marginBottom:".35rem" }}>Allowed Step Values <span style={{ color:"var(--dim)", fontWeight:400 }}>(comma-separated, must include 0 and max)</span></div>
+                        <div className="lbl" style={{ marginBottom:".35rem" }}>Allowed Step Values <span style={{ color:"var(--dim)", fontWeight:400 }}>(comma-separated, at least 2, between 0 and {c.max})</span></div>
                         <input
                           defaultValue={c.steps.join(", ")}
                           placeholder={`e.g. 0, 1, 2, ${c.max}`}
                           onBlur={e => {
                             const parsed = parseSteps(e.target.value, c.max);
-                            if (parsed) rubricDraftUpdate(idx, "steps", parsed);
-                            else e.target.value = c.steps.join(", ");
+                            if (parsed) {
+                              rubricDraftUpdate(idx, "steps", parsed);
+                              if (Array.isArray(c.stepLabels) && c.stepLabels.length !== parsed.length) {
+                                rubricDraftUpdate(idx, "stepLabels", undefined);
+                              }
+                            } else e.target.value = c.steps.join(", ");
                           }} />
+                        {Array.isArray(c.stepLabels) && c.stepLabels.length === c.steps.length && (
+                          <div style={{ fontSize:".76rem", color:"var(--dim)", marginTop:".3rem" }}>
+                            Judges see: {c.stepLabels.map((l, i) => `${l} (${c.steps[i]})`).join(" · ")}
+                          </div>
+                        )}
                         <div style={{ fontSize:".78rem", color:"var(--dim)", marginTop:".3rem" }}>
                           Current: {c.steps.map(s => <span key={s} className="rub-steps-pill" style={{ marginRight:".25rem" }}>{s}</span>)}
                         </div>
@@ -6887,15 +6986,36 @@ export default function App() {
                       }}>
                         Edit Rubric
                       </button>
-                      <button className="btn sec sm" style={{ width:"auto", color:"var(--amber)", borderColor:"var(--amber)" }}
-                        disabled={rubricSaving || !!rubricConfirm}
-                        onClick={() => requestSaveRubric(DEFAULT_RUBRIC)}>
-                        Reset to Default
-                      </button>
                     </div>
                   </div>
                   {errBanner}
                   {confirmPanel}
+
+                  {/* Presets — same idea as the department presets: a starting point,
+                      fully editable afterwards. Routed through requestSaveRubric() so an
+                      existing set of scores still triggers the impact warning + backup offer. */}
+                  <div className="card" style={{ marginBottom:"1rem" }}>
+                    <div className="lbl" style={{ marginBottom:".35rem" }}>Start from a preset</div>
+                    <p style={{ fontSize:".8rem", color:"var(--dim)", marginBottom:".6rem" }}>
+                      Replaces the whole rubric. If scores already exist you will be shown what changes and offered a backup first.
+                    </p>
+                    <div className="setup-preset-grid">
+                      {RUBRIC_PRESETS.map(p => {
+                        const crit = p.criteria();
+                        const total = crit.reduce((s, c) => s + (Number(c.max) || 0), 0);
+                        const active = crit.length === rubric.length
+                          && crit.every((c, i) => rubric[i]?.id === c.id && Number(rubric[i]?.max) === Number(c.max));
+                        return (
+                          <button key={p.id} className="setup-preset" disabled={rubricSaving || !!rubricConfirm}
+                            onClick={() => requestSaveRubric(crit)}>
+                            <strong>{p.label}{active ? " ✓" : ""}</strong>
+                            <span>{p.desc}</span>
+                            <em>{crit.length} criteria · {total} pts</em>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
                   <div className="card" style={{ padding:0, overflow:"hidden", marginBottom:"1rem" }}>
                     <table className="rub-view-table">
@@ -6916,7 +7036,12 @@ export default function App() {
                               <div style={{ fontSize:".8rem", color:"var(--dim)", lineHeight:1.5 }}>{r.desc}</div>
                             </td>
                             <td style={{ fontFamily:"var(--ff-m)", fontWeight:700, color:"var(--navy)" }}>{r.max}</td>
-                            <td>{r.steps.map(s => <span key={s} className="rub-steps-pill" style={{ marginRight:".25rem" }}>{s}</span>)}</td>
+                            <td>{r.steps.map((s, i) => {
+                              const lab = stepLabel(r, s, i);
+                              return <span key={s} className="rub-steps-pill" style={{ marginRight:".25rem" }}>
+                                {lab ? `${lab} (${s})` : s}
+                              </span>;
+                            })}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -7229,7 +7354,7 @@ export default function App() {
                     style={{ width:ri===0?"200px":"168px", order:[1,0,2][vi] }}>
                     <div className="p-medal">{MEDALS[ri]}</div>
                     <div className="p-score" style={{color:podCols[ri]}}>{p.avg}</div>
-                    <div style={{fontSize:".65rem",color:"var(--dim)",marginTop:".1rem"}}>/{rubricMax()} pts</div>
+                    <div style={{fontSize:".65rem",color:"var(--dim)",marginTop:".1rem"}}>/{projectMax(p)} pts</div>
                     <div className="p-title">{p.title}</div>
                     {finalDecisions[p.id]?.finalized && finalDecisions[p.id]?.award !== "No Award" && finalDecisions[p.id]?.award !== "Pending" && (
                       <div style={{marginTop:".35rem"}}>
@@ -7275,7 +7400,7 @@ export default function App() {
                 </div>
                 <div className="res-score">
                   <div className="res-score-big">{p.avg}</div>
-                  <div className="res-score-sub">/{rubricMax()}</div>
+                  <div className="res-score-sub">/{projectMax(p)}</div>
                 </div>
               </div>
             ))}

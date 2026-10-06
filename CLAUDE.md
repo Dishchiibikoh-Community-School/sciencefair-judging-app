@@ -352,6 +352,33 @@ Scoring guide: 0 = not present · 1/2 = partial · 2/4 = complete · 3/6 = excep
 **Grades below 5 skip `abstract`** (scored out of 36 under the default rubric) — `projectMax(proj)` handles this.
 Scoring UI is discrete tap buttons (`.rub-step-btn`), never sliders.
 
+### Rubric presets (`RUBRIC_PRESETS`, admin Rubric tab)
+
+| Preset | Shape |
+|---|---|
+| `northeast-az` | `DEFAULT_RUBRIC` — 10 criteria, 0–6 each, 42 pts. Has an `abstract` criterion, allows 0 |
+| `cibecue-100` | 5 weighted sections rated 1–5, **100 pts**: Project Title 15 · Scientific Inquiry 25 · Data and Conclusion 20 · Presentation 20 · Further Research 20. **No zero step — the floor is 20/100.** No `abstract` criterion |
+
+Applying a preset goes through `requestSaveRubric()`, so the impact warning + backup offer
+still fire when scores exist. Presets are starting points; every criterion stays editable.
+
+⚠️ **The two source documents disagree and the preset follows the summary sheet.** The detailed
+Dishchii'bikoh form has 20 sub-items at 1–5 (which implies sections of 25/20/20/25/10); the
+summary sheet says 15/25/20/20/20. The preset uses the **summary sheet's weights** and folds the
+20 sub-items into each section's `desc`, so judges see all of them but tap once per section.
+If the committee ever wants per-item scoring, the section totals have to change to 25/20/20/25/10.
+
+**`stepLabels` (optional, display-only).** A 1–5 rating scaled into differently-weighted sections
+gives a different number for the *same* rating per section ("Good" is 9 in a 15-pt section, 15 in a
+25-pt section), so judges would be doing arithmetic. When a criterion has exactly one label per
+step the buttons show the word with the points underneath. Nothing in the scoring maths reads it;
+`stepLabel()` falls back to the raw number whenever the counts desync, and the rubric editor drops
+the labels outright if an admin changes the steps.
+
+**Rubrics with no `abstract` criterion and no `0` step degrade correctly** — `projectMax()`,
+`allMoved()`, `draftTotal()` and the scoring form all key the exemption on `r.id === "abstract"`,
+and `hasZeroScore()` can never fire when no step is 0. Verified by `scripts/e2e/rubric100.e2e.mjs`.
+
 ---
 
 ## 🔄 Validation & Deliberation Workflow
@@ -514,7 +541,7 @@ cards), then scan the same form in the app.
 
 **Key classes:**
 - Layout/basics: `.card`, `.btn` (+ `.sec` `.danger` `.amber` `.purple` `.sm`), `.lbl`, `.badge` (`.bg` `.ba` `.br` `.bb` `.bp`), `.pbar`/`.pfill`
-- Scoring: `.rub-steps`, `.rub-step-btn` (`.selected`)
+- Scoring: `.rub-steps` (wraps — labelled steps overflowed a phone card otherwise), `.rub-step-btn` (`.selected`, `.labelled` + `.rub-step-lab` / `.rub-step-pts`)
 - Validation: `.val-status-pill` (`.approved` `.concern` `.pending`), `.val-stat-pill`, `.val-consensus-card` (`.reached`), `.val-tie-alert`, `.val-finalized-banner`
 - Deliberation: `.delib-section`, `.delib-proj`, `.delib-rec-select`, `.delib-flag-wrap`, `.delib-submitted`, `.delib-comment-card`, `.delib-rec-pill` (`.award` `.strong` `.good` `.needs`), `.delib-flag-badge`, `.delib-discuss`, `.delib-phase-toggle`, `.delib-finalized`, `.award-badge` (`.gold` `.silver` `.bronze` `.hm` `.best` `.none`)
 - Projects: `.proj-mgmt-header`, `.proj-mgmt-table`, `.proj-act-btn`, `.proj-form-overlay`/`.proj-form-card`, `.proj-form-grid`, `.proj-lock-badge`
@@ -531,7 +558,11 @@ cards), then scan the same form in the app.
 getTotal(score)              // sum of score.criteria
 critVal(scoreOrEntry, rid)   // module helper: one criterion from .criteria (legacy flat-field fallback)
 rubricMax()                  // max points under the active rubric — never hardcode 42
-projectMax(proj)             // max for one project (drops abstract when grade < 5)
+projectMax(proj)             // max for ONE project (drops abstract when grade < 5) — use this
+                             // for anything shown next to a single project's score
+stepLabel(r, v, i)           // module helper: a criterion's rating word for step i, or null
+                             // when stepLabels is absent/desynced (then show the number)
+ANOMALY_PCT                  // 0.19 — outlier threshold as a fraction of projectMax(p)
 projAvg(pid) / rubAvg(pid, rid)  // averages → "xx.x" | null
 rankedProjectsIn(deptId)     // ranking WITHIN a department (null = unassigned) — use this
 rankedProjects()             // cross-department ranking — rarely what you want
@@ -616,8 +647,8 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 2. **`app_settings` PK is `(school_id, key)`.** Upserts include `school_id`; never `.eq("key", x)` alone.
 3. **Upsert conflicts:** `validations` → `onConflict: "school_id,judge_id"`; `final_decisions` → `"school_id,project_id"`.
 4. **Scores are JSONB.** `scores.criteria = { [criterionId]: value }`. Read through `getTotal()` / `critVal()` — never `score.presentation` etc. (v1 columns that no longer exist; this silently emptied backups and CSVs for months).
-5. **The rubric is dynamic.** Use the `rubric` state everywhere; `DEFAULT_RUBRIC` is only a seed/fallback.
-6. **Never hardcode the max score.** Use `rubricMax()` or `projectMax(proj)`. A literal `42` is a bug.
+5. **The rubric is dynamic.** Use the `rubric` state everywhere; `DEFAULT_RUBRIC` is only a seed/fallback, and `RUBRIC_PRESETS` are starting points. **Never assume a rubric has 42 points, an `abstract` criterion, a `0` step, or any particular criterion id** — the Cibecue preset has none of those. Guard with `r.id === "abstract"`-style checks that no-op, never with "the rubric always has N criteria".
+6. **Never hardcode the max score, or anything derived from it.** Use `rubricMax()` for "the whole rubric" and **`projectMax(proj)` for anything about one project** — they differ whenever a criterion is exempt (grade < 5 skips `abstract`: 36, not 42). A literal `42` is a bug, and so was `getAnomalies()`'s hardcoded "> 8 points", which is ~19% of 42 but only 8% of 100 — it would have flagged nearly every judge on the Cibecue rubric. It is now `projectMax(p) * ANOMALY_PCT`. Six per-project displays showed `/rubricMax()` and were fixed 2026-10-06 (public podium + results rows, deliberation header and per-judge bars, `buildDelibReport()`).
 7. **Score key format is `${judgeId}_${projectId}`.** Do not change it.
 8. **Ranking and tie detection are per department.** Use `rankedProjectsIn(deptId)`; cross-department ties are meaningless.
 
@@ -732,6 +763,32 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-06 — 100-point rubric preset + stress test (7 bugs found and fixed).**
+No migration. Adds `RUBRIC_PRESETS` and the Cibecue / ISEF-style 100-point rubric (see Data
+Model). Stress-testing it against the 42-point assumptions the app grew up with surfaced seven
+defects, five of them pre-existing:
+1. **`getAnomalies()` hardcoded "> 8 points"** — ≈19% of 42 but only 8% of 100, so the Alerts tab
+   would have flagged ordinary disagreement on every project. Now `projectMax(p) * ANOMALY_PCT`.
+2. **Six per-project displays used `rubricMax()` instead of `projectMax(p)`** (public podium and
+   results rows, deliberation header, per-judge score bars, `buildDelibReport()`). Pre-existing:
+   a grade-4 project under the 42-pt rubric is out of 36, and all of these showed "/42". The
+   per-judge progress bar also computed its fill against the wrong denominator.
+3. **The rubric editor capped Max Points at 20**, silently making the 25-point Scientific Inquiry
+   section impossible to enter by hand. Now 100.
+4. **Changing a criterion's max force-injected a `0` step**, which would have let judges score
+   below the floor of a no-zero rubric. It now keeps the steps that still fit and adds the max.
+5. **Five labelled step buttons overflowed the card at 390px** — "Excellent" was off-screen, so a
+   judge on a phone could not award it. `.rub-steps` now wraps and `.labelled` uses a flex basis.
+6. The "Allowed Step Values" hint claimed steps "must include 0 and max"; `parseSteps()` requires
+   neither.
+7. The Alerts message still read "Deviation > 8 pts" after the threshold became relative.
+Also: `stepLabels` (display-only rating words) so a judge taps "Very Good", not "12" — the same
+rating is a different number in each weighted section.
+Tests: new `scripts/e2e/rubric100.e2e.mjs` — 16 checks covering preset apply, the 20/60/100 score
+floor-mid-ceiling, the no-zero rule not misfiring, phone overflow, the relative anomaly threshold,
+leaderboard averages, and that score backups carry per-criterion values plus a rubric copy.
+138 browser checks total.
 
 **2026-10-06 — Per-school categories + Setup tab** (migration `2026-10e`, **not** coupled).
 Phase 1 of the departments/awards redesign. Everything here is additive: run the SQL and the
