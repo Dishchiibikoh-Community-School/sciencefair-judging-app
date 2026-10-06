@@ -208,6 +208,12 @@ A: Only projects assigned to your department (Elementary, Middle School, or High
 **Q: Can I change a score after submitting?**
 A: Yes — go back to the project and tap it again. Scores are editable until you validate results, or until the admin locks judging. Once you validate, or once judging is locked, submissions are refused.
 
+**Q: The list shows someone else's judge number.**
+A: The top of your project list shows who this device is signed in as (e.g. *"👤 Judge15 · PreK"*).
+If that is not you, the device is still signed in as an earlier judge — press **Sign Out** and sign in
+with your own number. If Sign Out is blocked because scores are still waiting to sync, connect to the
+internet first.
+
 **Q: I ended up in the wrong department.**
 A: You probably typed the wrong number. Tell your admin before you score anything — they can remove that sign-in on the Judges tab so you can sign in again with the right number.
 

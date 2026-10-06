@@ -32,6 +32,9 @@
 --   Old app with this SQL: works; a shared judge's extra projects show in their list
 --     (judges.projects), the Judges tab lists them under their first department only.
 --
+-- ⚠️ set_judge_numbers() here is SUPERSEDED by 2026-10i (adds the maximum judge number).
+--   If you re-run THIS file, re-run migration-2026-10i-judge-max.sql straight after.
+--
 -- RE-RUNNABLE.
 -- ════════════════════════════════════════════════════════════════════════════
 

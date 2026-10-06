@@ -139,10 +139,24 @@ export function installMock(page, store, log) {
         store.judges.push(row);
         return json(route, 200, row);
       }
+      if (fn === "set_judge_max") {
+        if (!isAdmin) return json(route, 400, { code: "P0001", message: "Not authorised" });
+        const n = body.p_max;
+        if (!(n >= 1 && n <= 90)) return json(route, 400, { code: "P0001", message: "The maximum must be between 1 and 90." });
+        const top = Math.max(0, ...store.departments.map(d => d.judge_to || 0));
+        if (n < top) return json(route, 400, { code: "P0001", message: `Judge numbers already go up to ${top}. Lower the department numbers first, then the maximum.` });
+        const row = store.app_settings.find(r => r.key === "judge_max");
+        if (row) row.value = String(n); else store.app_settings.push({ school_id: SID, key: "judge_max", value: String(n) });
+        return json(route, 200, null);
+      }
       if (fn === "set_judge_numbers") {
         if (!isAdmin) return json(route, 400, { code: "P0001", message: "Not authorised" });
         const next = new Map(store.departments.map(d => [d.id, { ...d }]));
         for (const r of body.p_ranges) Object.assign(next.get(r.department_id), { judge_from: r.from, judge_to: r.to });
+        // 2026-10i: nothing past the school's maximum (default 15).
+        const max = parseInt(store.app_settings.find(r => r.key === "judge_max")?.value || "15", 10);
+        const past = [...next.values()].find(d => d.judge_to != null && d.judge_to > max);
+        if (past) return json(route, 400, { code: "P0001", message: `${past.name} would use judge numbers up to ${past.judge_to}, but the maximum is ${max}. Raise the maximum (up to 90) first.` });
         const sorted = [...next.values()].sort((a, b) => a.ord - b.ord);
         const newIds = (alias) => { const n = parseInt(alias.slice(5));
           return sorted.filter(d => d.judge_from != null && n >= d.judge_from && n <= d.judge_to).map(d => d.id); };

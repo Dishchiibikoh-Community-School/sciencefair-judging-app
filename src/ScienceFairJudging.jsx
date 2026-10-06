@@ -168,7 +168,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-06h";
+const ADMIN_HELP_UPDATED = "2026-10-06i";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -253,6 +253,8 @@ const ADMIN_HELP = [
     ["A judge cannot see a project you just added.", "Make sure the project has their department. It appears automatically; if not, ask them to refresh the page."],
     ["A judge registered in the wrong department.", "With one judge list for the whole school (the default) this cannot happen — the number decides the department. If someone used the wrong NUMBER: Judges tab → Remove on that judge (Admin PIN), then they sign in with the right number. Removing deletes that judge's scores, so do it before they score."],
     ["Someone signed in who is not a judge / a test sign-in is in the list.", "Judges tab → Remove (Admin PIN). Their number is freed. No Reset needed."],
+    ["How many judge numbers can we have?", "Setup → Judge numbers → Maximum judges: 15 by default, up to 90. Department counts and ranges cannot go past it. To lower it, first lower the department numbers that use the higher numbers."],
+    ["I signed in as a new judge number but still see the old judge's projects.", "That device is still signed in as the earlier judge — the app remembers each device so judges never lose their place. The top of the project list shows who it is (e.g. 'Judge15 · PreK'). Press Sign Out, then sign in with the new number. Use one device per judge on event day."],
     ["How do judge numbers work?", "Setup tab → Judge numbers. Type how many judges each department needs and press Save; numbers are handed out in department order (PreK 2, K-2 2 → PreK = Judge 1–2, K-2 = Judge 3–4). Each number exists once in the school, so two people can never both be 'Judge 1'. Judges type only their number and the invite code."],
     ["Can I change the judge numbers after judges signed in?", "Yes, as long as everyone already signed in keeps a number inside their own department — otherwise Save is refused and tells you who is in the way. Remove that judge first if they signed in by mistake."],
     ["We have fewer judges than departments need. Can one judge cover several departments?", "Yes. Setup → Judge numbers → choose 'Departments can share judges'. Give each department a range of judge numbers; two departments with the same range share those judges (e.g. PreK: Judge 1–3 and K-2: Judge 1–3). A shared judge types their number as usual, sees every department's projects under its own heading, and scores all of them. 'Who judges what' shows each judge's departments and how many projects that is."],
@@ -578,6 +580,9 @@ const CSS = `
   .imp-tbl tr.imp-err td{background:var(--red-l);}
   .jh-dept-head{font-family:var(--ff-m);font-size:.74rem;letter-spacing:.06em;text-transform:uppercase;color:var(--navy);
     background:var(--s2);padding:.35rem .75rem;border-radius:6px;margin:.6rem 0 .3rem;}
+  .jn-max{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.7rem;font-size:.86rem;}
+  .jn-max input[type=number]{width:72px;text-align:center;}
+  .jn-max-hint{font-size:.76rem;color:var(--dim);}
   .jn-modes{display:flex;flex-direction:column;gap:.4rem;margin-bottom:.75rem;}
   .jn-mode{display:flex;gap:.55rem;align-items:flex-start;padding:.55rem .7rem;border:1.5px solid var(--bd);border-radius:8px;cursor:pointer;font-size:.84rem;line-height:1.45;}
   .jn-mode.on{border-color:var(--navy);background:var(--s1);}
@@ -1361,6 +1366,9 @@ export default function App() {
   // From–To range and ranges may overlap. 'off' (default) = counts, no overlap.
   const [judgeSharing,     setJudgeSharing]     = useState("off");
   const [judgeRangeDrafts, setJudgeRangeDrafts] = useState({});   // { [deptId]: { from: "1", to: "3" } }
+  // Highest judge number allowed (2026-10i): 15 by default, up to 90. null = not stored yet.
+  const [judgeMaxSetting,  setJudgeMaxSetting]  = useState(null);
+  const [judgeMaxDraft,    setJudgeMaxDraft]    = useState("");
   const [removeJudgeAsk,   setRemoveJudgeAsk]   = useState(null); // judge being removed (PIN modal)
   const [removeJudgePin,   setRemoveJudgePin]   = useState("");
   const [removeJudgeErr,   setRemoveJudgeErr]   = useState("");
@@ -1622,6 +1630,7 @@ export default function App() {
       setProjListToken(map.project_list_token || "");
       setJudgeNumbering(map.judge_numbering === "department" ? "department" : "school");
       setJudgeSharing(map.judge_sharing === "on" ? "on" : "off");
+      setJudgeMaxSetting(/^\d{1,3}$/.test(map.judge_max || "") ? Math.min(90, Math.max(1, parseInt(map.judge_max, 10))) : null);
       // Note: judge/admin validations are loaded separately by loadValidations()
       // from the validations table — not from app_settings.
     }
@@ -2745,6 +2754,33 @@ export default function App() {
                projects: projects.filter(pr => ds.some(d => d.id === pr.department_id)).length };
     });
   }
+  // The highest judge number this school allows. Before migration 2026-10i stores it,
+  // fall back exactly as the migration's backfill would: the numbers already in use, at
+  // least 15, at most 90 — so an existing school is never suddenly over its maximum.
+  function judgeMax() {
+    if (judgeMaxSetting != null) return judgeMaxSetting;
+    const top = departments.reduce((m, d) => Math.max(m, d.judge_to || 0), 0);
+    return Math.min(90, Math.max(15, top));
+  }
+  async function saveJudgeMax() {
+    setSetupErr("");
+    const n = parseInt(judgeMaxDraft, 10);
+    if (!(n >= 1 && n <= 90)) { setSetupErr("The maximum must be a number from 1 to 90."); return; }
+    const top = departments.reduce((m, d) => Math.max(m, d.judge_to || 0), 0);
+    if (n < top) { setSetupErr(`Judge numbers already go up to ${top}. Lower the department numbers first, then the maximum.`); return; }
+    const { error } = await supabase.rpc("set_judge_max", { p_school_id: currentSchool.id, p_max: n });
+    if (error) {
+      const missing = /set_judge_max/.test(error.message || "") && /function|not find/i.test(error.message || "");
+      setSetupErr(missing ? "This needs a database update that has not been run yet (migration 2026-10i)."
+                          : `Maximum NOT saved: ${error.message}`);
+      addItLog("ERROR","ADMIN","JUDGE_MAX_SAVE_FAILED","Could not save the maximum judge number",{ max: n, error: error.code || error.message });
+      return;
+    }
+    setJudgeMaxSetting(n); setJudgeMaxDraft("");
+    addLog(`Admin set the maximum judge number to ${n}`);
+    addItLog("INFO","ADMIN","JUDGE_MAX_SAVED","Admin changed the maximum judge number",{ max: n });
+  }
+
   async function setJudgeSharingMode(on) {
     setSetupErr("");
     const value = on ? "on" : "off";
@@ -2761,9 +2797,12 @@ export default function App() {
     const plan = sharing ? plannedSharedRanges() : plannedJudgeRanges();
     const bad = plan.find(p => p.invalid);
     if (bad) { setSetupErr(`${bad.dept.name}: enter both numbers (From ≤ To, 1–999), or leave both empty for no judges.`); return; }
+    // Past the school's maximum (2026-10i). The server refuses it too; this names the
+    // department up front. Covers both modes — counts become contiguous ranges first.
+    const over = plan.find(p => p.to != null && p.to > judgeMax());
+    if (over) { setSetupErr(`${over.dept.name} goes up to Judge ${over.to}, but the maximum is ${judgeMax()}. Raise the maximum (up to 90) first.`); return; }
     const total = sharing ? plan.reduce((m, p) => Math.max(m, p.to || 0), 0) : plan.reduce((a, p) => a + p.count, 0);
     if (total === 0) { setSetupErr("Give at least one department some judges."); return; }
-    if (total > 999) { setSetupErr("A school can have at most 999 judge numbers."); return; }
     // The server re-checks all of this (overlaps, and that no signed-in judge would end
     // up outside their department) — its message is written for the admin to read.
     const { error } = await supabase.rpc("set_judge_numbers", {
@@ -4971,7 +5010,8 @@ export default function App() {
               <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.5rem", marginBottom:".15rem", color:"var(--navy)" }}>My Projects</h2>
               <p style={{ color:"var(--dim)", fontSize:".9rem" }}>Score each project using the rubric</p>
             </div>
-            <div className="alias-tag">👤 {judge.alias}</div>
+            {/* The device stays signed in (by design), so say exactly who and where. */}
+            <div className="alias-tag">👤 {judge.alias} · {deptNames(judgeDeptIds(judge))}</div>
           </div>
           {!isOnline && (
             <div className="offline-banner">
@@ -6682,6 +6722,17 @@ export default function App() {
                       <option value="department">Numbers restart in each department</option>
                     </select>
                     {judgeNumbering === "school" ? (<>
+                      <div className="jn-max">
+                        <span><strong>Maximum judges:</strong> numbers 1–{judgeMax()}</span>
+                        <input type="number" min="1" max="90" aria-label="Maximum judges"
+                          value={judgeMaxDraft === "" ? String(judgeMax()) : judgeMaxDraft}
+                          onChange={e => { setSetupErr(""); setJudgeMaxDraft(e.target.value); }} />
+                        {judgeMaxDraft !== "" && String(judgeMax()) !== judgeMaxDraft && <>
+                          <button className="btn sm" style={{width:"auto"}} onClick={saveJudgeMax}>Save maximum</button>
+                          <button className="btn sec sm" style={{width:"auto"}} onClick={() => { setSetupErr(""); setJudgeMaxDraft(""); }}>Cancel</button>
+                        </>}
+                        <span className="jn-max-hint">15 by default, up to 90</span>
+                      </div>
                       <div className="jn-modes" role="radiogroup" aria-label="How judges are assigned">
                         <label className={`jn-mode ${!sharing ? "on" : ""}`}>
                           <input type="radio" name="jn-mode" checked={!sharing} onChange={() => setJudgeSharingMode(false)} />
@@ -6712,7 +6763,7 @@ export default function App() {
                               <span className="jn-name">{p.dept.name}
                                 {signedIn > 0 && <span style={{fontWeight:400,fontSize:".76rem",color:"var(--dim)"}}> · {signedIn} signed in</span>}
                               </span>
-                              <input type="number" min="0" max="999" aria-label={`Judges for ${p.dept.name}`}
+                              <input type="number" min="0" max={judgeMax()} aria-label={`Judges for ${p.dept.name}`}
                                 value={judgeCountDrafts[p.dept.id] ?? String(deptJudgeCount(p.dept))}
                                 onChange={e => { setSetupErr(""); setJudgeCountDrafts(d => ({...d, [p.dept.id]: e.target.value})); }} />
                               <span className={`jn-range ${p.from == null ? "none" : ""}`}>
@@ -6725,7 +6776,9 @@ export default function App() {
                       <div style={{display:"flex",gap:".5rem",alignItems:"center",flexWrap:"wrap"}}>
                         <button className="btn sm" style={{width:"auto"}} disabled={!dirty} onClick={saveJudgeNumbers}>Save judge numbers</button>
                         {dirty && <button className="btn sec sm" style={{width:"auto"}} onClick={() => { setSetupErr(""); setJudgeCountDrafts({}); }}>Cancel</button>}
-                        <span style={{fontSize:".8rem",color:"var(--dim)"}}>{total} judge{total!==1?"s":""} in total</span>
+                        <span style={{fontSize:".8rem",color: total > judgeMax() ? "var(--red)" : "var(--dim)"}}>
+                          {total} judge{total!==1?"s":""} in total{total > judgeMax() ? ` — over the maximum of ${judgeMax()}` : ""}
+                        </span>
                       </div>
                       <p style={{fontSize:".76rem",color:"var(--dim)",marginTop:".6rem"}}>
                         You can change this after judges have signed in, as long as each of them keeps a number inside
@@ -6749,9 +6802,9 @@ export default function App() {
                                 {n > 0 && <span style={{fontWeight:400,fontSize:".76rem",color:"var(--dim)"}}> · {n} signed in</span>}
                               </span>
                               <span className="jn-ft">
-                                Judge <input type="number" min="1" max="999" aria-label={`First judge for ${p.dept.name}`}
+                                Judge <input type="number" min="1" max={judgeMax()} aria-label={`First judge for ${p.dept.name}`}
                                   value={p.rawF} onChange={e => setRange("from", e.target.value)} />
-                                – <input type="number" min="1" max="999" aria-label={`Last judge for ${p.dept.name}`}
+                                – <input type="number" min="1" max={judgeMax()} aria-label={`Last judge for ${p.dept.name}`}
                                   value={p.rawT} onChange={e => setRange("to", e.target.value)} />
                               </span>
                               <span className={`jn-range ${p.invalid || p.from == null ? "none" : ""}`}>

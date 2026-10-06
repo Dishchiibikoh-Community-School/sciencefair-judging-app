@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + real-Postgres (PGlite) migration/RLS suite. Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 208 checks across 10 files |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 215 checks across 10 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -57,6 +57,7 @@ always serves and cannot be redirected — never share it.
 | `migration-2026-10c-secure-school-signup.sql` | **`create_school()`** RPC; closes direct INSERT on `schools` and `school_admins` (anyone could make themselves admin of any school) | **Yes** — the sign-up form calls `create_school()`. Run before anyone registers a school |
 | `migration-2026-10d-judge-revise-validation.sql` | Judges may delete their own validation until results are finalized (never the admin's) | No — without it "Revise my validation" shows an error instead of unlocking |
 | `migration-2026-10e-categories-and-department-codes.sql` | **`categories`** table (per-school project categories) + seeds the six for every existing school; **`departments.code`** | No — **additive only**. Old app ignores both; new app falls back to `DEFAULT_CATEGORIES` and logs `CATEGORIES_TABLE_MISSING`. Safe to run in either order |
+| `migration-2026-10i-judge-max.sql` | **Maximum judge number**: `app_settings.judge_max` (default 15, clamped 1–90 by `judge_max()`), backfilled to clamp(highest number in use, 15, 90); **`set_judge_max()`**; `set_judge_numbers()` refuses ranges past it; new departments are numbered only if they fit | No. ⚠️ Supersedes `set_judge_numbers()` (10h) and the numbering trigger (10g) — re-run 10i after re-running either |
 | `migration-2026-10h-shared-judges.sql` | **Departments can share judges** (opt-in): `judges.department_ids` (backfilled `[department_id]`), `register_judge()` covers every department whose range holds the number, `set_judge_numbers()` accepts overlaps, re-syncs signed-in judges and refuses to take a department away from one | No. ⚠️ Re-running **10g** after this re-creates the older functions — always re-run 10h after 10g |
 | `migration-2026-10g-school-judge-numbers.sql` | **One judge list per school** (default): `departments.judge_from` / `judge_to`, numbering trigger + backfill, `app_settings.judge_numbering`, new **`register_judge()`**, **`set_judge_numbers()`**, **`remove_judge()`** | No — new app without it keeps per-department numbering; old app with it still works (the number overrides the department it sends). Run it, then set the counts in Setup |
 | `migration-2026-10f-scoring-modes.sql` | **`departments.scoring_mode`** (`scored` \| `feedback`) + **`scores.commendation`**; plus Phase 3 columns `departments.locked`, `finalized_at`, `award_grouping` (reserved, nothing reads them yet) | No — **additive only**, every default reproduces current behaviour. Without it the app treats every department as `scored` and logs `SCORING_MODE_COLS_MISSING` when you try to switch one |
@@ -605,6 +606,7 @@ handleRegister()             // calls register_judge RPC
 schoolNumbering()            // true when judge_numbering is 'school' AND departments carry ranges
 deptForJudgeNum(n), deptsForJudgeNum(n), deptNames(ids), judgeRangeText(d), deptJudgeCount(d), plannedJudgeRanges()
 plannedSharedRanges(), judgeCoverage(plan), setJudgeSharingMode(on)   // sharing mode (2026-10h)
+judgeMax(), saveJudgeMax()   // maximum judge number (2026-10i); judgeMax() falls back like the backfill
 judgeDeptIds(j)              // module helper — EVERY department a judge covers; never use j.department_id alone
 saveJudgeNumbers()           // set_judge_numbers RPC from the Setup counts (contiguous, in department order)
 setJudgeNumberingMode(mode)  // app_settings.judge_numbering
@@ -810,6 +812,15 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-06 — Maximum judge number (default 15, up to 90)** (migration `2026-10i`, not coupled).
+Numbers could run to 999 and the 10g backfill gave the live school Judge 1–90. Setup → Judge numbers
+now has **Maximum judges** (default 15, ≤ 90), enforced by `set_judge_numbers()` and the new-department
+trigger; `set_judge_max()` refuses to go below a number in use. Existing schools are backfilled to the
+size they use, so nothing breaks. Also: the judge home shows **"👤 Judge15 · PreK"** — a device stays
+signed in (by design), and a report of "Judge 25 was put in PreK" turned out to be a device still
+signed in as Judge15 (reproduced; the server assigned 25 to K-2 correctly). Tests: DB 147 (12 new),
+judge-numbers E2E 26.
 
 **2026-10-06 — Departments can share judges (option)** (migration `2026-10h`, not coupled).
 A small fair (15 judges, six departments) needs one judge to cover several departments. Setup →

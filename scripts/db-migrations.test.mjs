@@ -89,7 +89,8 @@ for (const round of [1, 2]) {
   await db.exec(mig("migration-2026-10f-scoring-modes.sql"));
   await db.exec(mig("migration-2026-10g-school-judge-numbers.sql"));
   await db.exec(mig("migration-2026-10h-shared-judges.sql"));
-  ok(`migrations 2026-10, 10b, 10c, 10d, 10e, 10f, 10g, 10h applied (round ${round} — re-runnable)`);
+  await db.exec(mig("migration-2026-10i-judge-max.sql"));
+  ok(`migrations 2026-10, 10b, 10c, 10d, 10e, 10f, 10g, 10h, 10i applied (round ${round} — re-runnable)`);
 }
 
 // ── PART 1: names are private ──
@@ -459,6 +460,7 @@ await db.exec(`INSERT INTO schools (id, name, slug, invite_code, admin_pin) VALU
   UPDATE departments SET judge_from = NULL, judge_to = NULL WHERE school_id = '${S3}';`);
 await db.exec(mig("migration-2026-10g-school-judge-numbers.sql"));
 await db.exec(mig("migration-2026-10h-shared-judges.sql"));
+await db.exec(mig("migration-2026-10i-judge-max.sql"));
 assert.deepEqual(await ranges(S3), { "A": "1-15", "B": "16-19" });
 ok("judge numbers: backfill numbers an existing school's departments in their order, sized by max judges");
 
@@ -489,6 +491,7 @@ await fails("anon", "", RJ, /not on this school's judge list/, "judge numbers: a
 await as("authenticated", ADMIN, SJN, [S2, R([XMS, 5, 9])]);
 await db.exec(mig("migration-2026-10g-school-judge-numbers.sql"));
 await db.exec(mig("migration-2026-10h-shared-judges.sql"));
+await db.exec(mig("migration-2026-10i-judge-max.sql"));
 assert.deepEqual(await ranges(S2), { "PreK": "1-1", "K-2": "2-4", "6-8": "5-9" });
 ok("judge numbers: re-running the migration never overwrites the admin's list");
 
@@ -567,7 +570,44 @@ ok("sharing: removing a shared judge removes their scores in every department");
 await db.exec(`INSERT INTO judges (id, school_id, alias, projects, department_id, department_ids)
   VALUES ('j_old', '${S4}', 'Judge4', '[]', '${Y35}', '[]')`);
 await db.exec(mig("migration-2026-10h-shared-judges.sql"));
+await db.exec(mig("migration-2026-10i-judge-max.sql"));
 assert.deepEqual((await deptsOf("Judge4")).department_ids, [Y35]);
 ok("sharing: a pre-2026-10h judge row is backfilled to department_ids = [department_id]");
+
+// ── PART 7: maximum judge number (migration 2026-10i) — default 15, up to 90 ──
+const S5 = "55555555-5555-5555-5555-555555555555";
+const Z = (n) => `a0000000-0000-0000-0000-00000000000${n}`;
+await db.exec(`
+  INSERT INTO schools (id, name, slug, invite_code, admin_pin) VALUES ('${S5}', 'Five', 'five', 'CODE5', '4821');
+  INSERT INTO school_admins (school_id, user_id) VALUES ('${S5}', '${ADMIN}');
+  INSERT INTO departments (id, school_id, name, max_judges, ord) VALUES
+    ('${Z(1)}', '${S5}', 'Elementary', 5, 0), ('${Z(2)}', '${S5}', 'Middle', 5, 1), ('${Z(3)}', '${S5}', 'High', 5, 2);
+`);
+assert.equal((await as("anon", "", "SELECT judge_max($1) m", [S5])).rows[0].m, 15);
+assert.deepEqual(await ranges(S5), { "Elementary": "1-5", "Middle": "6-10", "High": "11-15" });
+ok("judge max: a new school defaults to 15 — three departments of 5 fill Judge 1-15");
+await as("authenticated", ADMIN, `INSERT INTO departments (id, school_id, name, max_judges, ord) VALUES ('${Z(4)}', '${S5}', 'SPED', 5, 3)`);
+assert.equal((await ranges(S5))["SPED"], null);
+ok("judge max: a department that would go past 15 starts with no judge numbers");
+await fails("anon", "", RJ, /not on this school's judge list/, "judge max: Judge16 cannot sign in", [S5, Z(1), "Judge16", "CODE5"]);
+await fails("authenticated", ADMIN, SJN, /SPED would use judge numbers up to 20, but the maximum is 15/,
+  "judge max: saving a range past the maximum is refused", [S5, R([Z(4), 16, 20])]);
+const SJM = "SELECT set_judge_max($1, $2)";
+await fails("anon", "", SJM, /Not authorised/, "set_judge_max: anon refused", [S5, 30]);
+await fails("authenticated", OTHER, SJM, /Not authorised/, "set_judge_max: another school's admin refused", [S5, 30]);
+await fails("authenticated", ADMIN, SJM, /between 1 and 90/, "set_judge_max: 91 refused", [S5, 91]);
+await fails("authenticated", ADMIN, SJM, /between 1 and 90/, "set_judge_max: 0 refused", [S5, 0]);
+await fails("authenticated", ADMIN, SJM, /already go up to 15 \(High\)/, "set_judge_max: cannot go below a number in use", [S5, 10]);
+await as("authenticated", ADMIN, SJM, [S5, 90]);
+assert.equal((await as("anon", "", "SELECT judge_max($1) m", [S5])).rows[0].m, 90);
+await as("authenticated", ADMIN, SJN, [S5, R([Z(4), 16, 20])]);
+assert.equal((await ranges(S5))["SPED"], "16-20");
+assert.equal((await as("anon", "", RJ, [S5, Z(1), "Judge18", "CODE5"])).rows[0].j.department_id, Z(4));
+ok("judge max: raised to 90 → SPED gets Judge 16-20 and Judge18 signs in to SPED");
+await as("authenticated", ADMIN, SET, [S5, "judge_max", "500"]);
+assert.equal((await as("anon", "", "SELECT judge_max($1) m", [S5])).rows[0].m, 90);
+ok("judge max: a stored value above 90 is still capped at 90");
+assert.equal((await db.query("SELECT value FROM app_settings WHERE school_id=$1 AND key='judge_max'", [S3])).rows[0]?.value, "19");
+ok("judge max: backfill keeps an existing school at the size it already uses (Judge 1-19 → 19)");
 
 console.log(`\nALL ${pass} CHECKS PASSED`);

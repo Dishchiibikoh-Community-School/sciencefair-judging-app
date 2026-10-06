@@ -49,6 +49,8 @@ await check("typing 4 shows 'Judge 4 · Middle School'", async () => {
 await codeBox(J.page).fill("ABC123");
 await J.page.getByRole("button", { name: /Enter as Judge/ }).click();
 await check("Judge4 reaches the Middle School project list", () => J.page.getByText("Existing Volcano Study").waitFor({ timeout: 5000 }));
+await check("judge home says which judge AND department this device is signed in as", async () =>
+  assert.match(await J.page.locator(".alias-tag").innerText(), /Judge4 · Middle School/));
 await check("stored as Judge4 in Middle School", async () => {
   const j = store.judges.find(x => x.alias === "Judge4");
   assert.ok(j); assert.equal(j.department_id, DEPTS.D_MID);
@@ -135,6 +137,33 @@ await check("right PIN: Judge4 and their score are gone, and it is logged", asyn
   // The IT-log row is written in the background after the dialog closes — wait for it.
   for (let i = 0; i < 20 && !store.it_logs.some(r => r.event === "JUDGE_REMOVED"); i++) await A.page.waitForTimeout(100);
   assert.ok(store.it_logs.some(r => r.event === "JUDGE_REMOVED" && r.payload.scoresRemoved === 1));
+});
+
+console.log("\n── Maximum judges (default 15, up to 90)");
+await A.page.locator(".nav-it", { hasText: "Setup" }).click();
+await check("the maximum shows 15 by default", async () =>
+  assert.equal(await A.page.getByLabel("Maximum judges").inputValue(), "15"));
+await A.page.locator(".jn-row input[type=number]").nth(0).fill("14");
+await check("counts past the maximum are flagged before saving", () =>
+  A.page.getByText(/over the maximum of 15/).waitFor({ timeout: 3000 }));
+await A.page.getByRole("button", { name: "Save judge numbers" }).click();
+await check("…and refused, with nothing saved", async () => {
+  await A.page.getByText(/Middle School goes up to Judge 17, but the maximum is 15/).waitFor({ timeout: 3000 });
+  assert.equal(store.departments.find(d => d.id === DEPTS.D_ELEM).judge_to, 1);
+});
+await A.page.getByRole("button", { name: "Cancel" }).first().click();
+await A.page.getByLabel("Maximum judges").fill("2");
+await A.page.getByRole("button", { name: "Save maximum" }).click();
+await check("the maximum cannot go below a number in use", () =>
+  A.page.getByText(/Judge numbers already go up to 4/).waitFor({ timeout: 3000 }));
+await A.page.getByLabel("Maximum judges").fill("91");
+await A.page.getByRole("button", { name: "Save maximum" }).click();
+await check("the maximum cannot go above 90", () => A.page.getByText(/from 1 to 90/).waitFor({ timeout: 3000 }));
+await A.page.getByLabel("Maximum judges").fill("40");
+await A.page.getByRole("button", { name: "Save maximum" }).click();
+await check("raising the maximum to 40 is saved", async () => {
+  await A.page.getByText("numbers 1–40").waitFor({ timeout: 3000 });
+  assert.equal(store.app_settings.find(r => r.key === "judge_max")?.value, "40");
 });
 
 console.log("\n── Switching back to per-department numbering");

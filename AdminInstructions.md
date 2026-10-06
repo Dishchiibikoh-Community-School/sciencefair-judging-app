@@ -155,6 +155,17 @@ numbers**. Numbers are handed out in department order:
   them on the Judges tab first if they signed in by mistake.
 - New departments are numbered after the last one automatically; adjust the counts afterwards.
 
+#### Maximum judges (default 15, up to 90)
+
+At the top of the Judge numbers card, **Maximum judges** sets the highest judge number the school
+uses — **15 by default**, raise it up to **90**. Department counts (or ranges) cannot go past it, and
+nobody can sign in with a higher number. To lower it, first lower the departments that use the higher
+numbers. Schools that already had more numbers keep their current size until you change it.
+
+> **Testing tip:** a device stays signed in as the last judge who used it — the project list shows
+> who (e.g. *"👤 Judge15 · PreK"*). Press **Sign Out** before trying another judge number on the same
+> device, or you will just see the earlier judge's projects again.
+
 #### Option: departments can share judges
 
 With only a few judges (say 15 for six departments), one judge often has to cover several departments.
