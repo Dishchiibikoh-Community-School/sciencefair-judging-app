@@ -610,7 +610,8 @@ safe and private — they contain student names.
 5. Press **⬆ Import N projects**. Each project is created exactly like **+ Add Project**: student names go to the private table and judges already signed in to that department get it.
 
 **What is imported:** number, title, department, category, grade, room, teacher/adviser, students with
-grades, and the two description answers. **Not imported:** Locked, Reviews and Avg Score — scores and
+grades, and the two description answers. **Grades:** `PreK`, `K` or `1`–`12`. For a group with different
+grades leave Grade empty and write each student as `Name (Gr 8)` — the project takes the highest grade. **Not imported:** Locked, Reviews and Avg Score — scores and
 judges belong to an event, not to the project list.
 
 If some rows say **NOT saved**, nothing was half-written; press Import again to retry just those rows.

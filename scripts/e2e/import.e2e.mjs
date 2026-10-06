@@ -135,6 +135,20 @@ await check("…and imports with number 010", async () => {
   assert.equal(byTitle("Cañón Erosion")?.num, "010");
 });
 await PB.getByRole("button", { name: "Close" }).click();
+// PreK grades: normGrade() used to turn "PreK" into "" (every PreK project lost its grade).
+await fileInput(PB).setInputFiles({ name: "prek.csv", mimeType: "text/csv", buffer: Buffer.from([
+  'Project #,Title,Department,Category,Grade,Students (grade)',
+  '070,Little Roots,Elementary,Life Science,PreK,"Ana (Gr Pre-K), Ben (Gr PreK)"',
+  '071,Mixed Sprouts,Elementary,Life Science,,"Cy (Gr PreK), Di (Gr K)"',
+].join("\r\n") + "\r\n") });
+await importBtn(PB).click();
+await check("PreK grades survive import (project and per-student), and PreK < K for the group grade", async () => {
+  await PB.getByText(/^Imported 2 projects\.$/).waitFor({ timeout: 6000 });
+  assert.equal(byTitle("Little Roots")?.grade, "PreK");
+  assert.deepEqual(priv(byTitle("Little Roots")).group_members.map(m => m.grade), ["PreK", "PreK"]);
+  assert.equal(byTitle("Mixed Sprouts")?.grade, "K");
+});
+await PB.getByRole("button", { name: "Close" }).click();
 await fileInput(PB).setInputFiles({ name: "projects.xlsx", mimeType: "application/vnd.ms-excel", buffer: Buffer.from("PK") });
 await check(".xlsx is refused with Save-As-CSV instructions", () => PB.getByText(/CSV UTF-8/).waitFor({ timeout: 3000 }));
 await fileInput(PB).setInputFiles({ name: "x.csv", mimeType: "text/csv", buffer: Buffer.from("Name,Score\nA,1\n") });

@@ -827,6 +827,16 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 
 Full detail is in the git log for each commit.
 
+**2026-10-06 — PreK grades kept; scoring header shows the department** (no migration).
+Found while preparing the real 63-project import: `normGrade("PreK")` returned `""` (only digits and "K"
+were understood), so every PreK project/student lost its grade. Now "PreK"/"Pre-K" → `PreK`, and
+`highestGrade()` orders PreK < K < 1…12. The judge's scoring header showed the legacy `getDivision()`
+band (grade 4 → "3-4", PreK → "K-2"), contradicting the real department — it now shows the department
+name; `getDivision()` is removed. Import E2E +1 check (PreK project + per-student grades).
+**The real project list** (63 projects, 151 students) was converted from the organiser's PDF into an
+import CSV kept OUTSIDE the repo (student names; the repo is public) and verified through the real
+import UI on the mock before handing over.
+
 **2026-10-06 — Department preset "PreK · K-5 · 6-8 · 9-12 · SPED"** (no migration).
 Fifth entry in `DEPT_PRESETS` (`bands-k5-sped`), appended so `DEPT_PRESETS[0]` still seeds new schools.
 Codes PK · K5 · G68 · G912 · SPED; the shared names keep the other presets' codes, so on top of a
@@ -1202,7 +1212,7 @@ school controls; or a nightly export job. Whatever is chosen must keep
 - **Registration receipt numbers (`reg_prefix`) still use `DIV_CODES`**, not the project-code format —
   a registered student's receipt says e.g. `JHS-LS-004` while the project's code (no department yet)
   reads `LS-…`. Unify when registration sets `department_id` (below).
-- **`DIVISIONS` / `DIV_CODES` / `getDivision()` still duplicate what `departments` now holds** —
+- **`DIVISIONS` / `DIV_CODES` still duplicate what `departments` now holds** (`getDivision()` was removed 2026-10-06) —
   three disagreeing grade-band schemes (the registration form's divisions, its `reg_prefix` codes,
   and a display-only label). `departments.code` exists for this; unifying them is the next piece of
   Phase 1, and it also lets `submit_registration()` set a project's `department_id`.

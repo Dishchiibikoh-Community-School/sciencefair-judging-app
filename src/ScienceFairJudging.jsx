@@ -266,7 +266,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-06l";
+const ADMIN_HELP_UPDATED = "2026-10-06m";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -343,6 +343,7 @@ const ADMIN_HELP = [
     ["What does Reset All Data clear?", "Judges, scores, validations, deliberation notes, awards, the share link and the lock / finalize settings. It keeps projects, departments, the rubric, registrations and the activity log."],
     ["How do I back up?", "Score Export → 💾 Save Score Backup (stores scores AND the rubric), ⬇ Download Judge Scores CSV, and Projects → ⬇ Download Projects CSV. Download copies at the halfway point and at the end."],
     ["How do I restore projects, or copy them into a new school?", "Projects tab → ⬆ Import projects (CSV) and choose a file from ⬇ Download Projects CSV (you may edit it in Excel first — save it as \"CSV UTF-8\"). You see every row before anything is saved: duplicates start unticked, and any department name this school does not have gets a dropdown to pick the right one. Press Import. Numbers are kept unless already taken. Only projects are imported — not scores or judges."],
+    ["How do I write grades in the import file?", "PreK, K, or 1–12 in the Grade column. For a group with different grades, leave Grade empty and write each student as Name (Gr 8), e.g. \"Ana (Gr 7), Ben (Gr 8)\" — the project then takes the highest grade."],
     ["Import says my file is a spreadsheet workbook.", "Import reads CSV, not .xlsx. In Excel: File → Save As → \"CSV UTF-8 (Comma delimited)\", then import that file."],
     ["Some imported rows say NOT saved.", "Nothing was half-saved — those projects simply were not created. Check the internet (or sign out and in), then press Import again: only the rows not yet imported are tried."],
     ["What happens to scores if I change the rubric?", "The raw scores are kept, but totals use the current rubric: a removed criterion stops counting, a new one counts 0 until re-scored, changed points keep the old values. Finish the rubric before judging."],
@@ -393,6 +394,9 @@ const ADMIN_HELP = [
 function normGrade(g) {
   const s = String(g ?? "").trim();
   if (!s) return "";
+  // "PreK" / "Pre-K" / "pre k" — until 2026-10-06 this fell through to the digit match and
+  // came back "", so every PreK project and student silently lost its grade.
+  if (/^pre[-\s]?k(inder.*)?$/i.test(s)) return "PreK";
   if (/^k(inder.*)?$/i.test(s)) return "K";
   const m = s.match(/\d+/);
   return m ? String(parseInt(m[0], 10)) : "";
@@ -415,10 +419,11 @@ function membersText(raw) {
 // Highest numeric grade in the group — the project grade drives the grade<5 abstract
 // rule, so a mixed group is judged at its oldest member's level.
 function highestGrade(members) {
-  const nums = normMembers(members).map(m => m.grade === "K" ? 0 : parseInt(m.grade, 10)).filter(n => !isNaN(n));
+  const nums = normMembers(members)
+    .map(m => m.grade === "PreK" ? -1 : m.grade === "K" ? 0 : parseInt(m.grade, 10)).filter(n => !isNaN(n));
   if (!nums.length) return "";
   const max = Math.max(...nums);
-  return max === 0 ? "K" : String(max);
+  return max === -1 ? "PreK" : max === 0 ? "K" : String(max);
 }
 // defaultCat comes from the school's own category list (catNames()[0]); it is a
 // parameter rather than a constant because categories are per-school now.
@@ -438,14 +443,6 @@ function fmt(ts)    { return new Date(ts).toLocaleTimeString([], { hour:"2-digit
 function fmtFull(ts){ return new Date(ts).toLocaleString([], { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" }); }
 function fmtISO(ts) { return new Date(ts).toISOString(); }
 function itId()     { return "EVT-" + Math.random().toString(36).slice(2,8).toUpperCase(); }
-function getDivision(grade) {
-  const g = parseInt(grade) || 0;
-  if (g <= 2)  return "K-2";
-  if (g <= 4)  return "3-4";
-  if (g <= 6)  return "5-6";
-  if (g <= 8)  return "7-8";
-  return "HS";
-}
 function requiresAbstract(proj) { return (parseInt(proj?.grade) || 0) >= 5; }
 
 // CSV cell escaper. Always quotes, doubles inner quotes, and neutralises
@@ -5584,7 +5581,7 @@ export default function App() {
               <div style={{ fontFamily:"var(--ff-m)", fontSize:".78rem", color:"var(--navy)", marginBottom:".2rem" }}>PROJECT {projectCode(proj)}</div>
               <h2>{proj.title}</h2>
               <div style={{ fontSize:".78rem", color:"var(--dim)", marginTop:".35rem" }}>
-                {proj.cat} · Grade {proj.grade} · {getDivision(proj.grade)}{proj.room ? ` · Room ${proj.room}` : ""}
+                {proj.cat}{proj.grade ? ` · Grade ${proj.grade}` : ""}{departments.find(d => d.id === proj.department_id) ? ` · ${departments.find(d => d.id === proj.department_id).name}` : ""}{proj.room ? ` · Room ${proj.room}` : ""}
               </div>
               {proj.description && (
                 <div style={{ fontSize:".8rem", color:"var(--text)", marginTop:".5rem", lineHeight:1.45 }}>{proj.description}</div>
