@@ -857,7 +857,10 @@ const CSS = `
   .setup-row{display:flex;align-items:center;gap:.6rem;padding:.55rem .7rem;background:var(--s1);
     border:1px solid var(--bd);border-radius:10px;}
   .setup-ord{display:flex;flex-direction:column;gap:.15rem;flex-shrink:0;}
-  .setup-ord .proj-act-btn{padding:.05rem .4rem;font-size:.7rem;line-height:1.2;}
+  /* Tablets are the primary device: 17px-tall arrows were close to untappable.
+     Keep them compact but give each a real touch target. */
+  .setup-ord .proj-act-btn{padding:0 .45rem;font-size:.75rem;line-height:1;min-height:26px;}
+  @media(max-width:640px){ .setup-ord .proj-act-btn{min-height:32px;padding:0 .6rem;} }
   .setup-main{flex:1;min-width:0;}
   .setup-name{font-weight:600;font-size:.92rem;color:var(--text);word-break:break-word;}
   .setup-meta{font-size:.76rem;color:var(--dim);font-family:var(--ff-m);margin-top:.15rem;}
@@ -878,12 +881,17 @@ const CSS = `
   .setup-preset strong{font-size:.86rem;color:var(--navy);}
   .setup-preset span{font-size:.76rem;color:var(--dim);line-height:1.4;}
   .setup-preset em{font-size:.72rem;color:var(--dim);font-family:var(--ff-m);font-style:normal;opacity:.8;margin-top:.15rem;}
-  @media(max-width:640px){
+  /* 900px, not 640: a department row carries max-judges + the scoring-mode select +
+     rename + delete. On a tablet that cluster squeezed the name column to ~110px and
+     "K-2 · 10 projects · 2/8 judges" wrapped onto three lines. Below this width the
+     controls get their own full line instead. */
+  @media(max-width:900px){
     .setup-row{flex-wrap:wrap;}
-    /* Actions drop to their own line. Max-judges (departments only) keeps the left,
-       so a category row's two buttons sit together on the right instead of being
-       flung to opposite edges. */
-    .setup-acts{width:100%;justify-content:flex-end;}
+    /* Only DEPARTMENT rows need the full-width control bar — they carry max-judges
+       and the mode select. A category row has just two buttons, so giving it the
+       same treatment left a band of dead space under every category. */
+    .setup-row.dept .setup-acts{width:100%;justify-content:flex-end;}
+    .setup-acts{justify-content:flex-end;}
     .setup-maxj{margin-right:auto;}
     /* Give the name its own full-width line; code + Add share the next one. */
     .setup-add input[type=text]:not(.setup-code-in){flex:1 0 100%;}
@@ -5865,7 +5873,7 @@ export default function App() {
                     const edit      = deptEdits[dept.id];
                     const maxDraft  = deptMaxDrafts[dept.id] ?? String(dept.max_judges);
                     return (
-                      <div key={dept.id || dept.name} className="setup-row">
+                      <div key={dept.id || dept.name} className="setup-row dept">
                         <div className="setup-ord">
                           <button className="proj-act-btn" disabled={i===0} title="Move up"
                             onClick={() => moveDepartment(dept.id, -1)}>↑</button>
