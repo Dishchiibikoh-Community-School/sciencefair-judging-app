@@ -10,8 +10,7 @@ This guide will walk you through how to use the app to score science fair projec
 
 **You'll need:**
 - **Your school's app link** — it looks like `https://qritiko.com/s/your-school`. Your organizer will give you the exact address. Bookmark it.
-- Your judge name: **Judge1** through **Judge[N]** — provided by your event organizer
-- Your **department** — your organizer will tell you which one. Every school names these differently: it might be Elementary / Middle School / High School, grade bands like 3-5 or 6-8, SPED, or something else. The sign-in screen lists the ones your school uses.
+- Your **judge number** (for example **7**) — provided by your event organizer. Each number belongs to one person and one department, so you do **not** choose a department: the app fills it in from your number.
 - Invite code: **provided by your event organizer** (a short code set by your school)
 - A tablet, phone, or laptop with internet access
 - About 30–45 minutes to score all projects
@@ -22,20 +21,20 @@ This guide will walk you through how to use the app to score science fair projec
 
 1. **Open your school's link** — `https://qritiko.com/s/your-school` (ask your organizer for the exact address; a plain `qritiko.com` with no `/s/...` will NOT show your fair)
 2. **Click "I'm a Judge"**
-3. **Select your department** — tap the button your organizer told you to use (the list shows your school's own departments)
-4. **Enter your judge name** (e.g., "Judge1", "Judge2", etc.)
-5. **Enter the invite code** provided by organizers
-6. **Click "Register"**
+3. **Enter your judge number** (just the number, e.g. `7`). A green line shows your department — for example *"✓ Judge 7 · 6-8"*. If that is not the department you expected, stop and ask your organizer.
+4. **Enter the invite code** provided by organizers
+5. **Tap "Enter as Judge"**
 
-**Important:** Make sure you select the correct department. You will only see and score projects assigned to that department. If you register in the wrong department, contact your admin immediately.
+> Some schools still number judges separately in each department. If your sign-in screen shows a
+> list of departments, tap the one your organizer told you, then type your judge name (e.g. `Judge1`).
 
 If you see an error:
-- **"Invalid judge name"** — Check that you're using the correct format (Judge1–Judge[N])
+- **"Judge N is not on this school's judge list"** — the number is wrong. Check it with your organizer.
 - **"Already signed in"** — Ask the admin to approve device transfer in the Judges tab, then try again
 - **"Invalid invite code"** — Double-check the code with organizers. The code is checked on the
   server, and **5 wrong attempts lock sign-in for 5 minutes** for everyone at your school — so
   confirm the code with an organizer rather than guessing.
-- **"Max judges reached"** — All judge slots for this department are full. Contact organizers.
+- **"Max judges reached"** / **"is full"** — only on schools that number per department: all slots are taken. Contact organizers.
 
 ---
 
@@ -209,11 +208,11 @@ A: Only projects assigned to your department (Elementary, Middle School, or High
 **Q: Can I change a score after submitting?**
 A: Yes — go back to the project and tap it again. Scores are editable until you validate results, or until the admin locks judging. Once you validate, or once judging is locked, submissions are refused.
 
-**Q: What if I registered in the wrong department?**
-A: Contact your admin immediately. They may need to reset your registration so you can re-register in the correct department.
+**Q: I ended up in the wrong department.**
+A: You probably typed the wrong number. Tell your admin before you score anything — they can remove that sign-in on the Judges tab so you can sign in again with the right number.
 
-**Q: What if my judge name is already taken in my department?**
-A: Another device is already signed in as you. Ask the admin to approve device transfer in the Judges tab.
+**Q: It says my judge number is already signed in.**
+A: Another device is already signed in as you (or someone used your number). Ask the admin: Allow Transfer if it was you on another device, or Remove if it was someone else.
 
 **Q: Can I score projects from a different department?**
 A: No. Each judge is assigned to one department and only scores projects in that department.
@@ -222,7 +221,7 @@ A: No. Each judge is assigned to one department and only scores projects in that
 A: Typically 30–45 minutes depending on how many projects are in your department.
 
 **Q: Can I leave and come back later?**
-A: Yes. Your progress is saved. Log back in with the same judge name, department, and invite code.
+A: Yes. Your progress is saved on this device. If you must sign in again, use the same judge number and invite code.
 
 **Q: Is my data private?**
 A: Your scores are secure. Admin can see them for aggregation/ranking, but your individual responses aren't shared with other judges. Public results never show judge names.
@@ -235,7 +234,7 @@ If you encounter issues:
 1. Try refreshing the page (Ctrl+R or Cmd+R)
 2. Check your internet connection
 3. Contact an organizer with:
-   - Your judge name (e.g., Judge3)
+   - Your judge number (e.g., 3)
    - Your department (e.g., Middle School)
    - What you were doing when the error occurred
    - Any error message (screenshot if possible)
@@ -244,7 +243,7 @@ If you encounter issues:
 
 ## Summary
 
-1. Register with your judge name, **department**, and invite code
+1. Sign in with your **judge number** and the invite code — your department is filled in for you
 2. Score all projects in your department using the rubric
 3. Add optional notes for each project
 4. Validate (approve or flag) your results

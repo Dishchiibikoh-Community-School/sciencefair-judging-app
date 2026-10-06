@@ -87,7 +87,8 @@ for (const round of [1, 2]) {
   await db.exec(mig("migration-2026-10d-judge-revise-validation.sql"));
   await db.exec(mig("migration-2026-10e-categories-and-department-codes.sql"));
   await db.exec(mig("migration-2026-10f-scoring-modes.sql"));
-  ok(`migrations 2026-10, 10b, 10c, 10d, 10e, 10f applied (round ${round} — re-runnable)`);
+  await db.exec(mig("migration-2026-10g-school-judge-numbers.sql"));
+  ok(`migrations 2026-10, 10b, 10c, 10d, 10e, 10f, 10g applied (round ${round} — re-runnable)`);
 }
 
 // ── PART 1: names are private ──
@@ -331,6 +332,9 @@ assert.equal((await db.query("SELECT code FROM departments WHERE school_id=$1 AN
 ok("departments.code exists and the three default departments were backfilled (Elem/JHS/SHS)");
 
 // ── PART 4: the judging lifecycle, as the app calls it (anon judges, signed-in admin) ──
+// This school keeps the pre-2026-10g numbering (Judge1..N restart in every department),
+// so the legacy path stays covered. School-wide numbering is PART 5.
+await as("authenticated", ADMIN, "INSERT INTO app_settings (school_id, key, value) VALUES ($1, 'judge_numbering', 'department')", [SID]);
 const D = "d1111111-1111-1111-1111-111111111111";
 await as("authenticated", ADMIN, `INSERT INTO departments (id, school_id, name, max_judges, ord) VALUES ('${D}', '${SID}', 'Middle School', 2, 0)`);
 await as("authenticated", ADMIN, `INSERT INTO projects (id, school_id, num, title, cat, grade, department_id) VALUES
@@ -426,5 +430,83 @@ for (const t of ["scores", "judges"]) {
   assert.equal(r.rows.length, 0);
 }
 ok("RESET is impossible for a judge (anon deletes affect 0 rows)");
+
+// ── PART 5: one judge list for the whole school (migration 2026-10g, the DEFAULT) ──
+const S2 = "22222222-2222-2222-2222-222222222222";
+const XPK = "e0000000-0000-0000-0000-000000000001", XK2 = "e0000000-0000-0000-0000-000000000002", XMS = "e0000000-0000-0000-0000-000000000003";
+await db.exec(`
+  INSERT INTO schools (id, name, slug, invite_code, admin_pin) VALUES ('${S2}', 'Two', 'two', 'CODE2', '4821');
+  INSERT INTO school_admins (school_id, user_id) VALUES ('${S2}', '${ADMIN}');
+  INSERT INTO departments (id, school_id, name, max_judges, ord) VALUES
+    ('${XPK}', '${S2}', 'PreK', 2, 0), ('${XK2}', '${S2}', 'K-2', 2, 1), ('${XMS}', '${S2}', '6-8', 3, 2);
+  INSERT INTO projects (id, school_id, num, title, cat, grade, department_id) VALUES
+    ('p_k1', '${S2}', '001', 'Kinder one', 'Life Science', '1', '${XK2}'),
+    ('p_k2', '${S2}', '002', 'Kinder two', 'Life Science', '2', '${XK2}');
+`);
+const ranges = async (sid) => Object.fromEntries((await db.query(
+  "SELECT name, judge_from f, judge_to t, max_judges m FROM departments WHERE school_id=$1 ORDER BY ord", [sid])).rows
+  .map(r => [r.name, r.f == null ? null : `${r.f}-${r.t}`]));
+assert.deepEqual(await ranges(S2), { "PreK": "1-2", "K-2": "3-4", "6-8": "5-7" });
+ok("judge numbers: new departments are numbered one after another (PreK 1-2, K-2 3-4, 6-8 5-7)");
+assert.equal((await as("anon", "", "SELECT judge_numbering_mode($1) m", [S2])).rows[0].m, "school");
+ok("judge numbers: a school with no setting uses the school-wide list (the default)");
+
+// Backfill: a school whose departments predate the migration gets numbered in order.
+const S3 = "33333333-3333-3333-3333-333333333333";
+await db.exec(`INSERT INTO schools (id, name, slug, invite_code, admin_pin) VALUES ('${S3}', 'Three', 'three', 'C3', '4821');
+  INSERT INTO departments (school_id, name, max_judges, ord) VALUES ('${S3}', 'B', 4, 1), ('${S3}', 'A', 15, 0);
+  UPDATE departments SET judge_from = NULL, judge_to = NULL WHERE school_id = '${S3}';`);
+await db.exec(mig("migration-2026-10g-school-judge-numbers.sql"));
+assert.deepEqual(await ranges(S3), { "A": "1-15", "B": "16-19" });
+ok("judge numbers: backfill numbers an existing school's departments in their order, sized by max judges");
+
+const RJ2 = (n, hint = XPK, code = "CODE2") => as("anon", "", RJ, [S2, hint, n, code]);
+const k3 = (await RJ2("Judge3")).rows[0].j;
+assert.equal(k3.department_id, XK2);
+assert.deepEqual([...k3.projects].sort(), ["p_k1", "p_k2"]);
+ok("judge numbers: Judge3 lands in K-2 from the number alone — the department the client sent is ignored");
+await fails("anon", "", RJ, /already signed in/, "judge numbers: Judge3 cannot sign in a second time", [S2, XMS, "Judge3", "CODE2"]);
+await fails("anon", "", RJ, /already signed in/, "judge numbers: 'Judge03' is the same judge as Judge3", [S2, XK2, "Judge03", "CODE2"]);
+await fails("anon", "", RJ, /not on this school's judge list/, "judge numbers: Judge8 is outside every range → rejected", [S2, XMS, "Judge8", "CODE2"]);
+await fails("anon", "", RJ, /Enter your judge number/, "judge numbers: a non-number name is rejected", [S2, XMS, "Bob", "CODE2"]);
+await fails("anon", "", RJ, /Invalid invite code/i, "judge numbers: invite code is still checked first", [S2, XMS, "Judge5", "WRONG"]);
+
+// set_judge_numbers — admin only, validated
+const SJN = "SELECT set_judge_numbers($1, $2::jsonb)";
+const R = (...xs) => JSON.stringify(xs.map(([id, f, t]) => ({ department_id: id, from: f, to: t })));
+await fails("anon", "", SJN, /Not authorised/, "set_judge_numbers: anon refused", [S2, R([XPK, 1, 1])]);
+await fails("authenticated", OTHER, SJN, /Not authorised/, "set_judge_numbers: another school's admin refused", [S2, R([XPK, 1, 1])]);
+await fails("authenticated", ADMIN, SJN, /would share judge numbers/, "set_judge_numbers: overlapping ranges refused", [S2, R([XPK, 1, 3])]);
+await fails("authenticated", ADMIN, SJN, /Judge3 is signed in to K-2/, "set_judge_numbers: refuses to strand a signed-in judge outside their range", [S2, R([XK2, 5, 6], [XMS, 7, 9])]);
+await fails("authenticated", ADMIN, SJN, /lowest first/, "set_judge_numbers: backwards range refused", [S2, R([XMS, 9, 5])]);
+await as("authenticated", ADMIN, SJN, [S2, R([XPK, 1, 1], [XK2, 2, 4], [XMS, 5, 9])]);
+assert.deepEqual(await ranges(S2), { "PreK": "1-1", "K-2": "2-4", "6-8": "5-9" });
+assert.deepEqual((await db.query("SELECT max_judges m FROM departments WHERE school_id=$1 ORDER BY ord", [S2])).rows.map(r => r.m), [1, 3, 5]);
+ok("set_judge_numbers: admin saves PreK 1-1, K-2 2-4, 6-8 5-9; max judges follow the ranges");
+await as("authenticated", ADMIN, SJN, [S2, R([XMS, null, null])]);
+await fails("anon", "", RJ, /not on this school's judge list/, "judge numbers: a department with no numbers takes no judges", [S2, XMS, "Judge6", "CODE2"]);
+await as("authenticated", ADMIN, SJN, [S2, R([XMS, 5, 9])]);
+await db.exec(mig("migration-2026-10g-school-judge-numbers.sql"));
+assert.deepEqual(await ranges(S2), { "PreK": "1-1", "K-2": "2-4", "6-8": "5-9" });
+ok("judge numbers: re-running the migration never overwrites the admin's list");
+
+// remove_judge
+await as("anon", "", UPSERT_SCORE, [S2, k3.id, "p_k1", JSON.stringify({ presentation: 4 }), ""]);
+await as("anon", "", UPSERT_VAL, [S2, k3.id, true]);
+const RMJ = "SELECT remove_judge($1, $2) r";
+await fails("anon", "", RMJ, /Not authorised/, "remove_judge: anon refused", [S2, k3.id]);
+await fails("authenticated", OTHER, RMJ, /Not authorised/, "remove_judge: another school's admin refused", [S2, k3.id]);
+const rm = (await as("authenticated", ADMIN, RMJ, [S2, k3.id])).rows[0].r;
+assert.deepEqual(rm, { alias: "Judge3", scores: 1 });
+for (const t of ["judges", "scores", "validations"])
+  assert.equal((await db.query(`SELECT count(*)::int n FROM ${t} WHERE school_id=$1`, [S2])).rows[0].n, 0, t);
+ok("remove_judge: admin removes Judge3 with their score + validation, nothing orphaned");
+assert.equal((await RJ2("Judge3")).rows[0].j.department_id, XK2);
+ok("remove_judge: the number is free again — Judge3 can sign in afresh");
+
+// Opting back into the old numbering
+await as("authenticated", ADMIN, SET, [S2, "judge_numbering", "department"]);
+assert.equal((await RJ2("Judge1", XMS)).rows[0].j.department_id, XMS);
+ok("judge numbering 'department': numbers restart per department again (Judge1 registers in 6-8)");
 
 console.log(`\nALL ${pass} CHECKS PASSED`);

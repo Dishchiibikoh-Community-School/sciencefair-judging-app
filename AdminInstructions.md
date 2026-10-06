@@ -49,7 +49,7 @@ judge device transfers. **You choose it when you register the school** — 4 to 
 | Tab | Purpose |
 |---|---|
 | **Overview** | Stats, completion tracking, per-department leaderboards |
-| **Setup** | Your departments and project categories — add, rename, reorder, delete, set max judges |
+| **Setup** | Your departments, **judge numbers** and project categories — add, rename, reorder, delete |
 | **Judges** | Track judge registration and scoring progress, grouped by department |
 | **Projects** | Add, edit, remove, or lock projects — each assigned to a department |
 | **Registration** | Generate/deactivate student registration link; view all submitted registrations |
@@ -72,13 +72,13 @@ Run through this a few days before, not on the morning of.
 - [ ] **Change the admin PIN** (Overview tab → Admin PIN card) if it has not been changed since the school was created.
 - [ ] **Set up your departments** (Setup tab). A new school starts with Elementary / Middle School / High School — change them to whatever your fair uses, or press a preset. If the list is empty, sign out and back in; they re-seed on admin sign-in.
 - [ ] **Check your project categories** (Setup tab) — rename, remove or add so they match your entry form.
-- [ ] **Set max judges per department** (Setup tab; locks per department once its first judge registers).
+- [ ] **Set the judge numbers** (Setup tab → Judge numbers): how many judges each department gets.
 - [ ] **Enter every project/team**, each assigned to a department, with adviser and members.
 - [ ] **Print the project list** (Projects tab) and check advisers/members appear.
 - [ ] **Download Projects CSV** (Projects tab) — your own backup copy of every team.
 - [ ] **Finish the rubric** (Rubric tab) before the first judge signs in.
-- [ ] **Do a dry run:** sign in as Judge1 on a spare tablet, score one project, confirm it shows in Overview, then Reset All Data.
-- [ ] **Write down** the school link, invite code, and which judge name each judge gets.
+- [ ] **Do a dry run:** sign in as judge number 1 on a spare tablet, score one project, confirm it shows in Overview, then **Remove** that judge on the Judges tab.
+- [ ] **Write down** the school link, invite code, and which judge number each judge gets (Overview → "Judge sign-in details" lists the numbers per department).
 - [ ] **Save a score backup** (Score Export tab) at the halfway point on event day.
 
 ---
@@ -133,13 +133,33 @@ and a judge can always type their own instead.
 > **⚠️ Set this before judging starts.** Once a department has scores the app refuses to change its
 > mode, because those scores would stop counting but stay in the database.
 
-#### Max Judges per department
+#### Judge numbers — one list for the whole school (default)
 
-On each department row, set **Max judges** (default 5). This is the highest judge number that can sign in to that department — set it to 8 and judges can be Judge1–Judge8.
+Every judge gets **one number for the whole school**, and the number decides their department.
+On the **Judge numbers** card, type how many judges each department needs and press **Save judge
+numbers**. Numbers are handed out in department order:
 
-- Once the first judge registers in a department, that department's number **locks** (🔒).
-- Each department is independent — locking one does not affect the others.
-- After a Reset All Data, every department becomes editable again.
+| Department | Judges | Numbers |
+|---|---|---|
+| PreK | 2 | Judge 1–2 |
+| K-2 | 2 | Judge 3–4 |
+| 3-5 | 3 | Judge 5–7 |
+| 6-8 | 4 | Judge 8–11 |
+
+- A judge types **only their number** and the invite code. The sign-in screen shows their
+  department back to them ("✓ Judge 9 · 6-8") — they can no longer pick the wrong department.
+- Each number exists **once** in the school. A second person typing the same number is refused.
+- A department set to **0** takes no judges.
+- **You can change the list after judges have signed in**, as long as each of them keeps a number
+  inside their own department. If not, Save is refused and names the judge in the way — remove
+  them on the Judges tab first if they signed in by mistake.
+- New departments are numbered after the last one automatically; adjust the counts afterwards.
+
+**Old style — numbers restart in each department.** Choose *"Numbers restart in each department"*
+on the same card if you really want it: each department then has its own Judge1, Judge2…, judges
+pick their department when signing in, and each department row gets a **Max judges** box (it locks
+once that department's first judge signs in). Not recommended: "Judge1" then means several people,
+and a judge who taps the wrong department can only be fixed by removing them.
 
 #### Project categories
 
@@ -160,9 +180,9 @@ The six built-in ones match the 2026-27 participation form, but you can replace 
 A judge's project list is built when they sign in. The app now pushes newly added
 projects out to judges who have already registered — but the safest sequence is still:
 
-1. Set each department's max judges
+1. Set the judge numbers (Setup tab)
 2. Enter **every** project/team
-3. *Then* hand out the judge name + invite code
+3. *Then* hand out each judge's number + the invite code
 
 If you must add a late entry after judging has started, it is pushed to the judges in
 that department automatically. Ask them to pull-to-refresh, and check the Judges tab —
@@ -241,13 +261,13 @@ add projects with **+ Add Project** instead.
 
 ### 3. Prepare Judge Credentials
 
-- **Judge names:** Judge1 through Judge[N] — where N is the Max Judges value configured per department
-  - Example: Elementary has 5 judges → Judge1–Judge5 in that department
-  - Middle School also has 5 judges → Judge1–Judge5 in that department (same names are fine — different departments)
+- **Judge numbers:** one list for the whole school, set in Setup → Judge numbers
+  - Example: PreK has 2 judges → Judge 1–2; K-2 has 2 → Judge 3–4; and so on
+  - Give each judge their number. They do not need to know their department — the app shows it to them
 - **Invite code:** shown at the top of your admin Overview tab — in the "Get started" card before any judge signs in, then in the "Judge sign-in details" card (it stays visible for the whole event). Judges type this to sign in.
   It is checked on the server, so a wrong code now returns a clear error — and 5 wrong attempts
   lock sign-in for 5 minutes across the school.
-- **Department:** Tell each judge which department they are assigned to before the event
+- **Department:** follows from the number. (Only if you switched to per-department numbering must you tell each judge which department to tap.)
 
 ---
 
@@ -259,7 +279,7 @@ add projects with **+ Add Project** instead.
 
 Each department shows its own section with:
 - **Judge count** — registered vs max for that department (e.g., 3/5)
-- **Max Judges setting** — editable until first judge registers in that dept
+- **Judge numbers** — set on the Setup tab
 - **Leaderboard** — real-time ranked list of projects in that department
 
 | Leaderboard Column | What It Shows |
@@ -299,7 +319,7 @@ If a judge's tablet fails and they need to continue on another device:
 3. Click **"Allow Transfer"**
 4. Enter your **Admin PIN** to authorize transfer
 5. Approval stays active briefly (about 10 minutes, one-time use)
-6. Judge signs in on the new device with the same judge name + department + invite code
+6. Judge signs in on the new device with the same judge number + invite code
 
 **Important:**
 - Judges cannot self-transfer without admin approval
@@ -629,14 +649,14 @@ Logs never contain student names or form text.
 
 ## Common Admin Tasks
 
-**Q: Can two judges have the same name in different departments?**
-A: Yes. Judge1 can exist in Elementary AND Middle School simultaneously — they are separate registrations in separate departments.
+**Q: Can two judges have the same number?**
+A: No (with one list for the whole school, the default). Each number belongs to one person. Only if you switch to "numbers restart in each department" can Judge1 exist in several departments.
 
-**Q: A judge registered in the wrong department. What do I do?**
-A: Use Reset All Data only if nothing has been scored yet. Otherwise, use Allow Transfer so the judge can re-register on a new device — but they will still be in the same department. To switch departments, the admin must remove that judge (Reset) and have them re-register in the correct one. Plan department assignments carefully before the event.
+**Q: A judge signed in with the wrong number / someone signed in who should not have.**
+A: Judges tab → **Remove** on that judge → enter your Admin PIN. Their number is freed and they can sign in again with the right one. Removing **permanently deletes that judge's scores, notes and validation** — the dialog tells you how many — so fix it before they score. No Reset All Data needed.
 
-**Q: Can I add judges beyond 5 per department?**
-A: Yes. Before any judge registers in that department, set its Max Judges higher (e.g., 10) on the Overview tab.
+**Q: Can I add more judges to a department?**
+A: Yes. Setup → Judge numbers → raise that department's count → Save. Departments after it are renumbered, which is only refused if it would move an already signed-in judge out of their department.
 
 **Q: What if a department has no projects?**
 A: Judges in that department will see an empty project list and cannot complete scoring. Always assign projects to departments before judging begins.

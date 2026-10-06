@@ -168,7 +168,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-06e";
+const ADMIN_HELP_UPDATED = "2026-10-06f";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -183,15 +183,16 @@ const ADMIN_HELP = [
   ]},
   { title: "Before the event — checklist", icon: "✅", items: [
     "Remember your Admin PIN (4–8 digits). It cannot be recovered, only changed (Overview → Admin PIN). 5 wrong tries lock PIN entry for 5 minutes.",
-    "Setup tab: set your departments first — add, rename or reorder them, or start from a preset (school levels, PreK–12 grade bands, grade bands + SPED). Then set Max Judges for each. Max Judges locks for a department once its first judge signs in.",
+    "Setup tab: set your departments first — add, rename or reorder them, or start from a preset (school levels, PreK–12 grade bands, grade bands + SPED).",
+    "Setup tab → Judge numbers: enter how many judges each department needs. Every judge gets ONE number for the whole school (e.g. PreK = Judge 1–2, K-2 = Judge 3–4) and the number decides their department.",
     "Setup tab: check your project categories. They are yours alone — rename them, delete the ones you don't use, or add your own (a robotics fair can replace all six).",
     "Setup tab: set any department that should NOT be scored (PreK, K-2) to 'Comments only'. This cannot be changed once that department has scores.",
     "Rubric tab: finish the rubric BEFORE the first judge signs in. Press a preset to start from one of the ready-made rubrics (Northeast AZ 42-point, or Cibecue/ISEF-style 100-point), then edit it if you need to.",
     "Projects tab: add every project (📷 Scan forms or + Add Project) and give each one a department — a project with no department is scored by nobody.",
     "Lock (🔒) projects whose details are final, so they cannot be edited or deleted by accident.",
     "Download Projects CSV and the Project List PDF as your own backup copy.",
-    "Dry run: on a spare tablet sign in as Judge1, score one project, check it on Overview, then Reset All Data.",
-    "Give each judge: the school link, the invite code (Overview → Get started), their judge name (Judge1, Judge2…) and their department.",
+    "Dry run: on a spare tablet sign in as judge number 1, score one project, check it on Overview, then remove that judge on the Judges tab (or Reset All Data).",
+    "Give each judge: the school link, the invite code and their judge number — all three are on the Overview tab. They do not choose a department; their number decides it.",
   ]},
   { title: "Do", icon: "👍", items: [
     "Save a score backup (Score Export → 💾 Save Score Backup) and download the CSVs at the halfway point and at the end.",
@@ -242,12 +243,16 @@ const ADMIN_HELP = [
     ["It says scanning is not set up / the API key was rejected.", "That is a setup problem, not your photo — tell your technical contact. Use + Add Project meanwhile."],
   ]},
   { title: "Judges", icon: "🧑‍⚖️", faq: [
-    ["A judge's tablet died.", "Judges tab → Allow Transfer on that judge (Admin PIN). Within 10 minutes the judge signs in on the new device with the same name, department and invite code. Their scores are kept."],
+    ["A judge's tablet died.", "Judges tab → Allow Transfer on that judge (Admin PIN). Within 10 minutes the judge signs in on the new device with the same judge number and invite code. Their scores are kept."],
     ["A judge lost internet.", "Scores are kept on the device and sync automatically when it reconnects (or with Sync Now). The app will not let a judge sign out while scores are still only on the device."],
     ["Can a judge change a score?", "Yes — open the project again and resubmit, until they validate their results or you lock judging."],
     ["A judge validated too early.", "They can press Revise my validation until you finalize the results."],
     ["A judge cannot see a project you just added.", "Make sure the project has their department. It appears automatically; if not, ask them to refresh the page."],
-    ["A judge registered in the wrong department.", "Before any scoring: Reset All Data and have them sign in again. After scoring has started, plan departments carefully — a judge cannot move departments."],
+    ["A judge registered in the wrong department.", "With one judge list for the whole school (the default) this cannot happen — the number decides the department. If someone used the wrong NUMBER: Judges tab → Remove on that judge (Admin PIN), then they sign in with the right number. Removing deletes that judge's scores, so do it before they score."],
+    ["Someone signed in who is not a judge / a test sign-in is in the list.", "Judges tab → Remove (Admin PIN). Their number is freed. No Reset needed."],
+    ["How do judge numbers work?", "Setup tab → Judge numbers. Type how many judges each department needs and press Save; numbers are handed out in department order (PreK 2, K-2 2 → PreK = Judge 1–2, K-2 = Judge 3–4). Each number exists once in the school, so two people can never both be 'Judge 1'. Judges type only their number and the invite code."],
+    ["Can I change the judge numbers after judges signed in?", "Yes, as long as everyone already signed in keeps a number inside their own department — otherwise Save is refused and tells you who is in the way. Remove that judge first if they signed in by mistake."],
+    ["Can numbers restart in each department instead?", "Yes: Setup → Judge numbers → 'Numbers restart in each department'. Each department then has its own Judge1, Judge2… and judges pick their department when signing in. Not recommended — the same name then means several people."],
   ]},
   { title: "Troubleshooting", icon: "🛠️", faq: [
     ["Where is the judge invite code?", "Overview tab, at the top. Before any judge signs in it is inside the \"Get started\" card; after that the card becomes \"Judge sign-in details\" and still shows the school address and invite code with Copy buttons."],
@@ -489,6 +494,15 @@ const CSS = `
   input[type=text]:read-only{color:var(--navy);font-family:var(--ff-m);font-size:.9rem;letter-spacing:.03em;cursor:default;background:var(--s1);}
   input:focus{border-color:var(--navy);}
   .err{color:var(--red);font-size:.9rem;margin-top:.4rem;}
+  .judge-num-hit{margin-top:.45rem;padding:.5rem .75rem;border-radius:8px;background:var(--green-l);color:var(--green);font-size:.92rem;text-align:center;}
+  .judge-num-miss{margin-top:.45rem;padding:.5rem .75rem;border-radius:8px;background:var(--amber-l);color:var(--amber);font-size:.88rem;text-align:center;}
+  .jn-rows{display:flex;flex-direction:column;gap:.4rem;margin:.6rem 0 .85rem;}
+  .jn-row{display:flex;align-items:center;gap:.75rem;padding:.45rem .65rem;border:1px solid var(--bd);border-radius:8px;background:var(--bg);}
+  .jn-row .jn-name{flex:1;min-width:0;font-weight:600;color:var(--navy);}
+  .jn-row input[type=number]{width:72px;text-align:center;}
+  .jn-row .jn-range{min-width:118px;text-align:right;font-family:var(--ff-m);font-size:.82rem;color:var(--dim);}
+  .jn-row .jn-range.none{color:var(--amber);}
+  @media (max-width:520px){ .jn-row{flex-wrap:wrap;} .jn-row .jn-name{flex-basis:100%;} .jn-row .jn-range{min-width:0;flex:1;} }
   textarea{width:100%;background:var(--bg);border:1.5px solid var(--bd);border-radius:8px;
     padding:.85rem 1rem;color:var(--text);font-family:var(--ff-b);font-size:1rem;
     outline:none;resize:vertical;min-height:90px;transition:border-color .2s;}
@@ -1075,6 +1089,25 @@ const CSS = `
 function dbToJudge(row) {
   return { id: row.id, alias: row.alias, projects: row.projects, joinedAt: new Date(row.joined_at).getTime(), department_id: row.department_id || null };
 }
+// The one place a departments row becomes app state. judge_from / judge_to are the
+// department's judge numbers (migration 2026-10g); both arrive undefined before that
+// migration, which the app reads as "numbers restart per department" (the old way).
+function dbToDept(r) {
+  return { id: r.id, name: r.name, code: r.code || "", max_judges: r.max_judges, ord: r.ord,
+           scoring_mode: r.scoring_mode === "feedback" ? "feedback" : "scored",
+           judge_from: Number.isInteger(r.judge_from) ? r.judge_from : null,
+           judge_to:   Number.isInteger(r.judge_to)   ? r.judge_to   : null };
+}
+// "8", "judge 8", "JUDGE08", "Judge8" → "Judge8". Anything else is returned trimmed,
+// so the server can reject it with its own message.
+function normJudgeAlias(raw) {
+  const m = String(raw || "").trim().match(/^(?:judge)?\s*0*(\d{1,3})$/i);
+  return m ? `Judge${parseInt(m[1], 10)}` : String(raw || "").trim();
+}
+function judgeNumOf(alias) {
+  const m = String(alias || "").match(/^Judge(\d+)$/);
+  return m ? parseInt(m[1], 10) : null;
+}
 function dbToLog(row) {
   return { id: row.id, time: new Date(row.created_at).getTime(), msg: row.message };
 }
@@ -1215,6 +1248,14 @@ export default function App() {
   const [regName,    setRegName]     = useState("");
   const [regCode,    setRegCode]     = useState("");
   const [regDept,    setRegDept]     = useState("");
+  // Judge numbering (migration 2026-10g): "school" = one list for the whole school
+  // (DEFAULT — the number decides the department), "department" = numbers restart
+  // in every department (the pre-2026-10g behaviour).
+  const [judgeNumbering,   setJudgeNumbering]   = useState("school");
+  const [judgeCountDrafts, setJudgeCountDrafts] = useState({});   // Setup tab: { [deptId]: "3" }
+  const [removeJudgeAsk,   setRemoveJudgeAsk]   = useState(null); // judge being removed (PIN modal)
+  const [removeJudgePin,   setRemoveJudgePin]   = useState("");
+  const [removeJudgeErr,   setRemoveJudgeErr]   = useState("");
   const [regErr,     setRegErr]      = useState("");
   const [adminPass,         setAdminPass]         = useState("");
   const [adminErr,          setAdminErr]          = useState("");
@@ -1359,9 +1400,7 @@ export default function App() {
     if (data && data.length > 0) {
       // scoring_mode arrives undefined if migration 2026-10f has not been run —
       // default to 'scored', which is exactly how the app behaved before it existed.
-      setDepartments(data.map(r =>
-        ({ id: r.id, name: r.name, code: r.code || "", max_judges: r.max_judges, ord: r.ord,
-           scoring_mode: r.scoring_mode === "feedback" ? "feedback" : "scored" })));
+      setDepartments(data.map(dbToDept));
     }
   }
 
@@ -1467,6 +1506,7 @@ export default function App() {
         setTransferAllowances({});
       }
       setProjListToken(map.project_list_token || "");
+      setJudgeNumbering(map.judge_numbering === "department" ? "department" : "school");
       // Note: judge/admin validations are loaded separately by loadValidations()
       // from the validations table — not from app_settings.
     }
@@ -1618,8 +1658,7 @@ export default function App() {
           ({ school_id: sid, name: d.name, code: d.code, max_judges: 5, ord: i })))
         .select();
       if (!error && seeded) {
-        setDepartments(seeded.map(r =>
-          ({ id: r.id, name: r.name, code: r.code || "", max_judges: r.max_judges, ord: r.ord })));
+        setDepartments(seeded.map(dbToDept));
         addItLog("WARN","SYSTEM","DEPARTMENTS_RESEEDED",
           "Departments were missing for this school and have been re-seeded", { schoolId: sid });
       }
@@ -2399,6 +2438,112 @@ export default function App() {
   //  never enforced; per-department departments.max_judges is the only limit.
   //  See updateDeptMaxJudges below.)
 
+  // ── Judge numbers (migration 2026-10g) ─────────────────────────────────────
+  // School-wide numbering is only real once the departments carry judge numbers;
+  // before the migration runs the app keeps the old per-department numbering.
+  function schoolNumbering() {
+    return judgeNumbering === "school" && departments.some(d => d.judge_from != null);
+  }
+  function deptForJudgeNum(n) {
+    if (!n) return null;
+    return [...departments].sort((a, b) => a.ord - b.ord)
+      .find(d => d.judge_from != null && n >= d.judge_from && n <= d.judge_to) || null;
+  }
+  function judgeRangeText(d) {
+    if (d?.judge_from == null) return "no judges";
+    return d.judge_from === d.judge_to ? `Judge ${d.judge_from}` : `Judge ${d.judge_from}–${d.judge_to}`;
+  }
+  function deptJudgeCount(d) {
+    return d?.judge_from == null ? 0 : d.judge_to - d.judge_from + 1;
+  }
+  // Counts typed in the Setup tab → contiguous ranges in department order
+  // (PreK 2, K-2 2, 3-5 3 → 1–2, 3–4, 5–7). A count of 0 gives the department no judges.
+  function plannedJudgeRanges() {
+    // A plain loop on purpose: bumping `next` inside a .map() callback bails the React
+    // Compiler out of the whole file (rule 37).
+    const out = [];
+    let next = 1;
+    for (const d of [...departments].sort((a, b) => a.ord - b.ord)) {
+      const raw = judgeCountDrafts[d.id];
+      const n = raw === undefined ? deptJudgeCount(d) : Math.max(0, parseInt(raw, 10) || 0);
+      out.push({ dept: d, count: n, ...(n > 0 ? { from: next, to: next + n - 1 } : { from: null, to: null }) });
+      next += n;
+    }
+    return out;
+  }
+
+  async function saveJudgeNumbers() {
+    setSetupErr("");
+    const plan = plannedJudgeRanges();
+    const total = plan.reduce((a, p) => a + p.count, 0);
+    if (total === 0) { setSetupErr("Give at least one department some judges."); return; }
+    if (total > 999) { setSetupErr("A school can have at most 999 judge numbers."); return; }
+    // The server re-checks all of this (overlaps, and that no signed-in judge would end
+    // up outside their department) — its message is written for the admin to read.
+    const { error } = await supabase.rpc("set_judge_numbers", {
+      p_school_id: currentSchool.id,
+      p_ranges: plan.map(p => ({ department_id: p.dept.id, from: p.from, to: p.to })),
+    });
+    if (error) {
+      setSetupErr(`Judge numbers NOT saved: ${error.message}`);
+      addItLog("ERROR","ADMIN","JUDGE_NUMBERS_SAVE_FAILED","Could not save the judge list",{ error: error.code || error.message });
+      return;
+    }
+    setJudgeCountDrafts({});
+    await loadDepartments(currentSchool.id);
+    const summary = plan.map(p => `${p.dept.name} ${p.from == null ? "none" : `${p.from}-${p.to}`}`).join(", ");
+    addLog(`Admin set the judge numbers: ${summary}`);
+    addItLog("INFO","ADMIN","JUDGE_NUMBERS_SAVED","Admin saved the school's judge list",
+      { total, ranges: plan.map(p => ({ dept: p.dept.name, from: p.from, to: p.to })) });
+  }
+
+  async function setJudgeNumberingMode(mode) {
+    if (mode !== "school" && mode !== "department") return;
+    setSetupErr("");
+    const { error } = await supabase.from("app_settings")
+      .upsert({ school_id: currentSchool.id, key: "judge_numbering", value: mode }, { onConflict: "school_id,key" });
+    if (error) {
+      setSetupErr(`Judge numbering NOT changed: ${error.message}`);
+      addItLog("ERROR","ADMIN","JUDGE_NUMBERING_CHANGE_FAILED","Could not change the judge numbering",{ mode, error: error.code || error.message });
+      return;
+    }
+    setJudgeNumbering(mode);
+    addLog(mode === "school" ? "Admin switched to one judge list for the whole school"
+                             : "Admin switched to judge numbers that restart in each department");
+    addItLog("INFO","ADMIN","JUDGE_NUMBERING_CHANGED","Admin changed how judges are numbered",{ mode });
+  }
+
+  // Remove ONE judge (wrong department, a stranger, a test sign-in). Before 2026-10g the
+  // only way was Reset All Data. PIN-gated because it deletes that judge's scores.
+  async function confirmRemoveJudge() {
+    const j = removeJudgeAsk;
+    if (!j) return;
+    const ok = await verifyAdminPin(removeJudgePin);
+    if (!ok.valid) {
+      setRemoveJudgeErr(ok.message || "Incorrect PIN.");
+      addItLog("WARN","AUTH","JUDGE_REMOVE_PIN_FAILED","Judge removal denied — wrong PIN",{ alias: j.alias });
+      setTimeout(() => setRemoveJudgePin(""), 600);
+      return;
+    }
+    const { data, error } = await supabase.rpc("remove_judge", { p_school_id: currentSchool.id, p_judge_id: j.id });
+    if (error) {
+      const missing = /remove_judge/.test(error.message || "") && /function|not find/i.test(error.message || "");
+      setRemoveJudgeErr(missing
+        ? "This needs a database update that has not been run yet (migration 2026-10g)."
+        : `${j.alias} was NOT removed: ${error.message}`);
+      addItLog("ERROR","ADMIN","JUDGE_REMOVE_FAILED","Could not remove a judge",{ alias: j.alias, error: error.code || error.message });
+      return;
+    }
+    const sid = currentSchool.id;
+    setJudges(p => p.filter(x => x.id !== j.id));
+    await Promise.all([loadScores(sid), loadValidations(sid), loadDelibNotes(sid)]);
+    const dept = departments.find(d => d.id === j.department_id);
+    addLog(`Admin removed ${j.alias}${dept ? ` (${dept.name})` : ""} and ${data?.scores ?? 0} of their score(s)`);
+    addItLog("WARN","ADMIN","JUDGE_REMOVED","Admin removed a judge and their scores",
+      { judgeId: j.id, alias: j.alias, dept: dept?.name || null, scoresRemoved: data?.scores ?? 0 });
+    setRemoveJudgeAsk(null); setRemoveJudgePin(""); setRemoveJudgeErr("");
+  }
+
   async function updateDeptMaxJudges(deptId, newMax) {
     const num = parseInt(newMax);
     if (isNaN(num) || num < 1) return;
@@ -2496,7 +2641,8 @@ export default function App() {
       addItLog("ERROR","ADMIN","DEPARTMENT_ADD_FAILED","Department could not be added",{ name: nm, error: error.message });
       return;
     }
-    setDepartments(prev => [...prev, { id: data.id, name: data.name, code: data.code || "", max_judges: data.max_judges, ord: data.ord }]);
+    // The row comes back with its judge numbers (assigned by a DB trigger, 2026-10g).
+    setDepartments(prev => [...prev, dbToDept(data)]);
     setNewDept({ name: "", code: "" });
     addLog(`Admin added the department "${nm}"`);
     addItLog("INFO","ADMIN","DEPARTMENT_ADDED","Admin added a department",{ name: nm });
@@ -2596,8 +2742,7 @@ export default function App() {
       addItLog("ERROR","ADMIN","DEPT_PRESET_FAILED","Department preset could not be applied",{ preset: preset.id, error: error.message });
       return;
     }
-    setDepartments(prev => [...prev, ...data.map(r =>
-      ({ id: r.id, name: r.name, code: r.code || "", max_judges: r.max_judges, ord: r.ord }))]);
+    setDepartments(prev => [...prev, ...data.map(dbToDept)]);
     addLog(`Admin added ${missing.length} department${missing.length !== 1 ? "s" : ""} from "${preset.label}"`);
     addItLog("INFO","ADMIN","DEPT_PRESET_APPLIED","Admin applied a department preset",
       { preset: preset.id, added: missing.map(d => d.name) });
@@ -3337,9 +3482,20 @@ export default function App() {
 
   // Actions
   async function handleRegister() {
-    const name = regName.trim();
-    const dept = departments.find(d => d.id === regDept);
-    if (!dept) { setRegErr("Please select your department."); return; }
+    const name = normJudgeAlias(regName);
+    // One list for the whole school (default): the NUMBER decides the department —
+    // the judge no longer picks one. The server does the same lookup and is the
+    // authority; this is only so the screen can name the department up front.
+    const dept0 = schoolNumbering()
+      ? deptForJudgeNum(judgeNumOf(name))
+      : departments.find(d => d.id === regDept);
+    if (!dept0) {
+      setRegErr(schoolNumbering()
+        ? (judgeNumOf(name) ? `Judge ${judgeNumOf(name)} is not on this school's judge list. Check your number with the coordinator.`
+                            : "Enter your judge number.")
+        : "Please select your department.");
+      return;
+    }
 
     // All validation now happens inside the register_judge() SQL function:
     // the invite code is checked server-side (rate-limited, 5 failures = 5 min
@@ -3349,7 +3505,7 @@ export default function App() {
     // way a judge row can be created.
     const { data, error } = await supabase.rpc("register_judge", {
       p_school_id:     currentSchool.id,
-      p_department_id: dept.id,
+      p_department_id: dept0.id,
       p_alias:         name,
       p_invite_code:   regCode.trim(),
     });
@@ -3358,12 +3514,14 @@ export default function App() {
       // Our RAISE messages are already written for the judge to read.
       setRegErr(error.message || "Registration failed. Please try again.");
       addItLog("WARN","AUTH","JUDGE_REGISTER_REJECTED","register_judge rejected a sign-in attempt",
-        { attemptedName: name, dept: dept.name, error: error.message, timestamp: fmtISO(Date.now()) });
+        { attemptedName: name, dept: dept0.name, error: error.message, timestamp: fmtISO(Date.now()) });
       return;
     }
 
     const j = dbToJudge(data);
     const isTransfer = judges.some(x => x.id === j.id);
+    // Name the department the server actually used (an older row may sit elsewhere).
+    const dept = departments.find(d => d.id === j.department_id) || dept0;
     setJudges(p => (isTransfer ? p.map(x => x.id === j.id ? j : x) : [...p, j]));
     setJudge(j);
     localStorage.setItem("sf_judge_id",   j.id);
@@ -4427,6 +4585,31 @@ export default function App() {
             <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.5rem", marginBottom:".4rem", color:"var(--navy)" }}>Judge Sign In</h2>
             <p style={{ color:"var(--dim)", fontSize:".95rem" }}>Your coordinator will give you your judge name and invite code before the event starts.</p>
           </div>
+          {schoolNumbering() ? (() => {
+            // One list for the whole school: the judge types only their number and the
+            // department is shown back from it — they can no longer pick the wrong one.
+            const num  = judgeNumOf(normJudgeAlias(regName));
+            const dept = deptForJudgeNum(num);
+            const top  = departments.reduce((m, d) => Math.max(m, d.judge_to || 0), 0);
+            return (
+              <div style={{ marginBottom:"1rem" }}>
+                <div className="lbl">Judge Number</div>
+                <input type="text" inputMode="numeric" placeholder="e.g. 7" value={regName}
+                  onChange={e => { setRegName(e.target.value); setRegErr(""); }}
+                  onKeyDown={e => e.key==="Enter" && handleRegister()}
+                  style={{ textAlign:"center", fontFamily:"var(--ff-m)", fontSize:"1.1rem" }} />
+                {num && dept ? (
+                  <div className="judge-num-hit">✓ Judge {num} · <strong>{dept.name}</strong></div>
+                ) : num ? (
+                  <div className="judge-num-miss">Judge {num} is not on this school's judge list (1–{top}).</div>
+                ) : (
+                  <p style={{ fontSize:".78rem", color:"var(--dim)", marginTop:".35rem" }}>
+                    Your coordinator gave you a judge number. Your department is filled in from it.
+                  </p>
+                )}
+              </div>
+            );
+          })() : (<>
           <div style={{ marginBottom:"1rem" }}>
             <div className="lbl">Department</div>
             <div style={{ display:"flex", flexDirection:"column", gap:".45rem" }}>
@@ -4459,6 +4642,7 @@ export default function App() {
               Your coordinator assigned you a name like <strong>Judge1</strong>, <strong>Judge2</strong>, etc.
             </p>
           </div>
+          </>)}
           <div style={{ marginBottom:"1rem" }}>
             <div className="lbl">Invite Code</div>
             <input type="text" placeholder="Event invite code" value={regCode}
@@ -5632,6 +5816,44 @@ export default function App() {
           )}
 
           {/* ── TRANSFER PIN MODAL ── */}
+          {removeJudgeAsk && (() => {
+            const j = removeJudgeAsk;
+            const dept = departments.find(d => d.id === j.department_id);
+            const nScores = Object.keys(scores).filter(k => k.startsWith(`${j.id}_`)).length;
+            const close = () => { setRemoveJudgeAsk(null); setRemoveJudgePin(""); setRemoveJudgeErr(""); };
+            return (
+              <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) close(); }}>
+                <div className="modal-box">
+                  <div className="ico">🗑</div>
+                  <h2>Remove {j.alias}?</h2>
+                  <p>{j.alias}{dept ? ` (${dept.name})` : ""} will be signed out and their number freed, so the right person can sign in with it.</p>
+                  <p style={{marginTop:".5rem",color: nScores ? "var(--red)" : "var(--dim)",fontWeight: nScores ? 600 : 400}}>
+                    {nScores
+                      ? `This permanently deletes their ${nScores} score${nScores!==1?"s":""}, notes and validation. It cannot be undone.`
+                      : "They have not scored anything yet."}
+                  </p>
+                  <div className="modal-pin-label" style={{marginTop:"1.1rem"}}>Admin PIN</div>
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:".25rem"}}>
+                    <input type="password" maxLength={8} inputMode="numeric" placeholder="••••" autoFocus
+                      value={removeJudgePin}
+                      style={{ width:"160px", textAlign:"center", letterSpacing:".5em", fontFamily:"var(--ff-m)", fontSize:"1.3rem",
+                        background:"var(--bg)", border:`1.5px solid ${removeJudgeErr?"var(--red)":"var(--bd)"}`,
+                        borderRadius:"8px", padding:".8rem 1rem", color:"var(--text)", outline:"none" }}
+                      onChange={e => { setRemoveJudgePin(e.target.value.replace(/\D/g,"").slice(0,8)); setRemoveJudgeErr(""); }}
+                      onKeyDown={e => { if (e.key === "Enter" && removeJudgePin.length >= 4) confirmRemoveJudge(); }} />
+                    {removeJudgeErr && <div style={{color:"var(--red)",fontSize:".8rem",marginTop:".25rem",textAlign:"center"}}>{removeJudgeErr}</div>}
+                  </div>
+                  <div className="modal-btn-row">
+                    <button className="btn sec" onClick={close}>Cancel</button>
+                    <button className="btn danger" disabled={removeJudgePin.length < 4} onClick={confirmRemoveJudge}>
+                      Remove {j.alias}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {showTransferPinModal && (
             <div className="modal-overlay" onClick={e => { if(e.target===e.currentTarget){ setShowTransferPinModal(false); setTransferPin(""); setTransferPinErr(""); }}}>
               <div className="modal-box">
@@ -5819,6 +6041,16 @@ export default function App() {
                         {setupCopied === "code" ? "Copied!" : "Copy"}
                       </button>
                     </div>
+                    {schoolNumbering() && (
+                      <div className="setup-share-row" style={{alignItems:"flex-start"}}>
+                        <span className="setup-share-key">Judge numbers</span>
+                        <span className="setup-share-val" style={{whiteSpace:"normal",fontSize:".82rem",lineHeight:1.5}}>
+                          {[...departments].sort((a,b)=>a.ord-b.ord).filter(d => d.judge_from != null)
+                            .map(d => `${d.name}: ${d.judge_from === d.judge_to ? d.judge_from : `${d.judge_from}–${d.judge_to}`}`).join(" · ")}
+                        </span>
+                        <button className="setup-copy-btn" onClick={() => setAdminTab("setup")}>Edit</button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -6015,7 +6247,8 @@ export default function App() {
                 <p style={{fontSize:".82rem",color:"var(--dim)",marginBottom:".9rem"}}>
                   A department is one judging pool. Judges sign in to a department and score every project in it,
                   and results, ties and awards are worked out inside each one — projects in different departments never compete.
-                  Max Judges locks once that department's first judge signs in.
+                  {schoolNumbering() ? " How many judges each one gets is set on the Judge numbers card below."
+                                     : " Max Judges locks once that department's first judge signs in."}
                 </p>
 
                 <div className="setup-rows">
@@ -6054,14 +6287,18 @@ export default function App() {
                               </div>
                               <div className="setup-meta">
                                 {dept.code && <span className="badge bb">{dept.code}</span>}
-                                {" "}{projCount} project{projCount!==1?"s":""} · {deptCount}/{dept.max_judges} judge{deptCount!==1?"s":""}
+                                {" "}{projCount} project{projCount!==1?"s":""} · {deptCount}/{schoolNumbering() ? deptJudgeCount(dept) : dept.max_judges} judge{deptCount!==1?"s":""}
                               </div>
                             </>
                           )}
                         </div>
                         {!edit && (
                           <div className="setup-acts">
-                            <span className="setup-maxj">
+                            {schoolNumbering() ? (
+                              <span className="setup-maxj" title="Set on the Judge numbers card below">
+                                {judgeRangeText(dept)}
+                              </span>
+                            ) : <span className="setup-maxj">
                               Max judges:{" "}
                               {judgeLock
                                 ? <><strong>{dept.max_judges}</strong> <span title="Locked — judges have signed in">🔒</span></>
@@ -6071,7 +6308,7 @@ export default function App() {
                                       onBlur={e => updateDeptMaxJudges(dept.id, e.target.value)}
                                       onKeyDown={e => e.key==="Enter" && updateDeptMaxJudges(dept.id, maxDraft)} />
                                   </>}
-                            </span>
+                            </span>}
                             <select className="setup-mode" value={dept.scoring_mode || "scored"}
                               title="How this department is judged"
                               onChange={e => updateDeptScoringMode(dept.id, e.target.value)}>
@@ -6115,6 +6352,62 @@ export default function App() {
                   </div>
                 </div>
               </div>
+
+              {/* ── Judge numbers (migration 2026-10g) ── */}
+              {departments.some(d => d.judge_from != null) && (() => {
+                const plan    = plannedJudgeRanges();
+                const total   = plan.reduce((a, p) => a + p.count, 0);
+                const dirty   = Object.keys(judgeCountDrafts).length > 0;
+                return (
+                  <div className="card">
+                    <div className="lbl" style={{marginBottom:".4rem"}}>Judge numbers</div>
+                    <select className="setup-mode" aria-label="Judge numbering" style={{marginBottom:".6rem"}} value={judgeNumbering}
+                      onChange={e => setJudgeNumberingMode(e.target.value)}>
+                      <option value="school">One list for the whole school (recommended)</option>
+                      <option value="department">Numbers restart in each department</option>
+                    </select>
+                    {judgeNumbering === "school" ? (<>
+                      <p style={{fontSize:".82rem",color:"var(--dim)",marginBottom:".2rem"}}>
+                        Every judge gets one number for the whole school, and the number decides the department —
+                        judges type only their number and the invite code. Enter how many judges each department needs;
+                        numbers are handed out in department order.
+                      </p>
+                      <div className="jn-rows">
+                        {plan.map(p => {
+                          const signedIn = judges.filter(j => j.department_id === p.dept.id).length;
+                          return (
+                            <div key={p.dept.id || p.dept.name} className="jn-row">
+                              <span className="jn-name">{p.dept.name}
+                                {signedIn > 0 && <span style={{fontWeight:400,fontSize:".76rem",color:"var(--dim)"}}> · {signedIn} signed in</span>}
+                              </span>
+                              <input type="number" min="0" max="999" aria-label={`Judges for ${p.dept.name}`}
+                                value={judgeCountDrafts[p.dept.id] ?? String(deptJudgeCount(p.dept))}
+                                onChange={e => { setSetupErr(""); setJudgeCountDrafts(d => ({...d, [p.dept.id]: e.target.value})); }} />
+                              <span className={`jn-range ${p.from == null ? "none" : ""}`}>
+                                {p.from == null ? "no judges" : p.from === p.to ? `Judge ${p.from}` : `Judge ${p.from}–${p.to}`}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div style={{display:"flex",gap:".5rem",alignItems:"center",flexWrap:"wrap"}}>
+                        <button className="btn sm" style={{width:"auto"}} disabled={!dirty} onClick={saveJudgeNumbers}>Save judge numbers</button>
+                        {dirty && <button className="btn sec sm" style={{width:"auto"}} onClick={() => { setSetupErr(""); setJudgeCountDrafts({}); }}>Cancel</button>}
+                        <span style={{fontSize:".8rem",color:"var(--dim)"}}>{total} judge{total!==1?"s":""} in total</span>
+                      </div>
+                      <p style={{fontSize:".76rem",color:"var(--dim)",marginTop:".6rem"}}>
+                        You can change this after judges have signed in, as long as each of them keeps a number inside
+                        their own department. To fix a judge who signed in by mistake, remove them on the Judges tab.
+                      </p>
+                    </>) : (
+                      <p style={{fontSize:".82rem",color:"var(--dim)"}}>
+                        Each department has its own Judge1, Judge2, … and judges pick their department when signing in.
+                        Set the size of each department with Max judges above.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* ── Project categories ── */}
               <div className="card">
@@ -6194,7 +6487,7 @@ export default function App() {
               <div className="adm-sub">Monitor activity and completion per judge · approve device transfer only when needed</div>
               <div className="card"><div className="tbl-wrap">
                 <table>
-                  <thead><tr><th>Alias</th><th>Department</th><th>Joined</th><th>Assigned</th><th>Progress</th><th>Status</th><th>Transfer</th></tr></thead>
+                  <thead><tr><th>Alias</th><th>Department</th><th>Joined</th><th>Assigned</th><th>Progress</th><th>Status</th><th>Device / remove</th></tr></thead>
                   <tbody>
                     {judges.length === 0 && (
                       <tr><td colSpan={7} style={{textAlign:"center",color:"var(--dim)",padding:"1rem",fontSize:".85rem"}}>No judges registered yet.</td></tr>
@@ -6205,7 +6498,8 @@ export default function App() {
                       return [
                         <tr key={`dept-hdr-${dept.id}`}>
                           <td colSpan={7} style={{background:"var(--s2)",fontWeight:600,fontSize:".78rem",color:"var(--navy)",fontFamily:"var(--ff-m)",letterSpacing:".05em",padding:".35rem .75rem"}}>
-                            {dept.name.toUpperCase()} — {deptJudges.length}/{dept.max_judges}
+                            {dept.name.toUpperCase()} — {deptJudges.length}/{schoolNumbering() ? deptJudgeCount(dept) : dept.max_judges}
+                            {schoolNumbering() && <span style={{fontWeight:400,opacity:.75}}> · {judgeRangeText(dept)}</span>}
                           </td>
                         </tr>,
                         ...deptJudges.map(j => {
@@ -6234,6 +6528,8 @@ export default function App() {
                                 <button className="btn sec sm" style={{width:"auto"}} onClick={() => allowJudgeTransfer(j.alias)}>
                                   {transferOpen ? "Approved (active)" : "Allow Transfer"}
                                 </button>
+                                <button className="btn danger sm" style={{width:"auto",marginLeft:".35rem"}}
+                                  onClick={() => { setRemoveJudgeAsk(j); setRemoveJudgePin(""); setRemoveJudgeErr(""); }}>Remove</button>
                               </td>
                             </tr>
                           );
@@ -6265,6 +6561,8 @@ export default function App() {
                             <button className="btn sec sm" style={{width:"auto"}} onClick={() => allowJudgeTransfer(j.alias)}>
                               {transferOpen ? "Approved (active)" : "Allow Transfer"}
                             </button>
+                            <button className="btn danger sm" style={{width:"auto",marginLeft:".35rem"}}
+                              onClick={() => { setRemoveJudgeAsk(j); setRemoveJudgePin(""); setRemoveJudgeErr(""); }}>Remove</button>
                           </td>
                         </tr>
                       );

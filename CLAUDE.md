@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + real-Postgres (PGlite) migration/RLS suite. Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 122 checks across 5 files |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 179 checks across 8 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -57,6 +57,7 @@ always serves and cannot be redirected — never share it.
 | `migration-2026-10c-secure-school-signup.sql` | **`create_school()`** RPC; closes direct INSERT on `schools` and `school_admins` (anyone could make themselves admin of any school) | **Yes** — the sign-up form calls `create_school()`. Run before anyone registers a school |
 | `migration-2026-10d-judge-revise-validation.sql` | Judges may delete their own validation until results are finalized (never the admin's) | No — without it "Revise my validation" shows an error instead of unlocking |
 | `migration-2026-10e-categories-and-department-codes.sql` | **`categories`** table (per-school project categories) + seeds the six for every existing school; **`departments.code`** | No — **additive only**. Old app ignores both; new app falls back to `DEFAULT_CATEGORIES` and logs `CATEGORIES_TABLE_MISSING`. Safe to run in either order |
+| `migration-2026-10g-school-judge-numbers.sql` | **One judge list per school** (default): `departments.judge_from` / `judge_to`, numbering trigger + backfill, `app_settings.judge_numbering`, new **`register_judge()`**, **`set_judge_numbers()`**, **`remove_judge()`** | No — new app without it keeps per-department numbering; old app with it still works (the number overrides the department it sends). Run it, then set the counts in Setup |
 | `migration-2026-10f-scoring-modes.sql` | **`departments.scoring_mode`** (`scored` \| `feedback`) + **`scores.commendation`**; plus Phase 3 columns `departments.locked`, `finalized_at`, `award_grouping` (reserved, nothing reads them yet) | No — **additive only**, every default reproduces current behaviour. Without it the app treats every department as `scored` and logs `SCORING_MODE_COLS_MISSING` when you try to switch one |
 
 `registration-migration.sql` and `schema.sql` are historical (the latter is the v1 schema).
@@ -142,10 +143,16 @@ files, no Tailwind, no CSS modules.
 - `handleAdminLogout()` → `supabase.auth.signOut()`.
 
 ### Judge sign-in flow
-1. Judge picks a **department**, enters an alias (`Judge1`–`Judge{dept.max_judges}`) and the invite code.
+1. **Default (2026-10g) — one judge list for the whole school.** Each department owns a range of
+   judge numbers (`departments.judge_from`–`judge_to`, set in Setup → Judge numbers). The judge
+   types only a number + the invite code; `normJudgeAlias()` turns "7"/"judge 07" into `Judge7`
+   and the screen shows the department from `deptForJudgeNum()`. A number exists once per school.
+   **Legacy** (`app_settings.judge_numbering = 'department'`, or migration 2026-10g not run):
+   the judge picks a department and `Judge1`–`Judge{max_judges}` restart in each one.
 2. `handleRegister()` calls the `register_judge(school_id, department_id, alias, invite_code)`
-   RPC. **All checks are server-side:** invite code (rate-limited), alias range, department
-   capacity, duplicate alias, and the one-time admin-approved device transfer.
+   RPC. **All checks are server-side:** invite code (rate-limited), the number → department
+   lookup (school mode ignores the department the client sends), duplicate number, department
+   capacity (legacy mode), and the one-time admin-approved device transfer.
 3. The judge row is assigned every project in their department (`judges.projects`).
 4. Session is saved to `localStorage` (`sf_judge_id`, `sf_judge_data`, `sf_judge_slug`).
 
@@ -208,7 +215,10 @@ the only real controls. "The UI does not expose it" is never a control.
 
 | Function | Caller | Purpose |
 |---|---|---|
-| `register_judge(school, dept, alias, code)` | anon | The **only** way to create a judge row |
+| `register_judge(school, dept, alias, code)` | anon | The **only** way to create a judge row. Rewritten in 2026-10g: in school mode the number decides the department |
+| `set_judge_numbers(school, ranges)` | admin | Save every department's judge range (2026-10g). Refuses overlaps and any change that leaves a signed-in judge outside their department; sets `max_judges` = range size |
+| `remove_judge(school, judge_id)` | admin | Remove ONE judge + their scores, notes and validation in one transaction (2026-10g). Returns `{alias, scores}`. App gates it behind the Admin PIN |
+| `judge_numbering_mode(school)` | anon/auth | `'school'` unless `app_settings.judge_numbering = 'department'` |
 | `verify_school_pin(school, pin)` | anon/auth | Returns boolean; 5 failures → 5-minute lockout per school |
 | `set_school_pin(school, pin)` | admin | Change PIN (min 4 chars); re-hashed server-side |
 | `school_invite_code(school)` | admin | Read own invite code |
@@ -257,7 +267,7 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
   rows to anyone passing RLS and ignores column privileges, so it would still leak.
 
 ### Other access rules
-- Judges sign in by number (`Judge1`–`JudgeN`); N is per department. Same alias may exist in different departments.
+- Judges sign in by number. **Default:** one list for the whole school — each number belongs to one department and one person. **Legacy mode** (`judge_numbering = 'department'`): `Judge1`–`JudgeN` restart per department and the same alias may exist in several.
 - Device transfer: admin clicks **Allow Transfer** (PIN modal) → one-time allowance valid ~10 minutes, consumed by `register_judge()`.
 - **Activity log is never cleared** — it is the security audit trail.
 - Public results never show judge names.
@@ -273,7 +283,7 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `schools` | id, name, slug, invite_code, admin_pin (bcrypt) |
 | `school_admins` | Links a Supabase Auth user to a school |
 | `rubrics` | Per-school rubric — `criteria` JSONB array, `is_active` |
-| `departments` | name, `code`, `max_judges`, `ord`, **`scoring_mode`** — seeded from `DEPT_PRESETS[0]`, fully admin-editable. `code` (2026-10e) is reserved for registration numbers; `locked` / `finalized_at` / `award_grouping` (2026-10f) are reserved for Phase 3. Nothing reads those four yet |
+| `departments` | name, `code`, `max_judges`, `ord`, **`scoring_mode`**, **`judge_from` / `judge_to`** (2026-10g — this department's judge numbers; a trigger numbers new rows after the school's last number) — seeded from `DEPT_PRESETS[0]`, fully admin-editable. `code` (2026-10e) is reserved for registration numbers; `locked` / `finalized_at` / `award_grouping` (2026-10f) are reserved for Phase 3. Nothing reads those four yet |
 | `categories` | Per-school project categories: name, `code`, `ord` (2026-10e). UNIQUE(school_id, name). **No FK from `projects`** — `projects.cat` is a free-text snapshot, so deleting a category never alters a project |
 | `projects` | num, title, cat, grade, locked, department_id, room, description, motivation — **public, no names** |
 | `project_private` | PK `(project_id, school_id)`, FK → projects **ON DELETE CASCADE**: advisor_name, group_members (JSONB), updated_at — **admin-only** |
@@ -282,7 +292,7 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `validations` | Judge/admin validation; `judge_id = 'admin'` for the admin. Conflict `(school_id, judge_id)` |
 | `deliberation_notes` | Judge recommendation/comment/flag per project |
 | `final_decisions` | Admin award per project. Conflict `(school_id, project_id)` |
-| `app_settings` | Key/value, PK `(school_id, key)`: `locked`, `deliberation_open`, `results_finalized`, `judge_transfer_allowances`, `project_list_token` |
+| `app_settings` | Key/value, PK `(school_id, key)`: `locked`, `deliberation_open`, `results_finalized`, `judge_transfer_allowances`, `project_list_token`, `judge_numbering` (`school` default when absent \| `department`) |
 | `share_links` | Public results tokens, expiry, `revoked_at` |
 | `score_backups` | Admin snapshots — scores **and a copy of the rubric** |
 | `registration_links` | Student registration tokens |
@@ -591,6 +601,12 @@ recPillClass(rec), awardBadgeClass(award), awardEmoji(award), buildDelibReport()
 
 // Judges & projects
 handleRegister()             // calls register_judge RPC
+schoolNumbering()            // true when judge_numbering is 'school' AND departments carry ranges
+deptForJudgeNum(n), judgeRangeText(d), deptJudgeCount(d), plannedJudgeRanges()
+saveJudgeNumbers()           // set_judge_numbers RPC from the Setup counts (contiguous, in department order)
+setJudgeNumberingMode(mode)  // app_settings.judge_numbering
+confirmRemoveJudge()         // PIN → remove_judge RPC → reload scores/validations/notes
+dbToDept(r), normJudgeAlias(raw), judgeNumOf(alias)   // module helpers — dbToDept is the ONLY row→state mapper
 assignProjects(deptId, list?)          // every project id in that department
 syncJudgeAssignments(deptIds, list?)   // push the current roster to judges in those departments
 createProject(data, base?)   // shared insert path (Add Project + scanner) → { error, nextProjects, proj }
@@ -666,7 +682,7 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 **Judges & projects**
 9. **Every judge scores every project in their department.** No per-judge subsets.
 10. **Any project change re-syncs judge assignments.** `judges.projects` is a snapshot, so `addProject()` and a department change in `updateProject()` must call `syncJudgeAssignments()`. `removeProject()` does its own removal.
-11. **`max_judges` is per department and locks** once that department's first judge registers. The old global `maxJudges` / `app_settings.max_judges` was removed 2026-09-25 — do not reintroduce it. `JUDGE_NAMES` pre-generates Judge1–Judge100.
+11. **Judge numbers are one list per school by default (2026-10g).** A department's seats are its `judge_from`–`judge_to` range, saved only through `set_judge_numbers()` (which keeps `max_judges` = range size); never write the range columns directly, and never let the client decide a judge's department in school mode — `register_judge()` derives it from the number. Build department rows with `dbToDept()` or the ranges silently disappear. In **legacy mode** `max_judges` is per department and locks The old global `maxJudges` / `app_settings.max_judges` was removed 2026-09-25 — do not reintroduce it. `JUDGE_NAMES` pre-generates Judge1–Judge100.
 12. **Locked projects cannot be edited or removed.** Only `toggleProjectLock()` changes the lock.
 13. **Removing a project cascades:** its scores, deliberation notes, final decision and every judge's assignment entry. No orphans.
 14. **Departments AND categories are per-school data, not constants** (changed 2026-10-06, migration 2026-10e). Build every category dropdown from `catNames()` and every department dropdown from the `departments` state — never from a module constant. `DEFAULT_CATEGORIES` / `DEPT_PRESETS` are **only** fallbacks-and-seeds: they are what a school starts with, never the set that exists. The old `REG_CATEGORIES`, `CAT_CODES` and the dead `CATEGORIES` constant are gone; do not reintroduce them. `api/scan-form.js` loads the school's categories per request (its `DEFAULT_CATEGORIES` is a fallback only), so there is no longer a list to keep in sync. "Not sure yet" is never a category.
@@ -765,7 +781,9 @@ save (writes `rubrics.criteria`) or reset to default. No code or schema change n
 **Credentials:** admin password → Supabase Auth; admin PIN → Overview tab Change PIN card;
 invite code → `set_school_invite_code()` RPC (no UI yet). Never via env vars.
 
-**More judges:** raise a department's Max Judges on the Overview tab before its first judge registers (up to 100).
+**More judges:** Setup → Judge numbers → raise that department's count → Save (allowed after judges signed in, as long as nobody ends up outside their department). Legacy mode: raise Max Judges before that department's first judge registers.
+
+**A judge signed in by mistake:** Judges tab → Remove (Admin PIN) → `remove_judge()`. No Reset needed.
 
 **Adding a project:** Projects tab → "+ Add Project" (department, title, category, number, teacher, room, students with grades, description, motivation). `addProject()` → `createProject()` inserts and syncs judge assignments.
 
@@ -783,6 +801,23 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-06 — One judge list for the whole school (default)** (migration `2026-10g`, not coupled).
+Judge numbers restarted in every department, so six departments × 15 = 90 open seats for ~15 judges,
+"Judge1" named up to six people (the live school had two: PreK and K-2), and a judge who tapped the
+wrong department could only be fixed with Reset All Data.
+- Each department owns a range of numbers; the number decides the department. Judges type only the
+  number and see their department confirmed before entering. Numbers are unique per school.
+- Setup → **Judge numbers** card: counts per department → contiguous ranges → `set_judge_numbers()`,
+  which refuses overlaps and refuses to strand a signed-in judge. A mode switch keeps the old
+  per-department numbering available.
+- Judges tab → **Remove** (Admin PIN) → `remove_judge()`: one judge + their scores/notes/validation,
+  atomic. Logged as `JUDGE_REMOVED`; the dialog states how many scores will be deleted (rule 57).
+- Overview "Judge sign-in details" lists the numbers per department.
+- New departments get numbers from a DB trigger, so create_school / seed / + Add / presets needed no change.
+Tests: DB suite 126 checks (22 new: numbering, backfill, re-run safety, lookup, duplicates incl.
+"Judge03", off-list numbers, admin-only RPCs, overlap + stranding refusals, removal, legacy mode);
+new `scripts/e2e/judge-numbers.e2e.mjs` — 19 browser checks. Lint baseline unchanged (26/5).
 
 **2026-10-06 — IT log: no more false successes + new diagnostics.** No migration.
 1. **Seven handlers logged success for saves that failed** and updated the screen first:
@@ -1013,7 +1048,8 @@ ranking, progress % and consensus all divide by it.
 - An **awards list export** (print/CSV, grouped by department and category). Certificates were
   explicitly not wanted.
 
-**Phase 4 — judge auto-assignment.** `app_settings.judge_assignment` = `auto` | `choose`. Auto
+**Phase 4 — judge auto-assignment.** Builds on the 2026-10g judge list (the number → department map
+already exists; auto-assignment would hand out the next free number). `app_settings.judge_assignment` = `auto` | `choose`. Auto
 assigns the judge a department **and** a number from the invite code alone. **Randomise departments,
 never projects:** every project in a department must share one judge panel or the scores are not
 comparable, and with 2–3 scores per project a harsh judge you happened to draw moves a winner more
