@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + real-Postgres (PGlite) migration/RLS suite. Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 244 checks across 12 files |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 256 checks across 13 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -826,6 +826,15 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-06 — Rubric presets in the Setup department dropdown (UX fix)** (no migration).
+The dropdown listed only the school's rubric LIBRARY, so a fresh school saw one rubric and the organiser
+concluded the 100-point presets had been removed (they were reachable only via Rubric tab → New rubric).
+It now has three groups — Your rubrics · **Add from a preset** (presets not yet in the library, matched
+by `sameCriteria()` so a renamed copy still counts) · Not scored. Picking a preset inserts it into
+`rubrics` and assigns it in one step (`updateDeptJudging("preset:<id>")`); the scored-department lock is
+checked BEFORE the insert so a refusal never leaves a stray rubric; a name clash gets " (2)".
+Tests: new `scripts/e2e/rubric-presets-setup.e2e.mjs` 9 checks. 256 browser checks total.
 
 **2026-10-06 — PreK grades kept; scoring header shows the department** (no migration).
 Found while preparing the real 63-project import: `normGrade("PreK")` returned `""` (only digits and "K"

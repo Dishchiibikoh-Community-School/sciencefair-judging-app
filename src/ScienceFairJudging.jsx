@@ -125,6 +125,13 @@ const RUBRIC_PRESETS = [
 function validCriteria(c) {
   return Array.isArray(c) && c.length > 0 && c.every(x => x && x.id && Array.isArray(x.steps) && x.steps.length);
 }
+// True when two criteria lists score the same way (same ids, order and maximums). Used to
+// hide a preset from the department dropdown once the school already has it — even if
+// they renamed it.
+function sameCriteria(a, b) {
+  return Array.isArray(a) && Array.isArray(b) && a.length === b.length
+    && a.every((c, i) => c.id === b[i].id && Number(c.max) === Number(b[i].max));
+}
 // Every criterion across several rubrics, first occurrence wins (CSV columns when
 // departments use different rubrics). A loop, not a callback — rule 37.
 function unionCriteria(lists) {
@@ -266,7 +273,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-06m";
+const ADMIN_HELP_UPDATED = "2026-10-06n";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -328,7 +335,8 @@ const ADMIN_HELP = [
     ["A project's code has no department part.", "The project has no department yet (e.g. a student registration). Give it one on the Projects tab and the code completes itself."],
   ]},
   { title: "The rubric", icon: "📐", faq: [
-    ["Can departments use different rubrics?", "Yes. Each department picks its own in Setup → Departments (the dropdown on each row): any rubric in your library, or 'Comments only'. Judges automatically get the rubric of the department each project is in — e.g. 3-5 on the 42-point sheet and 6-8 on the 100-point sheet."],
+    ["Can departments use different rubrics?", "Yes. Each department picks its own in Setup → Departments (the dropdown on each row): one of 'Your rubrics', a built-in preset under 'Add from a preset' (picking it adds it to your rubrics and assigns it in one step), or 'Comments only'. Judges automatically get the rubric of the department each project is in — e.g. 3-5 on the 42-point sheet and 6-8 on the 100-point sheet."],
+    ["Where are the 100-point rubrics?", "In each department's dropdown in Setup, under 'Add from a preset' — 'Cibecue / ISEF-style' (5 sections) and 'Detailed form — 20 items'. Once added they move to 'Your rubrics' and can be edited in the Rubric tab."],
     ["How do I add a rubric or write my own?", "Rubric tab → ＋ New rubric. Give it a name and start blank (write your own criteria), from a preset, or as a copy of the one on screen. Then choose it for a department in Setup."],
     ["Which rubrics are built in?", "Three presets: 'Northeast AZ Regional' (10 criteria, 42 points), 'Cibecue / ISEF-style' (5 sections rated Needs improvement → Excellent, 100 points) and 'Detailed form — 20 items' (every item on the judging form rated 1–5, grouped in 5 sections, 100 points)."],
     ["What is the default rubric?", "The one every scored department uses until you pick another for it. Rubric tab → choose a rubric → ★ Make default. It is refused while a department that follows the default already has scores — pick that department's rubric explicitly first."],
@@ -3156,15 +3164,49 @@ export default function App() {
     if (!dept) return "";
     return dept.scoring_mode === "feedback" ? "feedback" : (rubricRowFor(dept.id)?.id || "default");
   }
-  async function updateDeptJudging(deptId, value) {
+  // Presets the school does not have in its library yet — offered straight in the
+  // department dropdown (they used to be reachable only through Rubric tab → New rubric,
+  // so a fresh school saw just one rubric there and the presets looked missing).
+  function presetsNotInLibrary() {
+    return RUBRIC_PRESETS.filter(pr => !rubrics.some(r => sameCriteria(r.criteria, pr.criteria())));
+  }
+  async function updateDeptJudging(deptId, rawValue) {
     const dept = departments.find(d => d.id === deptId);
+    let value = rawValue;
     if (!dept || !value || value === deptJudgingValue(dept)) return;
+    // Checked BEFORE a preset is added, so a refused change never leaves a stray rubric.
     if (deptHasScores(deptId)) {
       setSetupErr(`"${dept.name}" already has scores. Changing how it is judged now would make them ` +
         `count against a different rubric. Remove those scores first (Reset All Data, or remove the judges who gave them).`);
       return;
     }
     setSetupErr("");
+    if (value.startsWith("preset:")) {
+      const pr = RUBRIC_PRESETS.find(x => x.id === value.slice(7));
+      if (!pr) return;
+      const criteria = pr.criteria();
+      // Already in the library (e.g. added for another department a moment ago)? Reuse it.
+      const have = rubrics.find(r => sameCriteria(r.criteria, criteria));
+      if (have) value = have.id;
+      else {
+        const taken = new Set(rubrics.map(r => r.name.toLowerCase()));
+        let name = pr.label;
+        for (let n = 2; taken.has(name.toLowerCase()); n++) name = `${pr.label} (${n})`;
+        const { data, error } = await supabase.from("rubrics")
+          .insert({ school_id: currentSchool.id, name, criteria, is_active: rubrics.length === 0 })
+          .select("id").single();
+        if (error || !data) {
+          setSetupErr(`Could not add the rubric "${pr.label}": ${error?.message || "nothing was saved"}. Nothing was changed.`);
+          addItLog("ERROR","ADMIN","RUBRIC_CREATE_FAILED","A preset rubric could not be added from Setup",{ preset: pr.id, error: error?.code || error?.message });
+          return;
+        }
+        // Into state now, so the assignment below can name it and the dropdown can show it.
+        setRubrics(prev => [...prev, { id: data.id, name, criteria, is_active: rubrics.length === 0 }]);
+        addLog(`Admin added the rubric "${name}" (from a preset) for ${dept.name}`);
+        addItLog("INFO","ADMIN","RUBRIC_CREATED","Admin created a rubric",{ name, from: pr.id, via: "setup" });
+        value = data.id;
+      }
+    }
     const feedback = value === "feedback";
     const patch = feedback ? { scoring_mode: "feedback" }
       : { scoring_mode: "scored", ...(value !== "default" ? { rubric_id: value } : {}) };
@@ -3182,7 +3224,8 @@ export default function App() {
       return;
     }
     setDepartments(prev => prev.map(d => d.id === deptId ? { ...d, ...patch } : d));
-    const label = feedback ? "comments only (not scored)" : `the rubric "${rubrics.find(r => r.id === value)?.name || "default"}"`;
+    if (rawValue.startsWith("preset:")) loadRubrics(currentSchool.id);   // pick up the server row
+    const label = feedback ? "comments only (not scored)" : `the rubric "${rubrics.find(r => r.id === value)?.name || RUBRIC_PRESETS.find(x => `preset:${x.id}` === rawValue)?.label || "default"}"`;
     addLog(`Admin set ${dept.name} to ${label}`);
     addItLog("INFO","ADMIN","DEPT_JUDGING_CHANGED","Admin changed how a department is judged",
       { dept: dept.name, mode: feedback ? "feedback" : "scored", rubric: feedback ? null : (rubrics.find(r => r.id === value)?.name || null) });
@@ -6954,12 +6997,23 @@ export default function App() {
                               aria-label={`How ${dept.name} is judged`}
                               onChange={e => updateDeptJudging(dept.id, e.target.value)}>
                               {rubrics.length === 0 && <option value="default">Default rubric</option>}
-                              {rubrics.map(r => (
-                                <option key={r.id} value={r.id}>
-                                  {r.name} · {r.criteria.reduce((t, c) => t + (Number(c.max) || 0), 0)} pts{r.is_active ? " (default)" : ""}
-                                </option>
-                              ))}
-                              <option value="feedback">Comments only (not scored)</option>
+                              <optgroup label="Your rubrics">
+                                {rubrics.map(r => (
+                                  <option key={r.id} value={r.id}>
+                                    {r.name} · {r.criteria.reduce((t, c) => t + (Number(c.max) || 0), 0)} pts{r.is_active ? " (default)" : ""}
+                                  </option>
+                                ))}
+                              </optgroup>
+                              {presetsNotInLibrary().length > 0 && (
+                                <optgroup label="Add from a preset">
+                                  {presetsNotInLibrary().map(pr => (
+                                    <option key={pr.id} value={`preset:${pr.id}`}>＋ {pr.label}</option>
+                                  ))}
+                                </optgroup>
+                              )}
+                              <optgroup label="Not scored">
+                                <option value="feedback">Comments only (not scored)</option>
+                              </optgroup>
                             </select>
                             <button className="proj-act-btn" title="Rename"
                               onClick={() => { setSetupErr(""); setDeptEdits(p => ({...p, [dept.id]: { name: dept.name, code: dept.code || "" }})); }}>✏️</button>

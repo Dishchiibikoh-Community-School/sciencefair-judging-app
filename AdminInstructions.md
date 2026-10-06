@@ -121,8 +121,13 @@ A new school starts with **Elementary / Middle School / High School**, but that 
 
 #### Which rubric — or comments only?
 
-Each department row has a **how it is judged** dropdown listing every rubric in your library
-(the default is marked) plus **Comments only**:
+Each department row has a **how it is judged** dropdown with three groups:
+
+- **Your rubrics** — every rubric in your library (the default is marked).
+- **Add from a preset** — the built-in rubrics you have not added yet (e.g. *Cibecue / ISEF-style — 100
+  points*, *Detailed form — 20 items*). Picking one **adds it to your rubrics and assigns it** in one step;
+  after that it is listed under *Your rubrics* and can be edited in the Rubric tab.
+- **Comments only (not scored)**.
 
 | Choice | What judges see | What happens to results |
 |---|---|---|
