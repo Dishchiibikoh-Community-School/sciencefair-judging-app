@@ -155,6 +155,34 @@ numbers**. Numbers are handed out in department order:
   them on the Judges tab first if they signed in by mistake.
 - New departments are numbered after the last one automatically; adjust the counts afterwards.
 
+#### Option: departments can share judges
+
+With only a few judges (say 15 for six departments), one judge often has to cover several departments.
+On the Judge numbers card choose **"Departments can share judges"**. Each department then gets a
+**From – To** range, and ranges may overlap:
+
+| Department | Judges | Means |
+|---|---|---|
+| PreK | Judge 1–3 | Judges 1, 2 and 3 judge PreK **and** K-2 |
+| K-2 | Judge 1–3 | (same range = shared) |
+| 3-5 | Judge 4–7 | Judges 4–7 judge 3-5 **and** SPED |
+| SPED | Judge 4–7 | |
+| 6-8 | Judge 8–12 | own judges |
+| 9-12 | Judge 13–15 | own judges |
+
+- A shared judge signs in with their number as usual and sees **"✓ Judge 2 · PreK + K-2"**. Their
+  project list has a heading per department; comment-only projects show the comment form, scored
+  ones the rubric.
+- **Who judges what** (under the ranges) lists each judge's departments and how many projects that
+  is — check nobody has far too many (about 5 minutes per scored project).
+- A department with projects but no judge numbers is flagged.
+- **Whole departments only.** Every project in a department is scored by all of its judges, so the
+  averages stay comparable. You cannot give a judge only some of a department's projects.
+- **After judges sign in:** widening a range adds that department to them (their list updates);
+  narrowing it so a signed-in judge would lose a department is refused — remove that judge first.
+- Switching back to **"Each department has its own judges"** shows a warning while ranges still
+  overlap; saving counts there gives every department its own numbers again.
+
 **Old style — numbers restart in each department.** Choose *"Numbers restart in each department"*
 on the same card if you really want it: each department then has its own Judge1, Judge2…, judges
 pick their department when signing in, and each department row gets a **Max judges** box (it locks

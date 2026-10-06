@@ -132,6 +132,8 @@ await A.page.getByRole("button", { name: "Remove Judge4" }).click();
 await check("right PIN: Judge4 and their score are gone, and it is logged", async () => {
   await A.page.locator(".modal-box").waitFor({ state: "detached", timeout: 4000 });
   assert.equal(store.judges.length, 0); assert.equal(store.scores.length, 0);
+  // The IT-log row is written in the background after the dialog closes — wait for it.
+  for (let i = 0; i < 20 && !store.it_logs.some(r => r.event === "JUDGE_REMOVED"); i++) await A.page.waitForTimeout(100);
   assert.ok(store.it_logs.some(r => r.event === "JUDGE_REMOVED" && r.payload.scoresRemoved === 1));
 });
 

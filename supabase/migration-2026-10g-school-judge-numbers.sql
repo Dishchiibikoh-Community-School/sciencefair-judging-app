@@ -30,6 +30,10 @@
 --   New app without this SQL: the app sees no judge_from column and keeps the old
 --     per-department numbering (logs nothing — it is simply the previous behaviour).
 --
+-- ⚠️ SUPERSEDED IN PART by 2026-10h (departments can share judges): this file defines an
+--   older register_judge() / set_judge_numbers(). If you ever re-run THIS file, re-run
+--   migration-2026-10h-shared-judges.sql straight after it, or sharing stops working.
+--
 -- RE-RUNNABLE. Verify afterwards as anon:
 --   curl "$URL/rest/v1/departments?select=name,judge_from,judge_to&school_id=eq.<id>" -H "apikey: <anon>"
 --     → every department has a range, no two ranges overlap

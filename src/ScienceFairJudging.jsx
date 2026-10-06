@@ -168,7 +168,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-06g";
+const ADMIN_HELP_UPDATED = "2026-10-06h";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -255,6 +255,9 @@ const ADMIN_HELP = [
     ["Someone signed in who is not a judge / a test sign-in is in the list.", "Judges tab → Remove (Admin PIN). Their number is freed. No Reset needed."],
     ["How do judge numbers work?", "Setup tab → Judge numbers. Type how many judges each department needs and press Save; numbers are handed out in department order (PreK 2, K-2 2 → PreK = Judge 1–2, K-2 = Judge 3–4). Each number exists once in the school, so two people can never both be 'Judge 1'. Judges type only their number and the invite code."],
     ["Can I change the judge numbers after judges signed in?", "Yes, as long as everyone already signed in keeps a number inside their own department — otherwise Save is refused and tells you who is in the way. Remove that judge first if they signed in by mistake."],
+    ["We have fewer judges than departments need. Can one judge cover several departments?", "Yes. Setup → Judge numbers → choose 'Departments can share judges'. Give each department a range of judge numbers; two departments with the same range share those judges (e.g. PreK: Judge 1–3 and K-2: Judge 1–3). A shared judge types their number as usual, sees every department's projects under its own heading, and scores all of them. 'Who judges what' shows each judge's departments and how many projects that is."],
+    ["Why can't a judge get only SOME projects of a department?", "On purpose. Every project in a department must be scored by the same judges, otherwise one strict or generous judge would affect only part of it and the results stop being fair. Sharing works by whole departments."],
+    ["Can I change sharing after judges have signed in?", "You can ADD a department to a signed-in judge (widen the range) — their list updates. You cannot take one AWAY: the save is refused and names the judge, because they were told where to judge. Remove that judge on the Judges tab first if needed."],
     ["Can numbers restart in each department instead?", "Yes: Setup → Judge numbers → 'Numbers restart in each department'. Each department then has its own Judge1, Judge2… and judges pick their department when signing in. Not recommended — the same name then means several people."],
   ]},
   { title: "Troubleshooting", icon: "🛠️", faq: [
@@ -573,6 +576,21 @@ const CSS = `
   .imp-tbl td{vertical-align:top;}
   .imp-tbl tr.imp-saved td{opacity:.6;}
   .imp-tbl tr.imp-err td{background:var(--red-l);}
+  .jh-dept-head{font-family:var(--ff-m);font-size:.74rem;letter-spacing:.06em;text-transform:uppercase;color:var(--navy);
+    background:var(--s2);padding:.35rem .75rem;border-radius:6px;margin:.6rem 0 .3rem;}
+  .jn-modes{display:flex;flex-direction:column;gap:.4rem;margin-bottom:.75rem;}
+  .jn-mode{display:flex;gap:.55rem;align-items:flex-start;padding:.55rem .7rem;border:1.5px solid var(--bd);border-radius:8px;cursor:pointer;font-size:.84rem;line-height:1.45;}
+  .jn-mode.on{border-color:var(--navy);background:var(--s1);}
+  .jn-mode input{margin-top:.2rem;width:auto;}
+  .jn-ft{display:flex;align-items:center;gap:.3rem;font-size:.82rem;color:var(--dim);}
+  .jn-ft input[type=number]{width:64px;text-align:center;}
+  .jn-cover{margin-top:.4rem;padding:.6rem .75rem;border:1px solid var(--bd);border-radius:8px;background:var(--s1);}
+  .jn-cover-row{display:flex;gap:.75rem;align-items:baseline;font-size:.83rem;padding:.15rem 0;}
+  .jn-cover-row.unused{color:var(--amber);}
+  .jn-cover-num{min-width:100px;font-family:var(--ff-m);color:var(--navy);}
+  .jn-cover-depts{flex:1;min-width:0;}
+  .jn-cover-load{color:var(--dim);font-size:.78rem;white-space:nowrap;}
+  @media (max-width:520px){ .jn-cover-row{flex-wrap:wrap;} .jn-cover-num{min-width:0;} .jn-ft{flex-basis:100%;} }
   .jn-rows{display:flex;flex-direction:column;gap:.4rem;margin:.6rem 0 .85rem;}
   .jn-row{display:flex;align-items:center;gap:.75rem;padding:.45rem .65rem;border:1px solid var(--bd);border-radius:8px;background:var(--bg);}
   .jn-row .jn-name{flex:1;min-width:0;font-weight:600;color:var(--navy);}
@@ -1164,7 +1182,16 @@ const CSS = `
 // DB ↔ STATE MAPPERS
 // ─────────────────────────────────────────────
 function dbToJudge(row) {
-  return { id: row.id, alias: row.alias, projects: row.projects, joinedAt: new Date(row.joined_at).getTime(), department_id: row.department_id || null };
+  return { id: row.id, alias: row.alias, projects: row.projects, joinedAt: new Date(row.joined_at).getTime(), department_id: row.department_id || null,
+           // Every department the judge covers (migration 2026-10h — departments can share judges).
+           department_ids: Array.isArray(row.department_ids) && row.department_ids.length
+             ? row.department_ids : (row.department_id ? [row.department_id] : []) };
+}
+// The departments a judge covers. Always use this, never judge.department_id alone:
+// a shared judge (2026-10h) covers several, department_id is only their first one.
+function judgeDeptIds(j) {
+  if (Array.isArray(j?.department_ids) && j.department_ids.length) return j.department_ids;
+  return j?.department_id ? [j.department_id] : [];
 }
 // The one place a departments row becomes app state. judge_from / judge_to are the
 // department's judge numbers (migration 2026-10g); both arrive undefined before that
@@ -1330,6 +1357,10 @@ export default function App() {
   // in every department (the pre-2026-10g behaviour).
   const [judgeNumbering,   setJudgeNumbering]   = useState("school");
   const [judgeCountDrafts, setJudgeCountDrafts] = useState({});   // Setup tab: { [deptId]: "3" }
+  // Optional (2026-10h): departments share judges — the admin types each department's
+  // From–To range and ranges may overlap. 'off' (default) = counts, no overlap.
+  const [judgeSharing,     setJudgeSharing]     = useState("off");
+  const [judgeRangeDrafts, setJudgeRangeDrafts] = useState({});   // { [deptId]: { from: "1", to: "3" } }
   const [removeJudgeAsk,   setRemoveJudgeAsk]   = useState(null); // judge being removed (PIN modal)
   const [removeJudgePin,   setRemoveJudgePin]   = useState("");
   const [removeJudgeErr,   setRemoveJudgeErr]   = useState("");
@@ -1590,6 +1621,7 @@ export default function App() {
       }
       setProjListToken(map.project_list_token || "");
       setJudgeNumbering(map.judge_numbering === "department" ? "department" : "school");
+      setJudgeSharing(map.judge_sharing === "on" ? "on" : "off");
       // Note: judge/admin validations are loaded separately by loadValidations()
       // from the validations table — not from app_settings.
     }
@@ -2207,6 +2239,21 @@ export default function App() {
     // judges.length === 0 means Supabase was unreachable — keep the cached session
   }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Keep the signed-in judge's own record in step with the live judges list. The effect
+  // above runs once after loading, so a project added later, or a department the admin
+  // shares with this judge (2026-10h), only appeared after a page refresh. Never changes
+  // the screen — only the project list behind it.
+  useEffect(() => {
+    if (!judge) return;
+    const live = judges.find(j => j.id === judge.id);
+    if (!live) return;
+    const same = JSON.stringify(live.projects || []) === JSON.stringify(judge.projects || [])
+      && JSON.stringify(judgeDeptIds(live)) === JSON.stringify(judgeDeptIds(judge));
+    if (same) return;
+    setJudge(live);
+    try { localStorage.setItem("sf_judge_data", JSON.stringify(live)); } catch { /* storage full / private mode */ }
+  }, [judges]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── SCORE CACHE ───────────────────────────────────────────
   // Persist this judge's own scores to localStorage after every change.
   useEffect(() => {
@@ -2298,14 +2345,6 @@ export default function App() {
     }
   }
 
-  function assignProjects(deptId, projectList) {
-    // Every judge scores every project in their department.
-    // projectList lets callers pass a freshly-computed roster when `projects`
-    // state has not flushed yet (e.g. immediately after addProject).
-    const list = projectList || projects;
-    return list.filter(p => (p.department_id || null) === (deptId || null)).map(p => p.id);
-  }
-
   // Judges snapshot their project list at registration, so any project added,
   // removed, or moved between departments afterwards must be pushed out to the
   // judges of the affected departments — otherwise a late-added project is
@@ -2316,25 +2355,35 @@ export default function App() {
     if (!targets.length) return;
     const list = projectList || projects;
     const updates = [];
-    judges.forEach(j => {
-      if (!targets.includes(j.department_id)) return;
-      const next = assignProjects(j.department_id, list);
+    for (const j of judges) {   // a loop, not forEach: pushing inside a callback bails the compiler (rule 37)
+      const mine = judgeDeptIds(j);
+      // A shared judge (2026-10h) covers several departments — they get all of them.
+      if (!mine.some(d => targets.includes(d))) continue;
+      const next = list.filter(p => p.department_id && mine.includes(p.department_id)).map(p => p.id);
       const cur  = j.projects || [];
       const same = next.length === cur.length && next.every(pid => cur.includes(pid));
       if (!same) updates.push({ id: j.id, alias: j.alias, projects: next });
-    });
+    }
     if (!updates.length) return;
     setJudges(prev => prev.map(j => {
       const u = updates.find(x => x.id === j.id);
       return u ? { ...j, projects: u.projects } : j;
     }));
+    const failed = [];
     for (const u of updates) {
-      await supabase.from("judges").update({ projects: u.projects })
+      const { error } = await supabase.from("judges").update({ projects: u.projects })
         .eq("school_id", currentSchool.id).eq("id", u.id);
+      if (error) failed.push({ alias: u.alias, error: error.code || error.message });
+    }
+    if (failed.length) {
+      // Judges would not see the new project — say so instead of reporting success.
+      addItLog("ERROR","ADMIN","JUDGE_ASSIGNMENTS_SYNC_FAILED",
+        "Some judges' project lists could not be updated — they may not see a changed project",
+        { failed });
     }
     addItLog("INFO","ADMIN","JUDGE_ASSIGNMENTS_SYNCED",
       "Judge project assignments re-synced after a project change",
-      { judgesUpdated: updates.length, aliases: updates.map(u => u.alias) });
+      { judgesUpdated: updates.length - failed.length, aliases: updates.map(u => u.alias) });
   }
 
   function isLinkLive() {
@@ -2632,10 +2681,15 @@ export default function App() {
   function schoolNumbering() {
     return judgeNumbering === "school" && departments.some(d => d.judge_from != null);
   }
-  function deptForJudgeNum(n) {
-    if (!n) return null;
+  // Every department whose range holds this number (several when departments share judges).
+  function deptsForJudgeNum(n) {
+    if (!n) return [];
     return [...departments].sort((a, b) => a.ord - b.ord)
-      .find(d => d.judge_from != null && n >= d.judge_from && n <= d.judge_to) || null;
+      .filter(d => d.judge_from != null && n >= d.judge_from && n <= d.judge_to);
+  }
+  function deptForJudgeNum(n) { return deptsForJudgeNum(n)[0] || null; }
+  function deptNames(ids) {
+    return (ids || []).map(id => departments.find(d => d.id === id)?.name).filter(Boolean).join(" + ") || "Unassigned";
   }
   function judgeRangeText(d) {
     if (d?.judge_from == null) return "no judges";
@@ -2660,10 +2714,54 @@ export default function App() {
     return out;
   }
 
+  // Sharing mode: the admin's From–To per department, overlaps allowed.
+  function plannedSharedRanges() {
+    const out = [];
+    for (const d of [...departments].sort((a, b) => a.ord - b.ord)) {
+      const draft = judgeRangeDrafts[d.id];
+      const rawF = draft ? draft.from : (d.judge_from ?? "");
+      const rawT = draft ? draft.to   : (d.judge_to ?? "");
+      const f = String(rawF).trim() === "" ? null : parseInt(rawF, 10);
+      const t = String(rawT).trim() === "" ? null : parseInt(rawT, 10);
+      const invalid = (f == null) !== (t == null) || (f != null && (isNaN(f) || isNaN(t) || f < 1 || t < f || t > 999));
+      out.push({ dept: d, from: invalid ? null : f, to: invalid ? null : t, rawF, rawT, invalid,
+                 count: !invalid && f != null ? t - f + 1 : 0 });
+    }
+    return out;
+  }
+  // Who judges what: consecutive judge numbers with the same departments, and their
+  // workload (every project in every department they cover).
+  // Written without mutating anything: an earlier version extended the last group in
+  // place (last.to = n) and that alone bailed the React Compiler out of the file (rule 37).
+  function judgeCoverage(plan) {
+    const top = plan.reduce((m, p) => Math.max(m, p.to || 0), 0);
+    const deptsAt = (n) => plan.filter(p => p.from != null && n >= p.from && n <= p.to).map(p => p.dept);
+    const keyAt = (n) => deptsAt(n).map(d => d.id).join(",");
+    const nums = Array.from({ length: top }, (_, i) => i + 1);
+    const starts = nums.filter(n => n === 1 || keyAt(n) !== keyAt(n - 1));
+    return starts.map((from, i) => {
+      const ds = deptsAt(from);
+      return { from, to: i + 1 < starts.length ? starts[i + 1] - 1 : top, depts: ds,
+               projects: projects.filter(pr => ds.some(d => d.id === pr.department_id)).length };
+    });
+  }
+  async function setJudgeSharingMode(on) {
+    setSetupErr("");
+    const value = on ? "on" : "off";
+    const { error } = await supabase.from("app_settings")
+      .upsert({ school_id: currentSchool.id, key: "judge_sharing", value }, { onConflict: "school_id,key" });
+    if (error) { setSetupErr(`Setting NOT changed: ${error.message}`); return; }
+    setJudgeSharing(value); setJudgeCountDrafts({}); setJudgeRangeDrafts({});
+    addItLog("INFO","ADMIN","JUDGE_SHARING_CHANGED","Admin changed whether departments can share judges",{ sharing: value });
+  }
+
   async function saveJudgeNumbers() {
     setSetupErr("");
-    const plan = plannedJudgeRanges();
-    const total = plan.reduce((a, p) => a + p.count, 0);
+    const sharing = judgeSharing === "on";
+    const plan = sharing ? plannedSharedRanges() : plannedJudgeRanges();
+    const bad = plan.find(p => p.invalid);
+    if (bad) { setSetupErr(`${bad.dept.name}: enter both numbers (From ≤ To, 1–999), or leave both empty for no judges.`); return; }
+    const total = sharing ? plan.reduce((m, p) => Math.max(m, p.to || 0), 0) : plan.reduce((a, p) => a + p.count, 0);
     if (total === 0) { setSetupErr("Give at least one department some judges."); return; }
     if (total > 999) { setSetupErr("A school can have at most 999 judge numbers."); return; }
     // The server re-checks all of this (overlaps, and that no signed-in judge would end
@@ -2673,16 +2771,20 @@ export default function App() {
       p_ranges: plan.map(p => ({ department_id: p.dept.id, from: p.from, to: p.to })),
     });
     if (error) {
-      setSetupErr(`Judge numbers NOT saved: ${error.message}`);
-      addItLog("ERROR","ADMIN","JUDGE_NUMBERS_SAVE_FAILED","Could not save the judge list",{ error: error.code || error.message });
+      // "would share judge numbers" comes from the 2026-10g server: sharing needs 2026-10h.
+      setSetupErr(/would share judge numbers/.test(error.message || "")
+        ? `Judge numbers NOT saved: ${error.message} Sharing judges needs a database update that has not been run yet (migration 2026-10h).`
+        : `Judge numbers NOT saved: ${error.message}`);
+      addItLog("ERROR","ADMIN","JUDGE_NUMBERS_SAVE_FAILED","Could not save the judge list",{ error: error.code || error.message, sharing });
       return;
     }
-    setJudgeCountDrafts({});
-    await loadDepartments(currentSchool.id);
+    setJudgeCountDrafts({}); setJudgeRangeDrafts({});
+    // The server re-synced signed-in judges' departments and project lists — reload both.
+    await Promise.all([loadDepartments(currentSchool.id), loadJudges(currentSchool.id)]);
     const summary = plan.map(p => `${p.dept.name} ${p.from == null ? "none" : `${p.from}-${p.to}`}`).join(", ");
     addLog(`Admin set the judge numbers: ${summary}`);
     addItLog("INFO","ADMIN","JUDGE_NUMBERS_SAVED","Admin saved the school's judge list",
-      { total, ranges: plan.map(p => ({ dept: p.dept.name, from: p.from, to: p.to })) });
+      { total, sharing, ranges: plan.map(p => ({ dept: p.dept.name, from: p.from, to: p.to })) });
   }
 
   async function setJudgeNumberingMode(mode) {
@@ -2725,10 +2827,10 @@ export default function App() {
     const sid = currentSchool.id;
     setJudges(p => p.filter(x => x.id !== j.id));
     await Promise.all([loadScores(sid), loadValidations(sid), loadDelibNotes(sid)]);
-    const dept = departments.find(d => d.id === j.department_id);
-    addLog(`Admin removed ${j.alias}${dept ? ` (${dept.name})` : ""} and ${data?.scores ?? 0} of their score(s)`);
+    const dn = deptNames(judgeDeptIds(j));
+    addLog(`Admin removed ${j.alias} (${dn}) and ${data?.scores ?? 0} of their score(s)`);
     addItLog("WARN","ADMIN","JUDGE_REMOVED","Admin removed a judge and their scores",
-      { judgeId: j.id, alias: j.alias, dept: dept?.name || null, scoresRemoved: data?.scores ?? 0 });
+      { judgeId: j.id, alias: j.alias, dept: dn, scoresRemoved: data?.scores ?? 0 });
     setRemoveJudgeAsk(null); setRemoveJudgePin(""); setRemoveJudgeErr("");
   }
 
@@ -2884,7 +2986,7 @@ export default function App() {
   function requestDeleteDepartment(deptId) {
     const dept = departments.find(d => d.id === deptId);
     if (!dept) return;
-    const nJudges = judges.filter(j => j.department_id === deptId).length;
+    const nJudges = judges.filter(j => judgeDeptIds(j).includes(deptId)).length;
     const nProjects = projects.filter(p => p.department_id === deptId).length;
     if (nJudges || nProjects) {
       setSetupErr(`"${dept.name}" still has ${nProjects} project${nProjects !== 1 ? "s" : ""} and ` +
@@ -3064,7 +3166,7 @@ export default function App() {
         entries.push({
           judgeId:   judge.id,
           judgeAlias: judge.alias,
-          department: departments.find(d => d.id === judge.department_id)?.name || "Unassigned",
+          department: departments.find(d => d.id === proj?.department_id)?.name || "Unassigned",
           projectId:  pid,
           projectNum: proj?.num ?? "",
           projectTitle: proj?.title ?? "",
@@ -3163,8 +3265,9 @@ export default function App() {
     ];
     const rows = [header.map(csvCell)];
     for (const judge of [...judges].sort((a,b) => a.alias.localeCompare(b.alias))) {
-      const deptName = departments.find(d => d.id === judge.department_id)?.name || "Unassigned";
       for (const proj of [...projects].sort((a,b) => (a.num||"").localeCompare(b.num||""))) {
+        // The project's department — a shared judge (2026-10h) scores in several.
+        const deptName = departments.find(d => d.id === proj.department_id)?.name || "Unassigned";
         const sc = scores[`${judge.id}_${proj.id}`];
         if (!sc) continue;
         rows.push([
@@ -3708,8 +3811,8 @@ export default function App() {
 
     const j = dbToJudge(data);
     const isTransfer = judges.some(x => x.id === j.id);
-    // Name the department the server actually used (an older row may sit elsewhere).
-    const dept = departments.find(d => d.id === j.department_id) || dept0;
+    // Name the department(s) the server actually used (an older row may sit elsewhere).
+    const dept = { name: deptNames(judgeDeptIds(j)) || dept0.name };
     setJudges(p => (isTransfer ? p.map(x => x.id === j.id ? j : x) : [...p, j]));
     setJudge(j);
     localStorage.setItem("sf_judge_id",   j.id);
@@ -4778,6 +4881,7 @@ export default function App() {
             // department is shown back from it — they can no longer pick the wrong one.
             const num  = judgeNumOf(normJudgeAlias(regName));
             const dept = deptForJudgeNum(num);
+            const all  = deptsForJudgeNum(num);
             const top  = departments.reduce((m, d) => Math.max(m, d.judge_to || 0), 0);
             return (
               <div style={{ marginBottom:"1rem" }}>
@@ -4787,7 +4891,7 @@ export default function App() {
                   onKeyDown={e => e.key==="Enter" && handleRegister()}
                   style={{ textAlign:"center", fontFamily:"var(--ff-m)", fontSize:"1.1rem" }} />
                 {num && dept ? (
-                  <div className="judge-num-hit">✓ Judge {num} · <strong>{dept.name}</strong></div>
+                  <div className="judge-num-hit">✓ Judge {num} · <strong>{all.map(d => d.name).join(" + ")}</strong></div>
                 ) : num ? (
                   <div className="judge-num-miss">Judge {num} is not on this school's judge list (1–{top}).</div>
                 ) : (
@@ -4853,7 +4957,10 @@ export default function App() {
 
   /* JUDGE HOME */
   if (view === "judge-home" && judge) {
-    const myProj = projects.filter(p => judge.projects.includes(p.id));
+    // Grouped by department (in department order) so a shared judge sees PreK, then K-2…
+    const deptOrd = (id) => departments.find(d => d.id === id)?.ord ?? 999;
+    const myProj = projects.filter(p => judge.projects.includes(p.id))
+      .sort((a, b) => deptOrd(a.department_id) - deptOrd(b.department_id) || String(a.num).localeCompare(String(b.num)));
     const done   = myProj.filter(p => hasScored(p.id)).length;
     const pct    = Math.round((done / myProj.length) * 100);
     return (
@@ -4899,11 +5006,15 @@ export default function App() {
             </div>
           )}
           <div className="card proj-list">
-            {myProj.map(proj => {
+            {myProj.map((proj, i) => {
               const scored = hasScored(proj.id);
               const ex = scores[`${judge.id}_${proj.id}`];
+              // A judge covering several departments (2026-10h) sees a heading per department.
+              const showHead = judgeDeptIds(judge).length > 1 && (i === 0 || myProj[i - 1].department_id !== proj.department_id);
               return (
-                <div key={proj.id} className="proj-item"
+                <div key={proj.id}>
+                {showHead && <div className="jh-dept-head">{departments.find(d => d.id === proj.department_id)?.name || "Unassigned"}</div>}
+                <div className="proj-item"
                   onClick={() => !locked && !judgeValidations[judge.id] && startScoring(proj.id)}
                   style={{ cursor: locked || judgeValidations[judge.id] ? "not-allowed" : "pointer", opacity:scored?.75:1 }}>
                   <div className="proj-num">#{proj.num}</div>
@@ -4911,8 +5022,9 @@ export default function App() {
                     <div className="proj-title">{proj.title}</div>
                     <div className="proj-meta">{proj.cat} · Grade {proj.grade}</div>
                   </div>
-                  {scored ? <span className="proj-st st-done">✓ {getTotal(ex)}pts</span>
+                  {scored ? <span className="proj-st st-done">{isFeedbackProject(proj) ? "✓ Reviewed" : `✓ ${getTotal(ex)}pts`}</span>
                           : <span className="proj-st st-pend">Pending →</span>}
+                </div>
                 </div>
               );
             })}
@@ -4969,11 +5081,19 @@ export default function App() {
                   Review the system-computed rankings and confirm they look correct. If you have a concern, flag it for the admin to review.
                 </p>
                 <div style={{marginBottom:"1rem"}}>
-                  {rankedProjects().filter(p => myProj.some(mp => mp.id === p.id)).map((p, i) => (
-                    <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:".55rem .75rem",borderBottom:"1px solid var(--bd)",fontSize:".88rem"}}>
-                      <span style={{color:"var(--dim)",fontFamily:"var(--ff-m)",marginRight:".5rem"}}>{i+1}.</span>
+                  {/* Ranked within each department — never across departments (rule 8). */}
+                  {judgeDeptIds(judge).filter(id => !isFeedbackDept(id)).flatMap(id =>
+                    rankedProjectsIn(id).filter(p => myProj.some(mp => mp.id === p.id))
+                      .map((p, i) => ({ ...p, _rank: i + 1, _dept: id })))
+                    .map((p, i, arr) => (
+                    <div key={p.id}>
+                    {judgeDeptIds(judge).length > 1 && (i === 0 || arr[i - 1]._dept !== p._dept) &&
+                      <div className="jh-dept-head">{departments.find(d => d.id === p._dept)?.name}</div>}
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:".55rem .75rem",borderBottom:"1px solid var(--bd)",fontSize:".88rem"}}>
+                      <span style={{color:"var(--dim)",fontFamily:"var(--ff-m)",marginRight:".5rem"}}>{p._rank}.</span>
                       <span style={{flex:1}}>{p.title}</span>
                       <span style={{fontFamily:"var(--ff-m)",color:"var(--navy)",fontWeight:600}}>{p.avg ?? "—"} pts</span>
+                    </div>
                     </div>
                   ))}
                 </div>
@@ -6006,7 +6126,7 @@ export default function App() {
           {/* ── TRANSFER PIN MODAL ── */}
           {removeJudgeAsk && (() => {
             const j = removeJudgeAsk;
-            const dept = departments.find(d => d.id === j.department_id);
+            const dept = { name: deptNames(judgeDeptIds(j)) };
             const nScores = Object.keys(scores).filter(k => k.startsWith(`${j.id}_`)).length;
             const close = () => { setRemoveJudgeAsk(null); setRemoveJudgePin(""); setRemoveJudgeErr(""); };
             return (
@@ -6441,7 +6561,7 @@ export default function App() {
 
                 <div className="setup-rows">
                   {[...departments].sort((a,b)=>a.ord-b.ord).map((dept, i, arr) => {
-                    const deptCount = judges.filter(j => j.department_id === dept.id).length;
+                    const deptCount = judges.filter(j => judgeDeptIds(j).includes(dept.id)).length;
                     const projCount = projects.filter(p => p.department_id === dept.id).length;
                     const judgeLock = deptCount > 0;
                     const inUse     = deptCount > 0 || projCount > 0;
@@ -6543,9 +6663,16 @@ export default function App() {
 
               {/* ── Judge numbers (migration 2026-10g) ── */}
               {departments.some(d => d.judge_from != null) && (() => {
+                const sharing = judgeSharing === "on";
                 const plan    = plannedJudgeRanges();
                 const total   = plan.reduce((a, p) => a + p.count, 0);
-                const dirty   = Object.keys(judgeCountDrafts).length > 0;
+                const shared  = plannedSharedRanges();
+                const cover   = judgeCoverage(shared);
+                const dirty   = sharing ? Object.keys(judgeRangeDrafts).length > 0 : Object.keys(judgeCountDrafts).length > 0;
+                const covers  = (deptId) => judges.filter(j => judgeDeptIds(j).includes(deptId)).length;
+                // Ranges saved earlier in sharing mode may overlap; the counts editor would undo that.
+                const overlapNow = departments.some(a => departments.some(b => a.id !== b.id && a.judge_from != null && b.judge_from != null
+                  && a.judge_from <= b.judge_to && b.judge_from <= a.judge_to));
                 return (
                   <div className="card">
                     <div className="lbl" style={{marginBottom:".4rem"}}>Judge numbers</div>
@@ -6555,14 +6682,31 @@ export default function App() {
                       <option value="department">Numbers restart in each department</option>
                     </select>
                     {judgeNumbering === "school" ? (<>
+                      <div className="jn-modes" role="radiogroup" aria-label="How judges are assigned">
+                        <label className={`jn-mode ${!sharing ? "on" : ""}`}>
+                          <input type="radio" name="jn-mode" checked={!sharing} onChange={() => setJudgeSharingMode(false)} />
+                          <span><strong>Each department has its own judges</strong> (default) — enter how many judges each department needs.</span>
+                        </label>
+                        <label className={`jn-mode ${sharing ? "on" : ""}`}>
+                          <input type="radio" name="jn-mode" checked={sharing} onChange={() => setJudgeSharingMode(true)} />
+                          <span><strong>Departments can share judges</strong> — give each department a range of judge numbers; ranges may overlap.</span>
+                        </label>
+                      </div>
+                      {!sharing ? (<>
                       <p style={{fontSize:".82rem",color:"var(--dim)",marginBottom:".2rem"}}>
                         Every judge gets one number for the whole school, and the number decides the department —
                         judges type only their number and the invite code. Enter how many judges each department needs;
                         numbers are handed out in department order.
                       </p>
+                      {overlapNow && (
+                        <div className="judge-num-miss" style={{textAlign:"left"}}>
+                          Some departments currently share judges. Saving here gives every department its own numbers;
+                          it is refused if a signed-in judge would lose a department.
+                        </div>
+                      )}
                       <div className="jn-rows">
                         {plan.map(p => {
-                          const signedIn = judges.filter(j => j.department_id === p.dept.id).length;
+                          const signedIn = covers(p.dept.id);
                           return (
                             <div key={p.dept.id || p.dept.name} className="jn-row">
                               <span className="jn-name">{p.dept.name}
@@ -6587,6 +6731,62 @@ export default function App() {
                         You can change this after judges have signed in, as long as each of them keeps a number inside
                         their own department. To fix a judge who signed in by mistake, remove them on the Judges tab.
                       </p>
+                      </>) : (<>
+                      <p style={{fontSize:".82rem",color:"var(--dim)",marginBottom:".2rem"}}>
+                        Give each department the judge numbers that judge it. Two departments with the same numbers share
+                        those judges — they score every project in both. Leave both boxes empty for a department with no judges.
+                      </p>
+                      <div className="jn-rows">
+                        {shared.map(p => {
+                          const sharesWith = shared.filter(o => o !== p && p.from != null && o.from != null
+                            && o.from <= p.to && p.from <= o.to).map(o => o.dept.name);
+                          const n = covers(p.dept.id);
+                          const setRange = (k, v) => { setSetupErr(""); setJudgeRangeDrafts(d => ({ ...d,
+                            [p.dept.id]: { from: k === "from" ? v : String(p.rawF), to: k === "to" ? v : String(p.rawT) } })); };
+                          return (
+                            <div key={p.dept.id || p.dept.name} className="jn-row">
+                              <span className="jn-name">{p.dept.name}
+                                {n > 0 && <span style={{fontWeight:400,fontSize:".76rem",color:"var(--dim)"}}> · {n} signed in</span>}
+                              </span>
+                              <span className="jn-ft">
+                                Judge <input type="number" min="1" max="999" aria-label={`First judge for ${p.dept.name}`}
+                                  value={p.rawF} onChange={e => setRange("from", e.target.value)} />
+                                – <input type="number" min="1" max="999" aria-label={`Last judge for ${p.dept.name}`}
+                                  value={p.rawT} onChange={e => setRange("to", e.target.value)} />
+                              </span>
+                              <span className={`jn-range ${p.invalid || p.from == null ? "none" : ""}`}>
+                                {p.invalid ? "check the numbers" : p.from == null ? "no judges"
+                                  : sharesWith.length ? `shared with ${sharesWith.join(", ")}` : "own judges"}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="jn-cover">
+                        <div className="lbl" style={{marginBottom:".3rem"}}>Who judges what</div>
+                        {cover.map(g => (
+                          <div key={g.from} className={`jn-cover-row ${g.depts.length ? "" : "unused"}`}>
+                            <span className="jn-cover-num">{g.from === g.to ? `Judge ${g.from}` : `Judge ${g.from}–${g.to}`}</span>
+                            <span className="jn-cover-depts">{g.depts.length ? g.depts.map(d => d.name).join(" + ") : "not used"}</span>
+                            <span className="jn-cover-load">{g.depts.length ? `${g.projects} project${g.projects!==1?"s":""}${g.from !== g.to ? " each" : ""}` : ""}</span>
+                          </div>
+                        ))}
+                        {shared.filter(p => p.from == null && !p.invalid && projects.some(pr => pr.department_id === p.dept.id)).map(p => (
+                          <div key={p.dept.id} className="judge-num-miss" style={{textAlign:"left"}}>
+                            ⚠ Nobody judges {p.dept.name} — it has projects but no judge numbers.
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{display:"flex",gap:".5rem",alignItems:"center",flexWrap:"wrap",marginTop:".6rem"}}>
+                        <button className="btn sm" style={{width:"auto"}} disabled={!dirty} onClick={saveJudgeNumbers}>Save judge numbers</button>
+                        {dirty && <button className="btn sec sm" style={{width:"auto"}} onClick={() => { setSetupErr(""); setJudgeRangeDrafts({}); }}>Cancel</button>}
+                      </div>
+                      <p style={{fontSize:".76rem",color:"var(--dim)",marginTop:".6rem"}}>
+                        Every project in a department is scored by all of its judges, so results stay comparable.
+                        After judges sign in you can add a department to their range, but not take one away — remove
+                        that judge on the Judges tab instead.
+                      </p>
+                      </>)}
                     </>) : (
                       <p style={{fontSize:".82rem",color:"var(--dim)"}}>
                         Each department has its own Judge1, Judge2, … and judges pick their department when signing in.
@@ -6681,7 +6881,8 @@ export default function App() {
                       <tr><td colSpan={7} style={{textAlign:"center",color:"var(--dim)",padding:"1rem",fontSize:".85rem"}}>No judges registered yet.</td></tr>
                     )}
                     {departments.map(dept => {
-                      const deptJudges = judges.filter(j => j.department_id === dept.id);
+                      // A shared judge (2026-10h) is listed under every department they cover.
+                      const deptJudges = judges.filter(j => judgeDeptIds(j).includes(dept.id));
                       if (!deptJudges.length) return null;
                       return [
                         <tr key={`dept-hdr-${dept.id}`}>
@@ -6698,7 +6899,11 @@ export default function App() {
                           return (
                             <tr key={j.id}>
                               <td style={{fontFamily:"var(--ff-m)",color:"var(--navy)"}}>{j.alias}</td>
-                              <td><span className="badge bp" style={{fontSize:".72rem"}}>{dept.name}</span></td>
+                              <td><span className="badge bp" style={{fontSize:".72rem"}}>{dept.name}</span>
+                                {judgeDeptIds(j).length > 1 && <span style={{display:"block",fontSize:".7rem",color:"var(--dim)",marginTop:".15rem"}}>
+                                  also {judgeDeptIds(j).filter(id => id !== dept.id).map(id => departments.find(d => d.id === id)?.name).filter(Boolean).join(", ")}
+                                </span>}
+                              </td>
                               <td style={{color:"var(--dim)",fontSize:".78rem"}}>{fmt(j.joinedAt)}</td>
                               <td>{total}</td>
                               <td>
@@ -6725,7 +6930,7 @@ export default function App() {
                       ];
                     })}
                     {/* Judges without a department (legacy / migration) */}
-                    {judges.filter(j => !j.department_id).map(j => {
+                    {judges.filter(j => judgeDeptIds(j).length === 0).map(j => {
                       const {done,total,pct} = judgeComp(j);
                       const transferOpen = !!transferAllowances[j.alias] && Date.now() <= transferAllowances[j.alias];
                       return (

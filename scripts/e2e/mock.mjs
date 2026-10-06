@@ -118,22 +118,24 @@ export function installMock(page, store, log) {
       if (fn === "registration_count") return json(route, 200, store.registration_submissions.length);
       if (fn === "register_judge") {
         if (body.p_invite_code !== "ABC123") return json(route, 400, { code: "P0001", message: "Invalid invite code." });
-        // Mirrors migration 2026-10g: school-wide numbering when departments carry judge
-        // numbers and the school has not opted back into per-department numbering.
+        // Mirrors migrations 2026-10g/10h: school-wide numbering when departments carry judge
+        // numbers (unless the school opted back into per-department numbering); a number may
+        // fall in several overlapping ranges → the judge covers all of those departments.
         const school = store.departments.some(d => d.judge_from != null)
           && !store.app_settings.some(r => r.key === "judge_numbering" && r.value === "department");
-        let deptId = body.p_department_id;
+        let deptIds = [body.p_department_id];
         if (school) {
           const n = /^Judge\d+$/.test(body.p_alias) ? parseInt(body.p_alias.slice(5)) : null;
-          const d = store.departments.find(x => x.judge_from != null && n >= x.judge_from && n <= x.judge_to);
-          if (!d) return json(route, 400, { code: "P0001", message: `Judge ${n} is not on this school's judge list. Check your number with the coordinator.` });
+          const ds = [...store.departments].sort((a, b) => a.ord - b.ord)
+            .filter(x => x.judge_from != null && n >= x.judge_from && n <= x.judge_to);
+          if (!ds.length) return json(route, 400, { code: "P0001", message: `Judge ${n} is not on this school's judge list. Check your number with the coordinator.` });
           if (store.judges.some(j => j.alias === body.p_alias))
             return json(route, 400, { code: "P0001", message: `${body.p_alias} is already signed in. Ask the admin to approve a device transfer.` });
-          deptId = d.id;
+          deptIds = ds.map(d => d.id);
         }
         const row = { id: "j_" + Math.random().toString(36).slice(2, 8), school_id: SID, alias: body.p_alias,
-          department_id: deptId, joined_at: new Date().toISOString(),
-          projects: store.projects.filter(p => p.department_id === deptId).map(p => p.id) };
+          department_id: deptIds[0], department_ids: deptIds, joined_at: new Date().toISOString(),
+          projects: store.projects.filter(p => deptIds.includes(p.department_id)).map(p => p.id) };
         store.judges.push(row);
         return json(route, 200, row);
       }
@@ -141,12 +143,25 @@ export function installMock(page, store, log) {
         if (!isAdmin) return json(route, 400, { code: "P0001", message: "Not authorised" });
         const next = new Map(store.departments.map(d => [d.id, { ...d }]));
         for (const r of body.p_ranges) Object.assign(next.get(r.department_id), { judge_from: r.from, judge_to: r.to });
-        const bad = store.judges.find(j => { const d = next.get(j.department_id); const n = parseInt(j.alias.slice(5));
-          return !d || d.judge_from == null || n < d.judge_from || n > d.judge_to; });
-        if (bad) { const d = next.get(bad.department_id);
-          return json(route, 400, { code: "P0001", message: `${bad.alias} is signed in to ${d.name} but would be outside its numbers. Remove that judge on the Judges tab first, or keep the number in range.` }); }
+        const sorted = [...next.values()].sort((a, b) => a.ord - b.ord);
+        const newIds = (alias) => { const n = parseInt(alias.slice(5));
+          return sorted.filter(d => d.judge_from != null && n >= d.judge_from && n <= d.judge_to).map(d => d.id); };
+        // 2026-10h: overlaps are fine; a signed-in judge may gain departments, never lose one.
+        for (const j of store.judges) {
+          const old = j.department_ids?.length ? j.department_ids : [j.department_id];
+          const lost = old.find(id => !newIds(j.alias).includes(id));
+          if (lost) { const d = next.get(lost);
+            return json(route, 400, { code: "P0001", message: `${j.alias} is signed in to ${d.name} and would lose it. Remove that judge on the Judges tab first, or keep their number in ${d.name}'s range.` }); }
+        }
         store.departments.forEach(d => { const n = next.get(d.id); d.judge_from = n.judge_from; d.judge_to = n.judge_to;
           if (n.judge_from != null) d.max_judges = n.judge_to - n.judge_from + 1; });
+        for (const j of store.judges) {
+          const ids = newIds(j.alias);
+          if (!ids.length) continue;
+          j.department_ids = ids;
+          if (!ids.includes(j.department_id)) j.department_id = ids[0];
+          j.projects = store.projects.filter(p => ids.includes(p.department_id)).map(p => p.id);
+        }
         return json(route, 200, null);
       }
       if (fn === "remove_judge") {

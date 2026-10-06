@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + real-Postgres (PGlite) migration/RLS suite. Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 194 checks across 9 files |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 208 checks across 10 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -57,6 +57,7 @@ always serves and cannot be redirected — never share it.
 | `migration-2026-10c-secure-school-signup.sql` | **`create_school()`** RPC; closes direct INSERT on `schools` and `school_admins` (anyone could make themselves admin of any school) | **Yes** — the sign-up form calls `create_school()`. Run before anyone registers a school |
 | `migration-2026-10d-judge-revise-validation.sql` | Judges may delete their own validation until results are finalized (never the admin's) | No — without it "Revise my validation" shows an error instead of unlocking |
 | `migration-2026-10e-categories-and-department-codes.sql` | **`categories`** table (per-school project categories) + seeds the six for every existing school; **`departments.code`** | No — **additive only**. Old app ignores both; new app falls back to `DEFAULT_CATEGORIES` and logs `CATEGORIES_TABLE_MISSING`. Safe to run in either order |
+| `migration-2026-10h-shared-judges.sql` | **Departments can share judges** (opt-in): `judges.department_ids` (backfilled `[department_id]`), `register_judge()` covers every department whose range holds the number, `set_judge_numbers()` accepts overlaps, re-syncs signed-in judges and refuses to take a department away from one | No. ⚠️ Re-running **10g** after this re-creates the older functions — always re-run 10h after 10g |
 | `migration-2026-10g-school-judge-numbers.sql` | **One judge list per school** (default): `departments.judge_from` / `judge_to`, numbering trigger + backfill, `app_settings.judge_numbering`, new **`register_judge()`**, **`set_judge_numbers()`**, **`remove_judge()`** | No — new app without it keeps per-department numbering; old app with it still works (the number overrides the department it sends). Run it, then set the counts in Setup |
 | `migration-2026-10f-scoring-modes.sql` | **`departments.scoring_mode`** (`scored` \| `feedback`) + **`scores.commendation`**; plus Phase 3 columns `departments.locked`, `finalized_at`, `award_grouping` (reserved, nothing reads them yet) | No — **additive only**, every default reproduces current behaviour. Without it the app treats every department as `scored` and logs `SCORING_MODE_COLS_MISSING` when you try to switch one |
 
@@ -287,7 +288,7 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `categories` | Per-school project categories: name, `code`, `ord` (2026-10e). UNIQUE(school_id, name). **No FK from `projects`** — `projects.cat` is a free-text snapshot, so deleting a category never alters a project |
 | `projects` | num, title, cat, grade, locked, department_id, room, description, motivation — **public, no names** |
 | `project_private` | PK `(project_id, school_id)`, FK → projects **ON DELETE CASCADE**: advisor_name, group_members (JSONB), updated_at — **admin-only** |
-| `judges` | alias, `projects` (JSON array of pids), department_id, joined_at. UNIQUE(department_id, alias) |
+| `judges` | alias, `projects` (JSON array of pids), department_id (FIRST department), **`department_ids`** (every department covered — 2026-10h), joined_at. UNIQUE(department_id, alias) |
 | `scores` | One row per judge+project; `criteria` JSONB, notes, total, **`commendation`** (feedback departments only — `criteria` is `{}` there). UNIQUE(judge_id, project_id) |
 | `validations` | Judge/admin validation; `judge_id = 'admin'` for the admin. Conflict `(school_id, judge_id)` |
 | `deliberation_notes` | Judge recommendation/comment/flag per project |
@@ -602,12 +603,13 @@ recPillClass(rec), awardBadgeClass(award), awardEmoji(award), buildDelibReport()
 // Judges & projects
 handleRegister()             // calls register_judge RPC
 schoolNumbering()            // true when judge_numbering is 'school' AND departments carry ranges
-deptForJudgeNum(n), judgeRangeText(d), deptJudgeCount(d), plannedJudgeRanges()
+deptForJudgeNum(n), deptsForJudgeNum(n), deptNames(ids), judgeRangeText(d), deptJudgeCount(d), plannedJudgeRanges()
+plannedSharedRanges(), judgeCoverage(plan), setJudgeSharingMode(on)   // sharing mode (2026-10h)
+judgeDeptIds(j)              // module helper — EVERY department a judge covers; never use j.department_id alone
 saveJudgeNumbers()           // set_judge_numbers RPC from the Setup counts (contiguous, in department order)
 setJudgeNumberingMode(mode)  // app_settings.judge_numbering
 confirmRemoveJudge()         // PIN → remove_judge RPC → reload scores/validations/notes
 dbToDept(r), normJudgeAlias(raw), judgeNumOf(alias)   // module helpers — dbToDept is the ONLY row→state mapper
-assignProjects(deptId, list?)          // every project id in that department
 syncJudgeAssignments(deptIds, list?)   // push the current roster to judges in those departments
 createProject(data, base?)   // shared insert path (Add Project + scanner) → { error, nextProjects, proj }
 addProject(), updateProject(pid), removeProject(pid), toggleProjectLock(pid)
@@ -684,7 +686,7 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 **Judges & projects**
 9. **Every judge scores every project in their department.** No per-judge subsets.
 10. **Any project change re-syncs judge assignments.** `judges.projects` is a snapshot, so `addProject()` and a department change in `updateProject()` must call `syncJudgeAssignments()`. `removeProject()` does its own removal.
-11. **Judge numbers are one list per school by default (2026-10g).** A department's seats are its `judge_from`–`judge_to` range, saved only through `set_judge_numbers()` (which keeps `max_judges` = range size); never write the range columns directly, and never let the client decide a judge's department in school mode — `register_judge()` derives it from the number. Build department rows with `dbToDept()` or the ranges silently disappear. In **legacy mode** `max_judges` is per department and locks The old global `maxJudges` / `app_settings.max_judges` was removed 2026-09-25 — do not reintroduce it. `JUDGE_NAMES` pre-generates Judge1–Judge100.
+11. **Judge numbers are one list per school by default (2026-10g).** A department's seats are its `judge_from`–`judge_to` range, saved only through `set_judge_numbers()` (which keeps `max_judges` = range size); never write the range columns directly, and never let the client decide a judge's department in school mode — `register_judge()` derives it from the number. Build department rows with `dbToDept()` or the ranges silently disappear. In **legacy mode** `max_judges` is per department and locks once that department's first judge registers. The old global `maxJudges` / `app_settings.max_judges` was removed 2026-09-25 — do not reintroduce it. `JUDGE_NAMES` pre-generates Judge1–Judge100.
 12. **Locked projects cannot be edited or removed.** Only `toggleProjectLock()` changes the lock.
 13. **Removing a project cascades:** its scores, deliberation notes, final decision and every judge's assignment entry. No orphans.
 14. **Departments AND categories are per-school data, not constants** (changed 2026-10-06, migration 2026-10e). Build every category dropdown from `catNames()` and every department dropdown from the `departments` state — never from a module constant. `DEFAULT_CATEGORIES` / `DEPT_PRESETS` are **only** fallbacks-and-seeds: they are what a school starts with, never the set that exists. The old `REG_CATEGORIES`, `CAT_CODES` and the dead `CATEGORIES` constant are gone; do not reintroduce them. `api/scan-form.js` loads the school's categories per request (its `DEFAULT_CATEGORIES` is a fallback only), so there is no longer a list to keep in sync. "Not sure yet" is never a category.
@@ -795,6 +797,11 @@ invite code → `set_school_invite_code()` RPC (no UI yet). Never via env vars.
 
 **Changing what the scanner reads:** add the field to `buildSchema()` (+ `required`), the prompt, `normaliseForm()`, `scanCardFromForm()`, `emptyScanData()`, the card UI, and — if it is saved — a migration + `createProject()` / `writeProjectRow()`'s optional-column list. Then run the smoke script.
 
+**Redefining an RPC in a newer migration** (e.g. `register_judge()` in 09b → 10g → 10h): every older file
+still contains the older body, so re-running an older migration silently downgrades the function. Add a
+⚠️ note to the older file's header and keep `scripts/db-migrations.test.mjs` re-running the newer file after
+any standalone re-run of the older one.
+
 **DB changes:** write a new `supabase/migration-YYYY-MM-*.sql`, keep it re-runnable, add it to the
 Migrations table above, and say in the commit whether it is coupled to the app build.
 
@@ -803,6 +810,32 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-06 — Departments can share judges (option)** (migration `2026-10h`, not coupled).
+A small fair (15 judges, six departments) needs one judge to cover several departments. Setup →
+Judge numbers now has two modes: **"Each department has its own judges"** (default — counts, no
+overlap) and **"Departments can share judges"** (From–To per department, overlaps allowed;
+`app_settings.judge_sharing`). A judge covers every department whose range holds their number.
+- **Whole departments only, by design:** every project in a department is scored by the same panel,
+  or averages stop being comparable. A per-judge checkbox grid was rejected for that reason.
+- Server rules: a signed-in judge may gain departments, never lose one (they were told where to sit);
+  every save re-syncs `department_ids`, `department_id` and `projects` for all signed-in judges.
+- App: `judgeDeptIds()` everywhere a judge's department mattered — `syncJudgeAssignments()`
+  (late projects now reach shared judges), Judges tab (listed under each department), department
+  delete guard, Setup counts. Judge home groups projects by department; the validation list ranks
+  per department (was one cross-department list); exports label each score with the PROJECT's
+  department. Setup shows **Who judges what** with projects per judge.
+- **Fixed while there:** (1) a signed-in judge's own project list never refreshed after load (the
+  sync effect ran on `[loading]` only) — late projects needed a page refresh; it now follows the
+  live judges list. (2) A reviewed comment-only project showed "✓ 0pts" — now "✓ Reviewed".
+  (3) `syncJudgeAssignments()` ignored write errors — now logs `JUDGE_ASSIGNMENTS_SYNC_FAILED`.
+- **Rule 37 caught a bailout:** `judgeCoverage()` first extended the last group in place
+  (`last.to = n`) — purity/immutability dropped 26/5 → 0/0. Rewritten without mutation; found by
+  removing suspects one at a time and re-counting (`scratchpad` bisect).
+Tests: DB 135 checks (9 new: overlap, multi-department registration, gain/lose rules, refused save
+changes nothing, shrink around unused numbers, shared removal, real pre-10h backfill); new
+`scripts/e2e/shared-judges.e2e.mjs` 14 checks. Not covered: live (realtime) refresh of a judge's
+open screen — the mock has no realtime; covered by reload.
 
 **2026-10-06 — Projects CSV import (restore / copy to a new school).** No migration.
 Projects → **⬆ Import projects (CSV)** reads the file ⬇ Download Projects CSV writes, so a backup can

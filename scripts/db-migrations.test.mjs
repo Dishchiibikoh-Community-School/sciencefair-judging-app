@@ -88,7 +88,8 @@ for (const round of [1, 2]) {
   await db.exec(mig("migration-2026-10e-categories-and-department-codes.sql"));
   await db.exec(mig("migration-2026-10f-scoring-modes.sql"));
   await db.exec(mig("migration-2026-10g-school-judge-numbers.sql"));
-  ok(`migrations 2026-10, 10b, 10c, 10d, 10e, 10f, 10g applied (round ${round} — re-runnable)`);
+  await db.exec(mig("migration-2026-10h-shared-judges.sql"));
+  ok(`migrations 2026-10, 10b, 10c, 10d, 10e, 10f, 10g, 10h applied (round ${round} — re-runnable)`);
 }
 
 // ── PART 1: names are private ──
@@ -457,6 +458,7 @@ await db.exec(`INSERT INTO schools (id, name, slug, invite_code, admin_pin) VALU
   INSERT INTO departments (school_id, name, max_judges, ord) VALUES ('${S3}', 'B', 4, 1), ('${S3}', 'A', 15, 0);
   UPDATE departments SET judge_from = NULL, judge_to = NULL WHERE school_id = '${S3}';`);
 await db.exec(mig("migration-2026-10g-school-judge-numbers.sql"));
+await db.exec(mig("migration-2026-10h-shared-judges.sql"));
 assert.deepEqual(await ranges(S3), { "A": "1-15", "B": "16-19" });
 ok("judge numbers: backfill numbers an existing school's departments in their order, sized by max judges");
 
@@ -476,8 +478,7 @@ const SJN = "SELECT set_judge_numbers($1, $2::jsonb)";
 const R = (...xs) => JSON.stringify(xs.map(([id, f, t]) => ({ department_id: id, from: f, to: t })));
 await fails("anon", "", SJN, /Not authorised/, "set_judge_numbers: anon refused", [S2, R([XPK, 1, 1])]);
 await fails("authenticated", OTHER, SJN, /Not authorised/, "set_judge_numbers: another school's admin refused", [S2, R([XPK, 1, 1])]);
-await fails("authenticated", ADMIN, SJN, /would share judge numbers/, "set_judge_numbers: overlapping ranges refused", [S2, R([XPK, 1, 3])]);
-await fails("authenticated", ADMIN, SJN, /Judge3 is signed in to K-2/, "set_judge_numbers: refuses to strand a signed-in judge outside their range", [S2, R([XK2, 5, 6], [XMS, 7, 9])]);
+await fails("authenticated", ADMIN, SJN, /Judge3 is signed in to K-2 and would lose it/, "set_judge_numbers: refuses to take a department away from a signed-in judge", [S2, R([XK2, 5, 6], [XMS, 7, 9])]);
 await fails("authenticated", ADMIN, SJN, /lowest first/, "set_judge_numbers: backwards range refused", [S2, R([XMS, 9, 5])]);
 await as("authenticated", ADMIN, SJN, [S2, R([XPK, 1, 1], [XK2, 2, 4], [XMS, 5, 9])]);
 assert.deepEqual(await ranges(S2), { "PreK": "1-1", "K-2": "2-4", "6-8": "5-9" });
@@ -487,6 +488,7 @@ await as("authenticated", ADMIN, SJN, [S2, R([XMS, null, null])]);
 await fails("anon", "", RJ, /not on this school's judge list/, "judge numbers: a department with no numbers takes no judges", [S2, XMS, "Judge6", "CODE2"]);
 await as("authenticated", ADMIN, SJN, [S2, R([XMS, 5, 9])]);
 await db.exec(mig("migration-2026-10g-school-judge-numbers.sql"));
+await db.exec(mig("migration-2026-10h-shared-judges.sql"));
 assert.deepEqual(await ranges(S2), { "PreK": "1-1", "K-2": "2-4", "6-8": "5-9" });
 ok("judge numbers: re-running the migration never overwrites the admin's list");
 
@@ -508,5 +510,64 @@ ok("remove_judge: the number is free again — Judge3 can sign in afresh");
 await as("authenticated", ADMIN, SET, [S2, "judge_numbering", "department"]);
 assert.equal((await RJ2("Judge1", XMS)).rows[0].j.department_id, XMS);
 ok("judge numbering 'department': numbers restart per department again (Judge1 registers in 6-8)");
+
+// ── PART 6: departments share judges (migration 2026-10h) ──
+const S4 = "44444444-4444-4444-4444-444444444444";
+const YPK = "f0000000-0000-0000-0000-000000000001", YK2 = "f0000000-0000-0000-0000-000000000002", Y35 = "f0000000-0000-0000-0000-000000000003";
+await db.exec(`
+  INSERT INTO schools (id, name, slug, invite_code, admin_pin) VALUES ('${S4}', 'Four', 'four', 'CODE4', '4821');
+  INSERT INTO school_admins (school_id, user_id) VALUES ('${S4}', '${ADMIN}');
+  INSERT INTO departments (id, school_id, name, max_judges, ord) VALUES
+    ('${YPK}', '${S4}', 'PreK', 2, 0), ('${YK2}', '${S4}', 'K-2', 2, 1), ('${Y35}', '${S4}', '3-5', 2, 2);
+  INSERT INTO projects (id, school_id, num, title, cat, grade, department_id) VALUES
+    ('q_pk', '${S4}', '001', 'PreK one', 'Life Science', 'K', '${YPK}'),
+    ('q_k2', '${S4}', '002', 'K-2 one',  'Life Science', '1', '${YK2}'),
+    ('q_35', '${S4}', '003', '3-5 one',  'Life Science', '4', '${Y35}');
+`);
+const deptsOf = async (alias) => (await db.query("SELECT department_id, department_ids, projects FROM judges WHERE school_id=$1 AND alias=$2", [S4, alias])).rows[0];
+// PreK and K-2 share Judge 1-2; 3-5 has Judge 3-4.
+await as("authenticated", ADMIN, SJN, [S4, R([YPK, 1, 2], [YK2, 1, 2], [Y35, 3, 4])]);
+assert.deepEqual(await ranges(S4), { "PreK": "1-2", "K-2": "1-2", "3-5": "3-4" });
+ok("sharing: overlapping ranges are accepted (PreK and K-2 both Judge 1-2)");
+const s1 = (await as("anon", "", RJ, [S4, Y35, "Judge1", "CODE4"])).rows[0].j;
+assert.equal(s1.department_id, YPK);
+assert.deepEqual(s1.department_ids, [YPK, YK2]);
+assert.deepEqual(s1.projects, ["q_pk", "q_k2"]);
+ok("sharing: Judge1 covers PreK + K-2 and gets both departments' projects (first department = PreK)");
+const s3 = (await as("anon", "", RJ, [S4, YPK, "Judge3", "CODE4"])).rows[0].j;
+assert.deepEqual(s3.department_ids, [Y35]); assert.deepEqual(s3.projects, ["q_35"]);
+ok("sharing: Judge3 (not shared) covers only 3-5");
+await fails("anon", "", RJ, /already signed in/, "sharing: a shared number is still one person", [S4, YK2, "Judge1", "CODE4"]);
+
+// Admin widens 3-5 to also cover Judge1 → Judge1 GAINS 3-5, projects re-synced.
+await as("authenticated", ADMIN, SJN, [S4, R([Y35, 1, 4])]);
+let d1 = await deptsOf("Judge1");
+assert.deepEqual(d1.department_ids, [YPK, YK2, Y35]);
+assert.deepEqual(d1.projects, ["q_pk", "q_k2", "q_35"]);
+assert.equal(d1.department_id, YPK);
+ok("sharing: widening a range after sign-in adds the department + its projects to the judge");
+// Taking K-2 away from Judge1 is refused (they may have been told to sit there).
+await fails("authenticated", ADMIN, SJN, /Judge1 is signed in to K-2 and would lose it/,
+  "sharing: narrowing a range so a signed-in judge loses a department is refused", [S4, R([YK2, 2, 2])]);
+// …even if they have not scored there yet, and the stored ranges are untouched.
+assert.deepEqual(await ranges(S4), { "PreK": "1-2", "K-2": "1-2", "3-5": "1-4" });
+ok("sharing: a refused save changes nothing");
+// Judge2 has not signed in, so moving 2 out of K-2 is fine.
+await as("authenticated", ADMIN, SJN, [S4, R([YPK, 1, 1], [YK2, 1, 1])]);
+assert.deepEqual(await ranges(S4), { "PreK": "1-1", "K-2": "1-1", "3-5": "1-4" });
+assert.deepEqual((await deptsOf("Judge1")).department_ids, [YPK, YK2, Y35]);
+ok("sharing: ranges can shrink around numbers nobody has signed in with");
+// remove_judge still cleans up a multi-department judge completely.
+await as("anon", "", UPSERT_SCORE, [S4, s1.id, "q_k2", "{}", "kind words"]);
+const rm4 = (await as("authenticated", ADMIN, RMJ, [S4, s1.id])).rows[0].r;
+assert.equal(rm4.scores, 1);
+assert.equal((await db.query("SELECT count(*)::int n FROM judges WHERE school_id=$1 AND alias='Judge1'", [S4])).rows[0].n, 0);
+ok("sharing: removing a shared judge removes their scores in every department");
+// Rows created before 2026-10h (no department_ids yet) are backfilled to [department_id].
+await db.exec(`INSERT INTO judges (id, school_id, alias, projects, department_id, department_ids)
+  VALUES ('j_old', '${S4}', 'Judge4', '[]', '${Y35}', '[]')`);
+await db.exec(mig("migration-2026-10h-shared-judges.sql"));
+assert.deepEqual((await deptsOf("Judge4")).department_ids, [Y35]);
+ok("sharing: a pre-2026-10h judge row is backfilled to department_ids = [department_id]");
 
 console.log(`\nALL ${pass} CHECKS PASSED`);
