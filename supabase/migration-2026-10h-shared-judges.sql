@@ -189,8 +189,11 @@ BEGIN
   END IF;
   v_school_mode := judge_numbering_mode(p_school_id) = 'school';
 
-  CREATE TEMP TABLE IF NOT EXISTS _jn (id uuid PRIMARY KEY, name text, ord int, f int, t int) ON COMMIT DROP;
-  DELETE FROM _jn;
+  -- Supabase's API session loads pg-safeupdate, which rejects any DELETE/UPDATE without a
+  -- WHERE clause - even on a temp table. `DELETE FROM _jn;` made every save fail on the live
+  -- project ("DELETE requires a WHERE clause"). Drop + recreate instead (2026-10-06).
+  DROP TABLE IF EXISTS pg_temp._jn;
+  CREATE TEMP TABLE _jn (id uuid PRIMARY KEY, name text, ord int, f int, t int) ON COMMIT DROP;
   INSERT INTO _jn SELECT id, name, ord, judge_from, judge_to FROM departments WHERE school_id = p_school_id;
 
   FOR v_bad IN
@@ -213,8 +216,11 @@ BEGIN
 
   IF v_school_mode THEN
     -- Each signed-in judge's departments under the NEW ranges.
-    CREATE TEMP TABLE IF NOT EXISTS _jj (id text PRIMARY KEY, alias text, old_ids jsonb, new_ids jsonb, old_primary uuid) ON COMMIT DROP;
-    DELETE FROM _jj;
+    -- Supabase's API session loads pg-safeupdate, which rejects any DELETE/UPDATE without a
+    -- WHERE clause - even on a temp table. `DELETE FROM _jj;` made every save fail on the live
+    -- project ("DELETE requires a WHERE clause"). Drop + recreate instead (2026-10-06).
+    DROP TABLE IF EXISTS pg_temp._jj;
+    CREATE TEMP TABLE _jj (id text PRIMARY KEY, alias text, old_ids jsonb, new_ids jsonb, old_primary uuid) ON COMMIT DROP;
     INSERT INTO _jj
     SELECT j.id, j.alias,
            CASE WHEN jsonb_array_length(COALESCE(j.department_ids, '[]'::jsonb)) > 0 THEN j.department_ids

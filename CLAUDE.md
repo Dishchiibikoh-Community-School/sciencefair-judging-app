@@ -827,6 +827,14 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 
 Full detail is in the git log for each commit.
 
+**2026-10-06 — Judge numbers could never be saved on Supabase (pg-safeupdate)** (re-run 2026-10i).
+`set_judge_numbers()` cleared its temp tables with `DELETE FROM _jn;` / `_jj;`. Supabase API sessions load
+**pg-safeupdate**, which rejects any DELETE/UPDATE without WHERE — so every save failed in production with
+"DELETE requires a WHERE clause". PGlite does not load the extension, so the DB suite passed. Fixed in
+10g/10h/10i (drop + recreate `pg_temp._jn` instead) and guarded: the DB suite now scans every migration
+statement and fails on any DELETE/UPDATE without a WHERE clause. **Rule: never write a bare DELETE/UPDATE
+in SQL that runs through the API — not even on a temp table.**
+
 **2026-10-06 — Rubric presets in the Setup department dropdown (UX fix)** (no migration).
 The dropdown listed only the school's rubric LIBRARY, so a fresh school saw one rubric and the organiser
 concluded the 100-point presets had been removed (they were reachable only via Rubric tab → New rubric).

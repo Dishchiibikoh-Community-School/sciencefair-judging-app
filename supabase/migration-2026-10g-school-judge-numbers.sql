@@ -252,8 +252,11 @@ BEGIN
     RAISE EXCEPTION 'Expected a list of departments.' USING ERRCODE = 'P0001';
   END IF;
 
-  CREATE TEMP TABLE IF NOT EXISTS _jn (id uuid PRIMARY KEY, name text, f int, t int) ON COMMIT DROP;
-  DELETE FROM _jn;
+  -- Supabase's API session loads pg-safeupdate, which rejects any DELETE/UPDATE without a
+  -- WHERE clause - even on a temp table. `DELETE FROM _jn;` made every save fail on the live
+  -- project ("DELETE requires a WHERE clause"). Drop + recreate instead (2026-10-06).
+  DROP TABLE IF EXISTS pg_temp._jn;
+  CREATE TEMP TABLE _jn (id uuid PRIMARY KEY, name text, f int, t int) ON COMMIT DROP;
   INSERT INTO _jn SELECT id, name, judge_from, judge_to FROM departments WHERE school_id = p_school_id;
 
   -- Apply the requested ranges.

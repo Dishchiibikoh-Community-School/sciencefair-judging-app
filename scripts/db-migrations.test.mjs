@@ -34,6 +34,25 @@ async function fails(role, uid, q, re, msg, params) {
   ok(`${msg}  [${err.message.slice(0, 80)}]`);
 }
 
+// ── Static guard: Supabase's API sessions load pg-safeupdate ──
+// It rejects any DELETE/UPDATE without a WHERE clause (even on a temp table) with
+// "DELETE requires a WHERE clause". PGlite does not load it, so this suite cannot catch it by
+// running the SQL — set_judge_numbers() shipped `DELETE FROM _jn;` and failed on every save
+// in production (2026-10-06). Scan every migration statement instead.
+{
+  const { readdirSync } = await import("node:fs");
+  const bad = [];
+  for (const f of readdirSync(new URL("supabase/", REPO)).filter(n => /^migration-.*\.sql$/.test(n))) {
+    const sql = file(new URL(`supabase/${f}`, REPO)).replace(/--[^\n]*/g, "");
+    for (const stmt of sql.split(";")) {
+      const t = stmt.trim();
+      if (/^(DELETE\s+FROM|UPDATE)\b/i.test(t) && !/\bWHERE\b/i.test(t)) bad.push(`${f}: ${t.slice(0, 60).replace(/\s+/g, " ")}`);
+    }
+  }
+  assert.deepEqual(bad, [], "DELETE/UPDATE without WHERE (fails on Supabase):\n" + bad.join("\n"));
+  ok("every DELETE/UPDATE in every migration has a WHERE clause (pg-safeupdate on Supabase)");
+}
+
 // ── Supabase-like environment ──
 await db.exec(`
   CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;
