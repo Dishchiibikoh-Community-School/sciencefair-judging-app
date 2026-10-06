@@ -147,8 +147,9 @@ files, no Tailwind, no CSS modules.
 - `handleAdminLogout()` → `supabase.auth.signOut()`.
 
 ### Judge sign-in flow
-1. **Default (2026-10g) — one judge list for the whole school.** Each department owns a range of
-   judge numbers (`departments.judge_from`–`judge_to`, set in Setup → Judge numbers). The judge
+1. **Default — one judge list for the whole school.** Each judge NUMBER is ticked into the
+   departments it covers in the `judge_roster` grid (Setup → Judges, 2026-10k; before that,
+   `departments.judge_from`–`judge_to` ranges, which are still kept in step for old apps). The judge
    types only a number + the invite code; `normJudgeAlias()` turns "7"/"judge 07" into `Judge7`
    and the screen shows the department from `deptForJudgeNum()`. A number exists once per school.
    **Legacy** (`app_settings.judge_numbering = 'department'`, or migration 2026-10g not run):
@@ -157,7 +158,8 @@ files, no Tailwind, no CSS modules.
    RPC. **All checks are server-side:** invite code (rate-limited), the number → department
    lookup (school mode ignores the department the client sends), duplicate number, department
    capacity (legacy mode), and the one-time admin-approved device transfer.
-3. The judge row is assigned every project in their department (`judges.projects`).
+3. The server fills `judges.projects`: every project of their departments, or only their assigned
+   ones (`project_judges`) in a department with `judges_per_project` set (2026-10k).
 4. Session is saved to `localStorage` (`sf_judge_id`, `sf_judge_data`, `sf_judge_slug`).
 
 ### Views (`view` state)
@@ -220,7 +222,11 @@ the only real controls. "The UI does not expose it" is never a control.
 | Function | Caller | Purpose |
 |---|---|---|
 | `register_judge(school, dept, alias, code)` | anon | The **only** way to create a judge row. Rewritten in 2026-10g: in school mode the number decides the department |
-| `set_judge_numbers(school, ranges)` | admin | Save every department's judge range (2026-10g). Refuses overlaps and any change that leaves a signed-in judge outside their department; sets `max_judges` = range size |
+| `set_judge_roster(school, roster)` | admin | Save the whole judge grid `[{number, department_ids}]` (2026-10k). Numbers ≤ `judge_max`; a signed-in judge may gain departments, never lose one; re-fills panels and re-syncs every judge |
+| `set_judges_per_project(school, dept, n)` | admin | N judges per project for one department (NULL = everyone scores all). Refused once the department has scores |
+| `assign_panels(school, dept, mode)` | admin | `fill` / `rebuild` / `rebalance` (only judges who signed in keep unscored work). Never removes a scored assignment. Returns `{judges_per_project, seats, short}` |
+| `sync_judge_projects(school, dept_ids)` | admin | After project changes: give judges to projects that have none (never tops up) and re-sync all judges |
+| `set_judge_numbers(school, ranges)` | admin | **Legacy wrapper** (2026-10k) for cached old apps: converts From–To ranges to a roster and calls `set_judge_roster()` |
 | `remove_judge(school, judge_id)` | admin | Remove ONE judge + their scores, notes and validation in one transaction (2026-10g). Returns `{alias, scores}`. App gates it behind the Admin PIN |
 | `judge_numbering_mode(school)` | anon/auth | `'school'` unless `app_settings.judge_numbering = 'department'` |
 | `verify_school_pin(school, pin)` | anon/auth | Returns boolean; 5 failures → 5-minute lockout per school |
@@ -613,8 +619,7 @@ recPillClass(rec), awardBadgeClass(award), awardEmoji(award), buildDelibReport()
 // Judges & projects
 handleRegister()             // calls register_judge RPC
 schoolNumbering()            // true when judge_numbering is 'school' AND departments carry ranges
-deptForJudgeNum(n), deptsForJudgeNum(n), deptNames(ids), judgeRangeText(d), deptJudgeCount(d), plannedJudgeRanges()
-plannedSharedRanges(), judgeCoverage(plan), setJudgeSharingMode(on)   // sharing mode (2026-10h)
+deptForJudgeNum(n), deptsForJudgeNum(n), deptNames(ids), judgeRangeText(d), deptJudgeCount(d)
 loadRoster(sid), loadProjectJudges(sid), loadJudgeLabels(sid)   // 2026-10k
 rosterInUse(), deptNumbers(d), sharedWith(d), topJudgeNumber(), compressNums(nums)
 rosterView(), toggleRosterCell(n, deptId), rosterLoad(n, map), saveRoster()   // Setup → Judges grid
@@ -622,7 +627,6 @@ setDeptJudgesPerProject(deptId, n), runPanels(deptId, "rebuild"|"rebalance"), pa
 // NOTE: never name a helper use*() — React treats it as a hook (useRoster() broke rules-of-hooks)
 judgeMax(), saveJudgeMax()   // maximum judge number (2026-10i); judgeMax() falls back like the backfill
 judgeDeptIds(j)              // module helper — EVERY department a judge covers; never use j.department_id alone
-saveJudgeNumbers()           // set_judge_numbers RPC from the Setup counts (contiguous, in department order)
 setJudgeNumberingMode(mode)  // app_settings.judge_numbering
 confirmRemoveJudge()         // PIN → remove_judge RPC → reload scores/validations/notes
 dbToDept(r), normJudgeAlias(raw), judgeNumOf(alias)   // module helpers — dbToDept is the ONLY row→state mapper
@@ -702,7 +706,7 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 **Judges & projects**
 9. **A judge's list is `judges.projects`, filled by the SERVER** (2026-10k). By default every judge scores every project in their departments; a department with `judges_per_project = N` gives each project N judges from its roster (`project_judges`). Never compute a judge's projects in the browser from department membership alone — call `sync_judge_projects()` (via `syncJudgeAssignments()`), which fills panels for NEW projects only (it must never top up short projects: after a Rebalance that would hand work back to absent judges) and re-syncs every judge. Scored assignments are never removed by rebuild/rebalance/roster saves.
 10. **Any project change re-syncs judge assignments.** `judges.projects` is a snapshot, so `addProject()` and a department change in `updateProject()` must call `syncJudgeAssignments()`. `removeProject()` does its own removal.
-11. **Judge numbers are one list per school by default (2026-10g).** A department's seats are its `judge_from`–`judge_to` range, saved only through `set_judge_numbers()` (which keeps `max_judges` = range size); never write the range columns directly, and never let the client decide a judge's department in school mode — `register_judge()` derives it from the number. Build department rows with `dbToDept()` or the ranges silently disappear. In **legacy mode** `max_judges` is per department and locks once that department's first judge registers. The old global `maxJudges` / `app_settings.max_judges` was removed 2026-09-25 — do not reintroduce it. `JUDGE_NAMES` pre-generates Judge1–Judge100.
+11. **Judge numbers are one list per school by default (2026-10g).** Since 2026-10k a department's seats are its rows in `judge_roster`, saved only through `set_judge_roster()` (which also keeps the legacy `judge_from`/`judge_to`/`max_judges` in step); never write the roster or range columns directly, and never let the client decide a judge's department in school mode — `register_judge()` derives it from the number. Build department rows with `dbToDept()` or the ranges silently disappear. In **legacy mode** `max_judges` is per department and locks once that department's first judge registers. The old global `maxJudges` / `app_settings.max_judges` was removed 2026-09-25 — do not reintroduce it. `JUDGE_NAMES` pre-generates Judge1–Judge100.
 12. **Locked projects cannot be edited or removed.** Only `toggleProjectLock()` changes the lock.
 13. **Removing a project cascades:** its scores, deliberation notes, final decision and every judge's assignment entry. No orphans.
 14. **Departments AND categories are per-school data, not constants** (changed 2026-10-06, migration 2026-10e). Build every category dropdown from `catNames()` and every department dropdown from the `departments` state — never from a module constant. `DEFAULT_CATEGORIES` / `DEPT_PRESETS` are **only** fallbacks-and-seeds: they are what a school starts with, never the set that exists. The old `REG_CATEGORIES`, `CAT_CODES` and the dead `CATEGORIES` constant are gone; do not reintroduce them. `api/scan-form.js` loads the school's categories per request (its `DEFAULT_CATEGORIES` is a fallback only), so there is no longer a list to keep in sync. "Not sure yet" is never a category.
@@ -810,7 +814,7 @@ save (writes `rubrics.criteria`) or reset to default. No code or schema change n
 **Credentials:** admin password → Supabase Auth; admin PIN → Overview tab Change PIN card;
 invite code → `set_school_invite_code()` RPC (no UI yet). Never via env vars.
 
-**More judges:** Setup → Judge numbers → raise that department's count → Save (allowed after judges signed in, as long as nobody ends up outside their department). Legacy mode: raise Max Judges before that department's first judge registers.
+**More judges:** Setup → Judges → tick more numbers into that department → Save judges (allowed after judges signed in; unticking a signed-in judge's department is refused). Raise Maximum judges first if the grid is too short. Legacy mode: raise Max Judges before that department's first judge registers.
 
 **A judge signed in by mistake:** Judges tab → Remove (Admin PIN) → `remove_judge()`. No Reset needed.
 
@@ -854,6 +858,9 @@ new-projects-only); (4) CSV import re-synced judges once per project (63 round-t
 (5) a helper named `useRoster()` was treated as a React hook.
 Tests: DB 195 (30 new); new `scripts/e2e/judge-panels.e2e.mjs` 11; judge-numbers / shared-judges E2E
 rewritten for the grid (25 / 13); real 63-project import re-verified (21 s, 6-8 panels all 3 judges).
+**Run on the live project 2026-10-06** and verified with anonymous requests: roster backfilled from the
+ranges (25 rows), `judge_labels` denied to anon, roster INSERT refused by RLS, the four admin RPCs answer
+"Not authorised", `_fill_panels` not executable.
 
 **2026-10-06 — Judge numbers could never be saved on Supabase (pg-safeupdate)** (re-run 2026-10i).
 `set_judge_numbers()` cleared its temp tables with `DELETE FROM _jn;` / `_jj;`. Supabase API sessions load

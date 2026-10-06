@@ -7099,9 +7099,9 @@ export default function App() {
               <div className="card">
                 <div className="lbl" style={{marginBottom:".4rem"}}>Departments</div>
                 <p style={{fontSize:".82rem",color:"var(--dim)",marginBottom:".9rem"}}>
-                  A department is one judging pool. Judges sign in to a department and score every project in it,
-                  and results, ties and awards are worked out inside each one — projects in different departments never compete.
-                  {schoolNumbering() ? " How many judges each one gets is set on the Judge numbers card below."
+                  A department is one judging pool. Its judges score every project in it (or an even share, with
+                  "judges per project"), and results, ties and awards are worked out inside each one — projects in different departments never compete.
+                  {schoolNumbering() ? " Which judges each one gets is set in the Judges grid below."
                                      : " Max Judges locks once that department's first judge signs in."}
                 </p>
 

@@ -315,8 +315,8 @@ add projects with **+ Add Project** instead.
 
 ### 3. Prepare Judge Credentials
 
-- **Judge numbers:** one list for the whole school, set in Setup → Judge numbers
-  - Example: PreK has 2 judges → Judge 1–2; K-2 has 2 → Judge 3–4; and so on
+- **Judge numbers:** one list for the whole school, set in the Setup → Judges grid
+  - Example: tick Judge 1–2 under PreK, Judge 3–4 under K-2, and Judge 2 under SPED too if they cover both
   - Give each judge their number. They do not need to know their department — the app shows it to them
 - **Invite code:** shown at the top of your admin Overview tab — in the "Get started" card before any judge signs in, then in the "Judge sign-in details" card (it stays visible for the whole event). Judges type this to sign in.
   It is checked on the server, so a wrong code now returns a clear error — and 5 wrong attempts
@@ -759,7 +759,7 @@ A: No (with one list for the whole school, the default). Each number belongs to 
 A: Judges tab → **Remove** on that judge → enter your Admin PIN. Their number is freed and they can sign in again with the right one. Removing **permanently deletes that judge's scores, notes and validation** — the dialog tells you how many — so fix it before they score. No Reset All Data needed.
 
 **Q: Can I add more judges to a department?**
-A: Yes. Setup → Judge numbers → raise that department's count → Save. Departments after it are renumbered, which is only refused if it would move an already signed-in judge out of their department.
+A: Yes. Setup → Judges → tick more judge numbers under that department → **Save judges**. Nobody else's number changes. If the grid has no free numbers left, raise **Maximum judges** first (up to 90).
 
 **Q: What if a department has no projects?**
 A: Judges in that department will see an empty project list and cannot complete scoring. Always assign projects to departments before judging begins.
