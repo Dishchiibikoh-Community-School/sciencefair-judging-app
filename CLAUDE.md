@@ -1283,6 +1283,28 @@ its absence. See the `group_members` type split above.
 
 ---
 
+## 📍 Live status / where we left off (end of 2026-10-06)
+
+Read this first when resuming on another machine.
+
+- **All SQL migrations through `2026-10l` have been run on the live project** (10k and 10l verified with
+  anonymous probes: RLS refusals, bucket public, anon upload refused, anon cannot list).
+- **Dishchii'bikoh live data:** 63 projects imported (PreK 2 · K-5 8 · 6-8 31 · 9-12 19 · SPED 3); the
+  energy category is renamed "Energy, Sustainable Forms & Design" (ESD). Logo = `builtin:dishchiibikoh`.
+- **Not done yet — the organiser's to-do:**
+  1. **Setup → Judges grid:** still the backfilled ranges (PreK 1–5, K-5 6–10, 6-8 11–15, 9-12 16–20,
+     SPED 21–25; `judge_max` = 90). Tick the real 15 judges, untick 16–25, Save, then lower Maximum judges
+     to 15. **Do it before any judge signs in** (a signed-in judge can gain a department, never lose one).
+  2. **6-8 → "3 judges per project"** (31 projects); then check Judges tab → Panels shows 3 per project.
+  3. **First real branding upload** (poster or logo) by the admin — the only path not yet exercised against
+     real Supabase Storage. If it fails, read the exact "NOT saved — …" text.
+  4. School year: automatic shows SY 2026-2027; set it in Setup → School year only if that is wrong.
+- **Parked:** registration email API (see "Future work" below). Untracked files `.codex/`, `AGENTS.md`,
+  `ARCHITECTURE_SCALE_REVIEW.md`, `CLAUDE_ARCHITECTURE_REVIEW_PROMPT.md` exist only on the work PC and are
+  deliberately not committed (the review files describe security weaknesses; the repo is public).
+- **The real project CSV** (`qritiko-projects-2026-10-06.csv`, student names) is on the work PC Desktop only —
+  never commit it.
+
 ## 🗺️ Agreed roadmap (2026-10-06)
 
 The 2026-27 fair is being restructured: departments become **PreK · K-2 · 3-5 · 6-8 · 9-12 · SPED**,
