@@ -106,9 +106,16 @@ A new school starts with **Elementary / Middle School / High School**, but that 
 | Elementary / Middle / High | Elementary · Middle School · High School |
 | Grade bands (PreK–12) | PreK · K-2 · 3-5 · 6-8 · 9-12 |
 | Grade bands + SPED | PreK · K-2 · 3-5 · 6-8 · 9-12 · SPED |
+| PreK · K-5 · 6-8 · 9-12 · SPED | PreK · K-5 · 6-8 · 9-12 · SPED (K-5 as one elementary band) |
 | One department | All Projects |
 
 > A preset only **adds** the departments you don't already have — it never deletes. Remove the ones you don't want afterwards, one at a time.
+>
+> **Switching from K-2 + 3-5 to K-5?** Applying *PreK · K-5 · 6-8 · 9-12 · SPED* on top of the grade-band
+> presets adds only **K-5**. Move any K-2 / 3-5 projects to K-5 (Projects tab → edit → Department), then
+> delete K-2 and 3-5 — the app will not delete a department that still has projects or judges. Then check
+> **Judge numbers** and each department's **rubric** in Setup: a new department gets judge numbers only if
+> they fit under the maximum, and uses the default rubric until you pick one.
 
 > **⚠️ You cannot delete a department that still has projects or judges in it.** The app blocks it and tells you how many there are. This is deliberate: deleting it would leave those projects unassigned, and an unassigned project is scored by nobody. Move them first (Projects tab → edit a project → Department), then delete.
 

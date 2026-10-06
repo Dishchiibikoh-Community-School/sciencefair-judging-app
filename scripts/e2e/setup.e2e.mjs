@@ -102,6 +102,16 @@ await check("applying the same preset twice says so instead of duplicating", asy
   assert.equal(deptNames().filter(n => n === "PreK").length, 1);
 });
 
+await A.page.getByRole("button", { name: /PreK · K-5 · 6-8 · 9-12 · SPED/ }).click();
+await check("the 'PreK · K-5 · 6-8 · 9-12 · SPED' preset adds only what is missing (K-5)", async () => {
+  await A.page.waitForTimeout(500);
+  assert.ok(deptNames().includes("K-5"), "K-5 missing");
+  for (const n of ["PreK", "6-8", "9-12", "SPED"]) assert.equal(deptNames().filter(x => x === n).length, 1, `${n} duplicated`);
+  assert.equal(store.departments.find(d => d.name === "K-5")?.code, "K5");
+});
+await A.page.getByRole("button", { name: /PreK · K-5 · 6-8 · 9-12 · SPED/ }).click();
+await check("…and applying it again adds nothing", () => A.page.getByText(/already have every department in "PreK · K-5/).waitFor({ timeout: 4000 }));
+
 console.log("\n── Categories: the robotics-fair case");
 await A.page.locator('input[placeholder="New category name"]').fill("Autonomous Robotics");
 await A.page.locator('input[placeholder="Code"]').last().fill("AR");

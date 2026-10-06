@@ -827,6 +827,14 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 
 Full detail is in the git log for each commit.
 
+**2026-10-06 — Department preset "PreK · K-5 · 6-8 · 9-12 · SPED"** (no migration).
+Fifth entry in `DEPT_PRESETS` (`bands-k5-sped`), appended so `DEPT_PRESETS[0]` still seeds new schools.
+Codes PK · K5 · G68 · G912 · SPED; the shared names keep the other presets' codes, so on top of a
+grade-band school it adds only K-5 (presets match by name and never delete). Label avoids the text
+"Grade bands + SPED" (matched by name in tests). New departments follow the existing rules: judge numbers
+only if they fit under `judge_max` (2026-10i), the default rubric until one is picked (2026-10j).
+Tests: setup E2E +2 checks.
+
 **2026-10-06 — Project codes ("PK-LS-001")** (no migration).
 Every project has a code built from `app_settings.project_code_format` (default `{DEPT}-{CAT}-{NUM}`)
 + `departments.code` + `categories.code` + `projects.num` — **derived by `projectCode(p)`, never stored**,

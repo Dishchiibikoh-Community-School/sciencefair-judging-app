@@ -185,6 +185,20 @@ const DEPT_PRESETS = [
       { name: "9-12",  code: "G912" },
       { name: "SPED",  code: "SPED" },
     ] },
+  // K-5 as ONE elementary band (instead of K-2 + 3-5). Appended, never inserted at 0:
+  // DEPT_PRESETS[0] seeds every new school. The label must not contain "Grade bands + SPED"
+  // (that preset is found by name in Setup and in tests). Names it shares with the other
+  // presets (PreK, 6-8, 9-12, SPED) keep the same codes, so applying it on top of them
+  // adds only K-5.
+  { id: "bands-k5-sped", label: "PreK · K-5 · 6-8 · 9-12 · SPED",
+    desc: "Four grade bands with K-5 as one elementary band, plus a separate SPED division.",
+    depts: [
+      { name: "PreK",  code: "PK"   },
+      { name: "K-5",   code: "K5"   },
+      { name: "6-8",   code: "G68"  },
+      { name: "9-12",  code: "G912" },
+      { name: "SPED",  code: "SPED" },
+    ] },
   { id: "single", label: "One department",
     desc: "A single pool — every judge sees every project.",
     depts: [{ name: "All Projects", code: "ALL" }] },
@@ -252,7 +266,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-06k";
+const ADMIN_HELP_UPDATED = "2026-10-06l";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -267,7 +281,7 @@ const ADMIN_HELP = [
   ]},
   { title: "Before the event — checklist", icon: "✅", items: [
     "Remember your Admin PIN (4–8 digits). It cannot be recovered, only changed (Overview → Admin PIN). 5 wrong tries lock PIN entry for 5 minutes.",
-    "Setup tab: set your departments first — add, rename or reorder them, or start from a preset (school levels, PreK–12 grade bands, grade bands + SPED).",
+    "Setup tab: set your departments first — add, rename or reorder them, or start from a preset (school levels, PreK–12 grade bands, grade bands + SPED, or PreK · K-5 · 6-8 · 9-12 · SPED).",
     "Setup tab → Judge numbers: enter how many judges each department needs. Every judge gets ONE number for the whole school (e.g. PreK = Judge 1–2, K-2 = Judge 3–4) and the number decides their department.",
     "Setup tab: check your project categories. They are yours alone — rename them, delete the ones you don't use, or add your own (a robotics fair can replace all six).",
     "Setup tab: set any department that should NOT be scored (PreK, K-2) to 'Comments only'. This cannot be changed once that department has scores.",
