@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "node scripts/scan-form.test.mjs && node scripts/db-migrations.test.mjs",
-    "test:e2e": "node scripts/e2e/scan.e2e.mjs && node scripts/e2e/judge-reg.e2e.mjs && node scripts/e2e/signup.e2e.mjs && node scripts/e2e/setup.e2e.mjs && node scripts/e2e/rubric100.e2e.mjs && node scripts/e2e/feedback.e2e.mjs && node scripts/e2e/judge-numbers.e2e.mjs && node scripts/e2e/lifecycle.e2e.mjs"
+    "test:e2e": "node scripts/e2e/scan.e2e.mjs && node scripts/e2e/judge-reg.e2e.mjs && node scripts/e2e/signup.e2e.mjs && node scripts/e2e/setup.e2e.mjs && node scripts/e2e/rubric100.e2e.mjs && node scripts/e2e/feedback.e2e.mjs && node scripts/e2e/judge-numbers.e2e.mjs && node scripts/e2e/import.e2e.mjs && node scripts/e2e/lifecycle.e2e.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.3",

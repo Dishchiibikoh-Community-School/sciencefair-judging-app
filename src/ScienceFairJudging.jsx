@@ -168,7 +168,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-06f";
+const ADMIN_HELP_UPDATED = "2026-10-06g";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -232,6 +232,9 @@ const ADMIN_HELP = [
     ["Will updates to the app erase my projects or scores?", "No. Updates replace the website, never your data. Database changes are tested on a copy first and only add or tighten things."],
     ["What does Reset All Data clear?", "Judges, scores, validations, deliberation notes, awards, the share link and the lock / finalize settings. It keeps projects, departments, the rubric, registrations and the activity log."],
     ["How do I back up?", "Score Export → 💾 Save Score Backup (stores scores AND the rubric), ⬇ Download Judge Scores CSV, and Projects → ⬇ Download Projects CSV. Download copies at the halfway point and at the end."],
+    ["How do I restore projects, or copy them into a new school?", "Projects tab → ⬆ Import projects (CSV) and choose a file from ⬇ Download Projects CSV (you may edit it in Excel first — save it as \"CSV UTF-8\"). You see every row before anything is saved: duplicates start unticked, and any department name this school does not have gets a dropdown to pick the right one. Press Import. Numbers are kept unless already taken. Only projects are imported — not scores or judges."],
+    ["Import says my file is a spreadsheet workbook.", "Import reads CSV, not .xlsx. In Excel: File → Save As → \"CSV UTF-8 (Comma delimited)\", then import that file."],
+    ["Some imported rows say NOT saved.", "Nothing was half-saved — those projects simply were not created. Check the internet (or sign out and in), then press Import again: only the rows not yet imported are tried."],
     ["What happens to scores if I change the rubric?", "The raw scores are kept, but totals use the current rubric: a removed criterion stops counting, a new one counts 0 until re-scored, changed points keep the old values. Finish the rubric before judging."],
     ["Who can see student names?", "Only signed-in admins of your school. Never judges, never the public results page."],
   ]},
@@ -337,6 +340,73 @@ function csvCell(v) {
   const s = Array.isArray(v) ? v.join("; ") : String(v);
   const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
   return `"${safe.replace(/"/g, '""')}"`;
+}
+
+// ── Projects CSV import (the file ⬇ Download Projects CSV produces) ─────────
+// RFC 4180 reader: quoted cells, "" escapes, line breaks inside quotes, CRLF, a BOM, and
+// the ';' delimiter Excel uses in comma-decimal locales. Returns an array of rows.
+function parseCsv(text) {
+  const src = String(text || "").replace(/^\uFEFF/, "");
+  const firstLine = src.slice(0, src.search(/\r?\n|$/));
+  const delim = (firstLine.split(";").length > firstLine.split(",").length) ? ";" : ",";
+  const rows = []; let row = []; let cell = ""; let q = false;
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (q) {
+      if (c === '"') { if (src[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+      else cell += c;
+    } else if (c === '"') q = true;
+    else if (c === delim) { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && src[i + 1] === "\n") i++;
+      row.push(cell); rows.push(row); row = []; cell = "";
+    } else cell += c;
+  }
+  if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(v => String(v).trim() !== ""));
+}
+// csvCell() prefixes a leading = + - @ with an apostrophe; take it back off.
+function uncsvCell(v) {
+  const s = String(v ?? "").trim();
+  return /^'[=+\-@]/.test(s) ? s.slice(1) : s;
+}
+// "Juan (Gr 8), Maria" (membersText format) → [{ name, grade }]
+function parseMembersText(s) {
+  return String(s || "").split(/[,;]/).map(x => x.trim()).filter(Boolean).map(x => {
+    const m = x.match(/^(.*?)\s*\((?:gr(?:ade)?\.?\s*)?([^)]*)\)\s*$/i);
+    return m ? { name: m[1].trim(), grade: normGrade(m[2]) } : { name: x, grade: "" };
+  }).filter(m => m.name);
+}
+// Header → field. Matched case-insensitively on the start of the header text, so the
+// exported headings and reasonable hand-made ones ("Number", "Teacher") both work.
+const IMPORT_COLS = [
+  ["num",         /^(project\s*#|project\s*n(o|um|umber)|#|n(o|um|umber)\b)/],
+  ["title",       /^(title|project\s*title|project\s*name)/],
+  ["dept",        /^(department|dept|division)/],
+  ["cat",         /^(category|categor)/],
+  ["grade",       /^grade/],
+  ["room",        /^room/],
+  ["advisor",     /^(teacher|adviser|advisor)/],
+  ["members",     /^(students|student|members|team)/],
+  ["description", /^(what they plan|description|investigat)/],
+  ["motivation",  /^(why they chose|motivation|why)/],
+];
+// → { rows: [{ line, num, title, dept, cat, grade, room, advisor, members, description, motivation }], error }
+function projectsFromCsv(text) {
+  const all = parseCsv(text);
+  if (all.length < 2) return { rows: [], error: "The file has no project rows." };
+  const head = all[0].map(h => String(h).trim().toLowerCase());
+  const at = {};
+  IMPORT_COLS.forEach(([key, re]) => { const i = head.findIndex(h => re.test(h)); if (i >= 0 && !(key in at)) at[key] = i; });
+  if (!("title" in at)) return { rows: [], error: "No \"Title\" column found. Use the file from ⬇ Download Projects CSV as a template." };
+  if (all.length - 1 > 1000) return { rows: [], error: "Too many rows (over 1000). Split the file." };
+  const get = (r, k) => (k in at ? uncsvCell(r[at[k]]) : "");
+  const rows = all.slice(1).map((r, i) => ({
+    line: i + 2, num: get(r, "num"), title: get(r, "title"), dept: get(r, "dept"), cat: get(r, "cat"),
+    grade: get(r, "grade"), room: get(r, "room"), advisor: get(r, "advisor"),
+    members: parseMembersText(get(r, "members")), description: get(r, "description"), motivation: get(r, "motivation"),
+  }));
+  return { rows, error: "" };
 }
 
 // Read a criterion value from a score row. v2 stores { criteria: {...} };
@@ -496,6 +566,13 @@ const CSS = `
   .err{color:var(--red);font-size:.9rem;margin-top:.4rem;}
   .judge-num-hit{margin-top:.45rem;padding:.5rem .75rem;border-radius:8px;background:var(--green-l);color:var(--green);font-size:.92rem;text-align:center;}
   .judge-num-miss{margin-top:.45rem;padding:.5rem .75rem;border-radius:8px;background:var(--amber-l);color:var(--amber);font-size:.88rem;text-align:center;}
+  .imp-panel{margin-top:1rem;}
+  .imp-map{margin-top:.8rem;padding:.65rem .75rem;border:1px solid var(--amber);background:var(--amber-l);border-radius:8px;}
+  .imp-map-row{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-top:.35rem;font-size:.86rem;}
+  .imp-map-row select{width:auto;min-width:180px;}
+  .imp-tbl td{vertical-align:top;}
+  .imp-tbl tr.imp-saved td{opacity:.6;}
+  .imp-tbl tr.imp-err td{background:var(--red-l);}
   .jn-rows{display:flex;flex-direction:column;gap:.4rem;margin:.6rem 0 .85rem;}
   .jn-row{display:flex;align-items:center;gap:.75rem;padding:.45rem .65rem;border:1px solid var(--bd);border-radius:8px;background:var(--bg);}
   .jn-row .jn-name{flex:1;min-width:0;font-weight:600;color:var(--navy);}
@@ -1356,6 +1433,12 @@ export default function App() {
   // and nothing is written to the DB until the admin presses Save on a card.
   const [scanOpen,           setScanOpen]            = useState(false);
   const [scanCards,          setScanCards]           = useState([]);   // see newScanCard()
+  // Projects CSV import — memory only until the admin presses Import (like the scanner).
+  const [importRows,         setImportRows]          = useState(null); // null = closed; [{ key, line, …, include, status, error, savedNum }]
+  const [importDeptMap,      setImportDeptMap]       = useState({});   // { fileDeptName(lowercase): deptId | "" }
+  const [importFileName,     setImportFileName]      = useState("");
+  const [importMsg,          setImportMsg]           = useState("");
+  const [importBusy,         setImportBusy]          = useState(false);
   const [scanSaving,         setScanSaving]          = useState(false);
   const [scanDiscardAsk,     setScanDiscardAsk]      = useState(false);
   const scanUrlsRef = useRef([]);   // object URLs for thumbnails — revoked when the scanner closes
@@ -2336,6 +2419,111 @@ export default function App() {
     a.href = url; a.download = `projects_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
     URL.revokeObjectURL(url);
     addItLog("INFO","ADMIN","PROJECTS_CSV_EXPORTED","Admin downloaded the projects CSV",{ count: projects.length });
+  }
+
+  // ── Projects CSV import — restore a backup, or copy projects into a new school ──
+  // Reads the file ⬇ Download Projects CSV makes (or one edited in Excel). Rows live
+  // only in memory until the admin presses Import; each goes through createProject(),
+  // the same path as + Add Project (names → project_private, judges re-synced), with
+  // the project list threaded through the loop (rule 43). Nothing is saved automatically.
+  const importKey = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  function importDeptId(row) {
+    const k = String(row.dept || "").trim().toLowerCase();
+    if (!k || k === "unassigned") return "";
+    if (k in importDeptMap) return importDeptMap[k];
+    return departments.find(d => d.name.toLowerCase() === k)?.id || "";
+  }
+  // Department names in the file that this school does not have (to map once, not per row).
+  function importUnknownDepts() {
+    // Plain loop, not forEach: mutating inside a callback bails the React Compiler (rule 37).
+    const out = new Map();
+    for (const r of importRows || []) {
+      const k = String(r.dept || "").trim().toLowerCase();
+      if (k && k !== "unassigned" && !departments.some(d => d.name.toLowerCase() === k) && !out.has(k)) out.set(k, r.dept.trim());
+    }
+    return [...out.entries()];
+  }
+  function importIssues(row) {
+    const block = [], warn = [], info = [];
+    if (!row.title.trim()) block.push("No title");
+    const t = importKey(row.title);
+    if (t && projects.some(p => importKey(p.title) === t)) warn.push("A project with this title already exists");
+    else if (t && (importRows || []).some(r => r.key < row.key && importKey(r.title) === t)) warn.push("Same title as an earlier row");
+    if (!importDeptId(row)) warn.push("No department — nobody judges it until you set one");
+    if (!row.cat) info.push("No category");
+    else if (!catNames().includes(row.cat)) info.push(`"${row.cat}" is not one of your categories — kept as written`);
+    if (row.num && projects.some(p => String(p.num) === String(row.num))) info.push(`#${row.num} is taken — gets the next free number`);
+    return { block, warn, info };
+  }
+  function patchImportRow(key, patch) {
+    setImportRows(prev => (prev || []).map(r => r.key === key ? { ...r, ...patch } : r));
+  }
+  function closeImport() {
+    setImportRows(null); setImportMsg(""); setImportFileName(""); setImportDeptMap({});
+  }
+
+  async function importFile(file) {
+    setImportMsg("");
+    if (!file) return;
+    if (/\.(xlsx|xls|xlsm|numbers)$/i.test(file.name)) {
+      setImportMsg("That is a spreadsheet workbook, not a CSV. In Excel choose File → Save As → \"CSV UTF-8 (Comma delimited) (*.csv)\", then import the .csv file.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) { setImportMsg("That file is over 2 MB — it does not look like a projects CSV."); return; }
+    // Excel's plain "CSV" is Windows-1252, its "CSV UTF-8" is UTF-8 — accept both so
+    // accented names (Navajo, Spanish…) survive either way.
+    const buf = await file.arrayBuffer();
+    let text;
+    try { text = new TextDecoder("utf-8", { fatal: true }).decode(buf); }
+    catch { text = new TextDecoder("windows-1252").decode(buf); }
+    const { rows, error } = projectsFromCsv(text);
+    if (error) {
+      setImportMsg(error);
+      addItLog("WARN","ADMIN","PROJECTS_IMPORT_UNREADABLE","A projects CSV could not be read",{ error });
+      return;
+    }
+    if (!rows.length) { setImportMsg("The file has no project rows."); return; }
+    const seen = new Set(projects.map(p => importKey(p.title)));
+    const prepared = [];
+    for (const [i, r] of rows.entries()) {   // a loop, not .map — see rule 37
+      const t = importKey(r.title);
+      const dup = !!t && seen.has(t);
+      if (t) seen.add(t);
+      // Duplicates and blank titles start unticked; everything else starts ticked.
+      prepared.push({ ...r, key: i, include: !!t && !dup, status: "ready", error: "", savedNum: "" });
+    }
+    setImportDeptMap({});
+    setImportFileName(file.name);
+    setImportRows(prepared);
+    addItLog("INFO","ADMIN","PROJECTS_IMPORT_OPENED","Admin opened a projects CSV for import",{ rows: prepared.length });
+  }
+
+  async function runImport() {
+    if (importBusy || !importRows) return;
+    const todo = importRows.filter(r => r.include && r.status !== "saved" && !importIssues(r).block.length);
+    if (!todo.length) { setImportMsg("Nothing to import — tick at least one row."); return; }
+    setImportBusy(true); setImportMsg("");
+    let base = projects, imported = 0, failed = 0;
+    for (const r of todo) {
+      patchImportRow(r.key, { status: "saving", error: "" });
+      // Keep the file's number unless it is taken (by an existing or just-imported project).
+      const num = r.num && !base.some(p => String(p.num) === String(r.num)) ? r.num : "";
+      const { error, nextProjects, proj } = await createProject({
+        title: r.title, cat: r.cat, grade: r.grade, num, department_id: importDeptId(r),
+        advisor_name: r.advisor, members: r.members, room: r.room,
+        description: r.description, motivation: r.motivation, source: "CSV import",
+      }, base);
+      base = nextProjects;
+      if (error) { failed += 1; patchImportRow(r.key, { status: "error", error: error.message }); }
+      else { imported += 1; patchImportRow(r.key, { status: "saved", savedNum: proj.num, include: false }); }
+    }
+    setImportBusy(false);
+    setImportMsg(failed
+      ? `Imported ${imported} project${imported!==1?"s":""}. ${failed} could NOT be saved — see the red rows, then press Import again to retry them.`
+      : `Imported ${imported} project${imported!==1?"s":""}.`);
+    addLog(`Admin imported ${imported} project${imported!==1?"s":""} from a CSV${failed ? ` (${failed} failed)` : ""}`);
+    addItLog(failed ? "WARN" : "INFO","ADMIN","PROJECTS_IMPORTED","Admin imported projects from a CSV",
+      { imported, failed, rowsInFile: importRows.length });
   }
 
   function exportProjListPDF() {
@@ -6864,8 +7052,12 @@ export default function App() {
 
               {/* Export Project List */}
               <div style={{marginTop:"2rem",borderTop:"1px solid var(--bd)",paddingTop:"1.5rem"}}>
-                <div className="adm-h1" style={{marginBottom:".25rem"}}>Export Project List</div>
-                <div className="adm-sub" style={{marginBottom:"1rem"}}>Printable PDF grouped by department, or a spreadsheet (CSV) with every detail — keep the CSV as your own backup copy. Both contain student names: share only with staff.</div>
+                <div className="adm-h1" style={{marginBottom:".25rem"}}>Back up &amp; restore projects</div>
+                <div className="adm-sub" style={{marginBottom:"1rem"}}>
+                  Printable PDF grouped by department, or a spreadsheet (CSV) with every detail — keep the CSV as your own backup.
+                  <strong> ⬆ Import projects</strong> reads that same CSV back in: to restore projects, or to copy them into a new school.
+                  Both files contain student names: share only with staff.
+                </div>
                 <div style={{display:"flex",gap:".5rem",flexWrap:"wrap"}}>
                   <button className="btn sm" style={{width:"auto"}} onClick={exportProjListPDF} disabled={projects.length === 0}>
                     🖨 Export Project List PDF
@@ -6873,7 +7065,104 @@ export default function App() {
                   <button className="btn sec sm" style={{width:"auto"}} onClick={exportProjectsCSV} disabled={projects.length === 0}>
                     ⬇ Download Projects CSV
                   </button>
+                  <label className={`btn sec sm ${importBusy ? "disabled" : ""}`} style={{width:"auto",cursor:"pointer"}}>
+                    ⬆ Import projects (CSV)
+                    <input type="file" accept=".csv,text/csv" style={{display:"none"}} disabled={importBusy}
+                      onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; importFile(f); }} />
+                  </label>
                 </div>
+                {importMsg && !importRows && <div className="err" style={{marginTop:".6rem"}}>⚠ {importMsg}</div>}
+
+                {importRows && (() => {
+                  const unknown  = importUnknownDepts();
+                  const issues   = Object.fromEntries(importRows.map(r => [r.key, importIssues(r)]));
+                  const ticked   = importRows.filter(r => r.include && r.status !== "saved" && !issues[r.key].block.length);
+                  const saved    = importRows.filter(r => r.status === "saved").length;
+                  const deptName = (r) => departments.find(d => d.id === importDeptId(r))?.name || "";
+                  return (
+                    <div className="card imp-panel">
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:".5rem",flexWrap:"wrap"}}>
+                        <div>
+                          <div style={{fontWeight:700,color:"var(--navy)"}}>Import from {importFileName}</div>
+                          <div style={{fontSize:".8rem",color:"var(--dim)"}}>
+                            {importRows.length} row{importRows.length!==1?"s":""} · {ticked.length} ticked{saved ? ` · ${saved} imported` : ""}.
+                            Nothing is saved until you press Import. Duplicates start unticked.
+                          </div>
+                        </div>
+                        <button className="btn sec sm" style={{width:"auto"}} disabled={importBusy} onClick={closeImport}>Close</button>
+                      </div>
+
+                      {unknown.length > 0 && (
+                        <div className="imp-map">
+                          <div className="lbl" style={{marginBottom:".35rem"}}>Departments in the file that this school does not have</div>
+                          {unknown.map(([k, label]) => (
+                            <div key={k} className="imp-map-row">
+                              <span>“{label}” →</span>
+                              <select value={importDeptMap[k] ?? ""} disabled={importBusy}
+                                onChange={e => setImportDeptMap(m => ({ ...m, [k]: e.target.value }))}>
+                                <option value="">Leave unassigned</option>
+                                {[...departments].sort((a,b)=>a.ord-b.ord).filter(d => d.id).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="tbl-wrap" style={{marginTop:".75rem"}}>
+                        <table className="imp-tbl">
+                          <thead><tr>
+                            <th>
+                              <input type="checkbox" aria-label="Tick all" disabled={importBusy}
+                                checked={importRows.every(r => r.status === "saved" || issues[r.key].block.length || r.include)}
+                                onChange={e => setImportRows(prev => prev.map(r =>
+                                  r.status === "saved" || issues[r.key].block.length ? r : { ...r, include: e.target.checked }))} />
+                            </th>
+                            <th>Row</th><th>#</th><th>Title</th><th>Department</th><th>Category</th><th>Students</th><th>Check</th>
+                          </tr></thead>
+                          <tbody>
+                            {importRows.map(r => {
+                              const is = issues[r.key];
+                              return (
+                                <tr key={r.key} className={r.status === "saved" ? "imp-saved" : r.status === "error" ? "imp-err" : ""}>
+                                  <td>
+                                    <input type="checkbox" aria-label={`Import row ${r.line}`}
+                                      checked={r.include && !is.block.length && r.status !== "saved"}
+                                      disabled={importBusy || r.status === "saved" || is.block.length > 0}
+                                      onChange={e => patchImportRow(r.key, { include: e.target.checked })} />
+                                  </td>
+                                  <td style={{color:"var(--dim)",fontFamily:"var(--ff-m)",fontSize:".76rem"}}>{r.line}</td>
+                                  <td style={{fontFamily:"var(--ff-m)"}}>{r.status === "saved" ? r.savedNum : (r.num || "—")}</td>
+                                  <td style={{fontWeight:600,minWidth:"160px"}}>{r.title || <span style={{color:"var(--red)"}}>(no title)</span>}</td>
+                                  <td>{deptName(r) || <span style={{color:"var(--amber)"}}>{r.dept ? `${r.dept} → unassigned` : "—"}</span>}</td>
+                                  <td style={{fontSize:".8rem"}}>{r.cat || "—"}</td>
+                                  <td style={{fontSize:".8rem",minWidth:"140px"}}>{membersText(r.members) || "—"}</td>
+                                  <td style={{fontSize:".76rem",minWidth:"180px"}}>
+                                    {r.status === "saved" ? <span className="badge bg">✓ Imported as #{r.savedNum}</span>
+                                      : r.status === "saving" ? <span className="badge bb">Saving…</span>
+                                      : <>
+                                          {r.status === "error" && <div style={{color:"var(--red)"}}>✗ NOT saved: {r.error}</div>}
+                                          {is.block.map(m => <div key={m} style={{color:"var(--red)"}}>✗ {m}</div>)}
+                                          {is.warn.map(m => <div key={m} style={{color:"var(--amber)"}}>⚠ {m}</div>)}
+                                          {is.info.map(m => <div key={m} style={{color:"var(--dim)"}}>ℹ {m}</div>)}
+                                          {!is.block.length && !is.warn.length && !is.info.length && r.status !== "error" && <span style={{color:"var(--green)"}}>✓ Ready</span>}
+                                        </>}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div style={{display:"flex",gap:".6rem",alignItems:"center",flexWrap:"wrap",marginTop:".85rem"}}>
+                        <button className="btn sm" style={{width:"auto"}} disabled={importBusy || ticked.length === 0} onClick={runImport}>
+                          {importBusy ? "Importing…" : `⬆ Import ${ticked.length} project${ticked.length!==1?"s":""}`}
+                        </button>
+                        {importMsg && <span style={{fontSize:".84rem",color: /NOT|Nothing/.test(importMsg) ? "var(--red)" : "var(--green)"}}>{importMsg}</span>}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </>}
 

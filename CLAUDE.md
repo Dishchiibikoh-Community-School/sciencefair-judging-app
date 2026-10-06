@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + real-Postgres (PGlite) migration/RLS suite. Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 179 checks across 8 files |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 194 checks across 9 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -614,6 +614,8 @@ addProject(), updateProject(pid), removeProject(pid), toggleProjectLock(pid)
 writeProjectRow(mode, row, pid)        // public columns only; drops 2026-10 columns if that migration is missing
 writeProjectPrivate(pid, adviser, members)  // names → project_private (falls back to legacy columns pre-2026-10b)
 nextProjectNum(list?), exportProjListPDF(), exportProjectsCSV()
+importFile(file), importIssues(row), importDeptId(row), runImport(), closeImport()   // Projects CSV import
+parseCsv(text), uncsvCell(v), parseMembersText(s), projectsFromCsv(text)            // module helpers (import)
 normMembers(raw), membersText(raw), highestGrade(members), normGrade(g)  // module helpers
 blankProjForm(num?, defaultCat?), escHtml(v)  // module helpers — escHtml for any hand-built HTML (print windows)
 
@@ -801,6 +803,22 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-06 — Projects CSV import (restore / copy to a new school).** No migration.
+Projects → **⬆ Import projects (CSV)** reads the file ⬇ Download Projects CSV writes, so a backup can
+finally be restored. Review table first (nothing saved until Import): duplicates (by title, against the
+school and within the file) start unticked; unknown department names are mapped once via a dropdown;
+unknown categories are kept as written; a taken number gets the next free one. Saves go through
+`createProject(data, base)` one by one with the list threaded (rule 43) — names land in
+`project_private`, judges are re-synced. Reads RFC 4180 (quotes, embedded newlines), `;` delimiters and
+Windows-1252 as well as UTF-8, strips the `'` that `csvCell()` adds to formula-looking cells, and refuses
+`.xlsx` with Save-As-CSV instructions (the npm SheetJS build is outdated and has known CVEs — do not add it).
+Locked / Reviews / Avg Score are never imported. Logs `PROJECTS_IMPORTED` with counts only.
+**The export columns are now an import contract** — renaming a heading in `exportProjectsCSV()` must keep
+it matching `IMPORT_COLS`, and `membersText()`'s `Name (Gr N)` format must stay parseable by `parseMembersText()`.
+Tests: new `scripts/e2e/import.e2e.mjs` — 15 checks: real download → import round trip into a school with a
+renamed department (quotes, commas, newlines, `=` titles, accents, per-student grades), failure + retry,
+re-import duplicates, Excel `;`/Windows-1252, `.xlsx` and header errors. 194 browser checks total.
 
 **2026-10-06 — One judge list for the whole school (default)** (migration `2026-10g`, not coupled).
 Judge numbers restarted in every department, so six departments × 15 = 90 open seats for ~15 judges,

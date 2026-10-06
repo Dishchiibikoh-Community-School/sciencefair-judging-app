@@ -75,7 +75,7 @@ Run through this a few days before, not on the morning of.
 - [ ] **Set the judge numbers** (Setup tab → Judge numbers): how many judges each department gets.
 - [ ] **Enter every project/team**, each assigned to a department, with adviser and members.
 - [ ] **Print the project list** (Projects tab) and check advisers/members appear.
-- [ ] **Download Projects CSV** (Projects tab) — your own backup copy of every team.
+- [ ] **Download Projects CSV** (Projects tab) — your own backup copy of every team. **⬆ Import projects** reads it back in if you ever need to restore.
 - [ ] **Finish the rubric** (Rubric tab) before the first judge signs in.
 - [ ] **Do a dry run:** sign in as judge number 1 on a spare tablet, score one project, confirm it shows in Overview, then **Remove** that judge on the Judges tab.
 - [ ] **Write down** the school link, invite code, and which judge number each judge gets (Overview → "Judge sign-in details" lists the numbers per department).
@@ -506,6 +506,25 @@ the rubric before judging starts.
 At the halfway point and at the end: **Score Export → 💾 Save Score Backup** (includes the rubric),
 **⬇ Download Judge Scores CSV**, and **Projects → ⬇ Download Projects CSV**. Keep the files somewhere
 safe and private — they contain student names.
+
+### Restoring projects / copying them to a new school
+
+**Projects tab → ⬆ Import projects (CSV)** reads the file that *⬇ Download Projects CSV* makes.
+
+1. Download the projects CSV (from this school, or from the old one).
+2. Optional: edit it in Excel. Save it as **CSV UTF-8 (Comma delimited)** — Import does not read `.xlsx`.
+3. Projects tab → **⬆ Import projects (CSV)** → choose the file.
+4. Check the review table. Nothing is saved yet.
+   - **Duplicates** (a project with the same title already exists, or appears twice in the file) start **unticked**.
+   - A **department name this school does not have** (e.g. the file says *Middle School*, this school calls it *6-8*) appears once at the top with a dropdown — pick the right department and every row follows.
+   - A category that is not in your list is kept as written; a project number already in use gets the next free one.
+5. Press **⬆ Import N projects**. Each project is created exactly like **+ Add Project**: student names go to the private table and judges already signed in to that department get it.
+
+**What is imported:** number, title, department, category, grade, room, teacher/adviser, students with
+grades, and the two description answers. **Not imported:** Locked, Reviews and Avg Score — scores and
+judges belong to an event, not to the project list.
+
+If some rows say **NOT saved**, nothing was half-written; press Import again to retry just those rows.
 
 ### Reset All Data
 
