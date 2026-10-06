@@ -1,6 +1,41 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabaseClient";
 
+function RolePortrait({ einstein = false }) {
+  return (
+    <svg className="role-portrait" viewBox="0 0 96 96" aria-hidden="true" focusable="false">
+      <circle cx="48" cy="48" r="46" fill={einstein ? "#ede9fe" : "#dbeafe"} />
+      {einstein ? (
+        <path d="M25 51 13 44 23 39 12 30 27 30 21 17 36 22 43 10 50 20 63 12 65 24 79 21 74 34 85 39 74 46 76 54Z" fill="#fff" stroke="#cbd5e1" strokeWidth="2" strokeLinejoin="round" />
+      ) : (
+        <path d="M27 43V32c0-14 12-21 23-19 14-2 22 9 20 25l-5 11H31Z" fill="#1e3a5f" />
+      )}
+      <path d="M18 89V79c0-16 13-24 30-24s30 8 30 24v10Z" fill={einstein ? "#1e3a5f" : "#fff"} />
+      <path d="M42 55h12v13H42Z" fill="#dba37d" />
+      <ellipse cx="48" cy="40" rx="20" ry="24" fill="#f0c5a3" />
+      {!einstein && <path d="M28 34c1-16 9-22 22-20 13-1 20 8 18 20-8-1-12-6-16-11-5 7-14 10-24 11Z" fill="#1e3a5f" />}
+      {einstein ? <>
+        <path d="M33 34h10m10 0h10" stroke="#fff" strokeWidth="4" strokeLinecap="round" />
+        <path d="M48 48c-6-4-13-1-15 5 6 1 11 0 15-2 4 2 9 3 15 2-2-6-9-9-15-5Z" fill="#fff" />
+        <path d="m36 69 12 6-12 6Zm24 0-12 6 12 6Z" fill="#7c3aed" />
+        <circle cx="48" cy="75" r="3" fill="#c4b5fd" />
+      </> : <>
+        <g fill="none" stroke="#2d5a8e" strokeWidth="2.5">
+          <rect x="31" y="34" width="14" height="11" rx="4" />
+          <rect x="51" y="34" width="14" height="11" rx="4" />
+          <path d="M45 38h6" />
+        </g>
+        <path d="m39 65 9 12 9-12-2 24H41Z" fill="#059669" />
+        <path d="m37 63-5 12 8 3-4 11m23-26 5 12-8 3 4 11" fill="none" stroke="#cbd5e1" strokeWidth="2" />
+        <path d="M68 69v9l-5 8h13l-5-8v-9" fill="#d1fae5" stroke="#059669" strokeWidth="2" strokeLinejoin="round" />
+        <path d="M67 69h5" stroke="#059669" strokeWidth="2" strokeLinecap="round" />
+      </>}
+      <g fill="#1e293b"><circle cx="38" cy="39" r="2" /><circle cx="58" cy="39" r="2" /></g>
+      <path d="M44 55q4 3 8 0" fill="none" stroke="#9a583d" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 // ─────────────────────────────────────────────
 // CONSTANTS & MOCK DATA
 // ─────────────────────────────────────────────
@@ -665,6 +700,7 @@ const CSS = `
   .role-card.pub:hover{border-color:var(--green);box-shadow:var(--shadow-lg);}
   .role-card.pub .ico{font-size:3rem;flex-shrink:0;}
   .role-card .ico{font-size:2.4rem;margin-bottom:.65rem;}
+  .role-card .role-portrait{display:block;width:76px;height:76px;margin:0 auto .65rem;}
   .role-card h3{font-size:1.1rem;font-weight:700;margin-bottom:.25rem;color:var(--navy);}
   .role-card p{font-size:.9rem;color:var(--dim);}
   .pub-pill{display:inline-flex;align-items:center;gap:.35rem;background:var(--green-l);border:1px solid #05966930;
@@ -5212,12 +5248,12 @@ export default function App() {
         <p className="land-p">A secure, anonymous, and digital evaluation platform for fair and accurate scoring of student science projects.</p>
         <div className="role-grid">
           <div className="role-card" onClick={() => setView("judge-register")}>
-            <div className="ico">🧑‍⚖️</div><h3>I'm a Judge</h3><p>You'll need your assigned judge name (e.g. Judge1) and the invite code from your coordinator</p>
+            <div className="ico"><RolePortrait /></div><h3>I'm a Judge</h3><p>You'll need your assigned judge name (e.g. Judge1) and the invite code from your coordinator</p>
           </div>
           {/* Already signed in as this school's admin (e.g. arriving from the email-confirmation
               link) → straight to the dashboard instead of asking for the password again. */}
           <div className="role-card adm" onClick={() => setView(adminHere && session ? "admin-home" : "admin-login")}>
-            <div className="ico">🛡️</div><h3>Admin</h3><p>Monitor progress and manage the event</p>
+            <div className="ico"><RolePortrait einstein /></div><h3>Admin</h3><p>Monitor progress and manage the event</p>
           </div>
           {isLinkLive() && (
             <div className="role-card pub" onClick={() => setView("public-results")}>
