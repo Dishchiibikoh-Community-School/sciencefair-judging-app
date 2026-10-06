@@ -112,6 +112,27 @@ A new school starts with **Elementary / Middle School / High School**, but that 
 
 > **⚠️ You cannot delete a department that still has projects or judges in it.** The app blocks it and tells you how many there are. This is deliberate: deleting it would leave those projects unassigned, and an unassigned project is scored by nobody. Move them first (Projects tab → edit a project → Department), then delete.
 
+#### Scored, or comments only?
+
+Each department row has a **how it is judged** dropdown:
+
+| Mode | What judges see | What happens to results |
+|---|---|---|
+| **Scored (rubric)** | The rubric | Totals, averages, ranking, ties, 1st/2nd/3rd |
+| **Comments only** | A commendation to pick (or type) plus an optional comment | Nothing is scored or ranked. Every project is listed as a winner |
+
+Use **Comments only** for the grades you don't want to rank — PreK and K-2 at the 2026-27 fair.
+Those departments never appear in a leaderboard, never trigger a tie or an outlier alert, and on
+the public results page they appear under *"Everyone is a winner"* with the commendations they were
+given, with no rank, no score and no medal.
+
+The commendations judges can pick from are: Great Scientific Thinking · Creative Idea · Excellent
+Teamwork · Wonderful Presentation · Careful Observer · Asked Great Questions · Terrific Effort —
+and a judge can always type their own instead.
+
+> **⚠️ Set this before judging starts.** Once a department has scores the app refuses to change its
+> mode, because those scores would stop counting but stay in the database.
+
 #### Max Judges per department
 
 On each department row, set **Max judges** (default 5). This is the highest judge number that can sign in to that department — set it to 8 and judges can be Judge1–Judge8.

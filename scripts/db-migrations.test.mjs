@@ -86,7 +86,8 @@ for (const round of [1, 2]) {
   await db.exec(mig("migration-2026-10c-secure-school-signup.sql"));
   await db.exec(mig("migration-2026-10d-judge-revise-validation.sql"));
   await db.exec(mig("migration-2026-10e-categories-and-department-codes.sql"));
-  ok(`migrations 2026-10, 10b, 10c, 10d, 10e applied (round ${round} — re-runnable)`);
+  await db.exec(mig("migration-2026-10f-scoring-modes.sql"));
+  ok(`migrations 2026-10, 10b, 10c, 10d, 10e, 10f applied (round ${round} — re-runnable)`);
 }
 
 // ── PART 1: names are private ──
@@ -282,6 +283,46 @@ await as("authenticated", ADMIN, "INSERT INTO categories (school_id, name, code,
 
 assert.equal((await db.query("SELECT 1 FROM pg_publication_tables WHERE pubname='supabase_realtime' AND tablename='categories'")).rows.length, 1);
 ok("categories: in the realtime publication");
+
+// ── PART 3c: per-department scoring mode (migration 2026-10f) ──
+// SID has no departments of its own until PART 4, so make one — an UPDATE that
+// matches 0 rows would never reach the CHECK constraint and the test would pass
+// for the wrong reason.
+const DPK = "d9999999-9999-9999-9999-999999999999";
+await as("authenticated", ADMIN,
+  `INSERT INTO departments (id, school_id, name, max_judges, ord) VALUES ($1, $2, 'PreK', 2, 9)`, [DPK, SID]);
+assert.equal((await db.query("SELECT count(*)::int n FROM departments WHERE scoring_mode <> 'scored'")).rows[0].n, 0);
+ok("scoring_mode: every department (new and pre-existing) defaults to 'scored' — behaviour unchanged");
+await fails("authenticated", ADMIN,
+  `UPDATE departments SET scoring_mode = 'nonsense' WHERE id = $1`, /check constraint/i,
+  "scoring_mode: only 'scored' or 'feedback' is accepted", [DPK]);
+await as("authenticated", ADMIN, `UPDATE departments SET scoring_mode = 'feedback' WHERE id = $1`, [DPK]);
+assert.equal((await db.query("SELECT scoring_mode FROM departments WHERE id=$1", [DPK])).rows[0].scoring_mode, "feedback");
+ok("scoring_mode: an admin can switch a department to 'feedback'");
+assert.equal((await as("anon", "", "SELECT scoring_mode FROM departments WHERE id=$1", [DPK])).rows[0].scoring_mode, "feedback");
+ok("scoring_mode: anon can READ it (it decides which scoring form a judge is shown)");
+const anonMode = await as("anon", "", `UPDATE departments SET scoring_mode='scored' WHERE id=$1 RETURNING 1`, [DPK]);
+assert.equal(anonMode.rows.length, 0);
+assert.equal((await db.query("SELECT scoring_mode FROM departments WHERE id=$1", [DPK])).rows[0].scoring_mode, "feedback");
+ok("scoring_mode: a judge cannot change it (0 rows, value untouched)");
+
+// Phase 3 columns exist with behaviour-preserving defaults, but nothing reads them yet.
+const d3 = (await db.query(`SELECT column_name, column_default FROM information_schema.columns
+  WHERE table_schema='public' AND table_name='departments'
+    AND column_name IN ('locked','finalized_at','award_grouping') ORDER BY column_name`)).rows;
+assert.equal(d3.length, 3);
+assert.match(d3.find(r => r.column_name === "locked").column_default, /false/i);
+assert.equal(d3.find(r => r.column_name === "finalized_at").column_default, null);
+assert.match(d3.find(r => r.column_name === "award_grouping").column_default, /department/);
+ok("Phase 3 columns (locked / finalized_at / award_grouping) exist with safe defaults");
+await fails("authenticated", ADMIN,
+  `UPDATE departments SET award_grouping = 'nope' WHERE id = $1`, /check constraint/i,
+  "award_grouping: only 'category' or 'department' is accepted", [DPK]);
+
+const commCol = (await db.query(`SELECT column_default FROM information_schema.columns
+  WHERE table_schema='public' AND table_name='scores' AND column_name='commendation'`)).rows;
+assert.equal(commCol.length, 1);
+ok("scores.commendation exists for feedback-mode judging");
 
 // departments.code — added now, wired up when registration numbers are unified.
 const dcode = (await db.query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='departments' AND column_name='code'")).rows;

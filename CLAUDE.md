@@ -57,6 +57,7 @@ always serves and cannot be redirected — never share it.
 | `migration-2026-10c-secure-school-signup.sql` | **`create_school()`** RPC; closes direct INSERT on `schools` and `school_admins` (anyone could make themselves admin of any school) | **Yes** — the sign-up form calls `create_school()`. Run before anyone registers a school |
 | `migration-2026-10d-judge-revise-validation.sql` | Judges may delete their own validation until results are finalized (never the admin's) | No — without it "Revise my validation" shows an error instead of unlocking |
 | `migration-2026-10e-categories-and-department-codes.sql` | **`categories`** table (per-school project categories) + seeds the six for every existing school; **`departments.code`** | No — **additive only**. Old app ignores both; new app falls back to `DEFAULT_CATEGORIES` and logs `CATEGORIES_TABLE_MISSING`. Safe to run in either order |
+| `migration-2026-10f-scoring-modes.sql` | **`departments.scoring_mode`** (`scored` \| `feedback`) + **`scores.commendation`**; plus Phase 3 columns `departments.locked`, `finalized_at`, `award_grouping` (reserved, nothing reads them yet) | No — **additive only**, every default reproduces current behaviour. Without it the app treats every department as `scored` and logs `SCORING_MODE_COLS_MISSING` when you try to switch one |
 
 `registration-migration.sql` and `schema.sql` are historical (the latter is the v1 schema).
 
@@ -272,12 +273,12 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `schools` | id, name, slug, invite_code, admin_pin (bcrypt) |
 | `school_admins` | Links a Supabase Auth user to a school |
 | `rubrics` | Per-school rubric — `criteria` JSONB array, `is_active` |
-| `departments` | name, `code`, `max_judges`, `ord` — seeded from `DEPT_PRESETS[0]`, fully admin-editable. `code` (2026-10e) is reserved for registration numbers; nothing reads it yet |
+| `departments` | name, `code`, `max_judges`, `ord`, **`scoring_mode`** — seeded from `DEPT_PRESETS[0]`, fully admin-editable. `code` (2026-10e) is reserved for registration numbers; `locked` / `finalized_at` / `award_grouping` (2026-10f) are reserved for Phase 3. Nothing reads those four yet |
 | `categories` | Per-school project categories: name, `code`, `ord` (2026-10e). UNIQUE(school_id, name). **No FK from `projects`** — `projects.cat` is a free-text snapshot, so deleting a category never alters a project |
 | `projects` | num, title, cat, grade, locked, department_id, room, description, motivation — **public, no names** |
 | `project_private` | PK `(project_id, school_id)`, FK → projects **ON DELETE CASCADE**: advisor_name, group_members (JSONB), updated_at — **admin-only** |
 | `judges` | alias, `projects` (JSON array of pids), department_id, joined_at. UNIQUE(department_id, alias) |
-| `scores` | One row per judge+project; `criteria` JSONB, notes, total. UNIQUE(judge_id, project_id) |
+| `scores` | One row per judge+project; `criteria` JSONB, notes, total, **`commendation`** (feedback departments only — `criteria` is `{}` there). UNIQUE(judge_id, project_id) |
 | `validations` | Judge/admin validation; `judge_id = 'admin'` for the admin. Conflict `(school_id, judge_id)` |
 | `deliberation_notes` | Judge recommendation/comment/flag per project |
 | `final_decisions` | Admin award per project. Conflict `(school_id, project_id)` |
@@ -550,7 +551,8 @@ cards), then scan the same form in the app.
 - Projects: `.proj-mgmt-header`, `.proj-mgmt-table`, `.proj-act-btn`, `.proj-form-overlay`/`.proj-form-card`, `.proj-form-grid`, `.proj-lock-badge`
 - Banners/modals: `.offline-banner`, `.locked-banner`, `.modal-overlay`/`.modal-box`, `.pin-gate`, `.it-term`
 - Onboarding: `.mkt-*` (homepage), `.setup-guide*` / `.setup-check*` / `.setup-share*` (admin "Get started" card)
-- Setup tab: `.setup-rows`, `.setup-row`, `.setup-ord`, `.setup-main`, `.setup-name`, `.setup-meta`, `.setup-acts`, `.setup-maxj`, `.setup-edit`, `.setup-code-in`, `.setup-add`, `.setup-presets`, `.setup-preset-grid`, `.setup-preset`
+- Setup tab: `.setup-rows`, `.setup-row`, `.setup-ord`, `.setup-main`, `.setup-name`, `.setup-meta`, `.setup-acts`, `.setup-maxj`, `.setup-edit`, `.setup-code-in`, `.setup-add`, `.setup-presets`, `.setup-preset-grid`, `.setup-preset`, `.setup-mode`
+- Comment-only departments: `.fb-banner`, `.fb-chips`, `.fb-chip` (`.selected`)
 
 ---
 
@@ -568,7 +570,11 @@ stepLabel(r, v, i)           // module helper: a criterion's rating word for ste
 ANOMALY_PCT                  // 0.19 — outlier threshold as a fraction of projectMax(p)
 projAvg(pid) / rubAvg(pid, rid)  // averages → "xx.x" | null
 rankedProjectsIn(deptId)     // ranking WITHIN a department (null = unassigned) — use this
-rankedProjects()             // cross-department ranking — rarely what you want
+rankedProjects()             // cross-department ranking; already excludes feedback departments
+scoredProjects()             // projects that carry a score — every leaderboard/tie/anomaly scan
+participantsIn(deptId)       // a feedback department's projects + their commendations, by number
+deptMode(id) / isFeedbackDept(id) / isFeedbackProject(proj)
+updateDeptScoringMode(deptId, 'scored'|'feedback')   // refuses once that department has scores
 judgeComp(judge)             // { done, total, pct } — pct 0 when total 0
 hasScored(pid), totalScored(), possible(), draftTotal(), allMoved()
 getAnomalies()               // outliers > 8 pts from the project average
@@ -725,6 +731,15 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 57. **Never delete data a user can't get back without saying so first.** Judge sign-out must not clear `sf_offline_queue` (it did until 2026-10-05); deleting a scored project, Reset and rubric changes all warn first.
 58. **Rubric changes go through `requestSaveRubric()`** — it validates, and when scores exist and criteria / points change it shows the impact (removed / added / changed) and offers a backup before `saveRubric()`. `saveRubric()` reports failure (`rubricErr`) and keeps the editor open.
 
+**Scoring modes**
+59. **A `feedback` department must never reach anything that ranks or compares numbers.** Its
+    scores have `criteria: {}`, so `getTotal()` returns 0 — include one in a leaderboard and every
+    project in it ranks last at 0; include one in `hasTie()` and they all "tie", so the deliberation
+    alert never switches off. Filter with **`scoredProjects()`** (projects) or
+    `d.scoring_mode !== "feedback"` (departments), and render participants with
+    `participantsIn(deptId)` — ordered by project number, never by score. Public results show those
+    departments with no rank, no denominator and no medal: the whole point is that nobody is ranked.
+
 **Supabase client pitfalls (both shipped as real bugs)**
 48. **Every Supabase query must be awaited, returned, inside `Promise.all`, or end in `.then()`.** A supabase-js query builder is lazy — a bare `supabase.from(x).insert(y);` statement sends **nothing**. This silently disabled the activity log, the IT log and "Revise my validation" for all of v2.
 49. **Never `await` a Supabase call inside `onAuthStateChange`.** supabase-js holds its auth lock while notifying listeners; an awaited query waits for that lock → deadlock. It made Sign Out hang forever. Defer with `setTimeout(() => …, 0)` (see `onAuthChanged`).
@@ -766,6 +781,27 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-06 — Phase 2: comment-only departments** (migration `2026-10f`, **not** coupled).
+PreK and K-2 are not scored at the 2026-27 fair. `departments.scoring_mode = 'feedback'` makes a
+department comment-only: the judge gets a commendation picker (`COMMENDATIONS`, or their own
+wording) and an optional comment instead of the rubric, no total is shown, and `scores.criteria`
+is written as `{}` with the text in the new `scores.commendation` column.
+- **Deliberately a department flag, not a zero-point rubric** — `rubricMax()` would be 0 and
+  ranking, the progress percentage and consensus all divide by it.
+- Excluded from everything numeric (rule 59): `rankedProjects()`, `hasTie()`, `getAnomalies()`.
+  Without this every unscored project would rank last at 0 **and they would all "tie" at 0, so the
+  deliberation alert would never switch off.**
+- Admin Overview shows a **Participants** table (commendations, review count) instead of a
+  leaderboard; public results list them under "Everyone is a winner" with no rank, no denominator
+  and no medal.
+- Switching the mode is **refused once that department has scores** — the old scores would stop
+  counting but stay in the database.
+- The migration also adds the Phase 3 columns (`locked`, `finalized_at`, `award_grouping`) so the
+  organiser makes one trip to the SQL editor, not two. Nothing reads them yet.
+Tests: DB suite 104 checks; new `scripts/e2e/feedback.e2e.mjs` — 17 browser checks covering the
+Setup toggle, the judge form, free-text commendations, and that the department never appears in a
+leaderboard, an outlier alert, a tie or a podium. 155 browser checks total.
 
 **2026-10-06 — 100-point rubric preset + stress test (7 bugs found and fixed).**
 No migration. Adds `RUBRIC_PRESETS` and the Cibecue / ISEF-style 100-point rubric (see Data
@@ -916,6 +952,66 @@ its absence. See the `group_members` type split above.
 **2026-06-02** — v2 multi-tenant rewrite: Supabase Auth, slug resolution, `school_id` scoping, JSONB criteria, Rubric tab, new Supabase + Vercel project.
 **2026-03-30** — validations moved to per-row upserts (concurrent overwrite fix); offline queue no longer drops items added mid-flush.
 **2026-03** — QA review, 18 items closed (see `QA_ASSESSMENT.md`).
+
+---
+
+## 🗺️ Agreed roadmap (2026-10-06)
+
+The 2026-27 fair is being restructured: departments become **PreK · K-2 · 3-5 · 6-8 · 9-12 · SPED**,
+PreK and K-2 stop being scored, the rubric becomes the 100-point Cibecue sheet, and awards are
+given **per category within a department**. ~60 projects (6-8 has 20), 15–16 judges.
+
+**Phase 1 — done** (2026-10-06): per-school categories, Setup tab, department CRUD + presets.
+
+**Phase 2 — DONE** (2026-10-06, migration 2026-10f). `departments.scoring_mode` = `scored` | `feedback`. In `feedback`
+mode a judge sees a comment box and a commendation instead of the rubric; the department is
+excluded from ranking, ties, anomalies and the leaderboard, and everyone receives a participation
+award. **It must be a department flag, not a zero-point rubric** — `rubricMax()` would be 0 and
+ranking, progress % and consensus all divide by it.
+
+**Phase 3 — awards + per-department completion.**
+- `departments.award_grouping` = `category` | `department`, **per department** (6-8 has ~3 projects
+  per category and can award by category; a department with 8 projects spread over 6 categories
+  would be handing out uncontested 1st places).
+- An awards screen that **confirms the computed ranking** instead of asking the admin to type it:
+  groups collapsed by department → category, top 3 pre-filled, one "Confirm group" button, one
+  "Confirm all clean groups", and groups needing attention floated up with a reason chip. ~70
+  awards through the current per-project dropdown is not usable on event day. Writes must be a
+  single batched upsert, not 70 sequential calls.
+- Per-group tie detection (`hasTie()` is currently one global boolean that would never switch off
+  once awards are grouped by category) with a tiebreak suggestion.
+- **`departments.locked` + `departments.finalized_at`** — agreed 2026-10-06. Today `locked` and
+  `results_finalized` are single school-wide `app_settings` keys, so **PreK winners cannot be
+  announced while 9-12 is still deliberating**. Each department should finish, lock and publish on
+  its own clock; the share link shows only finalized departments. Keep the existing school-wide
+  buttons as "all departments" shortcuts. Consensus stays advisory and school-wide — just *display*
+  it grouped by department.
+- An **awards list export** (print/CSV, grouped by department and category). Certificates were
+  explicitly not wanted.
+
+**Phase 4 — judge auto-assignment.** `app_settings.judge_assignment` = `auto` | `choose`. Auto
+assigns the judge a department **and** a number from the invite code alone. **Randomise departments,
+never projects:** every project in a department must share one judge panel or the scores are not
+comparable, and with 2–3 scores per project a harsh judge you happened to draw moves a winner more
+than quality does. Balance on **projects per judge, not headcount** (6-8 has a third of all
+projects), and guarantee coverage — pure random can leave a department with zero judges, which is
+discovered on event day. Keep manual number entry for device-transfer recovery.
+
+### Separate track — database redundancy (agreed 2026-10-06, after the fair work)
+
+**There is currently no way to restore this database.** Supabase's free tier has no point-in-time
+recovery, the migrations are additive but not reversible, and the only real backups are what an
+admin manually presses: `score_backups` snapshots and the CSV exports. Code rollback is easy
+(Vercel Instant Rollback); data rollback does not exist.
+
+Worth noting what segmentation does and does not buy: splitting the workflow per department helps
+**event-day flexibility**, not fault tolerance. If Supabase is down or paused, every department
+goes down together. The actual resilience in the app is the **offline queue** — judges keep scoring
+through a network failure and sync afterwards.
+
+Options to evaluate (not yet decided): Supabase Pro + PITR; a scheduled `pg_dump` to storage the
+school controls; or a nightly export job. Whatever is chosen must keep
+`registration_submissions` (student + guardian PII) out of the repo and off shared drives.
 
 ### Known gaps (not yet fixed)
 - `projListUrl()`, `generateProjListLink()`, `revokeProjListLink()` have no UI callers, so `public-projects` is unreachable in practice.

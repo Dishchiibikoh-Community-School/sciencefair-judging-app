@@ -39,6 +39,21 @@ const DEFAULT_RUBRIC = [
 // in a 15-pt section but 15 in a 25-pt section) — judges would be doing mental
 // arithmetic. Nothing in the scoring maths reads it; if it ever desyncs from
 // `steps` the UI silently falls back to numbers.
+// ── FEEDBACK-MODE DEPARTMENTS (departments.scoring_mode = 'feedback') ────────
+// PreK and K-2 are not scored: a judge leaves a commendation and an optional
+// comment, every project is a participant, and nothing is ranked. The judge picks
+// one of these or types their own, so the list is a starting point, not a limit.
+const COMMENDATIONS = [
+  "Great Scientific Thinking",
+  "Creative Idea",
+  "Excellent Teamwork",
+  "Wonderful Presentation",
+  "Careful Observer",
+  "Asked Great Questions",
+  "Terrific Effort",
+];
+const PARTICIPATION_AWARD = "Participant";
+
 const RATING_5 = ["Needs improvement", "Fair", "Good", "Very Good", "Excellent"];
 const RUBRIC_PRESETS = [
   {
@@ -153,13 +168,14 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-06b";
+const ADMIN_HELP_UPDATED = "2026-10-06c";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
     "Everything is saved to a secure online database the moment you press Save or a judge presses Submit. App updates never erase your data.",
     "The flow: set up → add projects → judges sign in → judges score → judges validate → (deliberation if there is a tie) → you finalize → you share the results link.",
     "Each judge scores every project in their own department, and only those.",
+    "A department can be set to 'Comments only' (Setup tab) — judges there give a commendation instead of scores, nothing is ranked, and everyone is shown as a winner. Everything below about scores, ties and leaderboards applies only to scored departments.",
     "Totals are always calculated with the CURRENT rubric. On the 42-point rubric, grades below 5 skip the Abstract criterion and grades 5 and up cannot be given a 0; the 100-point rubric has neither rule (its lowest possible total is 20).",
     "Score outliers in the Alerts tab are judges more than about a fifth of a project's total away from its average — so the alert means the same thing on a 42-point and a 100-point rubric.",
     "Rankings, ties and the public results are per department — projects in different departments never compete.",
@@ -169,6 +185,7 @@ const ADMIN_HELP = [
     "Remember your Admin PIN (4–8 digits). It cannot be recovered, only changed (Overview → Admin PIN). 5 wrong tries lock PIN entry for 5 minutes.",
     "Setup tab: set your departments first — add, rename or reorder them, or start from a preset (school levels, PreK–12 grade bands, grade bands + SPED). Then set Max Judges for each. Max Judges locks for a department once its first judge signs in.",
     "Setup tab: check your project categories. They are yours alone — rename them, delete the ones you don't use, or add your own (a robotics fair can replace all six).",
+    "Setup tab: set any department that should NOT be scored (PreK, K-2) to 'Comments only'. This cannot be changed once that department has scores.",
     "Rubric tab: finish the rubric BEFORE the first judge signs in. Press a preset to start from one of the ready-made rubrics (Northeast AZ 42-point, or Cibecue/ISEF-style 100-point), then edit it if you need to.",
     "Projects tab: add every project (📷 Scan forms or + Add Project) and give each one a department — a project with no department is scored by nobody.",
     "Lock (🔒) projects whose details are final, so they cannot be edited or deleted by accident.",
@@ -195,6 +212,8 @@ const ADMIN_HELP = [
     ["What is a department?", "One judging pool. Judges sign in to a department and score every project in it. Results, ties and awards are worked out inside each department — projects in different departments never compete. Use whatever fits your fair: school levels, grade bands (PreK, K-2, 3-5, 6-8, 9-12), a SPED division, or a single pool."],
     ["How do I change my departments?", "Setup tab → Departments. Add one, ✏️ rename it, ↑↓ reorder, or 🗑 delete it. Or press a preset to add a whole set at once — a preset only ADDS what you don't have, it never deletes."],
     ["Why won't it let me delete a department?", "Because projects or judges are still in it. Deleting it would leave them unassigned, and an unassigned project is scored by nobody. Move them to another department first (Projects tab → edit → Department), then delete."],
+    ["Can a department be judged without scores?", "Yes. Setup tab → set that department to 'Comments only'. Judges there give a commendation (from a list, or in their own words) and an optional comment instead of the rubric. Nothing is scored, ranked or compared, and on the results page every project in it is shown as a winner. Made for PreK and K-2."],
+    ["Can I change a department to Comments only after judging has started?", "No — the app blocks it. The scores already given would stop counting but stay in the database. Decide before the first judge signs in."],
     ["Is it safe to rename a department?", "Yes. Projects, judges and scores stay attached — only the label changes."],
     ["Can I use my own project categories?", "Yes. Setup tab → Project Categories. They belong to your school only; no other school sees your list. Add, rename, reorder or delete freely — a robotics fair can replace all six."],
     ["What happens to projects if I delete or rename a category?", "Nothing. A project keeps the category text it was saved with; only the choice disappears from the dropdowns. A project on a category you removed shows it as \"(old category)\" when you edit it, and you can pick a new one."],
@@ -822,6 +841,17 @@ const CSS = `
   .rub-step-lab{font-size:.74rem;font-weight:600;font-family:var(--ff-b);}
   .rub-step-pts{font-size:.68rem;opacity:.65;font-family:var(--ff-m);}
 
+  /* Comment-only (feedback) departments — PreK / K-2 */
+  .fb-banner{background:var(--purple-l);border:1px solid #7c3aed30;border-radius:var(--r);
+    padding:.85rem 1rem;margin-bottom:.9rem;font-size:.88rem;color:var(--purple);line-height:1.5;}
+  .fb-chips{display:flex;flex-wrap:wrap;gap:.45rem;}
+  .fb-chip{padding:.5rem .8rem;border:2px solid var(--bd);border-radius:999px;background:var(--s1);
+    color:var(--text);font-family:var(--ff-b);font-size:.84rem;cursor:pointer;transition:.15s;}
+  .fb-chip:hover{border-color:var(--purple);color:var(--purple);}
+  .fb-chip.selected{background:var(--purple);border-color:var(--purple);color:#fff;}
+  .setup-mode{padding:.28rem .4rem;border:1px solid var(--bd);border-radius:6px;background:var(--bg);
+    font-family:var(--ff-b);font-size:.76rem;color:var(--text);cursor:pointer;max-width:150px;}
+
   /* ── Setup tab: departments + project categories ── */
   .setup-rows{display:flex;flex-direction:column;gap:.4rem;margin-bottom:1rem;}
   .setup-row{display:flex;align-items:center;gap:.6rem;padding:.55rem .7rem;background:var(--s1);
@@ -1053,6 +1083,9 @@ function scoresToMap(rows) {
     acc[`${row.judge_id}_${row.project_id}`] = {
       criteria: row.criteria || {},
       notes: row.notes || "",
+      // Feedback-mode departments only; '' everywhere else, and undefined until
+      // migration 2026-10f has been run.
+      commendation: row.commendation || "",
       time: new Date(row.submitted_at).getTime(),
     };
     return acc;
@@ -1160,6 +1193,9 @@ export default function App() {
   const [scoringPid, setScoringPid]  = useState(null);
   const [draftSc,    setDraftSc]     = useState({});
   const [draftNotes, setDraftNotes]  = useState("");
+  // Feedback-mode only: the commendation this judge is giving. Free text, seeded
+  // from COMMENDATIONS but never limited to it.
+  const [draftCommend, setDraftCommend] = useState("");
   const [regName,    setRegName]     = useState("");
   const [regCode,    setRegCode]     = useState("");
   const [regDept,    setRegDept]     = useState("");
@@ -1302,8 +1338,11 @@ export default function App() {
     if (!schoolId) return;
     const { data } = await supabase.from("departments").select("*").eq("school_id", schoolId).order("ord");
     if (data && data.length > 0) {
+      // scoring_mode arrives undefined if migration 2026-10f has not been run —
+      // default to 'scored', which is exactly how the app behaved before it existed.
       setDepartments(data.map(r =>
-        ({ id: r.id, name: r.name, code: r.code || "", max_judges: r.max_judges, ord: r.ord })));
+        ({ id: r.id, name: r.name, code: r.code || "", max_judges: r.max_judges, ord: r.ord,
+           scoring_mode: r.scoring_mode === "feedback" ? "feedback" : "scored" })));
     }
   }
 
@@ -2307,6 +2346,51 @@ export default function App() {
   // Declared (not a const arrow) so it is hoisted — the projForm useState
   // initializer near the top of the component calls it.
   function catNames() { return categories.map(c => c.name); }
+
+  // ── Scoring mode (migration 2026-10f) ─────────────────────────────────────
+  // A 'feedback' department is never scored, ranked, tied or flagged as an
+  // outlier. Everything that produces or compares numbers must skip it — that is
+  // why these are helpers rather than inline checks (CLAUDE.md rule 59).
+  function deptMode(deptId) {
+    return departments.find(d => d.id === deptId)?.scoring_mode === "feedback" ? "feedback" : "scored";
+  }
+  function isFeedbackDept(deptId) { return deptMode(deptId) === "feedback"; }
+  function isFeedbackProject(proj) { return !!proj && isFeedbackDept(proj.department_id); }
+  // Projects that carry a score/ranking. Used by every leaderboard, tie check and
+  // anomaly scan so a comment-only department can never appear in a ranking.
+  function scoredProjects() { return projects.filter(p => !isFeedbackProject(p)); }
+
+  async function updateDeptScoringMode(deptId, mode) {
+    const dept = departments.find(d => d.id === deptId);
+    if (!dept || (mode !== "scored" && mode !== "feedback")) return;
+    const scored = Object.keys(scores).some(k => {
+      const pid = k.slice(k.lastIndexOf("_") + 1);
+      return projects.some(p => p.id === pid && p.department_id === deptId);
+    });
+    if (scored) {
+      setSetupErr(`"${dept.name}" already has scores. Changing how it is judged now would ` +
+        `strand them — they would stop counting but stay in the database. Reset or finish the event first.`);
+      return;
+    }
+    setSetupErr("");
+    const { error } = await supabase.from("departments")
+      .update({ scoring_mode: mode }).eq("school_id", currentSchool.id).eq("id", deptId);
+    if (error) {
+      // 42703 / PGRST204 = migration 2026-10f has not been run on this project.
+      const missing = error.code === "42703" || error.code === "PGRST204";
+      setSetupErr(missing
+        ? "This needs a database update that has not been run yet (migration 2026-10f). Scoring stays as it is until then."
+        : `Could not change how "${dept.name}" is judged: ${error.message}`);
+      addItLog(missing ? "WARN" : "ERROR","DB",
+        missing ? "SCORING_MODE_COLS_MISSING" : "SCORING_MODE_UPDATE_FAILED",
+        "departments.scoring_mode could not be written", { dept: dept.name, error: error.message });
+      return;
+    }
+    setDepartments(prev => prev.map(d => d.id === deptId ? { ...d, scoring_mode: mode } : d));
+    addLog(`Admin set ${dept.name} to ${mode === "feedback" ? "comments only (not scored)" : "scored"}`);
+    addItLog("INFO","ADMIN","SCORING_MODE_CHANGED","Admin changed a department's scoring mode",
+      { dept: dept.name, mode });
+  }
   // Short code used for registration numbers; derived from the name if unset.
   function autoCode(name) {
     const words = String(name || "").trim().split(/[\s/&-]+/).filter(Boolean);
@@ -2964,10 +3048,26 @@ export default function App() {
     }, 0);
   }
 
+  // Comment-only departments are excluded: they have no totals, so including them
+  // would rank every one of their projects at 0 and bury the scored ones.
   function rankedProjects() {
-    return projects
+    return scoredProjects()
       .map(p => ({ ...p, avg: projAvg(p.id), revs: Object.keys(scores).filter(k => k.endsWith(`_${p.id}`)).length }))
       .sort((a,b) => (Number(b.avg)||0) - (Number(a.avg)||0));
+  }
+  // Projects in a comment-only department, with the commendations they were given.
+  // Order is by project number — there is no ranking and must never appear to be one.
+  function participantsIn(deptId) {
+    return projects
+      .filter(p => (p.department_id || null) === (deptId || null))
+      .sort((a,b) => String(a.num).localeCompare(String(b.num), undefined, { numeric: true }))
+      .map(p => ({
+        ...p,
+        commendations: Object.entries(scores)
+          .filter(([k]) => k.endsWith(`_${p.id}`))
+          .map(([,s]) => s.commendation).filter(Boolean),
+        reviews: Object.keys(scores).filter(k => k.endsWith(`_${p.id}`)).length,
+      }));
   }
 
   // Ranked projects within a single department. Pass null for unassigned projects.
@@ -3003,6 +3103,9 @@ export default function App() {
   }
   function allMoved() {
     const proj = projects.find(p => p.id === scoringPid);
+    // Comment-only: there are no criteria to move. A commendation is what makes
+    // the review complete (the comment itself stays optional).
+    if (isFeedbackProject(proj)) return draftCommend.trim().length > 0;
     return rubric.every(r => {
       if (r.id === "abstract" && proj && !requiresAbstract(proj)) return true;
       return draftSc[r.id] !== undefined;
@@ -3023,7 +3126,8 @@ export default function App() {
   const ANOMALY_PCT = 0.19;
   function getAnomalies() {
     const out = [];
-    projects.forEach(p => {
+    // Comment-only departments have no totals to deviate from.
+    scoredProjects().forEach(p => {
       const hits = Object.entries(scores).filter(([k]) => k.endsWith(`_${p.id}`));
       if (hits.length < 2) return;
       const max = projectMax(p);
@@ -3076,7 +3180,9 @@ export default function App() {
   // sharing an average are not competing with each other.
   function hasTie() {
     const groups = [
-      ...departments.filter(d => d.id).map(d => d.id),
+      // A comment-only department has no scores, so every project in it would
+      // "tie" at 0 and the deliberation alert would never switch off.
+      ...departments.filter(d => d.id && d.scoring_mode !== "feedback").map(d => d.id),
       null, // unassigned projects form their own group
     ];
     return groups.some(deptId => {
@@ -3230,8 +3336,8 @@ export default function App() {
   function startScoring(pid) {
     setScoringPid(pid);
     const ex = scores[`${judge.id}_${pid}`];
-    if (ex) { setDraftSc({ ...ex.criteria }); setDraftNotes(ex.notes||""); }
-    else { setDraftSc({}); setDraftNotes(""); }
+    if (ex) { setDraftSc({ ...ex.criteria }); setDraftNotes(ex.notes||""); setDraftCommend(ex.commendation||""); }
+    else { setDraftSc({}); setDraftNotes(""); setDraftCommend(""); }
     setView("judge-scoring");
   }
 
@@ -3251,12 +3357,21 @@ export default function App() {
       return;
     }
     const total = draftTotal();
-    setScores(p => ({ ...p, [`${judge.id}_${scoringPid}`]: { criteria: { ...draftSc }, notes:draftNotes, time:Date.now() } }));
+    // A comment-only department writes no criteria at all — the commendation and
+    // the comment ARE the review. getTotal() then sums an empty object to 0, which
+    // is why such departments are excluded from every ranking (rule 59).
+    const proj = projects.find(p => p.id === scoringPid);
+    const feedback = isFeedbackProject(proj);
+    const criteria = feedback ? {} : { ...draftSc };
+    const commendation = feedback ? draftCommend.trim() : "";
+    setScores(p => ({ ...p, [`${judge.id}_${scoringPid}`]:
+      { criteria, notes: draftNotes, commendation, time: Date.now() } }));
     const payload = {
       school_id: currentSchool.id,
       judge_id: judge.id, project_id: scoringPid,
-      criteria: { ...draftSc },
+      criteria,
       notes: draftNotes,
+      ...(feedback ? { commendation } : {}),
     };
     const { error } = await supabase.from("scores").upsert(payload, { onConflict: "judge_id,project_id" });
     if (error || !navigator.onLine) {
@@ -3271,9 +3386,11 @@ export default function App() {
       setLastSyncAt(syncedAt);
       localStorage.setItem("sf_last_sync_at", String(syncedAt));
     }
-    const proj = projects.find(p=>p.id===scoringPid);
-    addLog(`${judge.alias} submitted score for Project #${proj.num}`);
-    addItLog("INFO","SCORE","SCORE_SUBMITTED","Judge submitted score for assigned project",{ judgeId:judge.id, alias:judge.alias, projectId:scoringPid, projectNum:proj.num, total, rubric:draftSc });
+    addLog(`${judge.alias} submitted ${feedback ? "a review" : "score"} for Project #${proj.num}`);
+    addItLog("INFO","SCORE","SCORE_SUBMITTED","Judge submitted a review for an assigned project",
+      { judgeId:judge.id, alias:judge.alias, projectId:scoringPid, projectNum:proj.num,
+        mode: feedback ? "feedback" : "scored",
+        ...(feedback ? { commendation } : { total, rubric: draftSc }) });
     setView("judge-home");
   }
 
@@ -4494,7 +4611,30 @@ export default function App() {
                 <div style={{ fontSize:".8rem", color:"var(--text)", marginTop:".5rem", lineHeight:1.45 }}>{proj.description}</div>
               )}
             </div>
-            {rubric.map(r => {
+            {/* Comment-only department (PreK / K-2): no rubric, no total, no ranking.
+                The judge gives a commendation — from the list or in their own words. */}
+            {isFeedbackProject(proj) ? (
+              <>
+                <div className="fb-banner">
+                  🌟 <strong>This group is not scored.</strong> Every project here is a winner.
+                  Choose a commendation that fits what you saw, and add a comment if you would like to.
+                </div>
+                <div className="card">
+                  <div className="lbl" style={{ marginBottom:".5rem" }}>Commendation</div>
+                  <div className="fb-chips">
+                    {COMMENDATIONS.map(c => (
+                      <button key={c} type="button"
+                        className={"fb-chip" + (draftCommend === c ? " selected" : "")}
+                        onClick={() => setDraftCommend(c)}>{c}</button>
+                    ))}
+                  </div>
+                  <div className="lbl" style={{ margin:".9rem 0 .35rem" }}>…or write your own</div>
+                  <input type="text" maxLength={60} placeholder="e.g. Best Volcano in the Whole School"
+                    value={draftCommend}
+                    onChange={e => setDraftCommend(e.target.value)} />
+                </div>
+              </>
+            ) : rubric.map(r => {
               if (r.id === "abstract" && !requiresAbstract(proj)) return null;
               return (
                 <div className="rub-item" key={r.id}>
@@ -4524,14 +4664,24 @@ export default function App() {
               </div>
             )}
             <div className="card">
-              <div className="lbl">Judge Notes (Optional)</div>
-              <textarea placeholder="Add observations about this project…" value={draftNotes} onChange={e => setDraftNotes(e.target.value)} />
+              <div className="lbl">{isFeedbackProject(proj) ? "Comment for the students (optional)" : "Judge Notes (Optional)"}</div>
+              <textarea placeholder={isFeedbackProject(proj)
+                ? "Something encouraging they can read later…"
+                : "Add observations about this project…"}
+                value={draftNotes} onChange={e => setDraftNotes(e.target.value)} />
             </div>
-            <div className="sc-total">
-              <div><div className="lbl">Total Score</div><div style={{ fontSize:".76rem", color:"var(--dim)" }}>Out of {maxDraftScore()} points</div></div>
-              <div className="sc-total-num">{draftTotal()}</div>
-            </div>
-            <button className="btn" onClick={submitScore} disabled={!allMoved() || hasZeroScore()}>Submit Score →</button>
+            {!isFeedbackProject(proj) && (
+              <div className="sc-total">
+                <div><div className="lbl">Total Score</div><div style={{ fontSize:".76rem", color:"var(--dim)" }}>Out of {maxDraftScore()} points</div></div>
+                <div className="sc-total-num">{draftTotal()}</div>
+              </div>
+            )}
+            <button className="btn" onClick={submitScore} disabled={!allMoved() || hasZeroScore()}>
+              {isFeedbackProject(proj) ? "Submit Review →" : "Submit Score →"}
+            </button>
+            {isFeedbackProject(proj) && !allMoved() && (
+              <p style={{ textAlign:"center", fontSize:".72rem", color:"var(--dim)", marginTop:".4rem" }}>Choose or write a commendation to finish.</p>
+            )}
             {hasZeroScore() && <p style={{ textAlign:"center", fontSize:".72rem", color:"var(--red)", marginTop:".4rem" }}>Remove all zero scores before submitting (Grades 5+ rule).</p>}
             <p style={{ textAlign:"center", fontSize:".72rem", color:"var(--dim)", marginTop:".7rem" }}>You may revise this before judging closes.</p>
           </div>
@@ -5588,10 +5738,39 @@ export default function App() {
 
               {/* Per-department leaderboards */}
               {departments.map(dept => {
+                if (projects.filter(p => p.department_id === dept.id).length === 0) return null;
+                // Comment-only: a participant list, never a ranking. rankedProjects()
+                // already excludes these, so without this branch the card would be empty.
+                if (dept.scoring_mode === "feedback") {
+                  const parts = participantsIn(dept.id);
+                  return (
+                    <div className="card" key={dept.id}>
+                      <div className="sec-title">{dept.name} — Participants <span className="badge bp">Not scored</span></div>
+                      <div className="tbl-wrap">
+                        <table>
+                          <thead><tr><th>#</th><th>Project</th><th>Commendations</th><th>Reviews</th></tr></thead>
+                          <tbody>
+                            {parts.map(p => (
+                              <tr key={p.id}>
+                                <td style={{fontFamily:"var(--ff-m)",color:"var(--dim)"}}>{p.num}</td>
+                                <td style={{maxWidth:"200px"}}>{p.title}</td>
+                                <td style={{fontSize:".82rem"}}>
+                                  {p.commendations.length
+                                    ? [...new Set(p.commendations)].map(c => <span key={c} className="badge bp" style={{marginRight:".25rem"}}>{c}</span>)
+                                    : <span style={{color:"var(--dim)"}}>—</span>}
+                                </td>
+                                <td>{p.reviews}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                }
                 const all = rankedProjects().filter(p => p.department_id === dept.id);
                 const scored   = all.filter(p => p.avg !== null);
                 const unscored = all.filter(p => p.avg === null);
-                if (projects.filter(p => p.department_id === dept.id).length === 0) return null;
                 return (
                   <div className="card" key={dept.id}>
                     <div className="sec-title">{dept.name} — Project Leaderboard</div>
@@ -5706,7 +5885,11 @@ export default function App() {
                             </div>
                           ) : (
                             <>
-                              <div className="setup-name">{dept.name}</div>
+                              <div className="setup-name">
+                                {dept.name}
+                                {dept.scoring_mode === "feedback" &&
+                                  <span className="badge bp" style={{marginLeft:".4rem"}}>Comments only</span>}
+                              </div>
                               <div className="setup-meta">
                                 {dept.code && <span className="badge bb">{dept.code}</span>}
                                 {" "}{projCount} project{projCount!==1?"s":""} · {deptCount}/{dept.max_judges} judge{deptCount!==1?"s":""}
@@ -5727,6 +5910,12 @@ export default function App() {
                                       onKeyDown={e => e.key==="Enter" && updateDeptMaxJudges(dept.id, maxDraft)} />
                                   </>}
                             </span>
+                            <select className="setup-mode" value={dept.scoring_mode || "scored"}
+                              title="How this department is judged"
+                              onChange={e => updateDeptScoringMode(dept.id, e.target.value)}>
+                              <option value="scored">Scored (rubric)</option>
+                              <option value="feedback">Comments only</option>
+                            </select>
                             <button className="proj-act-btn" title="Rename"
                               onClick={() => { setSetupErr(""); setDeptEdits(p => ({...p, [dept.id]: { name: dept.name, code: dept.code || "" }})); }}>✏️</button>
                             <button className="proj-act-btn del" title={inUse ? "In use — move its projects and judges first" : "Delete"}
@@ -7437,6 +7626,36 @@ export default function App() {
 
             {/* Per-department sections */}
             {departments.map(dept => {
+              // Comment-only department: every project is a participant. No podium,
+              // no ranks, no scores — showing a "1st" here would contradict the
+              // whole point of not scoring these grades.
+              if (dept.scoring_mode === "feedback") {
+                const parts = participantsIn(dept.id);
+                if (!parts.length) return null;
+                return (
+                  <div key={dept.id}>
+                    <div style={{fontFamily:"var(--ff-d)",fontSize:"1.4rem",color:"var(--navy)",margin:"2rem 0 1rem",borderBottom:"2px solid var(--bd)",paddingBottom:".5rem"}}>
+                      {dept.name} <span className="badge bp" style={{fontSize:".7rem",verticalAlign:"middle"}}>Everyone is a winner</span>
+                    </div>
+                    <div className="card" style={{padding:0,overflow:"hidden"}}>
+                      {parts.map((p, i) => (
+                        <div key={p.id} style={{padding:".8rem 1.1rem",borderBottom: i < parts.length-1 ? "1px solid var(--bd)" : "none",display:"flex",gap:".75rem",alignItems:"flex-start"}}>
+                          <span style={{fontSize:"1.1rem",flexShrink:0}}>🌟</span>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontWeight:600,fontSize:".95rem",lineHeight:1.3}}>{p.title}</div>
+                            <div style={{fontSize:".76rem",color:"var(--dim)",fontFamily:"var(--ff-m)",marginTop:".15rem"}}>#{p.num}</div>
+                            {p.commendations.length > 0 && (
+                              <div style={{marginTop:".35rem",display:"flex",flexWrap:"wrap",gap:".25rem"}}>
+                                {[...new Set(p.commendations)].map(c => <span key={c} className="badge bp">{c}</span>)}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
               const deptProjects = allRanked.filter(p => p.department_id === dept.id);
               if (!deptProjects.length) return null;
               return (

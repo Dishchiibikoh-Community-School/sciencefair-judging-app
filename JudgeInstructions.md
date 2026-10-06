@@ -74,8 +74,16 @@ When you open a project to score, you'll see:
 Each criterion shows **discrete buttons** (never a slider). Tap the one you want. You cannot
 submit until every criterion has been given a score.
 
-**Your school uses one of two rubrics, and the buttons look different in each.** The app always
-shows the live total and the maximum on the form itself — trust that over this page.
+**Some departments are not scored at all.** If yours is one (usually the youngest grades), you will
+see a purple note saying *"This group is not scored — every project here is a winner."* Instead of a
+rubric you choose a **commendation** that fits what you saw — Great Scientific Thinking, Creative
+Idea, Excellent Teamwork, Wonderful Presentation, Careful Observer, Asked Great Questions, Terrific
+Effort — or type your own in the box underneath. A comment for the students is optional but very
+welcome; they get to read it. There is no total and nothing is ranked. Pick a commendation and press
+**Submit Review**. The rest of this section does not apply to you.
+
+**If your department IS scored**, it uses one of two rubrics and the buttons look different in each.
+The app always shows the live total and the maximum on the form itself — trust that over this page.
 
 **If the buttons show words** (Needs improvement · Fair · Good · Very Good · Excellent), you are on
 the 100-point rubric. Tap the rating that fits; the points for that section appear underneath, and
