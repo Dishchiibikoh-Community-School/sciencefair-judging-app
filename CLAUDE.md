@@ -362,11 +362,14 @@ Scoring UI is discrete tap buttons (`.rub-step-btn`), never sliders.
 Applying a preset goes through `requestSaveRubric()`, so the impact warning + backup offer
 still fire when scores exist. Presets are starting points; every criterion stays editable.
 
-⚠️ **The two source documents disagree and the preset follows the summary sheet.** The detailed
-Dishchii'bikoh form has 20 sub-items at 1–5 (which implies sections of 25/20/20/25/10); the
-summary sheet says 15/25/20/20/20. The preset uses the **summary sheet's weights** and folds the
-20 sub-items into each section's `desc`, so judges see all of them but tap once per section.
-If the committee ever wants per-item scoring, the section totals have to change to 25/20/20/25/10.
+**The two source documents disagree; 15/25/20/20/20 is the correct one — confirmed by the
+organiser 2026-10-06. Do not "fix" it.** The detailed Dishchii'bikoh form has 20 sub-items at
+1–5, which would imply sections of 25/20/20/25/10; the summary sheet says 15/25/20/20/20 and
+that is what the fair uses. The preset therefore takes the **summary sheet's weights** and folds
+the 20 sub-items into each section's `desc`, so judges read all of them but rate once per section.
+A consequence worth knowing: Further Research (2 sub-items) is worth more than Project Title
+(5 sub-items). That is intended. Only revisit this if the committee asks for per-item scoring,
+which would mean changing the section totals to 25/20/20/25/10.
 
 **`stepLabels` (optional, display-only).** A 1–5 rating scaled into differently-weighted sections
 gives a different number for the *same* rating per section ("Good" is 9 in a 15-pt section, 15 in a
