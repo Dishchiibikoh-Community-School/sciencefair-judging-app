@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + real-Postgres (PGlite) migration/RLS suite. Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 233 checks across 11 files |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 244 checks across 12 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -295,7 +295,7 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `validations` | Judge/admin validation; `judge_id = 'admin'` for the admin. Conflict `(school_id, judge_id)` |
 | `deliberation_notes` | Judge recommendation/comment/flag per project |
 | `final_decisions` | Admin award per project. Conflict `(school_id, project_id)` |
-| `app_settings` | Key/value, PK `(school_id, key)`: `locked`, `deliberation_open`, `results_finalized`, `judge_transfer_allowances`, `project_list_token`, `judge_numbering` (`school` default when absent \| `department`) |
+| `app_settings` | Key/value, PK `(school_id, key)`: `locked`, `deliberation_open`, `results_finalized`, `judge_transfer_allowances`, `project_list_token`, `judge_numbering` (`school` default when absent \| `department`), `judge_sharing`, `judge_max`, **`project_code_format`** (default `{DEPT}-{CAT}-{NUM}`) |
 | `share_links` | Public results tokens, expiry, `revoked_at` |
 | `score_backups` | Admin snapshots — scores **and a copy of the rubric** |
 | `registration_links` | Student registration tokens |
@@ -827,6 +827,20 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 
 Full detail is in the git log for each commit.
 
+**2026-10-06 — Project codes ("PK-LS-001")** (no migration).
+Every project has a code built from `app_settings.project_code_format` (default `{DEPT}-{CAT}-{NUM}`)
++ `departments.code` + `categories.code` + `projects.num` — **derived by `projectCode(p)`, never stored**,
+so renaming a code or changing the format can never leave stale codes behind. Admin edits the format in
+Setup → Project codes (`{DEPT} {CAT} {NUM} {GRADE}`; `validateCodeFormat()` requires `{NUM}`, known tokens,
+safe characters); live preview, duplicate-code warning. A missing part collapses its separator
+(`LS-007` for an unassigned project). Shown on the judge list, scoring header, admin lists, deliberation,
+public results/projects, the project-list PDF, and a **Code** column in the projects, results and
+judge-score CSVs (outside `IMPORT_COLS`, so the import contract is unchanged — verified by the import
+round-trip test). `{YEAR}` was left out on purpose: `Date` during render is a purity finding (rule 37).
+**Also fixed:** the results CSV gained an "Out of" header in 2026-10j without the row value, shifting
+every later column by one.
+Tests: new `scripts/e2e/project-codes.e2e.mjs` 11 checks. 244 browser checks total.
+
 **2026-10-06 — Each department picks its rubric; rubric library** (migration `2026-10j`, not coupled).
 Setup → each department's dropdown lists every rubric in the school's library plus **Comments only**;
 judges get the rubric of each project's department. Rubric tab is a library: ＋ New rubric (blank /
@@ -1177,6 +1191,9 @@ school controls; or a nightly export job. Whatever is chosen must keep
 - `submitDelibNote()` and `reviseDecision()` are defined but unreferenced (ESLint `no-unused-vars`).
 - No UI for `set_school_invite_code()`.
 - The `SEED_SCORES` constant is unused. (`CATEGORIES` was removed 2026-10-06.)
+- **Registration receipt numbers (`reg_prefix`) still use `DIV_CODES`**, not the project-code format —
+  a registered student's receipt says e.g. `JHS-LS-004` while the project's code (no department yet)
+  reads `LS-…`. Unify when registration sets `department_id` (below).
 - **`DIVISIONS` / `DIV_CODES` / `getDivision()` still duplicate what `departments` now holds** —
   three disagreeing grade-band schemes (the registration form's divisions, its `reg_prefix` codes,
   and a display-only label). `departments.code` exists for this; unifying them is the next piece of

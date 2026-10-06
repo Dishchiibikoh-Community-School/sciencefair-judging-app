@@ -212,6 +212,35 @@ const DEFAULT_CATEGORIES = [
   { name: "Energy, Sustainability & Design",    code: "ESD" },
 ];
 
+// ── PROJECT CODES ("PK-LS-001") ─────────────────────────────
+// A project's code is DERIVED, never stored: format template + the department's code +
+// the category's code + the project number. Renaming a code or changing the format
+// updates every project everywhere at once, and nothing can drift out of date.
+// The template is app_settings.project_code_format (anon-readable, admin-write).
+const DEFAULT_CODE_FORMAT = "{DEPT}-{CAT}-{NUM}";
+const CODE_TOKENS = ["DEPT", "CAT", "NUM", "GRADE"];
+// "" when valid, else a message for the admin. {NUM} is required: it is the only part
+// that is unique per project, so without it two projects could share a code.
+function validateCodeFormat(fmt) {
+  const f = String(fmt || "").trim();
+  if (!f) return "Enter a format.";
+  if (f.length > 40) return "Keep the format to 40 characters or fewer.";
+  if (!f.includes("{NUM}")) return "The format must include {NUM} — it is what makes every code unique.";
+  const bad = (f.match(/\{[^}]*\}/g) || []).find(t => !CODE_TOKENS.includes(t.slice(1, -1)));
+  if (bad) return `Unknown part ${bad}. Use ${CODE_TOKENS.map(t => `{${t}}`).join(", ")}.`;
+  if (/[{}]/.test(f.replace(/\{(DEPT|CAT|NUM|GRADE)\}/g, ""))) return "Every { needs a matching }.";
+  if (!/^[A-Za-z0-9 {}._/#-]+$/.test(f)) return "Use letters, numbers, spaces and - _ . / # only.";
+  return "";
+}
+// Fills the template. A missing part (a project with no department yet) leaves no gap:
+// "PK--001" → "PK-001", "-LS-001" → "LS-001".
+function formatProjectCode(fmt, parts) {
+  return String(fmt || DEFAULT_CODE_FORMAT)
+    .replace(/\{(DEPT|CAT|NUM|GRADE)\}/g, (_, k) => parts[k] || "")
+    .replace(/([-_./ #])[-_./ #]+/g, "$1")
+    .replace(/^[-_./ #]+|[-_./ #]+$/g, "");
+}
+
 // ── REGISTRATION FORM CONSTANTS ──────────────────────────────
 // TODO (Phase 1, next change): DIVISIONS/DIV_CODES still duplicate what the
 // `departments` table now holds, and `departments.code` exists for exactly this.
@@ -223,7 +252,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-06j";
+const ADMIN_HELP_UPDATED = "2026-10-06k";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -276,6 +305,13 @@ const ADMIN_HELP = [
     ["What happens to projects if I delete or rename a category?", "Nothing. A project keeps the category text it was saved with; only the choice disappears from the dropdowns. A project on a category you removed shows it as \"(old category)\" when you edit it, and you can pick a new one."],
     ["What is the little Code for?", "A short code used to build student registration numbers, like JHS-LS-001. Leave it blank and the app makes one from the name."],
     ["I changed a category — do I need to tell the form scanner?", "No. 📷 Scan forms asks the AI to pick from your current list automatically."],
+  ]},
+  { title: "Project codes", icon: "🏷️", faq: [
+    ["What is a project code?", "A label for each project built from its department code, category code and number — e.g. PK-LS-001 for PreK · Life Science · project 001. Judges, results, printouts and every CSV show it."],
+    ["Where do the codes come from?", "Setup → Departments and Project categories: each row's ✏️ edits its Code (e.g. PK, LS). Change a code and every project in it gets the new code straight away — nothing is stored per project."],
+    ["Can we use our own format?", "Yes. Setup → Project codes. Combine {DEPT}, {CAT}, {NUM} and {GRADE} with your own text, e.g. SF26/{DEPT}/{NUM} → SF26/PK/001. The examples underneath update as you type. {NUM} is required so every code stays unique. Reset puts back {DEPT}-{CAT}-{NUM}."],
+    ["It says some projects share a code.", "Two projects have the same number in the same department and category. Give one of them a new number on the Projects tab."],
+    ["A project's code has no department part.", "The project has no department yet (e.g. a student registration). Give it one on the Projects tab and the code completes itself."],
   ]},
   { title: "The rubric", icon: "📐", faq: [
     ["Can departments use different rubrics?", "Yes. Each department picks its own in Setup → Departments (the dropdown on each row): any rubric in your library, or 'Comments only'. Judges automatically get the rubric of the department each project is in — e.g. 3-5 on the 42-point sheet and 6-8 on the 100-point sheet."],
@@ -638,6 +674,13 @@ const CSS = `
   .imp-tbl td{vertical-align:top;}
   .imp-tbl tr.imp-saved td{opacity:.6;}
   .imp-tbl tr.imp-err td{background:var(--red-l);}
+  .code-fmt{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin-bottom:.45rem;}
+  .code-fmt input[type=text]{flex:1 1 220px;max-width:340px;font-family:var(--ff-m);}
+  .code-token{font-family:var(--ff-m);font-size:.76rem;padding:.3rem .5rem;border:1px solid var(--bd);border-radius:6px;background:var(--s1);color:var(--navy);cursor:pointer;}
+  .code-token:hover{border-color:var(--navy);}
+  .code-legend{display:flex;flex-wrap:wrap;gap:.35rem 1rem;font-size:.76rem;color:var(--dim);margin-bottom:.55rem;}
+  .code-examples{display:flex;flex-direction:column;gap:.2rem;font-size:.82rem;margin:.3rem 0 .2rem;}
+  .code-ex{font-family:var(--ff-m);font-weight:600;color:var(--navy);}
   .rub-section-head{font-family:var(--ff-d);font-size:1rem;color:var(--navy);margin:1.1rem 0 .45rem;padding-bottom:.25rem;border-bottom:2px solid var(--bd);}
   .rub-lib{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.9rem;}
   .rub-lib select{width:auto;min-width:220px;}
@@ -1440,6 +1483,9 @@ export default function App() {
   // Highest judge number allowed (2026-10i): 15 by default, up to 90. null = not stored yet.
   const [judgeMaxSetting,  setJudgeMaxSetting]  = useState(null);
   const [judgeMaxDraft,    setJudgeMaxDraft]    = useState("");
+  // Project code template (Setup → Project codes). Default {DEPT}-{CAT}-{NUM} → "PK-LS-001".
+  const [codeFormat,       setCodeFormat]       = useState(DEFAULT_CODE_FORMAT);
+  const [codeFormatDraft,  setCodeFormatDraft]  = useState(null);  // null = not editing
   const [removeJudgeAsk,   setRemoveJudgeAsk]   = useState(null); // judge being removed (PIN modal)
   const [removeJudgePin,   setRemoveJudgePin]   = useState("");
   const [removeJudgeErr,   setRemoveJudgeErr]   = useState("");
@@ -1701,6 +1747,9 @@ export default function App() {
       setProjListToken(map.project_list_token || "");
       setJudgeNumbering(map.judge_numbering === "department" ? "department" : "school");
       setJudgeSharing(map.judge_sharing === "on" ? "on" : "off");
+      // An invalid stored format (hand-edited row) falls back rather than printing garbage.
+      setCodeFormat(map.project_code_format && !validateCodeFormat(map.project_code_format)
+        ? map.project_code_format.trim() : DEFAULT_CODE_FORMAT);
       setJudgeMaxSetting(/^\d{1,3}$/.test(map.judge_max || "") ? Math.min(90, Math.max(1, parseInt(map.judge_max, 10))) : null);
       // Note: judge/admin validations are loaded separately by loadValidations()
       // from the validations table — not from app_settings.
@@ -2631,14 +2680,14 @@ export default function App() {
   function exportProjectsCSV() {
     const deptName = (id) => departments.find(d => d.id === id)?.name || "Unassigned";
     const rows = [[
-      "Project #","Title","Department","Category","Grade","Room","Teacher / Adviser",
+      "Code","Project #","Title","Department","Category","Grade","Room","Teacher / Adviser",
       "Students (grade)","What they plan to investigate","Why they chose it","Locked","Reviews","Avg Score","Out of","Rubric",
     ].map(csvCell)];
     [...projects].sort((a, b) => String(a.num).localeCompare(String(b.num))).forEach(p => {
       const sub = regSubmissions.find(s => s.project_id === p.id);
       const reviews = Object.keys(scores).filter(k => k.endsWith(`_${p.id}`)).length;
       rows.push([
-        p.num, p.title, deptName(p.department_id), p.cat, p.grade, p.room || "",
+        projectCode(p), p.num, p.title, deptName(p.department_id), p.cat, p.grade, p.room || "",
         p.advisor_name || sub?.advisor_name || "",
         membersText(p.group_members?.length ? p.group_members : sub?.group_members),
         p.description || "", p.motivation || "", p.locked ? "yes" : "no", reviews, projAvg(p.id) ?? "",
@@ -2783,7 +2832,7 @@ export default function App() {
       ].filter(Boolean).join(" &nbsp;·&nbsp; ");
       return `
       <tr>
-        <td style="font-family:monospace;color:#1e3a5f;white-space:nowrap;vertical-align:top">#${escHtml(p.num)}</td>
+        <td style="font-family:monospace;color:#1e3a5f;white-space:nowrap;vertical-align:top">${escHtml(projectCode(p))}</td>
         <td>
           <div style="font-weight:600">${escHtml(p.title)}</div>
           ${meta ? `<div style="font-size:.8rem;color:#64748b;margin-top:.2rem">${meta}</div>` : ""}
@@ -3127,6 +3176,37 @@ export default function App() {
     addItLog("INFO","ADMIN","DEPT_JUDGING_CHANGED","Admin changed how a department is judged",
       { dept: dept.name, mode: feedback ? "feedback" : "scored", rubric: feedback ? null : (rubrics.find(r => r.id === value)?.name || null) });
   }
+  // A project's display code, e.g. "PK-LS-001" — see formatProjectCode(). Codes come from
+  // the department's and category's Code fields (Setup); a missing one is derived from
+  // the name. Use this wherever a project is identified to people; keep p.num for sorting.
+  function projectCode(p, fmt = codeFormat) {
+    if (!p) return "";
+    const dept = departments.find(d => d.id === p.department_id);
+    const cat  = categories.find(c => c.name === p.cat);
+    return formatProjectCode(fmt, {
+      DEPT:  dept ? (dept.code || autoCode(dept.name)) : "",
+      CAT:   p.cat ? (cat?.code || autoCode(p.cat)) : "",
+      NUM:   String(p.num ?? "").trim(),
+      GRADE: p.grade ? String(p.grade) : "",
+    });
+  }
+  async function saveCodeFormat(fmt) {
+    const f = String(fmt || "").trim();
+    const problem = validateCodeFormat(f);
+    if (problem) { setSetupErr(problem); return; }
+    setSetupErr("");
+    const { error } = await supabase.from("app_settings")
+      .upsert({ school_id: currentSchool.id, key: "project_code_format", value: f }, { onConflict: "school_id,key" });
+    if (error) {
+      setSetupErr(`Project code format NOT saved: ${error.message}`);
+      addItLog("ERROR","ADMIN","PROJECT_CODE_FORMAT_FAILED","Could not save the project code format",{ format: f, error: error.code || error.message });
+      return;
+    }
+    setCodeFormat(f); setCodeFormatDraft(null);
+    addLog(`Admin set the project code format to ${f}`);
+    addItLog("INFO","ADMIN","PROJECT_CODE_FORMAT_CHANGED","Admin changed the project code format",{ format: f });
+  }
+
   // Short code used for registration numbers; derived from the name if unset.
   function autoCode(name) {
     const words = String(name || "").trim().split(/[\s/&-]+/).filter(Boolean);
@@ -3483,7 +3563,7 @@ export default function App() {
     // departments can use different rubrics). A row leaves other rubrics' columns empty.
     const cols = unionCriteria(departments.filter(d => d.id && d.scoring_mode !== "feedback").map(d => rubricFor(d.id)));
     const header = [
-      "Judge","Department","Project #","Project Title","Category","Grade","Rubric",
+      "Judge","Department","Code","Project #","Project Title","Category","Grade","Rubric",
       ...cols.map(r => `${r.label} (${r.max})`),
       "Total","Out of","Notes","Submitted"
     ];
@@ -3497,6 +3577,7 @@ export default function App() {
         rows.push([
           judge.alias,
           deptName,
+          projectCode(proj),
           proj.num,
           proj.title || "",
           proj.cat,
@@ -3555,7 +3636,7 @@ export default function App() {
   function exportResultsCSV() {
     // Rank within each department — projects are only comparable inside their own dept.
     const rows = [
-      ["Department","Rank","Project #","Title","Category","Grade","Avg Score","Out of","Reviews","Award"].map(csvCell),
+      ["Department","Rank","Code","Project #","Title","Category","Grade","Avg Score","Out of","Reviews","Award"].map(csvCell),
     ];
     const deptGroups = [
       ...departments.filter(d => d.id).map(d => ({ name: d.name, projs: rankedProjectsIn(d.id) })),
@@ -3566,10 +3647,11 @@ export default function App() {
         const decision = finalDecisions[p.id];
         rows.push([
           g.name,
-          i + 1, p.num,
+          i + 1, projectCode(p), p.num,
           p.title || "",
           p.cat, p.grade,
           p.avg ?? "",
+          projectMax(p),
           p.revs,
           decision?.finalized ? decision.award : "Pending"
         ].map(csvCell));
@@ -5251,7 +5333,7 @@ export default function App() {
                 <div className="proj-item"
                   onClick={() => !locked && !judgeValidations[judge.id] && startScoring(proj.id)}
                   style={{ cursor: locked || judgeValidations[judge.id] ? "not-allowed" : "pointer", opacity:scored?.75:1 }}>
-                  <div className="proj-num">#{proj.num}</div>
+                  <div className="proj-num">{projectCode(proj)}</div>
                   <div className="proj-info">
                     <div className="proj-title">{proj.title}</div>
                     <div className="proj-meta">{proj.cat} · Grade {proj.grade}</div>
@@ -5367,7 +5449,7 @@ export default function App() {
                   <div key={proj.id} className="delib-proj">
                     <div className="delib-proj-head">
                       <div>
-                        <div style={{fontFamily:"var(--ff-m)",fontSize:".73rem",color:"var(--navy)"}}>#{proj.num}</div>
+                        <div style={{fontFamily:"var(--ff-m)",fontSize:".73rem",color:"var(--navy)"}}>{projectCode(proj)}</div>
                         <div style={{fontWeight:600,fontSize:".88rem"}}>{proj.title}</div>
                         <div style={{fontSize:".75rem",color:"var(--dim)"}}>{proj.cat} · Grade {proj.grade}</div>
                       </div>
@@ -5485,7 +5567,7 @@ export default function App() {
               </div>
             )}
             <div className="sc-header">
-              <div style={{ fontFamily:"var(--ff-m)", fontSize:".78rem", color:"var(--navy)", marginBottom:".2rem" }}>PROJECT #{proj.num}</div>
+              <div style={{ fontFamily:"var(--ff-m)", fontSize:".78rem", color:"var(--navy)", marginBottom:".2rem" }}>PROJECT {projectCode(proj)}</div>
               <h2>{proj.title}</h2>
               <div style={{ fontSize:".78rem", color:"var(--dim)", marginTop:".35rem" }}>
                 {proj.cat} · Grade {proj.grade} · {getDivision(proj.grade)}{proj.room ? ` · Room ${proj.room}` : ""}
@@ -6693,7 +6775,7 @@ export default function App() {
                           <tbody>
                             {parts.map(p => (
                               <tr key={p.id}>
-                                <td style={{fontFamily:"var(--ff-m)",color:"var(--dim)"}}>{p.num}</td>
+                                <td style={{fontFamily:"var(--ff-m)",color:"var(--dim)",whiteSpace:"nowrap"}}>{projectCode(p)}</td>
                                 <td style={{maxWidth:"200px"}}>{p.title}</td>
                                 <td style={{fontSize:".82rem"}}>
                                   {p.commendations.length
@@ -7051,6 +7133,67 @@ export default function App() {
                         Set the size of each department with Max judges above.
                       </p>
                     )}
+                  </div>
+                );
+              })()}
+
+              {/* ── Project codes ("PK-LS-001") ── */}
+              {(() => {
+                const editing = codeFormatDraft !== null;
+                const draft   = editing ? codeFormatDraft : codeFormat;
+                const problem = editing ? validateCodeFormat(draft) : "";
+                const fmt     = problem ? codeFormat : draft.trim();   // preview the draft only when it is valid
+                const sample  = [...projects].sort((a, b) => String(a.num).localeCompare(String(b.num), undefined, { numeric: true })).slice(0, 3);
+                const d0 = [...departments].sort((a, b) => a.ord - b.ord)[0];
+                const c0 = categories[0];
+                const examples = sample.length
+                  ? sample.map(p => ({ key: p.id, code: projectCode(p, fmt), what: `${p.title || "Untitled"}` }))
+                  : [{ key: "sample", code: formatProjectCode(fmt, { DEPT: d0?.code || "PK", CAT: c0?.code || "LS", NUM: "001", GRADE: "5" }),
+                       what: `example: ${d0?.name || "PreK"} · ${c0?.name || "Life Science"} · project 001` }];
+                // Two projects with the same code (usually a duplicated project number).
+                const codes = projects.map(p => projectCode(p, fmt));
+                const dups  = [...new Set(codes.filter((c, i) => codes.indexOf(c) !== i))];
+                return (
+                  <div className="card">
+                    <div className="lbl" style={{marginBottom:".4rem"}}>Project codes</div>
+                    <p style={{fontSize:".82rem",color:"var(--dim)",marginBottom:".7rem"}}>
+                      Every project gets a code built from its <b>department code</b>, <b>category code</b> and <b>number</b> —
+                      e.g. <b style={{fontFamily:"var(--ff-m)"}}>PK-LS-001</b> for PreK · Life Science · project 001. Judges, results,
+                      printouts and exports all show it. Change the codes themselves with ✏️ on the department and category rows.
+                    </p>
+                    <div className="code-fmt">
+                      <input type="text" aria-label="Project code format" value={draft} maxLength={40}
+                        onChange={e => { setSetupErr(""); setCodeFormatDraft(e.target.value); }} />
+                      {CODE_TOKENS.map(t => (
+                        <button key={t} type="button" className="code-token"
+                          onClick={() => { setSetupErr(""); setCodeFormatDraft(`${draft}{${t}}`); }}>{`{${t}}`}</button>
+                      ))}
+                    </div>
+                    <div className="code-legend">
+                      <span><code>{"{DEPT}"}</code> department code</span>
+                      <span><code>{"{CAT}"}</code> category code</span>
+                      <span><code>{"{NUM}"}</code> project number <b>(required)</b></span>
+                      <span><code>{"{GRADE}"}</code> grade</span>
+                    </div>
+                    {problem && <div className="err">⚠ {problem}</div>}
+                    <div className="code-examples">
+                      {examples.map(x => (
+                        <div key={x.key}><span className="code-ex">{x.code || "—"}</span> <span style={{color:"var(--dim)"}}>{x.what}</span></div>
+                      ))}
+                    </div>
+                    {dups.length > 0 && (
+                      <div className="judge-num-miss" style={{textAlign:"left"}}>
+                        ⚠ Some projects share a code ({dups.slice(0, 3).join(", ")}{dups.length > 3 ? "…" : ""}) — usually two projects with the
+                        same number. Give one of them a new number on the Projects tab.
+                      </div>
+                    )}
+                    <div style={{display:"flex",gap:".5rem",flexWrap:"wrap",marginTop:".7rem"}}>
+                      <button className="btn sm" style={{width:"auto"}} disabled={!editing || !!problem || draft.trim() === codeFormat}
+                        onClick={() => saveCodeFormat(draft)}>Save format</button>
+                      {editing && <button className="btn sec sm" style={{width:"auto"}} onClick={() => { setSetupErr(""); setCodeFormatDraft(null); }}>Cancel</button>}
+                      {codeFormat !== DEFAULT_CODE_FORMAT && !editing &&
+                        <button className="btn sec sm" style={{width:"auto"}} onClick={() => saveCodeFormat(DEFAULT_CODE_FORMAT)}>Reset to {DEFAULT_CODE_FORMAT}</button>}
+                    </div>
                   </div>
                 );
               })()}
@@ -7419,7 +7562,7 @@ export default function App() {
                     <div className="proj-mgmt-head">
                       <div style={{flex:1}}>
                         <div style={{display:"flex",alignItems:"center",gap:".5rem",marginBottom:".2rem",flexWrap:"wrap"}}>
-                          <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",color:"var(--navy)"}}>#{p.num} · {p.cat}</span>
+                          <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",color:"var(--navy)"}}>{projectCode(p)} · {p.cat}</span>
                           {(() => { const d = departments.find(d => d.id === p.department_id); if (!d) return <span className="badge br" style={{fontSize:".68rem"}}>Unassigned</span>; const dc = d.name.toLowerCase().includes("elem") ? "bg" : d.name.toLowerCase().includes("middle") ? "ba" : d.name.toLowerCase().includes("high") ? "bb" : "bp"; return <span className={`badge ${dc}`} style={{fontSize:".68rem"}}>{d.name}</span>; })()}
                           {p.locked && <span className="proj-lock-badge">🔒 Locked</span>}
                         </div>
@@ -7816,7 +7959,7 @@ export default function App() {
                         <div key={p.id} style={{borderTop:"1px solid var(--bd)",paddingTop:".85rem",marginTop:".85rem"}}>
                           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:"1rem",flexWrap:"wrap",marginBottom:".5rem"}}>
                             <div>
-                              <div style={{fontFamily:"var(--ff-m)",fontSize:".73rem",color:"var(--navy)"}}>#{p.num} · Rank {i+1}</div>
+                              <div style={{fontFamily:"var(--ff-m)",fontSize:".73rem",color:"var(--navy)"}}>{projectCode(p)} · Rank {i+1}</div>
                               <div style={{fontWeight:600,fontSize:".92rem",lineHeight:1.3}}>{p.title}</div>
                             </div>
                             <div style={{textAlign:"right",flexShrink:0}}>
@@ -8723,7 +8866,7 @@ export default function App() {
                   {deptProjects.map((p, i) => (
                     <div key={p.id} style={{padding:".85rem 1.1rem",borderBottom: i < deptProjects.length-1 ? "1px solid var(--bd)" : "none"}}>
                       <div style={{display:"flex",alignItems:"flex-start",gap:".75rem"}}>
-                        <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",color:"var(--navy)",flexShrink:0,paddingTop:".15rem"}}>#{p.num}</span>
+                        <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",color:"var(--navy)",flexShrink:0,paddingTop:".15rem"}}>{projectCode(p)}</span>
                         <div style={{flex:1}}>
                           <div style={{fontWeight:600,fontSize:".95rem",lineHeight:1.3,marginBottom:".2rem"}}>{p.title}</div>
                           <div style={{fontSize:".75rem",color:"var(--dim)"}}>
@@ -8752,7 +8895,7 @@ export default function App() {
                   {unassigned.map((p, i) => (
                     <div key={p.id} style={{padding:".85rem 1.1rem",borderBottom: i < unassigned.length-1 ? "1px solid var(--bd)" : "none"}}>
                       <div style={{display:"flex",alignItems:"flex-start",gap:".75rem"}}>
-                        <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",color:"var(--navy)",flexShrink:0,paddingTop:".15rem"}}>#{p.num}</span>
+                        <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",color:"var(--navy)",flexShrink:0,paddingTop:".15rem"}}>{projectCode(p)}</span>
                         <div style={{flex:1}}>
                           <div style={{fontWeight:600,fontSize:".95rem",lineHeight:1.3,marginBottom:".2rem"}}>{p.title}</div>
                           <div style={{fontSize:".75rem",color:"var(--dim)"}}>
@@ -8918,7 +9061,7 @@ export default function App() {
                           <span style={{fontSize:"1.1rem",flexShrink:0}}>🌟</span>
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{fontWeight:600,fontSize:".95rem",lineHeight:1.3}}>{p.title}</div>
-                            <div style={{fontSize:".76rem",color:"var(--dim)",fontFamily:"var(--ff-m)",marginTop:".15rem"}}>#{p.num}</div>
+                            <div style={{fontSize:".76rem",color:"var(--dim)",fontFamily:"var(--ff-m)",marginTop:".15rem"}}>{projectCode(p)}</div>
                             {p.commendations.length > 0 && (
                               <div style={{marginTop:".35rem",display:"flex",flexWrap:"wrap",gap:".25rem"}}>
                                 {[...new Set(p.commendations)].map(c => <span key={c} className="badge bp">{c}</span>)}

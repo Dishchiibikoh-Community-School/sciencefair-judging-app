@@ -47,7 +47,7 @@ After registering, you'll see:
 - **Your status** — Whether you've validated your results
 
 ### Project List
-- Each project shows: **Project #, Title, Category, Grade**
+- Each project shows its **code** (e.g. **PK-LS-001** = PreK · Life Science · project 001), **title, category and grade** — the same code is on the project's display
 - **Green checkmark** = Already scored
 - **Empty circle** = Not yet scored
 - **Click any project** to open the scoring form

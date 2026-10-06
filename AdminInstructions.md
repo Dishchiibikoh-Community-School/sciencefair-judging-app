@@ -201,6 +201,24 @@ pick their department when signing in, and each department row gets a **Max judg
 once that department's first judge signs in). Not recommended: "Judge1" then means several people,
 and a judge who taps the wrong department can only be fixed by removing them.
 
+#### Project codes (e.g. PK-LS-001)
+
+Every project gets a **code** built from its department's code, its category's code and its number:
+**PK-LS-001** = PreK · Life Science · project 001. Judges see it on their list and scoring form, and it
+appears on the public results, the project-list PDF and every CSV (a **Code** column).
+
+- **The parts** come from the **Code** of each department and category (✏️ on their rows). Change one and
+  every project follows immediately — codes are worked out live, never stored, so they cannot go stale.
+- **Your own format:** Setup → **Project codes**. Combine `{DEPT}`, `{CAT}`, `{NUM}` and `{GRADE}` with
+  your own text (letters, numbers, spaces, `- _ . / #`), e.g. `SF26/{DEPT}/{NUM}` → `SF26/PK/001`. The
+  examples underneath update as you type. `{NUM}` is required — it is what keeps codes unique.
+  **Reset** restores `{DEPT}-{CAT}-{NUM}`.
+- A project without a department (e.g. from student registration) shows the code without that part
+  (`LS-007`) until you assign one.
+- If two projects end up with the **same code** (same number in the same department and category),
+  the card warns you — give one of them a new number.
+- Printed labels do not update themselves: settle the format and codes before printing.
+
 #### Project categories
 
 The subject areas students pick from. **These belong to your school alone** — no other school on the platform sees or shares your list.
