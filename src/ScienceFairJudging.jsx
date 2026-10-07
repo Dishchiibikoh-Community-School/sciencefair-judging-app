@@ -327,7 +327,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-07b";
+const ADMIN_HELP_UPDATED = "2026-10-07c";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -416,7 +416,7 @@ const ADMIN_HELP = [
   ]},
   { title: "Data safety", icon: "🛡️", faq: [
     ["Will updates to the app erase my projects or scores?", "No. Updates replace the website, never your data. Database changes are tested on a copy first and only add or tighten things."],
-    ["What does Reset All Data clear?", "Judges, scores, validations, deliberation notes, awards, the share link and the lock / finalize settings. It keeps projects, departments, the rubric, registrations and the activity log."],
+    ["What does Reset All Data clear?", "Judges, scores, validations, deliberation notes, awards, the share link and the lock / finalize settings. It keeps projects, departments, the rubric, registrations and the activity log. Every judge's device is signed out the next time it opens the app, so judges sign in again afterwards."],
     ["How do I back up?", "Score Export → 💾 Save Score Backup (stores scores AND the rubric), ⬇ Download Judge Scores CSV, and Projects → ⬇ Download Projects CSV. Download copies at the halfway point and at the end."],
     ["How do I restore projects, or copy them into a new school?", "Projects tab → ⬆ Import projects (CSV) and choose a file from ⬇ Download Projects CSV (you may edit it in Excel first — save it as \"CSV UTF-8\"). You see every row before anything is saved: duplicates start unticked, and any department name this school does not have gets a dropdown to pick the right one. Press Import. Numbers are kept unless already taken. Only projects are imported — not scores or judges."],
     ["How do I write grades in the import file?", "PreK, K, or 1–12 in the Grade column. For a group with different grades, leave Grade empty and write each student as Name (Gr 8), e.g. \"Ana (Gr 7), Ben (Gr 8)\" — the project then takes the highest grade."],
@@ -433,7 +433,8 @@ const ADMIN_HELP = [
     ["It says scanning is not set up / the API key was rejected.", "That is a setup problem, not your photo — tell your technical contact. Use + Add Project meanwhile."],
   ]},
   { title: "Judges", icon: "🧑‍⚖️", faq: [
-    ["A judge's tablet died.", "Judges tab → Allow Transfer on that judge (Admin PIN). Within 10 minutes the judge signs in on the new device with the same judge number and invite code. Their scores are kept."],
+    ["A judge's tablet died.", "Judges tab → Allow Transfer on that judge (Admin PIN). Within 10 minutes the judge signs in on the new device with the same judge number and invite code. Their scores are kept. If the box says \"The transfer was NOT approved\", nothing was saved — check the internet and press Approve transfer again."],
+    ["Finalize is greyed out and says a judge raised a concern.", "A judge's concern blocks Finalize until it is resolved. Talk to that judge: they press Revise my validation and approve. If they have left, press Clear concern next to their name on the Validation tab — they go back to Pending (it is logged). A judge who simply has not validated yet does not block Finalize."],
     ["A judge lost internet.", "Scores are kept on the device and sync automatically when it reconnects (or with Sync Now). The app will not let a judge sign out while scores are still only on the device. A score waiting to sync stays ticked as scored even if the page is refreshed — the judge should NOT score it again."],
     ["Can a judge change a score?", "Yes — open the project again and resubmit, until they validate their results or you lock judging."],
     ["A judge validated too early.", "They can press Revise my validation until you finalize the results."],
@@ -458,7 +459,7 @@ const ADMIN_HELP = [
     ["PIN entry is locked.", "5 wrong PINs lock PIN entry for 5 minutes. Wait, then try again."],
     ["The lock button says \"Lock failed — retry\".", "The change did not reach the database (often an expired sign-in). Sign out and in, then try again — judges are NOT locked until it succeeds."],
     ["\"Rubric NOT saved\".", "Nothing was changed. Your edits are still on screen — sign in again if needed and press Save Rubric again."],
-    ["A red message says something was \"NOT saved\" / \"NOT finalized\".", "The change did not reach the database, so nothing changed — the screen shows the real state. Check the internet (or sign out and in), then press the same button again. Applies to validations, awards, deliberation, Finalize and Reopen."],
+    ["A red message says something was \"NOT saved\" / \"NOT finalized\".", "The change did not reach the database, so nothing changed — the screen shows the real state. Check the internet (or sign out and in), then press the same button again. Applies to validations, awards, deliberation, Finalize, Reopen, device transfers and Clear concern."],
     ["Live updates seem frozen (judges' scores are not appearing).", "Alerts → Connection shows Live / Connecting… / Disconnected for this screen. If it is not Live, refresh the page. IT Logs records REALTIME_DOWN only when the connection stayed down for over 30 seconds while the screen was in use (a phone locking its screen is no longer logged), and REALTIME_RECONNECTED with how long it was down."],
     ["Alerts shows a judge under \"Scores stuck on a device\".", "That tablet has scores it has not managed to send. Ask the judge to connect to Wi-Fi and press Sync Now. If it says \"server refusing\", the scores reach the server but are rejected — tell the judge NOT to sign out or clear the browser, and send the IT Logs report to your technical contact. A tablet that is offline cannot report at all; it appears here once it is back online but still cannot sync."],
     ["Alerts lists a judge as idle.", "They are signed in, still have projects to score, and have not scored anything for 20 minutes. Check on them — a dead tablet, a wrong room, or simply a long conversation with a student."],
@@ -2013,6 +2014,7 @@ export default function App() {
   const projAutoNumRef = useRef("");    // the number Add Project pre-filled — still that value = "pick one for me"
   const [scoreSaving,        setScoreSaving]         = useState(false); // a score submit is in flight
   const scoreSavingRef = useRef(false);
+  const judgesLoadedRef = useRef(false); // the judges list was READ from the server (empty ≠ unreachable)
   const [projForm,           setProjForm]            = useState(blankProjForm("", catNames()[0] || ""));
   const [showDeleteConfirm,  setShowDeleteConfirm]   = useState(false);
   const [deleteProjectId,    setDeleteProjectId]     = useState(null);
@@ -2150,7 +2152,7 @@ export default function App() {
     if (!schoolId) return;
     const { data, error } = await supabase.from("judges").select("*").eq("school_id", schoolId).order("joined_at");
     noteLoadError("judges", error, schoolId);
-    if (data) setJudges(data.map(dbToJudge));
+    if (data) { setJudges(data.map(dbToJudge)); judgesLoadedRef.current = true; }
   }
   async function loadScores(sid) {
     const schoolId = sid || currentSchool?.id;
@@ -2223,9 +2225,11 @@ export default function App() {
     }
   }
 
+  // Returns the save's error (null on success); the screen changes only once it is saved (rule 55).
   async function saveTransferAllowances(next) {
-    setTransferAllowances(next);
-    await supabase.from("app_settings").upsert({ school_id: currentSchool.id, key: "judge_transfer_allowances", value: JSON.stringify(next) });
+    const { error } = await supabase.from("app_settings").upsert({ school_id: currentSchool.id, key: "judge_transfer_allowances", value: JSON.stringify(next) });
+    if (!error) setTransferAllowances(next);
+    return error;
   }
 
   // Admin-only: read this school's invite code back so it can be shown on the
@@ -2305,7 +2309,15 @@ export default function App() {
     }
     const expiry = Date.now() + 10 * 60 * 1000;
     const next = { ...transferAllowances, [transferPinAlias]: expiry };
-    await saveTransferAllowances(next);
+    // Until 2026-10-07 a failed save still showed "Approved (active)" and logged the approval,
+    // so the admin sent the judge to the new device and the server refused them.
+    const saveErr = await saveTransferAllowances(next);
+    if (saveErr) {
+      setTransferPinErr("The transfer was NOT approved — it could not be saved. Check your connection and try again.");
+      addItLog("ERROR","ADMIN","JUDGE_TRANSFER_SAVE_FAILED","Could not save a judge device-transfer approval",
+        { alias: transferPinAlias, error: saveErr.code || saveErr.message || "unknown" });
+      return;
+    }
     addLog(`Admin approved device transfer for ${transferPinAlias} (expires in 10 minutes)`);
     addItLog("WARN","ADMIN","JUDGE_TRANSFER_APPROVED","Admin approved judge device transfer",{ alias: transferPinAlias, expiresAt: fmtISO(expiry) });
     setShowTransferPinModal(false);
@@ -3016,7 +3028,10 @@ export default function App() {
     // Never reconcile a session that belongs to a different school (see restore above).
     const savedSlug = localStorage.getItem("sf_judge_slug");
     if (savedSlug && savedSlug !== urlSchoolSlug) return;
-    if (judges.length > 0) {
+    // An empty list only means "unreachable" when the read itself failed. After Reset All Data
+    // the read SUCCEEDS with zero judges, and every tablet used to stay signed in as a judge
+    // that no longer exists — its new scores refused by the server and stuck on the device.
+    if (judges.length > 0 || judgesLoadedRef.current) {
       const found = judges.find(j => j.id === savedId);
       if (found) {
         setJudge(found);
@@ -3032,7 +3047,7 @@ export default function App() {
         setJudge(null); setView("landing");
       }
     }
-    // judges.length === 0 means Supabase was unreachable — keep the cached session
+    // Otherwise the judges read failed (offline / timeout) — keep the cached session
   }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep the signed-in judge's own record in step with the live judges list. The effect
@@ -5017,6 +5032,38 @@ export default function App() {
     if (!done.length || !adminValidation?.approved) return false;
     return done.every(j => judgeValidations[j.id]?.approved === true);
   }
+  // Judges whose validation is a CONCERN. Each one blocks Finalize until they revise it
+  // (2026-10-07; it used to be advisory although the screen said judges "must approve").
+  // A judge who has not validated at all does NOT block — a volunteer who leaves early must
+  // never be able to stop the results being finalized.
+  function openConcerns() {
+    return judges.filter(j => judgeValidations[j.id]?.approved === false);
+  }
+  // Why Finalize is unavailable, or "" when it is allowed. Used by the button AND the handler.
+  function finalizeBlocker() {
+    if (!adminValidation?.approved) return "You must approve the results before finalizing.";
+    if (deliberationOpen) return "Close deliberation before finalizing.";
+    const c = openConcerns();
+    if (c.length) return `${c.map(j => j.alias).join(", ")} raised a concern. Discuss it first — the judge can press Revise my validation and approve, or you can press Clear concern above.`;
+    return "";
+  }
+  // The admin's way out when the judge who raised a concern is no longer there: the
+  // validation row is deleted (admins may, RLS 2026-10d), so the judge is back to Pending.
+  async function clearJudgeConcern(j) {
+    setDelibErr("");
+    const { data, error } = await supabase.from("validations").delete()
+      .eq("school_id", currentSchool.id).eq("judge_id", j.id).select("judge_id");
+    if (error || !data?.length) {   // 0 rows is not success (rule 54)
+      setDelibErr(`The concern from ${j.alias} was NOT cleared — the change could not be saved. Check your connection and try again.`);
+      addItLog("ERROR","ADMIN","JUDGE_CONCERN_CLEAR_FAILED","Could not clear a judge's concern",
+        { judgeId: j.id, alias: j.alias, error: error ? (error.code || error.message) : "0 rows deleted" });
+      return;
+    }
+    setJudgeValidations(p => { const n = { ...p }; delete n[j.id]; return n; });
+    addLog(`Admin cleared ${j.alias}'s concern (judge back to pending)`);
+    addItLog("WARN","ADMIN","JUDGE_CONCERN_CLEARED","Admin cleared a judge's concern so results can be finalized",
+      { judgeId: j.id, alias: j.alias });
+  }
   function valProgress() {
     const done = completedJudges();
     const approved = done.filter(j => judgeValidations[j.id]?.approved === true).length;
@@ -5357,6 +5404,9 @@ export default function App() {
   }
   async function finalizeResults() {
     setDelibErr("");
+    // The gate lives in the handler too, not only on the button (rule 18).
+    const blocker = finalizeBlocker();
+    if (blocker) { setDelibErr(`Results were NOT finalized — ${blocker}`); return; }
     const sid = currentSchool.id;
     const wasOpen = deliberationOpen;
     const error = firstErr(await Promise.all([
@@ -9175,7 +9225,8 @@ export default function App() {
               const vp = valProgress();
               const tie = hasTie();
               const consensus = consensusReached();
-              const canFinalize = adminValidation?.approved && !deliberationOpen;
+              const finBlock = finalizeBlocker();
+              const canFinalize = !finBlock;
               return <>
                 <div className="adm-h1">Validation &amp; Deliberation</div>
                 <div className="adm-sub">Review computed results, reach consensus, and finalize before sharing</div>
@@ -9213,7 +9264,7 @@ export default function App() {
                       <div>
                         <div style={{fontWeight:600,fontSize:".92rem"}}>{consensus ? "✅ Consensus reached" : "⏳ Awaiting consensus"}</div>
                         <div style={{fontSize:".76rem",color:"var(--dim)",marginTop:".15rem"}}>
-                          {consensus ? "All reviewers approved the computed results. You can finalize and share." : "All judges who have completed scoring and the admin must approve before results can be finalized."}
+                          {consensus ? "All reviewers approved the computed results. You can finalize and share." : "Consensus means every judge who finished scoring, and you, approved. To finalize you must approve, deliberation must be closed, and no judge may have an open concern (a judge who has not validated yet does not block it)."}
                         </div>
                       </div>
                     </div>
@@ -9239,6 +9290,9 @@ export default function App() {
                               ? <>
                                   <span className={`val-status-pill ${v.approved ? "approved" : "concern"}`}>{v.approved ? "✓ Approved" : "⚠ Concern"}</span>
                                   {v.comment && <span style={{fontSize:".72rem",color:"var(--dim)",maxWidth:"160px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>"{v.comment}"</span>}
+                                  {!v.approved && !resultsFinalized && (
+                                    <button className="btn sec sm" style={{width:"auto"}} onClick={() => clearJudgeConcern(j)}>Clear concern</button>
+                                  )}
                                 </>
                               : <span className="val-status-pill pending">Pending</span>
                             }
@@ -9380,9 +9434,7 @@ export default function App() {
                   <div style={{background:"var(--s1)",border:"1px solid var(--bd)",borderRadius:"var(--r)",padding:"1.25rem",marginBottom:"1rem"}}>
                     <div style={{fontWeight:600,marginBottom:".3rem"}}>Finalize &amp; Enable Sharing</div>
                     <div style={{fontSize:".8rem",color:"var(--dim)",marginBottom:"1rem",lineHeight:1.5}}>
-                      {!adminValidation?.approved ? "You must approve the results before finalizing." :
-                       deliberationOpen ? "Close deliberation before finalizing." :
-                       "Results are ready to finalize. Once finalized, the Share tab will be unlocked."}
+                      {finBlock || "Results are ready to finalize. Once finalized, the Share tab will be unlocked."}
                     </div>
                     <button className="btn" disabled={!canFinalize} onClick={finalizeResults}>
                       🏁 Finalize Results

@@ -417,6 +417,8 @@ If a judge's tablet fails and they need to continue on another device:
 - Judges cannot self-transfer without admin approval
 - Approval is consumed after a successful transfer
 - If transfer expires, admin can approve again
+- If the box says **"The transfer was NOT approved"**, the approval could not be saved and the judge
+  will still be refused — check the internet and press **Approve transfer** again
 
 ### Projects Tab — Project Management
 
@@ -576,6 +578,9 @@ After a judge completes scoring all projects in their department:
 - See all judges' validation statuses across all departments
 - Green = Approved, Amber = Concern, Gray = Pending
 - Admin also validates themselves
+- A judge's **concern blocks Finalize** until it is resolved: talk to the judge, who presses
+  **Revise my validation** and approves — or, if they have left, press **Clear concern** next to
+  their name (they go back to Pending; it is recorded in the activity log)
 
 ### Step 3: Consensus Check
 
@@ -587,8 +592,12 @@ Opens automatically on a tie, or admin can open manually. Admin assigns final aw
 
 ### Step 5: Finalize Results
 
-1. Ensure consensus is reached
-2. Close deliberation if opened
+Finalize needs **all three**: you approved, deliberation is closed, and **no judge has an open
+concern**. A judge who has not validated yet does *not* block it (so a judge who left early can
+never stop the results). The box above the button says what is still missing.
+
+1. Approve the results yourself
+2. Resolve any concerns (see Step 2) and close deliberation if it was opened
 3. Click **"Finalize Results"**
 4. Share tab becomes enabled
 
@@ -695,6 +704,7 @@ If some rows say **NOT saved**, nothing was half-written; press Import again to 
 - All validation entries
 - Share link (public results **and** project list links)
 - Per-department judge counts return to 0 (max judges become editable again)
+- Every judge's device is signed out the next time it opens the app — judges sign in again
 
 **What is NOT reset:**
 - Projects
@@ -715,7 +725,7 @@ If some rows say **NOT saved**, nothing was half-written; press Import again to 
 ### Prerequisites
 
 - All scoring complete
-- Consensus reached (all judges approved)
+- You approved, and no judge has an open concern
 - Deliberation closed (if it was opened)
 - Results finalized
 
@@ -907,9 +917,12 @@ A: Only via judges. Admin provides oversight and final award decisions, but scor
 - Either leave it where it is, or delete its scores and then move it
 
 ### Scenario: Can't finalize results
-- Check: Have ALL judges (across all departments) validated?
-- Check: Has admin validated?
-- Check: Is deliberation still open? Close it first.
+The text above the Finalize button names what is missing:
+- "You must approve the results" — approve on the Validation tab
+- "Close deliberation before finalizing" — close it first
+- "JudgeN raised a concern" — the judge presses Revise my validation and approves, or you press
+  **Clear concern** next to their name
+Judges who have not validated yet do not block Finalize.
 
 ---
 

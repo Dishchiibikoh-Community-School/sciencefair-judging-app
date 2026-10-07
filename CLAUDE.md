@@ -3,7 +3,7 @@
 > Single source of truth for AI-assisted development. Read it before changing anything.
 > Do not delete it. When code and this file disagree, the code wins — then fix this file.
 >
-> Last reviewed: 2026-10-07 (queued scores survive a refresh + unique project numbers; see Change History).
+> Last reviewed: 2026-10-07 (judging scenarios test + three fixes: reset sign-out, transfer save, concerns block Finalize; see Change History).
 
 ---
 
@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (247 checks). Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 357 checks across 16 files |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`). Start the dev server first (see the file header). 393 checks across 17 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -94,7 +94,7 @@ The v1 Vercel project was deleted 2026-09-30. **Do not resurrect v1.**
 │   ├── scan-form.test.mjs       ← mocked tests for api/scan-form.js (free, offline)
 │   ├── db-migrations.test.mjs   ← schema + all migrations on real Postgres (PGlite): RLS, RPCs
 │   ├── e2e/                     ← browser tests (playwright-core + mocked backend); screenshots in e2e/out/ (gitignored)
-│   │                              scan · judge-reg · signup · setup (departments/categories) · alerts (event health + IT-log diagnostics) · lifecycle
+│   │                              scan · judge-reg · signup · setup (departments/categories) · alerts (event health + IT-log diagnostics) · judging (2 judges, ties, deliberation, awards, transfer, reset) · lifecycle
 │   ├── registration-email.test.mjs ← mocked tests for the email: only the school's OWN branding, HTML escaping
 │   └── scan-form-smoke.mjs      ← real-Gemini smoke test for form scanning (needs GEMINI_API_KEY)
 ├── supabase/
@@ -438,7 +438,11 @@ Rankings are auto-computed (`projAvg`, `rankedProjectsIn`). The workflow validat
    alert) or a manual "Open Manually". Admin sees per-judge score bars, judges' scoring notes,
    deliberation notes (recommendation pill, flags) and assigns final awards. Judges get a
    💬 notes form (`delibDrafts`) while `deliberationOpen`. Persisted in `app_settings.deliberation_open`.
-5. **Finalize** — enabled when `adminValidation?.approved && !deliberationOpen`. Sets
+5. **Finalize** — allowed when `finalizeBlocker()` returns "": admin approved, deliberation closed,
+   and **no judge has an open concern** (`openConcerns()`, 2026-10-07). A judge who has not validated
+   does NOT block it, so a volunteer who leaves early can never stop the results; the admin can
+   **Clear concern** (`clearJudgeConcern()` deletes that validation row → Pending, logged
+   `JUDGE_CONCERN_CLEARED`). Checked on the button AND in `finalizeResults()` (rule 18). Sets
    `app_settings.results_finalized = "true"`, which **unlocks the Share tab**.
 
 ---
@@ -447,7 +451,9 @@ Rankings are auto-computed (`projAvg`, `rankedProjectsIn`). The workflow validat
 
 - `vite-plugin-pwa` precaches the app shell (JS, CSS, HTML, fonts).
 - On mount the judge session and scores restore instantly from `localStorage`, then are
-  verified against Supabase (a judge removed by reset is sent back to landing).
+  verified against Supabase (a judge removed by reset is sent back to landing). "Removed" needs a
+  SUCCESSFUL judges read (`judgesLoadedRef`): an empty list from a failed read keeps the session,
+  an empty list from a working read (after Reset All Data) signs the device out.
 - Offline scores queue in `sf_offline_queue` and flush on `online` / "Sync Now".
   `flushOfflineQueue()` has a concurrency guard and re-reads the queue after the loop so
   items added mid-flush are never lost.
@@ -647,6 +653,8 @@ getAnomalies()               // outliers > 8 pts from the project average
 
 // Validation & deliberation
 completedJudges()            // judges at 100% with total > 0
+openConcerns(), finalizeBlocker()   // judges with approved=false; why Finalize is unavailable ("" = allowed)
+clearJudgeConcern(judge)     // admin: delete that judge's validation row (back to Pending) — checks rows came back (rule 54)
 hasTie()                     // per-department tie detection
 consensusReached(), valProgress()
 submitJudgeValidation(ok), submitAdminValidation(ok)
@@ -952,6 +960,28 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-07 — Judging scenario tests; three fixes** (no migration). A new browser test,
+`scripts/e2e/judging.e2e.mjs` (36 checks), covers what the lifecycle test does not: two judges →
+averages and per-department ranking, a double-tapped Submit Score (one save, one log row), a concern,
+a tie → deliberation → judge notes (incl. a failed save) → admin awards → finalize → award badges on
+the public page with no names / notes, a scored project re-graded below 5 (36.0, never 42/36), device
+transfer (refused without approval, wrong PIN, one-time allowance, same judge row), sessions isolated
+per school, removed / reset judges' devices. It found three bugs:
+1. **After Reset All Data, every judge's device stayed signed in** as a judge that no longer existed.
+   The session check read "zero judges" as "server unreachable" and kept the session, so new scores
+   would be refused and pile up in the offline queue (which also blocks Sign Out). Now only a FAILED
+   judges read keeps the session (`judgesLoadedRef`).
+2. **Allow Transfer showed "Approved (active)" after a failed save** (rule 55) and logged the approval;
+   the judge was then refused on the new device. `saveTransferAllowances()` returns the error;
+   `confirmTransfer()` keeps the PIN box open with "NOT approved" and logs `JUDGE_TRANSFER_SAVE_FAILED`.
+3. **Results could be finalized over a judge's concern** while the screen said judges "must approve".
+   A concern now blocks Finalize (button + handler); a judge who has not validated does not. New
+   **Clear concern** button for the admin so a concern from a judge who has left can never lock the
+   event. Screen text, Help and both guides updated.
+The e2e mock's `register_judge` now mirrors the server's transfer rule (an existing alias needs an
+unexpired allowance, which is consumed). `scan.e2e`'s project_private check now waits (it failed on a
+cold dev server). The three bug checks fail against the previous code. Lint unchanged (26/5).
 
 **2026-10-07 — Alerts becomes an event-health board; IT logs explain themselves** (no migration).
 Checked against the live it_logs: 22 of the 30 newest WARN/ERROR rows were REALTIME_DOWN from phones
@@ -1574,9 +1604,11 @@ Already done (2026-10-06): school name + logo looked up server-side, all typed v
 - **Not verified here, reported and plausible:** `submit_registration()` has no idempotency key (a
   retried form creates a second project), it checks grade/division/category for presence rather than
   validity, and the two API handlers do not type-check input or time-box their upstream calls.
-- **By design, worth revisiting:** `canFinalize` is `adminValidation?.approved && !deliberationOpen` —
-  exactly what this file documents — so results CAN be finalized while a judge has scored nothing.
-  Consensus is advisory. If that is not wanted, the gate needs coverage checks, not a doc change.
+- **By design, worth revisiting:** results CAN be finalized while a judge has scored nothing or has
+  not validated — only an open CONCERN blocks Finalize (since 2026-10-07). If full coverage is
+  wanted, the gate needs coverage checks, not a doc change.
+- Locking judging while a judge's scoring screen is open is enforced in `submitScore()` but has no
+  browser test: the e2e mock has no realtime, so the lock cannot reach an open screen there.
 - **The offline queue can lose or resurrect a revision** (2026-10-06 review, partly fixed 2026-10-07).
   Fixed: a later submit that SUCCEEDS now removes the older queued copy (it was left in place, so a
   flush could overwrite the newer server value — and since 2026-10-07 it would also have been shown

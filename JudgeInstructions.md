@@ -187,6 +187,10 @@ internet connection and press the button again. The same applies to deliberation
 - Admin will see your validation status
 - You cannot change scores after validating
 - Admin may open deliberation if ties exist or concerns are raised
+- **A concern holds up the final results** until it is resolved. Once you and the admin have talked
+  it through, press **Revise my validation** and approve (the admin can also clear it)
+- If the admin resets the event (e.g. after a practice round), your device signs you out the next
+  time you open the app — just sign in again with your number and the invite code
 
 ---
 

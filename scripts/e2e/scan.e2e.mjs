@@ -54,8 +54,11 @@ await page.locator('input[type=password]').fill("correct-horse");
 await page.keyboard.press("Enter");
 await check("admin dashboard loads", () => page.locator(".adm-side").waitFor({ timeout: 6000 }));
 await page.locator(".nav-it", { hasText: "Projects" }).click();
-await check("project_private fetched with admin token after sign-in", async () =>
-  assert.ok(log.some(l => l.includes("/rest/v1/project_private") && l.includes("[admin]"))));
+await check("project_private fetched with admin token after sign-in", async () => {
+  // The admin-only refetch runs after sign-in; on a cold dev server it can land after the click.
+  for (let i = 0; i < 20 && !log.some(l => l.includes("/rest/v1/project_private") && l.includes("[admin]")); i++) await page.waitForTimeout(200);
+  assert.ok(log.some(l => l.includes("/rest/v1/project_private") && l.includes("[admin]")));
+});
 await check("seed project shows legacy-shape members + adviser + room", async () => {
   await page.getByText("Ana Ruiz, Ben Ortiz").waitFor({ timeout: 3000 });
   await page.getByText("Ms. Lee").first().waitFor();

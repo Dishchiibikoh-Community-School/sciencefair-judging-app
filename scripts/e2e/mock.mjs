@@ -257,9 +257,21 @@ export function installMock(page, store, log) {
           const ds = roster().length ? rosterDepts(n) : [...store.departments].sort((a, b) => a.ord - b.ord)
             .filter(x => x.judge_from != null && n >= x.judge_from && n <= x.judge_to);
           if (!ds.length) return json(route, 400, { code: "P0001", message: `Judge ${n} is not on this school's judge list. Check your number with the coordinator.` });
-          if (store.judges.some(j => j.alias === body.p_alias))
-            return json(route, 400, { code: "P0001", message: `${body.p_alias} is already signed in. Ask the admin to approve a device transfer.` });
           deptIds = ds.map(d => d.id);
+        }
+        // An alias already signed in (once per school; per department in legacy mode) gets back
+        // its EXISTING row only with an unexpired admin transfer allowance, which is consumed —
+        // mirrors register_judge() in 2026-10m.
+        const existing = store.judges.find(j => j.alias === body.p_alias && (school || j.department_id === body.p_department_id));
+        if (existing) {
+          const row = store.app_settings.find(r => r.key === "judge_transfer_allowances");
+          let allow = {}; try { allow = JSON.parse(row?.value || "{}") || {}; } catch { /* treat as none */ }
+          const until = Math.max(Number(allow[`${existing.department_id}:${body.p_alias}`]) || 0, Number(allow[body.p_alias]) || 0);
+          if (until < Date.now())
+            return json(route, 400, { code: "P0001", message: `${body.p_alias} is already signed in. Ask the admin to approve a device transfer.` });
+          delete allow[`${existing.department_id}:${body.p_alias}`]; delete allow[body.p_alias];
+          if (row) row.value = JSON.stringify(allow);
+          return json(route, 200, existing);
         }
         const num = /^Judge\d+$/.test(body.p_alias) ? parseInt(body.p_alias.slice(5)) : null;
         const row = { id: "j_" + Math.random().toString(36).slice(2, 8), school_id: SID, alias: body.p_alias,
