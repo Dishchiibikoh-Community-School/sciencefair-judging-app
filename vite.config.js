@@ -2,7 +2,12 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Build stamp shown in IT Logs and on every IT-log entry: "<commit>·<UTC build time>".
+// Vercel exposes VERCEL_GIT_COMMIT_SHA at build time; a local build says "local".
+const APP_BUILD = `${(process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7) || 'local'}·${new Date().toISOString().slice(0, 16).replace('T', ' ')}Z`
+
 export default defineConfig({
+  define: { __APP_BUILD__: JSON.stringify(APP_BUILD) },
   plugins: [
     react(),
     VitePWA({

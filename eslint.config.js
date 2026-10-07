@@ -15,7 +15,8 @@ export default defineConfig([
     ],
     languageOptions: {
       ecmaVersion: 2020,
-      globals: globals.browser,
+      // __APP_BUILD__ is the build stamp vite.config.js defines (shown in IT Logs).
+      globals: { ...globals.browser, __APP_BUILD__: "readonly" },
       parserOptions: {
         ecmaVersion: 'latest',
         ecmaFeatures: { jsx: true },
@@ -28,7 +29,7 @@ export default defineConfig([
   },
   // Vercel serverless functions run on Node, not in the browser.
   {
-    files: ['api/**/*.js'],
+    files: ['api/**/*.js', 'vite.config.js'],
     languageOptions: { globals: globals.node },
   },
 ])

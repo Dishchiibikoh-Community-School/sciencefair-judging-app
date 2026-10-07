@@ -436,6 +436,9 @@ export function installMock(page, store, log) {
     if (method !== "GET" && method !== "HEAD" && (store.failWrites || []).includes(table))
       return json(route, 503, { code: "PGRST000", message: "simulated database outage" });
 
+    // Simulated failed READ of a listed table (tests the LOAD_FAILED log, 2026-10-07).
+    if ((method === "GET" || method === "HEAD") && (store.failReads || []).includes(table))
+      return json(route, 503, { code: "PGRST000", message: "simulated read failure" });
     if (method === "GET" || method === "HEAD") {
       let out = rows.filter(r => matches(r, params));
       if (single) {

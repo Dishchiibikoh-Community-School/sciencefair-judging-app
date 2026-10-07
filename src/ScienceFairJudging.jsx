@@ -327,7 +327,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-07";
+const ADMIN_HELP_UPDATED = "2026-10-07b";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -363,6 +363,7 @@ const ADMIN_HELP = [
     "Keep the paper participation forms as the original record.",
     "Lock judging (sidebar → Lock Judging) when scoring time is over.",
     "Ask judges to stay on Wi-Fi when possible and press Sync Now if they see an offline warning.",
+    "Keep the Alerts tab open on event day: it shows scores stuck on a judge's tablet, projects nobody will score, departments with no judge, progress per department, idle judges and score outliers — all on one screen.",
   ]},
   { title: "Don't", icon: "⛔", items: [
     "Don't change the rubric after judging starts. Removing or adding a criterion, or changing its points, changes every total and ranking. (Renaming or rewording is safe.) The app asks you to confirm and offers a backup first.",
@@ -458,14 +459,18 @@ const ADMIN_HELP = [
     ["The lock button says \"Lock failed — retry\".", "The change did not reach the database (often an expired sign-in). Sign out and in, then try again — judges are NOT locked until it succeeds."],
     ["\"Rubric NOT saved\".", "Nothing was changed. Your edits are still on screen — sign in again if needed and press Save Rubric again."],
     ["A red message says something was \"NOT saved\" / \"NOT finalized\".", "The change did not reach the database, so nothing changed — the screen shows the real state. Check the internet (or sign out and in), then press the same button again. Applies to validations, awards, deliberation, Finalize and Reopen."],
-    ["Live updates seem frozen (judges' scores are not appearing).", "Refresh the page. IT Logs shows REALTIME_DOWN when the live connection dropped and REALTIME_RECONNECTED when it came back."],
+    ["Live updates seem frozen (judges' scores are not appearing).", "Alerts → Connection shows Live / Connecting… / Disconnected for this screen. If it is not Live, refresh the page. IT Logs records REALTIME_DOWN only when the connection stayed down for over 30 seconds while the screen was in use (a phone locking its screen is no longer logged), and REALTIME_RECONNECTED with how long it was down."],
+    ["Alerts shows a judge under \"Scores stuck on a device\".", "That tablet has scores it has not managed to send. Ask the judge to connect to Wi-Fi and press Sync Now. If it says \"server refusing\", the scores reach the server but are rejected — tell the judge NOT to sign out or clear the browser, and send the IT Logs report to your technical contact. A tablet that is offline cannot report at all; it appears here once it is back online but still cannot sync."],
+    ["Alerts lists a judge as idle.", "They are signed in, still have projects to score, and have not scored anything for 20 minutes. Check on them — a dead tablet, a wrong room, or simply a long conversation with a student."],
+    ["IT Logs shows LOAD_FAILED.", "One kind of data (named in the entry) could not be loaded on that device, so its screen may be out of date. Usually an expired sign-in or a dropped connection: refresh the page, or sign out and in."],
     ["A judge says their scores will not sync.", "IT Logs → look for OFFLINE_SYNC_FAILED with their alias. It shows how many scores are stuck and how long they have waited. The scores stay safe on their device; do NOT let them clear the browser. Send the report to your technical contact."],
     ["I cannot move a project to another department.", "If the project already has scores and the other department is judged differently — a different rubric, or one of them is comments-only — the move is refused, because those scores would be counted out of the wrong total or hidden from the results. Moving between departments judged the same way still works. To move it anyway, delete that project's scores first."],
     ["A project edit says \"Not saved\".", "Nothing was written and the list now shows what the database really holds. Your typing is still in the form — check the internet (or sign out and in) and press Save Changes again. IT Logs records it as PROJECT_UPDATE_FAILED."],
     ["\"Project number … is already used by another project\".", "Every project number is unique in your school — another admin probably just used it. Type a different number, or clear the box to use the next free one, and save again. Nothing was saved. (If you left the number the form filled in, the app picks the next free one by itself.)"],
     ["Reset says some steps failed.", "Nothing is guaranteed cleared — the old judges and scores may still be live. Check the internet and press Reset everything again; it is safe to repeat. Only the green \"Reset Complete\" means it finished. IT Logs records FULL_RESET_FAILED."],
     ["Judges did not get a project I just added or moved.", "If IT Logs shows JUDGE_ASSIGNMENTS_SYNC_FAILED the server could not update their lists, so nothing was changed — your panels are untouched. Once the connection is back, re-save the judge grid (Setup → Judges) or press Rebalance on the Judges tab."],
-    ["Something looks wrong.", "IT Logs tab (Admin PIN) → copy the report and send it to your technical contact. App crashes on any device are recorded automatically as CLIENT_ERROR."],
+    ["Something looks wrong.", "IT Logs tab (Admin PIN) → pick \"last 2 hours\" → 📋 Copy Full Report, and send it to your technical contact. Every entry says which app version (build) and which device (admin, judge number or visitor) it came from. App crashes on any device are recorded automatically as CLIENT_ERROR."],
+    ["Can I clear the IT logs?", "No — the IT log is permanent, like the activity log. Use the level and time filters to see only what matters."],
   ]},
 ];
 
@@ -667,7 +672,46 @@ function fmt(ts)    { return new Date(ts).toLocaleTimeString([], { hour:"2-digit
 function fmtFull(ts){ return new Date(ts).toLocaleString([], { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" }); }
 function fmtISO(ts) { return new Date(ts).toISOString(); }
 function itId()     { return "EVT-" + Math.random().toString(36).slice(2,8).toUpperCase(); }
+
+// ── DIAGNOSTIC CONTEXT (stamped on every IT-log entry) ──
+// The build this page runs: "<commit>·<build time>" from vite.config.js (`__APP_BUILD__`).
+// Installed apps keep a cached copy, so a judge's tablet can run an OLDER build than the one
+// deployed — without this nothing said which code produced a log entry ("App Version: 1.0.0").
+const APP_BUILD = typeof __APP_BUILD__ !== "undefined" ? __APP_BUILD__ : "unknown";
+// One id per page load, so one device's events can be followed in order across the log.
+const SESSION_ID = Math.random().toString(36).slice(2, 8).toUpperCase();
+function isStandaloneApp() {
+  try { return !!(window.matchMedia?.("(display-mode: standalone)").matches || navigator.standalone === true); }
+  catch { return false; }
+}
+// IT-log entries a device could not write (offline, or the request failed). Kept on the device
+// and sent with their original time once it is back online — before this, everything a judge's
+// tablet logged while offline (SCORE_QUEUED included) was lost, so nobody could see it later.
+// IT Logs loads the newest N entries (PostgREST caps a read at 1,000 rows anyway) and says so.
+const IT_LOG_LOAD_MAX = 1000;
+const IT_RANGES = [
+  { id: "1h",  label: "last hour",     hours: 1 },
+  { id: "2h",  label: "last 2 hours",  hours: 2 },
+  { id: "24h", label: "last 24 hours", hours: 24 },
+  { id: "all", label: "everything loaded", hours: 0 },
+];
+const IT_OUTBOX_KEY = "sf_it_outbox";
+const IT_OUTBOX_MAX = 50;
+function readItOutbox() {
+  try { const q = JSON.parse(localStorage.getItem(IT_OUTBOX_KEY) || "[]"); return Array.isArray(q) ? q : []; }
+  catch { return []; }
+}
+function writeItOutbox(rows) {
+  try { localStorage.setItem(IT_OUTBOX_KEY, JSON.stringify(rows.slice(-IT_OUTBOX_MAX))); } catch { /* storage full / private mode */ }
+}
 function requiresAbstract(proj) { return (parseInt(proj?.grade) || 0) >= 5; }
+
+// An unrun migration: the column / table does not exist yet. Module level because loaders
+// (noteLoadError) use them too and those are declared earlier in App.
+const MISSING_COL = (err) =>
+  err && (err.code === "42703" || err.code === "PGRST204" || /column .* does not exist/i.test(err.message || ""));
+const MISSING_TABLE = (err) =>
+  err && (err.code === "42P01" || err.code === "PGRST205" || /could not find the table|relation .* does not exist/i.test(err.message || ""));
 
 // "This RPC does not exist on this database" — as opposed to any other failure. Used to decide
 // whether a compatibility fallback is allowed to run: a fallback that changes behaviour must
@@ -1120,6 +1164,24 @@ const CSS = `
   .alert-msg span{font-size:.9rem;color:var(--dim);}
   .sys-row{display:flex;align-items:center;justify-content:space-between;padding:.7rem 0;border-bottom:1px solid var(--bd);font-size:.95rem;}
   .sys-row:last-child{border:none;}
+  .hb-summary{border-radius:var(--r);padding:.8rem 1.1rem;font-weight:600;margin-bottom:1rem;}
+  .hb-summary.good{background:var(--green-l);color:var(--green);}
+  .hb-summary.bad{background:var(--amber-l);color:#92400e;}
+  .hb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:1rem;}
+  .hb-card{margin-bottom:1rem;}
+  .hb-ok{color:var(--green);font-size:.9rem;}
+  .hb-bad{color:var(--red);font-weight:700;margin-bottom:.3rem;}
+  .hb-note{display:block;font-size:.8rem;color:var(--dim);margin-top:.2rem;}
+  .hb-dim{font-weight:400;font-size:.78rem;color:var(--dim);}
+  .hb-list{margin:.3rem 0 0;padding-left:1.1rem;font-size:.9rem;line-height:1.6;}
+  .hb-item{padding:.45rem 0;border-bottom:1px solid var(--bd);font-size:.9rem;overflow-wrap:anywhere;}
+  .hb-item:last-child{border:none;}
+  .hb-act{width:auto !important;margin-left:.5rem;padding:.15rem .6rem !important;}
+  .hb-prog{margin-bottom:.7rem;}
+  .hb-prog-head{display:flex;justify-content:space-between;gap:.5rem;flex-wrap:wrap;font-size:.88rem;margin-bottom:.25rem;}
+  .hb-totals{display:flex;flex-wrap:wrap;gap:.35rem .8rem;font-family:var(--ff-m);font-size:.8rem;margin-top:.25rem;}
+  .hb-flag{color:var(--red);font-weight:700;}
+  .it-range{background:#0d1b30;color:#e2e8f5;border:1px solid #1c2e4a;border-radius:8px;padding:.35rem .6rem;font-size:.8rem;}
 
   /* SHARE */
   .share-status{display:flex;align-items:center;gap:.65rem;padding:1.1rem 1.3rem;border-radius:10px;margin-bottom:1.2rem;}
@@ -1763,7 +1825,13 @@ export default function App() {
   const flushingRef = useRef(false); // guards against concurrent offline-queue flushes
   // Diagnostics. The mount effect and window error listeners close over the FIRST render,
   // where currentSchool is still null — they pass the school id to addItLog explicitly.
-  const realtimeDownRef = useRef(false); // true after a realtime drop, so the recovery is logged once
+  // Live-updates connection of THIS device: "connecting" | "live" | "down" (Alerts → Event health).
+  const [realtime, setRealtime] = useState({ status: "connecting", since: null });
+  // Who this device is, for every IT-log entry (see addItLog). Kept current by an effect.
+  const logCtxRef = useRef({ role: "visitor", judgeId: null, alias: null });
+  // Clock for the Alerts health board ("idle 20 min", "errors in the last hour"). Ticks every
+  // 30 s while an admin is signed in — reading Date.now() during render is impure (rule 37).
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const clientErrRef    = useRef({ count: 0, seen: new Set() }); // CLIENT_ERROR de-dupe + per-session cap
   const [lastSyncAt, setLastSyncAt] = useState(() => {
     try {
@@ -1872,6 +1940,7 @@ export default function App() {
   const [activityFilter, setActivityFilter] = useState("");
   const [itLogs,       setItLogs]       = useState([]);
   const [itFilter,     setItFilter]     = useState("ALL");
+  const [itRange,      setItRange]      = useState("all");   // IT_RANGES id
   const [itExpanded,   setItExpanded]   = useState({});
   const [reportCopied, setReportCopied] = useState(false);
   const [snapCopied,   setSnapCopied]   = useState(false);
@@ -1977,10 +2046,30 @@ export default function App() {
   // is authenticated — RLS blocks anonymous inserts anyway, so an inline seed here
   // silently failed for judges and the public). If the table is empty we keep the
   // DEFAULT_* fallback so the UI still renders.
+  // Loaders used to drop error responses on the floor: an expired session, a permission
+  // problem or a failed request left the screen on old or empty data and nothing was logged.
+  // One LOAD_FAILED per table + error per page load (realtime re-runs loaders constantly).
+  const loadErrSeenRef = useRef(null);
+  function noteLoadError(table, error, sid) {
+    if (!error) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;   // offline: expected, the banner says so
+    if (MISSING_TABLE(error) || MISSING_COL(error)) return;              // an unrun migration: those paths log their own
+    // Admin-only tables (no privileges for anyone else) refuse every judge and visitor — expected.
+    if (error.code === "42501" && ["project_private", "judge_labels"].includes(table)
+        && logCtxRef.current.role !== "admin") return;
+    const seen = loadErrSeenRef.current || (loadErrSeenRef.current = new Set());
+    const key = `${table}:${error.code || error.message}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    addItLog("ERROR","DB","LOAD_FAILED",`Could not load ${table} — this screen may show old or missing data`,
+      { table, code: error.code || null, error: String(error.message || "").slice(0, 200) }, sid);
+  }
+
   async function loadDepartments(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
-    const { data } = await supabase.from("departments").select("*").eq("school_id", schoolId).order("ord");
+    const { data, error } = await supabase.from("departments").select("*").eq("school_id", schoolId).order("ord");
+    noteLoadError("departments", error, schoolId);
     if (data && data.length > 0) {
       // scoring_mode arrives undefined if migration 2026-10f has not been run —
       // default to 'scored', which is exactly how the app behaved before it existed.
@@ -2001,6 +2090,7 @@ export default function App() {
           "The categories table is missing — using the built-in list. Run migration 2026-10e.",
           { error: error.message });
       }
+      noteLoadError("categories", error, schoolId);
       return;
     }
     if (data && data.length > 0) {
@@ -2019,6 +2109,7 @@ export default function App() {
       const missing = error.code === "42P01" || error.code === "PGRST205";
       if (missing) addItLog("WARN", "DB", "BRANDING_TABLE_MISSING",
         "The school_branding table is missing — run migration 2026-10l.", { error: error.message }, schoolId);
+      noteLoadError("school_branding", error, schoolId);
       setBranding(prev => (prev.schoolId === schoolId && !missing) ? prev
         : { schoolId, logoPath: LEGACY_LOGOS[schoolId]?.path || null, posterPath: null, posterAlt: "", missing });
       return;
@@ -2032,10 +2123,12 @@ export default function App() {
     // Student/adviser names live in project_private (admin-only RLS, migration 2026-10b).
     // For judges and the public that query returns nothing, so names are simply absent.
     // Before 2026-10b the names were still columns on `projects` — fall back to those.
-    const [{ data }, { data: priv }] = await Promise.all([
+    const [{ data, error }, { data: priv, error: privErr }] = await Promise.all([
       supabase.from("projects").select("*").eq("school_id", schoolId).order("created_at"),
       supabase.from("project_private").select("project_id, advisor_name, group_members").eq("school_id", schoolId),
     ]);
+    noteLoadError("projects", error, schoolId);
+    noteLoadError("project_private", privErr, schoolId);
     if (data) {
       const privById = new Map((priv || []).map(x => [x.project_id, x]));
       setProjects(data.map(r => {
@@ -2055,34 +2148,41 @@ export default function App() {
   async function loadJudges(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
-    const { data } = await supabase.from("judges").select("*").eq("school_id", schoolId).order("joined_at");
+    const { data, error } = await supabase.from("judges").select("*").eq("school_id", schoolId).order("joined_at");
+    noteLoadError("judges", error, schoolId);
     if (data) setJudges(data.map(dbToJudge));
   }
   async function loadScores(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
-    const { data } = await supabase.from("scores").select("*").eq("school_id", schoolId);
+    const { data, error } = await supabase.from("scores").select("*").eq("school_id", schoolId);
+    noteLoadError("scores", error, schoolId);
     // Never let the server's copy hide a score that is still waiting to sync on this device.
     if (data) setScores({ ...scoresToMap(data), ...queuedScoresFor(schoolId) });
   }
   async function loadLog(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
-    const { data } = await supabase.from("activity_log").select("*").eq("school_id", schoolId).order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("activity_log").select("*").eq("school_id", schoolId).order("created_at", { ascending: false });
+    noteLoadError("activity_log", error, schoolId);
     if (data) setLog(data.map(dbToLog));
   }
   async function loadItLogs(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
-    const { data } = await supabase.from("it_logs").select("*").eq("school_id", schoolId).order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("it_logs").select("*").eq("school_id", schoolId)
+      .order("created_at", { ascending: false }).limit(IT_LOG_LOAD_MAX);
+    noteLoadError("it_logs", error, schoolId);
     if (data) setItLogs(data.map(dbToItLog));
   }
   async function loadShare(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("share_links").select("*").eq("school_id", schoolId).is("revoked_at", null)
       .order("created_at", { ascending: false }).limit(1);
+    noteLoadError("share_links", error, schoolId);
+    if (error) return;   // keep what is showing — a failed read is not "no link"
     if (data?.length) {
       const link = data[0];
       setShareToken(link.token); setShareEnabled(true);
@@ -2095,7 +2195,8 @@ export default function App() {
   async function loadSettings(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
-    const { data } = await supabase.from("app_settings").select("*").eq("school_id", schoolId);
+    const { data, error } = await supabase.from("app_settings").select("*").eq("school_id", schoolId);
+    noteLoadError("app_settings", error, schoolId);
     if (data) {
       const map = Object.fromEntries(data.map(r => [r.key, r.value]));
       setLocked(map.locked === "true");
@@ -2214,7 +2315,8 @@ export default function App() {
   async function loadValidations(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
-    const { data } = await supabase.from("validations").select("*").eq("school_id", schoolId);
+    const { data, error } = await supabase.from("validations").select("*").eq("school_id", schoolId);
+    noteLoadError("validations", error, schoolId);
     if (data) {
       const jv = {};
       let av = null;
@@ -2230,13 +2332,15 @@ export default function App() {
   async function loadDelibNotes(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
-    const { data } = await supabase.from("deliberation_notes").select("*").eq("school_id", schoolId);
+    const { data, error } = await supabase.from("deliberation_notes").select("*").eq("school_id", schoolId);
+    noteLoadError("deliberation_notes", error, schoolId);
     if (data) setDeliberationNotes(delibNotesToMap(data));
   }
   async function loadFinalDecisions(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
-    const { data } = await supabase.from("final_decisions").select("*").eq("school_id", schoolId);
+    const { data, error } = await supabase.from("final_decisions").select("*").eq("school_id", schoolId);
+    noteLoadError("final_decisions", error, schoolId);
     if (data) setFinalDecisions(finalDecisionsToMap(data));
   }
   // ── Judge roster + panels (2026-10k) ──
@@ -2244,7 +2348,7 @@ export default function App() {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
     const { data, error } = await supabase.from("judge_roster").select("judge_number, department_id").eq("school_id", schoolId);
-    if (error) { setHasRoster(false); return; }   // migration 2026-10k not run: ranges stay in charge
+    if (error) { noteLoadError("judge_roster", error, schoolId); setHasRoster(false); return; }   // migration 2026-10k not run: ranges stay in charge
     setHasRoster(true);
     setRoster(data.map(r => ({ number: r.judge_number, department_id: r.department_id })));
   }
@@ -2252,6 +2356,7 @@ export default function App() {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
     const { data, error } = await supabase.from("project_judges").select("project_id, judge_number").eq("school_id", schoolId);
+    noteLoadError("project_judges", error, schoolId);
     if (!error && data) setProjectJudges(data);
   }
   // Admin-only names behind judge numbers (RLS: nobody else can read them).
@@ -2259,6 +2364,7 @@ export default function App() {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
     const { data, error } = await supabase.from("judge_labels").select("judge_number, label").eq("school_id", schoolId);
+    noteLoadError("judge_labels", error, schoolId);
     if (!error && data) setJudgeLabels(Object.fromEntries(data.map(r => [r.judge_number, r.label])));
   }
 
@@ -2269,6 +2375,7 @@ export default function App() {
     if (!schoolId) return;
     const { data, error } = await supabase.from("rubrics")
       .select("id, name, criteria, is_active, created_at").eq("school_id", schoolId).order("created_at");
+    noteLoadError("rubrics", error, schoolId);
     if (error || !data) return;
     setRubrics(data.map(r => ({ id: r.id, name: r.name || "Rubric", is_active: !!r.is_active,
       criteria: validCriteria(r.criteria) ? r.criteria : DEFAULT_RUBRIC })));
@@ -2688,8 +2795,44 @@ export default function App() {
     // ── Step 4: School-scoped realtime ───────────────────────
     let channel;
     let unmounting = false;
+    // A drop is logged only once the connection has been down for RT_GRACE_MS while the page
+    // was VISIBLE. Every phone and tablet drops its connection when the screen locks; logging
+    // each of those (as until 2026-10-07) put dozens of REALTIME_DOWN warnings a day in the log
+    // and would have buried real problems on event day.
+    const RT_GRACE_MS = 30000;
+    let rtDownAt = 0, rtDownStatus = "", rtDownErr = null, rtLogged = false, rtTimer = null;
+    let visibleSince = 0;   // set in setupChannel (a Date.now() here reads as render-time impurity)
+    const rtCheck = (sid) => {
+      rtTimer = null;
+      if (!rtDownAt || rtLogged || document.visibilityState !== "visible") return;
+      const waitDown = rtDownAt + RT_GRACE_MS - Date.now();
+      const waitVisible = visibleSince + RT_GRACE_MS - Date.now();
+      const wait = Math.max(waitDown, waitVisible);
+      if (wait > 0) { rtTimer = setTimeout(() => rtCheck(sid), wait); return; }
+      rtLogged = true;
+      setRealtime({ status: "down", since: rtDownAt });   // "Connecting…" that never connected is down too
+      addItLog("WARN","SYSTEM","REALTIME_DOWN","Live updates disconnected for over 30 seconds — screens may be stale until it reconnects",
+        { status: rtDownStatus, error: rtDownErr, downForSec: Math.round((Date.now() - rtDownAt) / 1000) }, sid);
+    };
+    let rtSid = null;
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        visibleSince = Date.now();
+        if (rtDownAt && !rtLogged && !rtTimer && rtSid) rtTimer = setTimeout(() => rtCheck(rtSid), RT_GRACE_MS);
+      } else if (rtTimer) { clearTimeout(rtTimer); rtTimer = null; }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
     const setupChannel = (sid) => {
       if (!sid) return;
+      // resolveSchool() can resolve AFTER this effect was cleaned up (React Strict Mode mounts twice
+      // in development; a fast navigation can too) — a channel opened then would never be closed.
+      if (unmounting) return;
+      visibleSince = document.visibilityState === "visible" ? Date.now() : 0;
+      // The grace starts NOW, not at the first error: when the socket can never connect at all
+      // (blocked Wi-Fi, a firewall) supabase-js just keeps retrying and the subscribe callback
+      // never reports anything — such a device used to sit on "connecting" forever, unlogged.
+      rtDownAt = Date.now(); rtDownStatus = "NEVER_CONNECTED"; rtSid = sid;
+      if (document.visibilityState === "visible") rtTimer = setTimeout(() => rtCheck(sid), RT_GRACE_MS);
       const f = (table) => `school_id=eq.${sid}`;
       channel = supabase.channel(`school-${sid}`)
         // Wrap the loaders: passing them directly hands the realtime payload in as `sid`,
@@ -2758,16 +2901,22 @@ export default function App() {
         })
         .subscribe((status, err) => {
           // Without this a dropped channel was invisible: the admin dashboard simply stopped
-          // updating. Log each drop once, and the recovery. CLOSED during unmount is expected.
+          // updating. CLOSED during unmount is expected. The Alerts tab shows the live state;
+          // the IT log gets a drop only after RT_GRACE_MS of visible downtime (see rtCheck).
+          if (unmounting) return;
           if (status === "SUBSCRIBED") {
-            if (realtimeDownRef.current) {
-              realtimeDownRef.current = false;
-              addItLog("INFO","SYSTEM","REALTIME_RECONNECTED","Live updates reconnected", {}, sid);
+            if (rtTimer) { clearTimeout(rtTimer); rtTimer = null; }
+            if (rtLogged) {
+              addItLog("INFO","SYSTEM","REALTIME_RECONNECTED","Live updates reconnected",
+                { downForSec: Math.round((Date.now() - rtDownAt) / 1000) }, sid);
             }
-          } else if (!unmounting && !realtimeDownRef.current) {
-            realtimeDownRef.current = true;
-            addItLog("WARN","SYSTEM","REALTIME_DOWN","Live updates disconnected — screens may be stale until it reconnects",
-              { status, error: err?.message || null, online: navigator.onLine }, sid);
+            rtDownAt = 0; rtLogged = false;
+            setRealtime({ status: "live", since: Date.now() });
+          } else {
+            if (!rtDownAt) rtDownAt = Date.now();
+            rtDownStatus = status; rtDownErr = err?.message || null; rtSid = sid;
+            setRealtime({ status: "down", since: rtDownAt });
+            if (!rtLogged && !rtTimer && document.visibilityState === "visible") rtTimer = setTimeout(() => rtCheck(sid), RT_GRACE_MS);
           }
         });
     };
@@ -2781,6 +2930,8 @@ export default function App() {
     return () => {
       unmounting = true;
       authSub.unsubscribe();
+      document.removeEventListener("visibilitychange", onVisibility);
+      if (rtTimer) clearTimeout(rtTimer);
       if (channel) supabase.removeChannel(channel);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2838,6 +2989,20 @@ export default function App() {
       }
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── DIAGNOSTIC CONTEXT ────────────────────────────────────
+  useEffect(() => {
+    logCtxRef.current = adminHere ? { role: "admin", judgeId: null, alias: null }
+      : judge ? { role: "judge", judgeId: judge.id, alias: judge.alias }
+      : { role: "visitor", judgeId: null, alias: null };
+  }, [adminHere, judge]);
+
+  useEffect(() => {
+    if (!adminHere) return;
+    const first = setTimeout(() => setNowTick(Date.now()), 0);   // the page may have been open for hours
+    const t = setInterval(() => setNowTick(Date.now()), 30000);
+    return () => { clearTimeout(first); clearInterval(t); };
+  }, [adminHere]);
 
   // ── SESSION SYNC (after Supabase loads) ───────────────────
   // Refresh judge from DB, or clear if admin has reset all data.
@@ -2928,6 +3093,7 @@ export default function App() {
     // Guard against overlapping flushes (rapid online/offline flapping, or a manual
     // "Sync Now" landing on top of the automatic flush) — two concurrent passes
     // would race on the same localStorage key.
+    flushItOutbox();   // "Sync Now" also sends log entries written while offline
     if (flushingRef.current) return;
     const queue = JSON.parse(localStorage.getItem("sf_offline_queue") || "[]");
     if (!queue.length) return;
@@ -2948,15 +3114,6 @@ export default function App() {
       const { error } = await supabase.from("scores").upsert(item.data, { onConflict: "judge_id,project_id" });
       if (error) { failedKeys.add(key); failErrors.push(error.code || error.message || "unknown"); }
     }
-    // Before this, a score the server kept REJECTING (e.g. the judge row was removed by a
-    // reset) retried forever with nothing in the log — only successes were recorded.
-    if (failedKeys.size > 0) {
-      const oldest = Math.min(...queue.map(i => i.ts || Date.now()));
-      addItLog("WARN","DB","OFFLINE_SYNC_FAILED",`${failedKeys.size} queued score(s) could not be synced — still on the device`,
-        { failed: failedKeys.size, attempted: queue.length, errors: [...new Set(failErrors)].slice(0, 5),
-          oldestWaitMin: Math.round((Date.now() - oldest) / 60000), online: navigator.onLine,
-          judgeId: judge?.id || null, alias: judge?.alias || null });
-    }
     // Re-read localStorage after the async loop — submitScore may have added new items
     // while we were awaiting upserts. Keep items that either failed (need retry) or
     // were added after this flush started (not in the original batch).
@@ -2967,12 +3124,23 @@ export default function App() {
     });
     localStorage.setItem("sf_offline_queue", JSON.stringify(next));
     setOfflineQueue(next);
+    const queueJudgeId = judge?.id || queue[0]?.data?.judge_id || null;
+    // Before this, a score the server kept REJECTING (e.g. the judge row was removed by a
+    // reset) retried forever with nothing in the log — only successes were recorded.
+    if (failedKeys.size > 0) {
+      const oldest = Math.min(...queue.map(i => i.ts || Date.now()));
+      addItLog("WARN","DB","OFFLINE_SYNC_FAILED",`${failedKeys.size} queued score(s) could not be synced — still on the device`,
+        { failed: failedKeys.size, attempted: queue.length, errors: [...new Set(failErrors)].slice(0, 5),
+          oldestWaitMin: Math.round((Date.now() - oldest) / 60000), online: navigator.onLine,
+          judgeId: queueJudgeId, alias: judge?.alias || null, queueLength: next.length });
+    }
     const syncedCount = queue.length - failedKeys.size;
     if (syncedCount > 0) {
       const syncedAt = Date.now();
       setLastSyncAt(syncedAt);
       localStorage.setItem("sf_last_sync_at", String(syncedAt));
-      addItLog("INFO","DB","OFFLINE_QUEUE_FLUSHED",`Synced ${syncedCount} queued score(s) to server`,{ synced: syncedCount });
+      addItLog("INFO","DB","OFFLINE_QUEUE_FLUSHED",`Synced ${syncedCount} queued score(s) to server`,
+        { synced: syncedCount, judgeId: queueJudgeId, queueLength: next.length });
     }
   }
 
@@ -4125,7 +4293,8 @@ export default function App() {
   async function loadScoreBackups(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
-    const { data } = await supabase.from("score_backups").select("id, label, created_at").eq("school_id", schoolId).order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("score_backups").select("id, label, created_at").eq("school_id", schoolId).order("created_at", { ascending: false });
+    noteLoadError("score_backups", error, schoolId);
     if (data) setScoreBackups(data);
   }
 
@@ -4356,24 +4525,61 @@ export default function App() {
   // `sid` is only needed by callers that run outside a render with currentSchool set
   // (the mount effect, realtime status, window error listeners).
   function addItLog(level, module, event, detail, payload = {}, sid) {
-    const entry = { id: itId(), ts: Date.now(), level, module, event, detail, payload };
+    // Who / which build / which page load — so an entry explains itself in a pasted report.
+    // logCtxRef is kept current by an effect: the mount effect and window listeners call this
+    // from the FIRST render's closure, where judge / adminHere would still read as empty.
+    const ctx = { build: APP_BUILD, session: SESSION_ID, ...logCtxRef.current,
+      online: typeof navigator !== "undefined" ? navigator.onLine : null, app: isStandaloneApp() };
+    const fullPayload = { ...payload, ctx };
+    const entry = { id: itId(), ts: Date.now(), level, module, event, detail, payload: fullPayload };
     setItLogs(p => [entry, ...p]);
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
-    // Never call addItLog from this callback — a failing insert would loop.
-    supabase.from("it_logs").insert({ school_id: schoolId, id: entry.id, level, module, event, detail, payload })
-      .then(({ error }) => { if (error) console.warn("[it_logs] not saved:", error.message); });
+    // created_at is left to the server (a tablet's clock can be wrong) — except for an entry that
+    // has to wait in the outbox, which keeps the device's time and says so (ctx.delayed).
+    const row = { school_id: schoolId, id: entry.id, level, module, event, detail, payload: fullPayload };
+    // Never call addItLog from this callback — a failing insert would loop. A failed write goes
+    // to the device outbox instead and is sent by flushItOutbox() once the device is online.
+    supabase.from("it_logs").insert(row)
+      .then(({ error }) => {
+        if (!error) return;
+        console.warn("[it_logs] not saved:", error.message);
+        if (error.code === "23505") return;   // it did arrive; only the reply was lost
+        writeItOutbox([...readItOutbox(), { ...row, created_at: new Date(entry.ts).toISOString(),
+          payload: { ...fullPayload, ctx: { ...ctx, delayed: true } } }]);
+      });
   }
+
+  // Sends IT-log entries this device could not write earlier, with their original times.
+  function flushItOutbox() {
+    const rows = readItOutbox();
+    if (!rows.length || (typeof navigator !== "undefined" && !navigator.onLine)) return;
+    writeItOutbox([]);
+    supabase.from("it_logs").insert(rows)
+      .then(({ error }) => {
+        // 23505 = some were already written (the earlier reply was lost) — drop the batch rather
+        // than resend it forever. Anything else: keep them for the next attempt.
+        if (error && error.code !== "23505") writeItOutbox([...rows, ...readItOutbox()]);
+      });
+  }
+  // Log entries this device could not send earlier go out once it is online again.
+  useEffect(() => {
+    if (isOnline && !loading) flushItOutbox();
+  }, [isOnline, loading]);
 
   function buildReport(logs) {
     const now = new Date().toISOString();
     const header = [
       "╔══════════════════════════════════════════════════════════════╗",
-      "║        SCIENCE FAIR APP — IT DIAGNOSTIC REPORT              ║",
+      "║        QRITIKO — IT DIAGNOSTIC REPORT                        ║",
       "╚══════════════════════════════════════════════════════════════╝",
       `Generated  : ${now}`,
-      `App Version: 1.0.0`,
-      `Filter     : ${itFilter}`,
+      `School     : ${currentSchool?.name || "?"} — ${window.location.origin}/s/${currentSchool?.slug || "?"}`,
+      `App build  : ${APP_BUILD}   (this admin screen; each entry's ctx.build says what THAT device ran)`,
+      `Session    : ${SESSION_ID}   (this page load)`,
+      `Filter     : level ${itFilter} · ${IT_RANGES.find(r => r.id === itRange)?.label || "all"}`,
+      `Loaded     : newest ${itLogs.length} entr${itLogs.length === 1 ? "y" : "ies"}${itLogs.length >= IT_LOG_LOAD_MAX ? " (limit reached — older ones are in the database)" : ""}`,
+      `Live conn. : ${realtime.status}   Online: ${navigator.onLine}`,
       "",
       "── SYSTEM STATE ──────────────────────────────────────────────",
       `Judges Registered : ${judges.length}`,
@@ -4382,7 +4588,8 @@ export default function App() {
       `Completion        : ${Math.round((totalScored()/possible())*100)||0}%`,
       `Judging Locked    : ${locked}`,
       `Results Link Live : ${isLinkLive()}`,
-      shareToken ? `Share Token       : ${shareToken}` : `Share Token       : (none)`,
+      // The token IS the public results link — never put it in a report that gets pasted around.
+      `Share Token       : ${shareToken ? "(set — hidden)" : "(none)"}`,
       `Deliberation      : ${deliberationOpen ? "Open" : "Closed"}`,
       `Delib Notes       : ${Object.keys(deliberationNotes).length}`,
       `Decisions         : ${Object.values(finalDecisions).filter(d => d.finalized).length} finalized / ${projects.length} total`,
@@ -4408,11 +4615,13 @@ export default function App() {
   function buildSnapshot() {
     return [
       `SNAPSHOT @ ${new Date().toISOString()}`,
+      `school       = "${currentSchool?.slug || "?"}"  build = "${APP_BUILD}"  session = "${SESSION_ID}"`,
+      `realtime     = ${realtime.status}  online = ${isOnline}  this_device_queue = ${offlineQueue.length}`,
       `judges       = ${JSON.stringify(judges.map(j=>({id:j.id,alias:j.alias,projects:j.projects})))}`,
       `scores_count = ${totalScored()}`,
       `locked       = ${locked}`,
       `share_live   = ${isLinkLive()}`,
-      `share_token  = "${shareToken||"none"}"`,
+      `share_token  = ${shareToken ? "(set — hidden)" : "none"}`,
       `share_expiry = "${shareExpiry}"`,
       `anomalies    = ${JSON.stringify(getAnomalies())}`,
       `delib_open   = ${deliberationOpen}`,
@@ -4422,8 +4631,16 @@ export default function App() {
     ].join("\n");
   }
 
+  // The entries IT Logs shows: by level and by time window ("last 2 hours" is what a report
+  // about something that just happened needs — not 1,000 entries going back days).
+  function itLogsInView() {
+    const hours = IT_RANGES.find(r => r.id === itRange)?.hours || 0;
+    const since = hours ? nowTick - hours * 3600000 : 0;
+    return itLogs.filter(e => (itFilter === "ALL" || e.level === itFilter) && e.ts >= since);
+  }
+
   function handleCopyReport() {
-    const logs = itFilter === "ALL" ? itLogs : itLogs.filter(e => e.level === itFilter);
+    const logs = itLogsInView();
     navigator.clipboard.writeText(buildReport(logs)).catch(()=>{});
     setReportCopied(true); setTimeout(() => setReportCopied(false), 2500);
   }
@@ -4563,11 +4780,6 @@ export default function App() {
     return (hits.reduce((s,[,v]) => s + (v.criteria?.[rid] || 0), 0) / hits.length).toFixed(1);
   }
 
-  // Total points of the DEFAULT rubric. Only a fallback now — anything about one project
-  // must use projectMax(proj), because departments can use different rubrics.
-  function rubricMax() {
-    return (defaultRubricRow()?.criteria || DEFAULT_RUBRIC).reduce((s, r) => s + (Number(r.max) || 0), 0);
-  }
   // Points available for one project under its department's rubric — grades below 5
   // are exempt from the abstract (a no-op on rubrics that have none).
   function projectMax(proj) {
@@ -4653,7 +4865,10 @@ export default function App() {
   // disagreement — so the Alerts tab would have flagged almost every judge. Rule 22:
   // never hardcode anything derived from the max score.
   const ANOMALY_PCT = 0.19;
-  function getAnomalies() {
+  // One entry per project with an outlier: EVERY judge's total, so the admin sees the whole
+  // spread rather than one name. With exactly two judges both are always equally far from the
+  // average, so both get flagged — onlyTwo lets the screen say so instead of blaming either.
+  function getOutlierGroups() {
     const out = [];
     // Comment-only departments have no totals to deviate from.
     scoredProjects().forEach(p => {
@@ -4662,20 +4877,95 @@ export default function App() {
       const max = projectMax(p);
       if (!max) return;
       const limit = max * ANOMALY_PCT;
-      const tots = hits.map(([,s]) => getTotal(s, p));
-      const avg  = tots.reduce((a,b) => a+b, 0) / tots.length;
-      hits.forEach(([key,s]) => {
-        const t = getTotal(s, p);
-        if (Math.abs(t - avg) > limit) {
-          // Exact id match — startsWith() could pick the wrong judge if one id
-          // happened to be a prefix of another.
-          const judgeId = key.slice(0, key.lastIndexOf(`_${p.id}`));
-          const jj = judges.find(j => j.id === judgeId);
-          out.push({ project: p.title, judge: jj?.alias || "Unknown", score: t, avg: avg.toFixed(1), max: projectMax(p) });
-        }
+      const rows = hits.map(([key, sc]) => {
+        // Exact id match — startsWith() could pick the wrong judge if one id
+        // happened to be a prefix of another.
+        const judgeId = key.slice(0, key.lastIndexOf(`_${p.id}`));
+        return { judgeId, alias: judges.find(j => j.id === judgeId)?.alias || "Unknown", total: getTotal(sc, p) };
       });
+      const avg = rows.reduce((a, r) => a + r.total, 0) / rows.length;
+      const marked = rows.map(r => ({ ...r, flagged: Math.abs(r.total - avg) > limit }))
+        .sort((a, b) => b.total - a.total);
+      if (!marked.some(r => r.flagged)) return;
+      out.push({ p, code: projectCode(p), dept: departments.find(d => d.id === p.department_id)?.name || "No department",
+        max, limit, avg, rows: marked, onlyTwo: rows.length === 2 });
     });
     return out;
+  }
+  // Flat list (one entry per flagged judge) — the nav badge and the IT snapshot use this.
+  function getAnomalies() {
+    return getOutlierGroups().flatMap(g => g.rows.filter(r => r.flagged).map(r =>
+      ({ project: g.p.title, judge: r.alias, score: r.total, avg: g.avg.toFixed(1), max: g.max })));
+  }
+
+  // ── EVENT HEALTH (Alerts tab) ──
+  // Everything an organiser needs to spot on event day, computed from data the admin screen
+  // already holds. Time comes from nowTick (refreshed every 30 s), never Date.now() in render.
+  const IDLE_MIN = 20;              // a signed-in judge with work left and no score for this long
+  const STUCK_WINDOW_H = 12;        // device-queue reports older than this are ignored
+  function eventHealth() {
+    const now = nowTick;
+    const deptIds = new Set(departments.map(d => d.id).filter(Boolean));
+    const projIn = (id) => projects.filter(p => p.department_id === id);
+    const reviewed = (pid) => Object.keys(scores).some(k => k.endsWith(`_${pid}`));
+
+    // Coverage — projects nobody will score, departments nobody is judging, short panels.
+    const noDept = projects.filter(p => !p.department_id || !deptIds.has(p.department_id));
+    const deptsNoJudge = departments.filter(d => d.id && projIn(d.id).length
+      && !judges.some(j => judgeDeptIds(j).includes(d.id)));
+    const panelShort = departments.map(d => {
+      const pi = d.id ? panelInfo(d) : null;
+      return pi && pi.short ? { d, short: pi.short, n: pi.n } : null;
+    }).filter(Boolean);
+
+    // Progress per department: reviews done out of reviews assigned.
+    const progress = departments.filter(d => d.id && projIn(d.id).length).map(d => {
+      const pids = new Set(projIn(d.id).map(p => p.id));
+      let total = 0, done = 0;
+      judges.forEach(j => (j.projects || []).forEach(pid => {
+        if (!pids.has(pid)) return;
+        total += 1;
+        if (scores[`${j.id}_${pid}`]) done += 1;
+      }));
+      return { d, total, done, pct: total ? Math.round(done / total * 100) : 0,
+        projects: pids.size, unreviewed: [...pids].filter(pid => !reviewed(pid)).length };
+    });
+
+    // Idle judges: signed in, work left, not validated, nothing scored for IDLE_MIN minutes.
+    const idle = locked ? [] : judges.map(j => {
+      const { done, total } = judgeComp(j);
+      if (!total || done >= total || judgeValidations[j.id]) return null;
+      const times = (j.projects || []).map(pid => scores[`${j.id}_${pid}`]?.time || 0);
+      const last = Math.max(j.joinedAt || 0, ...times);
+      const mins = Math.floor((now - last) / 60000);
+      return mins >= IDLE_MIN ? { j, done, total, mins, startedScoring: times.some(Boolean) } : null;
+    }).filter(Boolean).sort((a, b) => b.mins - a.mins);
+
+    // Scores stuck on a device, as the devices themselves report it: every queue-related event
+    // carries the device's queueLength afterwards, so the LATEST one per judge is the current
+    // state. A device that is offline cannot report — it appears here once it is back online
+    // but still cannot sync (its outbox sends the entries it wrote while offline).
+    const QUEUE_EVENTS = new Set(["SCORE_QUEUED", "SCORE_SUBMITTED", "OFFLINE_SYNC_FAILED", "OFFLINE_QUEUE_FLUSHED"]);
+    const byJudge = new Map();
+    itLogs.filter(e => QUEUE_EVENTS.has(e.event) && now - e.ts < STUCK_WINDOW_H * 3600000)
+      .sort((a, b) => a.ts - b.ts)
+      .forEach(e => {
+        const jid = e.payload?.judgeId || e.payload?.ctx?.judgeId;
+        const q = e.payload?.queueLength;
+        if (!jid || !Number.isInteger(q)) return;   // entries from builds before 2026-10-07 lack it
+        const prev = byJudge.get(jid);
+        const waiting = q > 0;
+        byJudge.set(jid, { q, since: waiting ? (prev?.q > 0 ? prev.since : e.ts) : null,
+          rejected: waiting && (e.event === "OFFLINE_SYNC_FAILED" || !!prev?.rejected), lastTs: e.ts });
+      });
+    const stuck = [...byJudge.entries()].filter(([, v]) => v.q > 0)
+      .map(([jid, v]) => ({ ...v, alias: judges.find(j => j.id === jid)?.alias || null, mins: Math.floor((now - v.since) / 60000) }))
+      .filter(x => x.alias).sort((a, b) => b.mins - a.mins);
+
+    const recentErrors = itLogs.filter(e => e.level === "ERROR" && now - e.ts < 3600000);
+    const problems = noDept.length + deptsNoJudge.length + panelShort.length + stuck.length
+      + (realtime.status === "down" ? 1 : 0) + (isOnline ? 0 : 1);
+    return { noDept, deptsNoJudge, panelShort, progress, idle, stuck, recentErrors, problems };
   }
 
   // Deliberation helpers
@@ -4927,14 +5217,18 @@ export default function App() {
       ...(feedback ? { commendation } : {}),
     };
     const { error } = await supabase.from("scores").upsert(payload, { onConflict: "judge_id,project_id" });
+    // How many scores wait on this device after this submit — reported with the events below so
+    // the admin's Alerts tab can show devices with scores stuck on them (eventHealth).
+    let queueAfter = 0;
     if (error || !navigator.onLine) {
       const q = JSON.parse(localStorage.getItem("sf_offline_queue") || "[]");
       const filtered = q.filter(x => !(x.data.judge_id === judge.id && x.data.project_id === scoringPid));
       filtered.push({ data: payload, ts: Date.now() });
       localStorage.setItem("sf_offline_queue", JSON.stringify(filtered));
       setOfflineQueue(filtered);
+      queueAfter = filtered.length;
       addItLog("WARN","DB","SCORE_QUEUED","Score saved locally — will sync when online",
-        { judgeId:judge.id, projectId:scoringPid,
+        { judgeId:judge.id, projectId:scoringPid, queueLength: queueAfter,
           // "offline" vs a server rejection need different fixes — record which it was.
           reason: error ? "server_error" : "offline", error: error ? (error.code || error.message) : null });
     } else {
@@ -4946,6 +5240,7 @@ export default function App() {
       // (queuedScoresFor) and could be uploaded over it by the next flush.
       const q = JSON.parse(localStorage.getItem("sf_offline_queue") || "[]");
       const rest = q.filter(x => !(x.data.judge_id === judge.id && x.data.project_id === scoringPid));
+      queueAfter = rest.length;
       if (rest.length !== q.length) {
         localStorage.setItem("sf_offline_queue", JSON.stringify(rest));
         setOfflineQueue(rest);
@@ -4954,7 +5249,7 @@ export default function App() {
     addLog(`${judge.alias} submitted ${feedback ? "a review" : "score"} for Project #${proj.num}`);
     addItLog("INFO","SCORE","SCORE_SUBMITTED","Judge submitted a review for an assigned project",
       { judgeId:judge.id, alias:judge.alias, projectId:scoringPid, projectNum:proj.num,
-        mode: feedback ? "feedback" : "scored",
+        mode: feedback ? "feedback" : "scored", queueLength: queueAfter,
         ...(feedback ? { commendation } : { total, rubric: draftSc }) });
     scoreSavingRef.current = false; setScoreSaving(false);
     setView("judge-home");
@@ -5130,8 +5425,6 @@ export default function App() {
   // (supabase/migration-2026-09-project-adviser.sql). If a deployment has not run
   // that migration yet, Postgres rejects the unknown columns — detect that and retry
   // without them so project management keeps working on the old schema.
-  const MISSING_COL = (err) =>
-    err && (err.code === "42703" || err.code === "PGRST204" || /column .* does not exist/i.test(err.message || ""));
 
   // Columns added by later migrations. On a missing-column error we drop them and retry.
   // (Names are NOT written here — they go to project_private via writeProjectPrivate().)
@@ -5139,8 +5432,6 @@ export default function App() {
     { cols: ["room", "description", "motivation"], event: "PROJECT_DETAIL_COLS_MISSING",
       file: "migration-2026-10-project-details.sql" },
   ];
-  const MISSING_TABLE = (err) =>
-    err && (err.code === "42P01" || err.code === "PGRST205" || /could not find the table|relation .* does not exist/i.test(err.message || ""));
   // Two projects of one school with the same number (unique index, migration 2026-10n). Matched
   // on the index name so a primary-key or any other unique clash is never mistaken for it.
   const DUP_PROJECT_NUM = (err) =>
@@ -8775,32 +9066,109 @@ export default function App() {
             </>}
 
             {/* ALERTS */}
-            {adminTab==="alerts" && <>
-              <div className="adm-h1">Alerts & Anomalies</div>
-              <div className="adm-sub">Score outliers and system warnings</div>
-              {anomalies.length === 0
-                ? <div className="all-done"><div style={{fontSize:"2rem",marginBottom:".4rem"}}>✅</div>
-                    <div style={{fontWeight:600}}>No anomalies detected</div>
-                    <div style={{fontSize:".82rem",color:"var(--dim)",marginTop:".25rem"}}>All scores are within expected range.</div>
-                  </div>
-                : anomalies.map((a,i) => (
-                    <div className="alert-box" key={i}>
+            {adminTab==="alerts" && (() => {
+              const h = eventHealth();
+              const groups = getOutlierGroups();
+              const ago = (mins) => mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)} h ${mins % 60} min`;
+              const ok = (text) => <div className="hb-ok">✓ {text}</div>;
+              return <>
+              <div className="adm-h1">Alerts &amp; Event Health</div>
+              <div className="adm-sub">What needs attention right now. Updates live; times refresh every 30 seconds.</div>
+
+              <div className={`hb-summary ${h.problems ? "bad" : "good"}`} data-testid="hb-summary">
+                {h.problems
+                  ? <>⚠ {h.problems} thing{h.problems !== 1 ? "s" : ""} need{h.problems === 1 ? "s" : ""} attention below</>
+                  : <>✅ No problems found</>}
+              </div>
+
+              <div className="hb-grid">
+                <div className="card hb-card">
+                  <div className="sec-title">Connection (this screen)</div>
+                  <div className="sys-row"><span style={{color:"var(--dim)"}}>Internet</span>
+                    <span className={`badge ${isOnline ? "bg" : "br"}`}>{isOnline ? "● Online" : "● Offline"}</span></div>
+                  <div className="sys-row"><span style={{color:"var(--dim)"}}>Live updates</span>
+                    <span className={`badge ${realtime.status === "live" ? "bg" : realtime.status === "down" ? "br" : "ba"}`} data-testid="hb-realtime">
+                      {realtime.status === "live" ? "● Live" : realtime.status === "down" ? "● Disconnected" : "● Connecting…"}</span></div>
+                  {realtime.status === "down" && <div className="hb-note">Scores from judges may not appear until it reconnects. Refresh this page if it stays disconnected.</div>}
+                  <div className="sys-row"><span style={{color:"var(--dim)"}}>Judging</span><span className={`badge ${locked?"br":"bg"}`}>{locked?"🔒 Locked":"🔓 Open"}</span></div>
+                  <div className="sys-row"><span style={{color:"var(--dim)"}}>Results Link</span><span className={`badge ${isLinkLive()?"bg":"ba"}`}>{isLinkLive()?"Live":"Not shared"}</span></div>
+                </div>
+
+                <div className="card hb-card">
+                  <div className="sec-title">Errors in the last hour</div>
+                  {h.recentErrors.length === 0
+                    ? ok("None")
+                    : <>
+                        <div className="hb-bad" data-testid="hb-errors">{h.recentErrors.length} error{h.recentErrors.length !== 1 ? "s" : ""}</div>
+                        <ul className="hb-list">
+                          {[...new Set(h.recentErrors.map(e => e.event))].slice(0, 4).map(ev => <li key={ev}><code>{ev}</code> × {h.recentErrors.filter(e => e.event === ev).length}</li>)}
+                        </ul>
+                      </>}
+                  <button className="btn sec sm" style={{width:"auto",marginTop:".6rem"}} onClick={() => setAdminTab("itlogs")}>Open IT Logs →</button>
+                </div>
+              </div>
+
+              <div className="card hb-card">
+                <div className="sec-title">Scores stuck on a device</div>
+                {h.stuck.length === 0
+                  ? ok("No device has reported scores waiting to sync. (A device that is offline cannot report — it shows here once it is back online but still cannot sync.)")
+                  : <ul className="hb-list" data-testid="hb-stuck">
+                      {h.stuck.map(x => <li key={x.alias}><strong>{x.alias}</strong> — {x.q} score{x.q !== 1 ? "s" : ""} waiting for {ago(x.mins)}
+                        {x.rejected ? <span className="badge br" style={{marginLeft:".4rem"}}>server refusing</span> : null}
+                        <div className="hb-note">{x.rejected ? "The server is rejecting them — open IT Logs (OFFLINE_SYNC_FAILED) and send the report to your technical contact. Tell the judge NOT to sign out or clear the browser." : "Ask the judge to connect to Wi-Fi and press Sync Now."}</div></li>)}
+                    </ul>}
+              </div>
+
+              <div className="card hb-card">
+                <div className="sec-title">Coverage</div>
+                {h.noDept.length === 0 && h.deptsNoJudge.length === 0 && h.panelShort.length === 0 && ok("Every project has a department, every department has a judge, every panel is full.")}
+                {h.noDept.length > 0 && <div className="hb-item" data-testid="hb-nodept">
+                  <span className="badge br">{h.noDept.length}</span> project{h.noDept.length !== 1 ? "s have" : " has"} <strong>no department</strong> — nobody will score {h.noDept.length !== 1 ? "them" : "it"}:
+                  {" "}{h.noDept.slice(0, 6).map(p => projectCode(p) || `#${p.num}`).join(", ")}{h.noDept.length > 6 ? "…" : ""}.
+                  <button className="btn sec sm hb-act" onClick={() => setAdminTab("projects")}>Projects →</button></div>}
+                {h.deptsNoJudge.map(d => <div className="hb-item" key={d.id} data-testid="hb-nojudge">
+                  <span className="badge ba">!</span> <strong>{d.name}</strong> has projects but no judge has signed in for it yet.</div>)}
+                {h.panelShort.map(x => <div className="hb-item" key={x.d.id}>
+                  <span className="badge ba">{x.short}</span> project{x.short !== 1 ? "s" : ""} in <strong>{x.d.name}</strong> {x.short !== 1 ? "have" : "has"} fewer than {x.n} judges assigned.
+                  <button className="btn sec sm hb-act" onClick={() => setAdminTab("judges")}>Panels →</button></div>)}
+              </div>
+
+              <div className="card hb-card">
+                <div className="sec-title">Scoring progress by department</div>
+                {h.progress.length === 0 ? <div className="hb-note">No projects yet.</div> : h.progress.map(x => (
+                  <div className="hb-prog" key={x.d.id} data-testid="hb-prog">
+                    <div className="hb-prog-head"><strong>{x.d.name}</strong>
+                      <span>{x.done}/{x.total} {isFeedbackDept(x.d.id) ? "reviews" : "scores"}{x.unreviewed ? ` · ${x.unreviewed} project${x.unreviewed !== 1 ? "s" : ""} not reviewed yet` : ""}</span></div>
+                    <div className="pbar" style={{height:"8px"}}><div className="pfill" style={{width:`${x.pct}%`,height:"8px"}} /></div>
+                  </div>))}
+              </div>
+
+              <div className="card hb-card">
+                <div className="sec-title">Idle judges <span className="hb-dim">(signed in, work left, nothing scored for {IDLE_MIN}+ min)</span></div>
+                {locked ? <div className="hb-note">Judging is locked.</div>
+                  : h.idle.length === 0 ? ok("Nobody is idle.")
+                  : <ul className="hb-list" data-testid="hb-idle">
+                      {h.idle.map(x => <li key={x.j.id}><strong>{x.j.alias}</strong> — {x.done}/{x.total} done, {x.startedScoring ? "last score" : "signed in"} {ago(x.mins)} ago</li>)}
+                    </ul>}
+              </div>
+
+              <div className="card hb-card">
+                <div className="sec-title">Score outliers <span className="hb-dim">(a judge more than {Math.round(ANOMALY_PCT*100)}% of the project&apos;s total away from its average)</span></div>
+                {groups.length === 0
+                  ? ok("All scores are within the expected range.")
+                  : groups.map(g => (
+                    <div className="alert-box" key={g.p.id} data-testid="hb-outlier">
                       <div className="alert-ico">⚠️</div>
                       <div className="alert-msg">
-                        <strong>Score Outlier — Review Recommended</strong>
-                        <span><strong>{a.judge}</strong> scored <strong>{a.score}/{a.max ?? rubricMax()}</strong> — group avg is <strong>{a.avg}</strong>. Deviation &gt; {Math.round((a.max ?? rubricMax()) * ANOMALY_PCT)} pts ({Math.round(ANOMALY_PCT*100)}% of this project&apos;s total).</span>
+                        <strong>{g.code ? `${g.code} · ` : ""}{g.p.title}</strong>
+                        <span>{g.dept} · average <strong>{g.avg.toFixed(1)}</strong> / {g.max} · outlier = more than {Math.round(g.limit)} pts away</span>
+                        <span className="hb-totals">{g.rows.map(r => <span key={r.judgeId} className={r.flagged ? "hb-flag" : ""}>{r.alias}: {r.total}</span>)}</span>
+                        {g.onlyTwo && <span className="hb-note">Only two judges scored this project, so both are equally far from the average — the scores disagree; neither judge is necessarily wrong.</span>}
                       </div>
-                    </div>
-                  ))
-              }
-              <div className="card" style={{marginTop:"1.5rem"}}>
-                <div className="sec-title">System Status</div>
-                <div className="sys-row"><span style={{color:"var(--dim)"}}>Database</span><span className="badge bg">● Operational</span></div>
-                <div className="sys-row"><span style={{color:"var(--dim)"}}>Judging</span><span className={`badge ${locked?"br":"bg"}`}>{locked?"🔒 Locked":"🔓 Open"}</span></div>
-                <div className="sys-row"><span style={{color:"var(--dim)"}}>Results Link</span><span className={`badge ${isLinkLive()?"bg":"br"}`}>{isLinkLive()?"Live":"Disabled"}</span></div>
-                <div className="sys-row"><span style={{color:"var(--dim)"}}>Score Records</span><span style={{fontFamily:"var(--ff-m)"}}>{totalScored()}</span></div>
+                    </div>))}
               </div>
-            </>}
+              </>;
+            })()}
 
             {/* DELIBERATION */}
             {adminTab==="deliberation" && (() => {
@@ -9680,7 +10048,7 @@ export default function App() {
               );
 
               // ── UNLOCKED VIEW ──
-              const filtered = itFilter==="ALL" ? itLogs : itLogs.filter(e=>e.level===itFilter);
+              const filtered = itLogsInView();
               const errCount  = itLogs.filter(e=>e.level==="ERROR").length;
               const warnCount = itLogs.filter(e=>e.level==="WARN").length;
               return <div className="it-dark-wrap">
@@ -9710,6 +10078,9 @@ export default function App() {
                       {lv!=="ALL" && <span style={{marginLeft:".35rem",opacity:.6}}>({itLogs.filter(e=>e.level===lv).length})</span>}
                     </button>
                   ))}
+                  <select className="it-range" aria-label="Time window" value={itRange} onChange={e => setItRange(e.target.value)}>
+                    {IT_RANGES.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+                  </select>
                   <div style={{flex:1}} />
                   <span className="it-count">{filtered.length} entries</span>
                   <button className={`copy-report-btn ${reportCopied?"done":""}`} onClick={handleCopyReport}>
@@ -9726,7 +10097,7 @@ export default function App() {
                       <span style={{background:"#28c840"}} />
                     </div>
                     <span style={{fontFamily:"var(--ff-m)",fontSize:".72rem",color:"#3a6080"}}>
-                      sciencefair.app / system.log — {filtered.length} events
+                      qritiko / system.log — {filtered.length} events · build {APP_BUILD}
                     </span>
                     <span style={{fontFamily:"var(--ff-m)",fontSize:".68rem",color:"#3a6080"}}>click row to expand payload</span>
                   </div>
@@ -9780,11 +10151,13 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Clear button */}
-                <button className="btn danger sm" style={{width:"auto",marginTop:"1rem"}}
-                  onClick={() => { setItLogs([]); addItLog("INFO","ADMIN","LOGS_CLEARED","IT logs cleared by admin",{ clearedAt:fmtISO(Date.now()), count: itLogs.length }); }}>
-                  🗑 Clear All IT Logs
-                </button>
+                {/* The IT log is permanent. A "Clear All IT Logs" button used to empty only this screen —
+                    a refresh brought everything back — while logging LOGS_CLEARED as if it had. */}
+                <div style={{fontSize:".78rem",color:"#6b7fa3",marginTop:"1rem"}}>
+                  The IT log is permanent and cannot be cleared. This screen loads the newest {IT_LOG_LOAD_MAX.toLocaleString()} entries
+                  {itLogs.length >= IT_LOG_LOAD_MAX ? " — the limit is reached, so older entries are not shown here." : "."}
+                  {" "}Each entry's payload ends with <code>ctx</code>: build, session, role (admin / judge / visitor), judge, online, installed app.
+                </div>
               </div>;
             })()}
 

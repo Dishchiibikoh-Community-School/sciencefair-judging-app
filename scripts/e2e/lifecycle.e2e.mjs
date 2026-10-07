@@ -143,6 +143,18 @@ await check("back online: queued score syncs and the queue empties", async () =>
   assert.equal(q.length, 0);
 });
 
+// What a device logs while OFFLINE used to be lost (the insert failed and nothing retried), so
+// the admin never learned a score had been queued. The device outbox (2026-10-07) sends it later
+// with its original time.
+await check("SCORE_QUEUED written while offline reaches the IT log once back online (device outbox)", async () => {
+  const row = store.it_logs.find(r => r.event === "SCORE_QUEUED" && r.payload?.projectId === "p_old8");
+  assert.ok(row, "the offline SCORE_QUEUED entry never arrived");
+  assert.equal(row.payload.ctx.delayed, true); assert.equal(row.payload.ctx.role, "judge");
+  assert.equal(row.payload.queueLength, 1);
+  const out = await J.page.evaluate(() => JSON.parse(localStorage.getItem("sf_it_outbox") || "[]"));
+  assert.equal(out.length, 0, "the outbox was not emptied");
+});
+
 // A re-score that SUCCEEDS must retire the older queued copy of the same score. Left in the
 // queue, the old value was shown over the new one after a refresh and could be uploaded over
 // it by the next flush.

@@ -54,7 +54,7 @@ judge device transfers. **You choose it when you register the school** — 4 to 
 | **Projects** | Add, edit, remove, or lock projects — each assigned to a department |
 | **Registration** | Generate/deactivate student registration link; view all submitted registrations |
 | **Activity** | Human-readable timeline of all system events |
-| **Alerts** | Anomaly detection and system status |
+| **Alerts** | Event health: connection, errors, scores stuck on devices, coverage, progress per department, idle judges, score outliers |
 | **Deliberation** | Validation workflow and award decisions |
 | **Share** | Generate live results link (after results finalized) |
 | **Score Export** | Per-judge CSV export and score backups |
@@ -466,15 +466,30 @@ If a judge's tablet fails and they need to continue on another device:
 - Shows average score per criterion
 - Helps identify which rubric items judges are rating consistently high/low
 
-### Alerts Tab — Quality Control
+### Alerts Tab — Event Health
 
-**Anomaly Detection:**
-- Flags projects with unusual scoring patterns
-- Example: Judge1 gave Project 5 a score 15 points lower/higher than other judges
-- Details: project, outlier scores, threshold, and recommendation
+Keep this tab open on event day. It updates live and its times refresh every 30 seconds. The
+banner at the top says how many things need attention.
 
-**System Status:**
-- Health indicators and Supabase sync status
+- **Connection (this screen)** — whether *this* device is online and receiving live updates
+  (*Live* / *Connecting…* / *Disconnected*). Disconnected means judges' scores will not appear
+  until it reconnects — refresh the page if it stays that way. Also shows the judging lock and
+  whether the results link is live.
+- **Errors in the last hour** — how many, and which kinds. **Open IT Logs →** goes straight there.
+- **Scores stuck on a device** — judges whose tablet reports scores still waiting to sync, and for
+  how long. *Server refusing* means the scores reach the server but are rejected: tell the judge
+  **not** to sign out or clear the browser, and send the IT Logs report to your technical contact.
+  Otherwise ask them to connect to Wi-Fi and press **Sync Now**. A tablet that is offline cannot
+  report — it shows up here once it is back online but still cannot sync.
+- **Coverage** — projects with **no department** (nobody will score them), departments with
+  projects but **no judge signed in**, and departments where some projects have **fewer judges than
+  "N judges per project"**.
+- **Scoring progress by department** — scores done out of scores assigned, and how many projects
+  have no review at all yet. Shows which room is behind.
+- **Idle judges** — signed in, work left, nothing scored for 20 minutes or more.
+- **Score outliers** — one card per project: its code, department, average, and **every** judge's
+  total, with the far-off ones in red. When only two judges scored a project, both are always
+  equally far from the average, so the card says the scores disagree rather than blaming either.
 
 ### Activity Tab — Audit Trail
 
@@ -741,6 +756,21 @@ Click **"Revoke Link"** to expire the URL immediately.
 1. Go to **IT Logs tab**
 2. Click **"Unlock"** and enter PIN
 3. Terminal shows detailed event logs with timestamp, level, module, event, detail, payload
+4. Filter by level (ERROR / WARN / …) and by time (**last hour**, **last 2 hours**, **last 24
+   hours**, everything loaded). **📋 Copy Full Report** copies exactly what you are looking at —
+   pick "last 2 hours" when reporting something that just happened
+
+**What every entry records** (2026-10-07): at the end of its payload, `ctx` says which **build**
+of the app that device was running, a **session** id (one per page load — follow one tablet's events
+in order), the **role** (admin / judge / visitor) and judge number, whether it was **online**, and
+whether it was the **installed app**. The report header adds your school's address and this
+screen's build. The results-link token is hidden in reports and snapshots.
+
+**The IT log is permanent** — there is no Clear button (the old one only hid the entries until the
+next refresh). The tab loads the newest 1,000 entries and says so when it hits that limit.
+
+**Entries written while a tablet was offline** are kept on the tablet and sent when it reconnects,
+with their original time (`ctx.delayed: true`).
 
 **Common Events:**
 - `JUDGE_REGISTERED` — New judge signed in
@@ -753,9 +783,10 @@ Click **"Revoke Link"** to expire the URL immediately.
 - `*_FAILED` (e.g. `FINALIZE_FAILED`, `DECISION_SAVE_FAILED`, `VALIDATION_SAVE_FAILED`, `DELIB_NOTE_FAILED`) — a save did not reach the database. The person saw a red **"NOT saved"** message and nothing changed; they just retry.
 - `OFFLINE_SYNC_FAILED` — a judge's queued scores were rejected by the server when they came back online. Shows the alias, how many scores, the error code and how long the oldest has waited. The scores stay on the judge's device.
 - `SCORE_QUEUED` — now records whether the device was simply **offline** or the **server refused** the score (`reason`).
-- `REALTIME_DOWN` / `REALTIME_RECONNECTED` — the live-update connection dropped / came back. While down, dashboards do not update by themselves; refresh the page.
+- `REALTIME_DOWN` / `REALTIME_RECONNECTED` — the live-update connection was down for **over 30 seconds while the screen was in use** / came back (with how long it was down). Brief drops and phones with a locked screen are no longer logged — they used to fill the log. While down, dashboards do not update by themselves; refresh the page.
 - `CLIENT_ERROR` — the app crashed or hit an unexpected error on some device (judge tablets included). Includes screen width and browser. Each distinct error is logged once per session, at most 20.
-- `INIT_TIMEOUT` / `LOAD_FAILED` — the school's data took over 8 seconds or failed to load.
+- `INIT_TIMEOUT` — the school's data took over 8 seconds to load.
+- `LOAD_FAILED` — one kind of data could not be loaded (the payload names the `table` and error `code`), so that screen may show old or missing data. Logged once per table per page load. Usually an expired sign-in or a dropped connection — refresh, or sign out and in.
 
 Logs never contain student names or form text.
 

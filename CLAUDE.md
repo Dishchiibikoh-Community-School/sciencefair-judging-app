@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (247 checks). Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 337 checks across 15 files |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 357 checks across 16 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -94,7 +94,7 @@ The v1 Vercel project was deleted 2026-09-30. **Do not resurrect v1.**
 │   ├── scan-form.test.mjs       ← mocked tests for api/scan-form.js (free, offline)
 │   ├── db-migrations.test.mjs   ← schema + all migrations on real Postgres (PGlite): RLS, RPCs
 │   ├── e2e/                     ← browser tests (playwright-core + mocked backend); screenshots in e2e/out/ (gitignored)
-│   │                              scan · judge-reg · signup · setup (departments/categories) · lifecycle
+│   │                              scan · judge-reg · signup · setup (departments/categories) · alerts (event health + IT-log diagnostics) · lifecycle
 │   ├── registration-email.test.mjs ← mocked tests for the email: only the school's OWN branding, HTML escaping
 │   └── scan-form-smoke.mjs      ← real-Gemini smoke test for form scanning (needs GEMINI_API_KEY)
 ├── supabase/
@@ -193,12 +193,12 @@ files, no Tailwind, no CSS modules.
 | `projects` | Add/edit/remove/lock projects, **📷 Scan forms** (AI form reader), rubric breakdown, project-list PDF |
 | `registration` | Student registration links + submissions, registration CSV |
 | `activity` | Human-readable activity log with keyword filter |
-| `alerts` | Anomaly detection (>8 pt deviation) + system status |
+| `alerts` | **Event health** (2026-10-07): this screen's real connection state, errors in the last hour, scores stuck on devices, coverage (no department / no judge / short panels), progress per department, idle judges, outliers grouped per project with every judge's total. `eventHealth()` + `getOutlierGroups()` |
 | `deliberation` | Validation & deliberation workflow, final awards, finalize |
 | `share` | Public results link — **locked until results are finalized**; results CSV |
 | `export` | Per-judge CSV + score backups |
 | `rubric` | Edit criteria / max / steps / order; save to `rubrics`; reset to default |
-| `itlogs` | IT diagnostic terminal + Reset All Data (PIN-gated) |
+| `itlogs` | IT diagnostic terminal + Reset All Data (PIN-gated). Level + time-window filters (`itRange`), build stamp, report hides the share token. **No clear button** — the log is permanent |
 | `help` | **Help & FAQ** — how the system works, before-event checklist, do's / don'ts, data safety, scanning, judges, troubleshooting. Content = `ADMIN_HELP` constant (top of the JSX) |
 
 ### AnimatedBackdrop
@@ -461,6 +461,7 @@ Rankings are auto-computed (`projAvg`, `rankedProjectsIn`). The workflow validat
 | `sf_scores_cache` | This judge's scores |
 | `sf_offline_queue` | Score payloads pending sync |
 | `sf_last_sync_at` | Last successful sync timestamp |
+| `sf_it_outbox` | IT-log entries this device could not write (offline / failed request), ≤ 50; sent by `flushItOutbox()` with their original time (`ctx.delayed`) |
 
 ---
 
@@ -628,7 +629,6 @@ projRubric(proj), rubricFor(deptId), rubricRowFor(deptId), defaultRubricRow(), d
 deptHasScores(deptId)        // score keys end with `_${projectId}` — never cut a key at "_" (rule 60)
 loadRubrics(sid), createRubric(), renameRubric(), deleteRubric(), makeDefaultRubric(), updateDeptJudging(id, rubricId|"feedback")
 critVal(scoreOrEntry, rid)   // module helper: one criterion from .criteria (legacy flat-field fallback)
-rubricMax()                  // max of the DEFAULT rubric — fallback only; per project use projectMax(proj)
 projectMax(proj)             // max for ONE project (drops abstract when grade < 5) — use this
                              // for anything shown next to a single project's score
 stepLabel(r, v, i)           // module helper: a criterion's rating word for step i, or null
@@ -712,6 +712,15 @@ executeReset()               // PIN-gated; see rule 15
 ensureSeedData(schoolId)     // re-seeds departments, rubric, baseline app_settings on first admin load
 requestSaveRubric(criteria) → saveRubric(criteria)   // impact check + confirm; save reports failure
 addLog(msg), addItLog(level, module, event, detail, payload, sid?)
+                             // stamps payload.ctx = { build, session, role, judgeId, alias, online, app }
+                             // (logCtxRef, kept current by an effect); a failed insert goes to sf_it_outbox
+flushItOutbox()              // sends sf_it_outbox (on online / after load / Sync Now)
+noteLoadError(table, error, sid)   // LOAD_FAILED once per table+code per page load; skips offline,
+                             // unrun migrations and admin-only tables refusing a non-admin
+eventHealth(), getOutlierGroups()  // Alerts tab; getAnomalies() is now derived from getOutlierGroups()
+itLogsInView(), IT_RANGES, IT_LOG_LOAD_MAX   // IT Logs filters; the tab loads the newest 1,000
+APP_BUILD, SESSION_ID, isStandaloneApp()     // module: build stamp (vite.config.js define __APP_BUILD__), page-load id
+MISSING_COL(err), MISSING_TABLE(err)         // module level since 2026-10-07 (loaders use them)
                              // pass sid from the mount effect / window listeners — they see the
                              // first render, where currentSchool is still null (entry would not be saved)
 buildSnapshot()
@@ -757,7 +766,7 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 3. **Upsert conflicts:** `validations` → `onConflict: "school_id,judge_id"`; `final_decisions` → `"school_id,project_id"`.
 4. **Scores are JSONB.** `scores.criteria = { [criterionId]: value }`. Read through `getTotal()` / `critVal()` — never `score.presentation` etc. (v1 columns that no longer exist; this silently emptied backups and CSVs for months).
 5. **The rubric is dynamic AND per department (2026-10j).** There is no single "the rubric": use **`projRubric(proj)`** / **`rubricFor(deptId)`** for anything about a project (scoring form, totals, maxima, breakdowns, CSV values) and pass the project to **`getTotal(score, proj)`** — without it the DEFAULT rubric is used and a department on another rubric totals 0. The Rubric tab works on `viewRubricRow()`. Previously: use the `rubric` state everywhere; `DEFAULT_RUBRIC` is only a seed/fallback, and `RUBRIC_PRESETS` are starting points. **Never assume a rubric has 42 points, an `abstract` criterion, a `0` step, or any particular criterion id** — the Cibecue preset has none of those. Guard with `r.id === "abstract"`-style checks that no-op, never with "the rubric always has N criteria".
-6. **Never hardcode the max score, or anything derived from it.** Use `rubricMax()` for "the whole rubric" and **`projectMax(proj)` for anything about one project** — they differ whenever a criterion is exempt (grade < 5 skips `abstract`: 36, not 42). A literal `42` is a bug, and so was `getAnomalies()`'s hardcoded "> 8 points", which is ~19% of 42 but only 8% of 100 — it would have flagged nearly every judge on the Cibecue rubric. It is now `projectMax(p) * ANOMALY_PCT`. Six per-project displays showed `/rubricMax()` and were fixed 2026-10-06 (public podium + results rows, deliberation header and per-judge bars, `buildDelibReport()`).
+6. **Never hardcode the max score, or anything derived from it.** Use **`projectMax(proj)` for anything about one project** (`rubricMax()` was removed 2026-10-07 — its last caller was the old Alerts tab) — they differ whenever a criterion is exempt (grade < 5 skips `abstract`: 36, not 42). A literal `42` is a bug, and so was `getAnomalies()`'s hardcoded "> 8 points", which is ~19% of 42 but only 8% of 100 — it would have flagged nearly every judge on the Cibecue rubric. It is now `projectMax(p) * ANOMALY_PCT`. Six per-project displays showed `/rubricMax()` and were fixed 2026-10-06 (public podium + results rows, deliberation header and per-judge bars, `buildDelibReport()`).
 7. **Score key format is `${judgeId}_${projectId}`.** Do not change it.
 8. **Ranking and tie detection are per department.** Use `rankedProjectsIn(deptId)`; cross-department ties are meaningless.
 
@@ -864,6 +873,16 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 65. **The poster never goes on judges' screens** and always sits below the primary controls; posters are
     sized with max-width + max-height only (never a fixed width/height, never cropped).
 
+**Diagnostics (2026-10-07)**
+69. **Every IT-log entry goes through `addItLog()`** so it carries `ctx` (build, session, role, judge, online,
+    installed app) and survives being offline (outbox). Never insert into `it_logs` directly. Payloads hold
+    counts, ids and error codes — never names, emails or form text.
+70. **Log a condition, not a symptom that every device has.** `REALTIME_DOWN` is written only after 30 s of
+    downtime while the page is visible (`RT_GRACE_MS`); before that every phone locking its screen wrote one and
+    they buried real problems. Anything new that can fire on every device follows the same rule.
+71. **Time on the Alerts board comes from `nowTick`** (a 30 s interval while an admin is signed in), never
+    `Date.now()` during render — that is a purity finding (rule 37).
+
 **SQL that must survive its own rejection**
 66. **A `RAISE` throws away everything the function wrote, including the rate-limit counter.**
     PostgREST runs each RPC in one transaction, so `note_auth_failure()` followed by `RAISE` records
@@ -933,6 +952,37 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-07 — Alerts becomes an event-health board; IT logs explain themselves** (no migration).
+Checked against the live it_logs: 22 of the 30 newest WARN/ERROR rows were REALTIME_DOWN from phones
+locking their screens. Fixed on screen and in the log:
+1. **Fake status:** System Status always said "Database ● Operational". Now the real state of this
+   screen's live connection (`realtime` state from the channel callback) and internet.
+2. **Fake clear:** "Clear All IT Logs" emptied only the screen (a refresh brought them back) yet logged
+   LOGS_CLEARED. Removed — the log is permanent; the tab says so and how many it loaded (newest 1,000).
+3. **No build:** reports said "App Version: 1.0.0". `vite.config.js` now defines `__APP_BUILD__`
+   (commit·build time); every entry's `payload.ctx` carries build, session (per page load), role,
+   judge, online, installed-app.
+4. **Noise:** REALTIME_DOWN only after 30 s down while visible, once per outage, with `downForSec`; a
+   socket that never connects counts too. Also fixed: under Strict Mode (dev) the first mount's
+   `resolveSchool().then()` opened a channel after cleanup, which was never closed.
+5. **Silent loads:** every loader now reports errors through `noteLoadError()` → LOAD_FAILED (table +
+   code, once per page load). Not for offline, unrun migrations, or admin-only tables refusing visitors.
+   `loadShare()` no longer treats a failed read as "no link".
+6. **Offline entries were lost:** a log write that fails goes to `sf_it_outbox` and is sent later
+   with its original time — so SCORE_QUEUED from an offline tablet now reaches the admin.
+Event-health board: connection, errors in the last hour (→ IT Logs), scores stuck on a device (from
+`queueLength`, now on SCORE_QUEUED / SCORE_SUBMITTED / OFFLINE_SYNC_FAILED / OFFLINE_QUEUE_FLUSHED),
+coverage (no department / no judge signed in / short panels), progress per department, idle judges
+(20 min), outliers per project with every judge's total and a two-judge note. IT Logs: time window
+(1 h / 2 h / 24 h / all) applied to the view and the copied report; report header has school URL,
+build, session, live-connection state; share token hidden in report and snapshot.
+`rubricMax()` removed (unused). `MISSING_COL` / `MISSING_TABLE` moved to module level.
+Tests: new `scripts/e2e/alerts.e2e.mjs` (19: every board section, IT Logs build / no clear / window /
+report / ctx, LOAD_FAILED once and never for admin-only tables as a visitor, a join-refusing realtime
+server is not logged for 15 s and is logged once after 30 s, one entry per outage per device);
+lifecycle +1 (offline SCORE_QUEUED arrives via the outbox, `ctx.delayed`). The mock gained
+`store.failReads`. Grace and outbox mutation-tested. Lint unchanged (26/5).
 
 **2026-10-07 — Queued scores survive a refresh; project numbers unique per school** (migration
 `2026-10n`, **not** coupled). Two Known-gaps items from the second review:
@@ -1534,8 +1584,9 @@ Already done (2026-10-06): school name + logo looked up server-side, all typed v
   re-score queued *during* a flush is deleted without being uploaded, and a flush that already read
   the old copy can still upload it after a newer success. Narrow windows; the fix is a per-revision id
   acknowledged individually.
-- **No query paginates.** `loadScores`, `loadLog` and `loadItLogs` fetch with no `.range()` and ignore
-  the error, so anything past Supabase's "Max rows" (Settings → API, default 1,000) is silently
+- **No query paginates.** `loadScores` and `loadLog` fetch with no `.range()` (since 2026-10-07 a failed
+  read is at least logged as LOAD_FAILED; `loadItLogs` asks for the newest 1,000 and IT Logs says when it
+  hits that), so anything past Supabase's "Max rows" (Settings → API, default 1,000) is silently
   missing. Not a risk for this fair (~190 scores with 3 judges per project in 6-8), but `activity_log`
   WILL cross 1,000 and the Activity tab then stops being the full trail it claims to be.
 - `projListUrl()`, `generateProjListLink()`, `revokeProjListLink()` have no UI callers, so `public-projects` is unreachable in practice.
