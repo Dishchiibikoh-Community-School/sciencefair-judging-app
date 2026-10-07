@@ -57,7 +57,7 @@ always serves and cannot be redirected — never share it.
 | `migration-2026-10c-secure-school-signup.sql` | **`create_school()`** RPC; closes direct INSERT on `schools` and `school_admins` (anyone could make themselves admin of any school) | **Yes** — the sign-up form calls `create_school()`. Run before anyone registers a school |
 | `migration-2026-10d-judge-revise-validation.sql` | Judges may delete their own validation until results are finalized (never the admin's) | No — without it "Revise my validation" shows an error instead of unlocking |
 | `migration-2026-10e-categories-and-department-codes.sql` | **`categories`** table (per-school project categories) + seeds the six for every existing school; **`departments.code`** | No — **additive only**. Old app ignores both; new app falls back to `DEFAULT_CATEGORIES` and logs `CATEGORIES_TABLE_MISSING`. Safe to run in either order |
-| `migration-2026-10m-ratelimit-regnum-project-moves.sql` | **Three correctness fixes (2026-10-06 review)**: `register_judge()` now RETURNS `{"error":"Invalid invite code"}` instead of raising, so the 5-attempt lockout finally records anything (a RAISE rolled the counter back with the transaction — see rule 66); `submit_registration()` numbers from MAX not COUNT, plus a guarded UNIQUE index on `(school_id, reg_number)`; new `projects_guard_department_move` trigger — a **scored** project may not move to a department with a different rubric or scoring mode | **Yes for the app build** — `handleRegister()` reads `data.error`. An older build still refuses the wrong code, it just shows the generic "Registration failed" text. ⚠️ SUPERSEDES `register_judge()` (10k) and `submit_registration()` (10b) — re-run 10m after either |
+| `migration-2026-10m-ratelimit-regnum-project-moves.sql` | **Three correctness fixes (2026-10-06 review)**: `register_judge()` now RETURNS `{"error":"Invalid invite code"}` instead of raising, so the 5-attempt lockout finally records anything (a RAISE rolled the counter back with the transaction — see rule 66); `submit_registration()` numbers from MAX not COUNT, plus a guarded UNIQUE index on `(school_id, reg_number)` (⚠️ **partial fix** — deleting the HIGHEST submission still frees its number; see Known gaps); new `projects_guard_department_move` trigger — a **scored** project may not move to a department with a different rubric or scoring mode | **Yes for the app build** — `handleRegister()` reads `data.error`. An older build still refuses the wrong code, it just shows the generic "Registration failed" text. ⚠️ SUPERSEDES `register_judge()` (10k) and `submit_registration()` (10b) — re-run 10m after either |
 | `migration-2026-10k-judge-roster-and-panels.sql` | **Judge roster grid + N judges per project**: `judge_roster` (number ↔ department, public read, RPC-only writes), `judge_labels` (admin-only private names), `departments.judges_per_project`, `project_judges` (stored panel assignments); `register_judge()` / `set_judge_roster()` / `set_judges_per_project()` / `assign_panels(fill\|rebuild\|rebalance)` / `sync_judge_projects()`; `set_judge_numbers()` kept as a ranges→roster wrapper for cached apps; new departments still get a default block (now also in the roster) | **Yes — run it, then deploy the matching app.** The previous app keeps working (its range editor saves through the wrapper) but cannot show the grid or panels. ⚠️ Supersedes register_judge (10h), set_judge_numbers / set_judge_max / the numbering trigger (10i), departments_guard_judging (10j) — re-run 10k after any of those |
 | `migration-2026-10l-school-branding.sql` | **Per-school logo + fair poster**: `school_branding` (paths + poster description; public read, writes only via **`set_school_branding()`**), Storage bucket **`school-branding`** (public read, 2 MB, WebP/PNG/JPEG) + `storage.objects` policies (admin of THAT school, own folder, app-generated names, no overwrite), `can_manage_branding_object()`; seeds `builtin:dishchiibikoh` for the one school whose id **and** slug match | **No** — either order. Without it Dishchii'bikoh keeps its bundled logo, everyone else gets the monogram, and Setup says the migration is needed. ⚠️ Its storage part needs the Supabase SQL editor (`storage` schema); it is skipped on a database without one |
 | `migration-2026-10j-department-rubrics.sql` | **Each department picks its rubric**: `departments.rubric_id` (NULL = the school default = `rubrics.is_active`); one default per school (unique partial index, duplicates resolved to the newest); guard trigger — a department's rubric / comment-only setting cannot change once it has scores, and only its own school's rubrics; delete guard — the default and any rubric in use cannot be deleted; **`set_default_rubric()`** | No — old app keeps using the default for every department |
@@ -931,6 +931,11 @@ These five were fixed:
    001 handed `JHS-LS-002` to two students. Now `MAX + 1`, plus a UNIQUE index on
    `(school_id, reg_number)` that **v1 had and the v2 rewrite dropped**. The index is created only
    when no duplicates exist, so the migration can never abort on live data.
+   ⚠️ **This is a partial fix and the comment in the SQL overstates it.** `MAX()` sees surviving rows,
+   not numbers ever issued, so deleting the *highest* submission still frees its number for the next
+   student (verified 2026-10-06). No duplicate row can exist any more — the index sees to that — but a
+   receipt already printed can come to mean a different student. The real fix is a persistent
+   per-school counter that never decreases.
 3. **A scored project could be moved to a department judged differently** (rule 67) — nothing
    guarded it in the app or the database; `departments_guard_judging` only covers the departments
    table. Its scores would then be totalled against another rubric, or hidden in a comments-only
@@ -1436,6 +1441,37 @@ Already done (2026-10-06): school name + logo looked up server-side, all typed v
 `scripts/registration-email.test.mjs`.
 
 ### Known gaps (not yet fixed)
+
+**From the second external review (2026-10-06). All verified in the code; none fixed yet.**
+- **`executeReset()` reports success even when the deletes fail.** Twelve requests go out in one
+  `Promise.all` and every result is discarded; the UI then says "All data has been cleared" while
+  judges and scores may still be in the database. Same class as the seven handlers fixed earlier that
+  day (rule 55) — this one was missed. Should be one admin RPC, in a transaction.
+- **Two clicks on Add Project create two projects with the SAME number.** No in-flight guard, and
+  `nextProjectNum()` reads the browser's list, so two admins racing collide the same way. Needs a
+  disabled-while-saving guard and server-side numbering.
+- **Changing a project's grade after it is scored can make the total exceed the maximum.** Score a
+  grade-6 project out of 42, change it to grade 4, and `projectMax()` drops to 36 while `getTotal()`
+  still counts the stored `abstract` value — the UI shows 42.0 / 36. The 2026-10m trigger guards the
+  DEPARTMENT of a scored project but not its GRADE; the same guard should cover both.
+- **A transient failure of `sync_judge_projects` destroys panel restrictions.** `syncJudgeAssignments()`
+  falls back to the browser sync on ANY error, and that fallback gives every judge every project in the
+  department — so one 503 silently undoes "3 judges per project" while `project_judges` still records
+  the real panel. The fallback must only run when the RPC genuinely does not exist (pre-10k).
+- **A lost response on a branding save deletes the file the row points at.** `saveBrandDraft()` removes
+  the uploaded object whenever the RPC returns an error, including when the server committed first and
+  only the reply was lost → a broken logo. Re-read the row before deleting anything.
+- **A refresh hides a queued-but-unsynced review from the judge.** `loadScores()` replaces state with
+  the server's rows and never merges `sf_offline_queue`, so a judge sees 0/1 scored and an empty form
+  for work that is safe on the device — and may well redo it. Belongs with the queue-versioning fix.
+- **Two clicks on Submit Score send two requests and write two audit entries.** The upsert keeps one
+  score row, so only the log is wrong.
+- **Not verified here, reported and plausible:** `submit_registration()` has no idempotency key (a
+  retried form creates a second project), it checks grade/division/category for presence rather than
+  validity, and the two API handlers do not type-check input or time-box their upstream calls.
+- **By design, worth revisiting:** `canFinalize` is `adminValidation?.approved && !deliberationOpen` —
+  exactly what this file documents — so results CAN be finalized while a judge has scored nothing.
+  Consensus is advisory. If that is not wanted, the gate needs coverage checks, not a doc change.
 - **The offline queue can lose or resurrect a revision** (2026-10-06 review, deferred). `submitScore()`
   leaves an older queued entry in place when a later submit SUCCEEDS, so a flush can overwrite the
   newer server value; and `runOfflineFlush()` drops entries by `judge_id_project_id`, so a re-score
