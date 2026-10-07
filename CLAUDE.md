@@ -1414,10 +1414,9 @@ Read this first when resuming on another machine.
 
 - **All SQL migrations through `2026-10m` have been run on the live project** (10m applied 2026-10-06,
   with the matching app build deployed in `4c72c8c`)
-- **`2026-10n` (unique project numbers) was run on the live project 2026-10-07** by the organiser.
-  If the SQL editor printed a "duplicated project number(s)" WARNING the index was NOT created —
-  renumber those projects and re-run it. Check with:
-  `SELECT indexname FROM pg_indexes WHERE indexname = 'projects_school_num_uniq';` (one row = in place).
+- **`2026-10n` (unique project numbers) was run on the live project 2026-10-07 and verified:**
+  `projects_school_num_uniq` exists in `pg_indexes`, and the duplicate check
+  (`SELECT school_id, num, count(*) FROM projects GROUP BY 1, 2 HAVING count(*) > 1`) returned no rows.
 - Migrations through `2026-10l` (10k and 10l verified with
   anonymous probes: RLS refusals, bucket public, anon upload refused, anon cannot list).
 - **Dishchii'bikoh live data:** 63 projects imported (PreK 2 · K-5 8 · 6-8 31 · 9-12 19 · SPED 3); the
