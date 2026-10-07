@@ -3,7 +3,7 @@
 > Single source of truth for AI-assisted development. Read it before changing anything.
 > Do not delete it. When code and this file disagree, the code wins — then fix this file.
 >
-> Last reviewed: 2026-10-06 (per-school categories + Setup tab; see Change History).
+> Last reviewed: 2026-10-07 (queued scores survive a refresh + unique project numbers; see Change History).
 
 ---
 
@@ -30,8 +30,8 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Vercel | `sciencefair-v2` — the **only** Vercel project |
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
-| Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (241 checks). Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 332 checks across 15 files |
+| Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (247 checks). Run after any `supabase/*.sql` or `api/` change |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 337 checks across 15 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -58,6 +58,7 @@ always serves and cannot be redirected — never share it.
 | `migration-2026-10d-judge-revise-validation.sql` | Judges may delete their own validation until results are finalized (never the admin's) | No — without it "Revise my validation" shows an error instead of unlocking |
 | `migration-2026-10e-categories-and-department-codes.sql` | **`categories`** table (per-school project categories) + seeds the six for every existing school; **`departments.code`** | No — **additive only**. Old app ignores both; new app falls back to `DEFAULT_CATEGORIES` and logs `CATEGORIES_TABLE_MISSING`. Safe to run in either order |
 | `migration-2026-10m-ratelimit-regnum-project-moves.sql` | **Three correctness fixes (2026-10-06 review)**: `register_judge()` now RETURNS `{"error":"Invalid invite code"}` instead of raising, so the 5-attempt lockout finally records anything (a RAISE rolled the counter back with the transaction — see rule 66); `submit_registration()` numbers from MAX not COUNT, plus a guarded UNIQUE index on `(school_id, reg_number)` (⚠️ **partial fix** — deleting the HIGHEST submission still frees its number; see Known gaps); new `projects_guard_department_move` trigger — a **scored** project may not move to a department with a different rubric or scoring mode | **Yes for the app build** — `handleRegister()` reads `data.error`. An older build still refuses the wrong code, it just shows the generic "Registration failed" text. ⚠️ SUPERSEDES `register_judge()` (10k) and `submit_registration()` (10b) — re-run 10m after either |
+| `migration-2026-10n-unique-project-numbers.sql` | **UNIQUE `(school_id, projects.num)`** — two admins adding a project at once no longer share a number. Guarded: if duplicates already exist it RAISEs a WARNING and skips the index (renumber, re-run) | No — either order. Old app: a clash shows the raw DB error instead of a silent duplicate. New app without it: as before |
 | `migration-2026-10k-judge-roster-and-panels.sql` | **Judge roster grid + N judges per project**: `judge_roster` (number ↔ department, public read, RPC-only writes), `judge_labels` (admin-only private names), `departments.judges_per_project`, `project_judges` (stored panel assignments); `register_judge()` / `set_judge_roster()` / `set_judges_per_project()` / `assign_panels(fill\|rebuild\|rebalance)` / `sync_judge_projects()`; `set_judge_numbers()` kept as a ranges→roster wrapper for cached apps; new departments still get a default block (now also in the roster) | **Yes — run it, then deploy the matching app.** The previous app keeps working (its range editor saves through the wrapper) but cannot show the grid or panels. ⚠️ Supersedes register_judge (10h), set_judge_numbers / set_judge_max / the numbering trigger (10i), departments_guard_judging (10j) — re-run 10k after any of those |
 | `migration-2026-10l-school-branding.sql` | **Per-school logo + fair poster**: `school_branding` (paths + poster description; public read, writes only via **`set_school_branding()`**), Storage bucket **`school-branding`** (public read, 2 MB, WebP/PNG/JPEG) + `storage.objects` policies (admin of THAT school, own folder, app-generated names, no overwrite), `can_manage_branding_object()`; seeds `builtin:dishchiibikoh` for the one school whose id **and** slug match | **No** — either order. Without it Dishchii'bikoh keeps its bundled logo, everyone else gets the monogram, and Setup says the migration is needed. ⚠️ Its storage part needs the Supabase SQL editor (`storage` schema); it is skipped on a database without one |
 | `migration-2026-10j-department-rubrics.sql` | **Each department picks its rubric**: `departments.rubric_id` (NULL = the school default = `rubrics.is_active`); one default per school (unique partial index, duplicates resolved to the newest); guard trigger — a department's rubric / comment-only setting cannot change once it has scores, and only its own school's rubrics; delete guard — the default and any rubric in use cannot be deleted; **`set_default_rubric()`** | No — old app keeps using the default for every department |
@@ -307,7 +308,7 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `rubrics` | Per-school rubric **library** (2026-10j) — name, `criteria` JSONB array, `is_active` = **the school default** (exactly one). Departments point at one via `departments.rubric_id` |
 | `departments` | name, `code`, `max_judges`, `ord`, **`scoring_mode`**, **`rubric_id`** (2026-10j; NULL = default rubric), **`judge_from` / `judge_to`** (2026-10g — this department's judge numbers; a trigger numbers new rows after the school's last number) — seeded from `DEPT_PRESETS[0]`, fully admin-editable. `code` (2026-10e) is reserved for registration numbers; `locked` / `finalized_at` / `award_grouping` (2026-10f) are reserved for Phase 3. Nothing reads those four yet |
 | `categories` | Per-school project categories: name, `code`, `ord` (2026-10e). UNIQUE(school_id, name). **No FK from `projects`** — `projects.cat` is a free-text snapshot, so deleting a category never alters a project |
-| `projects` | num, title, cat, grade, locked, department_id, room, description, motivation — **public, no names** |
+| `projects` | num, title, cat, grade, locked, department_id, room, description, motivation — **public, no names**. `num` UNIQUE per school (2026-10n; exact text, so "7" ≠ "007") |
 | `project_private` | PK `(project_id, school_id)`, FK → projects **ON DELETE CASCADE**: advisor_name, group_members (JSONB), updated_at — **admin-only** |
 | `judge_roster` | (school_id, judge_number, department_id) — which departments each judge NUMBER covers (2026-10k). Replaces departments.judge_from/judge_to as the source of truth (those are kept in step for old apps). Public read, writes only via `set_judge_roster()` |
 | `judge_labels` | (school_id, judge_number, label) — **admin-only** private names behind numbers; anon has no privileges |
@@ -670,6 +671,9 @@ confirmRemoveJudge()         // PIN → remove_judge RPC → reload scores/valid
 dbToDept(r), normJudgeAlias(raw), judgeNumOf(alias)   // module helpers — dbToDept is the ONLY row→state mapper
 syncJudgeAssignments(deptIds, list?)   // push the current roster to judges in those departments
 createProject(data, base?)   // shared insert path (Add Project + scanner) → { error, nextProjects, proj }
+                             // on a number clash (2026-10n) re-picks from the SERVER's list and retries
+                             // once — only when the number was not typed (blank, or data.numAuto)
+DUP_PROJECT_NUM(err)         // 23505 on projects_school_num_uniq — never any other unique clash
 addProject(), updateProject(pid), removeProject(pid), toggleProjectLock(pid)
 writeProjectRow(mode, row, pid)        // public columns only; drops 2026-10 columns if that migration is missing
 writeProjectPrivate(pid, adviser, members)  // names → project_private (falls back to legacy columns pre-2026-10b)
@@ -696,6 +700,8 @@ submitScore()                // enforces judging lock + already-validated gate; 
 MISSING_FN(err)              // module helper: "this RPC does not exist here", as opposed to any other
                              // failure. Gates compatibility fallbacks — see rule 68
 flushOfflineQueue()          // guarded; body in runOfflineFlush(queue)
+queuedScoresFor(sid)         // module helper: this device's unsynced scores for one school as score-map
+                             // entries. loadScores() overlays them — the queued value always wins
 
 // Admin / security
 verifyAdminPin(pin)          // verify_school_pin RPC → boolean
@@ -927,6 +933,28 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-07 — Queued scores survive a refresh; project numbers unique per school** (migration
+`2026-10n`, **not** coupled). Two Known-gaps items from the second review:
+1. **A refresh hid a judge's unsynced scores.** `loadScores()` replaced state with the server's rows,
+   so with a score still in `sf_offline_queue` the judge saw "2/3 scored" and an empty form — and
+   would score it again. It now overlays `queuedScoresFor(schoolId)`; the queued value wins because
+   it is what the next flush will write. Also: a submit that SUCCEEDS now removes any older queued
+   copy of the same score (it was left behind, so it would have been shown over the newer score
+   after a refresh, and a later flush could upload it over the newer value).
+2. **Two admins adding a project at once got the same number.** New guarded UNIQUE index
+   `projects_school_num_uniq` on `(school_id, num)`. `createProject()` treats a clash on a number it
+   picked itself (blank, or the form's pre-fill left alone — `projAutoNumRef` / `data.numAuto`) by
+   re-reading the numbers from the server and retrying once (`PROJECT_NUM_TAKEN` WARN); a typed number,
+   an edit onto a taken number, or a second clash shows "Project number N is already used by another
+   project". `submit_registration()` was already MAX + 1 under a per-school lock, so it is unaffected.
+Tests: DB 241 → 247 (refused insert and edit, other school / "1" vs "001" allowed, registration still
+gets the next number, existing duplicate → migration warns and skips, renumber → re-run creates it; the
+10m fixture moved off number 001, which a registration in that school already held). Browser: lifecycle
++3 (refresh keeps the queued score counted and its values; a successful re-score retires the stale
+copy), import +3 (another admin took the pre-filled number → next free one; typed taken number refused;
+edit onto a taken number refused). The mock now enforces the index. All new browser checks
+**mutation-tested** (they fail with the fix disabled). Lint unchanged (26/5).
 
 **2026-10-06 — Five pre-event fixes from the second review** (no migration).
 All five are app-only, so rollback is a redeploy.
@@ -1386,6 +1414,10 @@ Read this first when resuming on another machine.
 
 - **All SQL migrations through `2026-10m` have been run on the live project** (10m applied 2026-10-06,
   with the matching app build deployed in `4c72c8c`)
+- **`2026-10n` (unique project numbers) was run on the live project 2026-10-07** by the organiser.
+  If the SQL editor printed a "duplicated project number(s)" WARNING the index was NOT created —
+  renumber those projects and re-run it. Check with:
+  `SELECT indexname FROM pg_indexes WHERE indexname = 'projects_school_num_uniq';` (one row = in place).
 - Migrations through `2026-10l` (10k and 10l verified with
   anonymous probes: RLS refusals, bucket public, anon upload refused, anon cannot list).
 - **Dishchii'bikoh live data:** 63 projects imported (PreK 2 · K-5 8 · 6-8 31 · 9-12 19 · SPED 3); the
@@ -1479,29 +1511,30 @@ Already done (2026-10-06): school name + logo looked up server-side, all typed v
 
 ### Known gaps (not yet fixed)
 
-**From the second external review (2026-10-06). All verified in the code; none fixed yet.**
+**From the second external review (2026-10-06). All verified in the code; two fixed 2026-10-07 (struck through).**
 - **A lost response on a branding save deletes the file the row points at.** `saveBrandDraft()` removes
   the uploaded object whenever the RPC returns an error, including when the server committed first and
   only the reply was lost → a broken logo. Re-read the row before deleting anything.
-- **A refresh hides a queued-but-unsynced review from the judge.** `loadScores()` replaces state with
-  the server's rows and never merges `sf_offline_queue`, so a judge sees 0/1 scored and an empty form
-  for work that is safe on the device — and may well redo it. Belongs with the queue-versioning fix.
-- **Project numbers are still allocated in the browser.** The double-click case is fixed, but two
-  admins adding a project at the same moment can still pick the same number — `nextProjectNum()` reads
-  each browser's own list and there is no uniqueness constraint on `(school_id, num)`. Server-side
-  allocation is the real fix; a guarded UNIQUE index would at least make the clash loud.
+- ~~**A refresh hides a queued-but-unsynced review from the judge.**~~ **Fixed 2026-10-07:**
+  `loadScores()` overlays `queuedScoresFor(schoolId)` on the server's rows.
+- ~~**Two admins can pick the same project number.**~~ **Fixed 2026-10-07 (migration 2026-10n):** a
+  guarded UNIQUE `(school_id, num)` index refuses the clash; `createProject()` re-picks a number it chose
+  itself from the server's list and retries once, and reports a typed one. Numbers are still *chosen*
+  in the browser — the index makes a clash loud, not impossible. ⚠️ If the live database already holds
+  a duplicate the migration warns and skips the index; renumber, then re-run it.
 - **Not verified here, reported and plausible:** `submit_registration()` has no idempotency key (a
   retried form creates a second project), it checks grade/division/category for presence rather than
   validity, and the two API handlers do not type-check input or time-box their upstream calls.
 - **By design, worth revisiting:** `canFinalize` is `adminValidation?.approved && !deliberationOpen` —
   exactly what this file documents — so results CAN be finalized while a judge has scored nothing.
   Consensus is advisory. If that is not wanted, the gate needs coverage checks, not a doc change.
-- **The offline queue can lose or resurrect a revision** (2026-10-06 review, deferred). `submitScore()`
-  leaves an older queued entry in place when a later submit SUCCEEDS, so a flush can overwrite the
-  newer server value; and `runOfflineFlush()` drops entries by `judge_id_project_id`, so a re-score
-  queued *during* the flush is deleted without being uploaded. Both windows are narrow (a server
-  rejection, then a re-score). The fix is a per-revision id acknowledged individually — not a
-  one-liner, so it was not done days before the fair.
+- **The offline queue can lose or resurrect a revision** (2026-10-06 review, partly fixed 2026-10-07).
+  Fixed: a later submit that SUCCEEDS now removes the older queued copy (it was left in place, so a
+  flush could overwrite the newer server value — and since 2026-10-07 it would also have been shown
+  over it after a refresh). Still open: `runOfflineFlush()` drops entries by `judge_id_project_id`, so a
+  re-score queued *during* a flush is deleted without being uploaded, and a flush that already read
+  the old copy can still upload it after a newer success. Narrow windows; the fix is a per-revision id
+  acknowledged individually.
 - **No query paginates.** `loadScores`, `loadLog` and `loadItLogs` fetch with no `.range()` and ignore
   the error, so anything past Supabase's "Max rows" (Settings → API, default 1,000) is silently
   missing. Not a risk for this fair (~190 scores with 3 judges per project in 6-8), but `activity_log`

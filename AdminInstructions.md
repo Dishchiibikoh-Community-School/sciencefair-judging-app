@@ -443,8 +443,14 @@ If a judge's tablet fails and they need to continue on another device:
 
 > **One click is enough.** While a project is saving the button reads *Saving…* and is disabled, so
 > an impatient second tap cannot create a duplicate. (It used to create two projects sharing one
-> number.) Note two admins adding a project at the same moment can still land on the same number —
-> agree who is entering projects.
+> number.)
+
+> **Two admins at once.** Every project number is unique within your school. If another admin takes
+> the number the form filled in for you a moment before you press **Add Project**, the app quietly
+> uses the next free number instead. If you **typed** the number yourself and it is already taken,
+> you get *"Project number 007 is already used by another project"* — nothing is saved and your
+> typing stays in the form. Type another number, or clear the box to use the next free one.
+> (Needs database migration 2026-10n — until it is run, two admins can still end up on one number.)
 
 **Delete a Project:**
 1. Click **"Remove"**
@@ -761,6 +767,8 @@ Logs never contain student names or form text.
 
 - Judges can score offline if internet drops
 - Scores sync automatically when connection returns
+- A score waiting to sync still shows as scored on that judge's device, even after the page is
+  refreshed or the tablet restarts — the judge does not need to score it again
 
 ### Multiple Devices
 
@@ -854,6 +862,12 @@ A: Only via judges. Admin provides oversight and final award decisions, but scor
   judge lists, so **nothing was changed** — your "N judges per project" panels are untouched
 - Once the connection is back, re-save the judge grid (Setup → Judges) or press **Rebalance** on
   the Judges tab
+
+### Scenario: "Project number … is already used by another project"
+- Every project number is unique within your school. Another admin probably just used it (your list
+  refreshes when you see this message)
+- Type a different number, or clear the number box to use the next free one, and save again
+- Nothing was saved, so there is nothing to clean up
 
 ### Scenario: "Not saved" when moving a project to another department
 - Only happens to a project that **already has scores**, and only when the two departments are

@@ -198,6 +198,8 @@ If internet drops:
 3. Scores will auto-sync when internet returns
 4. You'll see an **"Offline" banner** while disconnected
 5. Use **"Sync Now"** when back online if shown
+6. A score that is still waiting to sync stays ticked as scored, even if the page refreshes or the
+   tablet restarts — **do not score it again**. It goes up on its own once you are back online
 
 **Note:** Ensure your browser doesn't clear data, or scores may be lost.
 

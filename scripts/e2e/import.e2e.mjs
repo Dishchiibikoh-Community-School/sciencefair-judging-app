@@ -202,6 +202,49 @@ await check("two rapid clicks create exactly ONE project, with one number", asyn
   assert.equal(new Set(nums).size, nums.length, "two projects ended up with the same number");
 });
 
+// ── TWO ADMINS, ONE NUMBER (migration 2026-10n) ─────────────────────────────
+// nextProjectNum() reads THIS browser's list, so a second admin who added a project a moment
+// ago is invisible to it. The database now refuses the clash; a number the form pre-filled is
+// re-picked from the server's list, a number the admin typed is reported back to them.
+const numInput = () => PB.locator('input[placeholder="e.g. 001"]');
+const addBtn2 = PB.getByRole("button", { name: /^(Add Project|Saving…)$/ });
+await PB.getByRole("button", { name: "+ Add Project" }).click();
+const prefilled = await numInput().inputValue();
+B.projects.push({ id: "p_other_admin", school_id: B.schools[0].id, num: prefilled, title: "Other Admin's Project",
+  cat: "Life Science", grade: "7", locked: false, department_id: null, room: "", description: "", motivation: "",
+  created_at: new Date().toISOString() });             // straight into the DB: this browser never hears of it
+await PB.locator(".proj-form input[type=text]").first().fill("Race Study");
+await addBtn2.click();
+await PB.waitForTimeout(2000);
+await check("another admin took the pre-filled number: the project is saved under the next free one", async () => {
+  const race = B.projects.find(p => p.title === "Race Study");
+  assert.ok(race, "Race Study was not saved");
+  assert.notEqual(race.num, prefilled);
+  const nums = B.projects.map(p => p.num);
+  assert.equal(new Set(nums).size, nums.length, "two projects share a number");
+  assert.equal(await PB.locator(".proj-form").count(), 0, "the editor stayed open");
+});
+
+await PB.getByRole("button", { name: "+ Add Project" }).click();
+await PB.locator(".proj-form input[type=text]").first().fill("Typed Clash");
+await numInput().fill(prefilled);                      // deliberately the other admin's number
+await addBtn2.click();
+await check("a TYPED number that is taken is refused with a clear message, and nothing is saved", async () => {
+  await PB.getByText(new RegExp(`Project number ${prefilled} is already used`)).waitFor({ timeout: 6000 });
+  assert.equal(B.projects.filter(p => p.title === "Typed Clash").length, 0);
+  assert.equal(await numInput().inputValue(), prefilled, "the admin's typing was thrown away");
+});
+await PB.getByRole("button", { name: "Cancel" }).click();
+
+await PB.locator(".proj-mgmt-card", { hasText: "Race Study" }).locator(".proj-act-btn.edit").first().click();
+await numInput().fill(prefilled);
+await PB.getByRole("button", { name: "Save Changes" }).click();
+await check("editing a project onto a taken number is refused with the same clear message", async () => {
+  await PB.getByText(new RegExp(`Project number ${prefilled} is already used`)).waitFor({ timeout: 6000 });
+  assert.notEqual(B.projects.find(p => p.title === "Race Study").num, prefilled);
+});
+await PB.getByRole("button", { name: "Cancel" }).click();
+
 await fileInput(PB).setInputFiles({ name: "projects.xlsx", mimeType: "application/vnd.ms-excel", buffer: Buffer.from("PK") });
 await check(".xlsx is refused with Save-As-CSV instructions", () => PB.getByText(/CSV UTF-8/).waitFor({ timeout: 3000 }));
 await fileInput(PB).setInputFiles({ name: "x.csv", mimeType: "text/csv", buffer: Buffer.from("Name,Score\nA,1\n") });

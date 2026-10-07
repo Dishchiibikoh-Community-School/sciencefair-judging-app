@@ -118,6 +118,22 @@ await check("sync rejected by the server: score stays queued and OFFLINE_SYNC_FA
   assert.ok(row, "no OFFLINE_SYNC_FAILED row");
   assert.equal(row.payload.failed, 1); assert.deepEqual(row.payload.errors, ["PGRST000"]);
 });
+// A refresh while the score is still only on the device. loadScores() used to replace the
+// screen with the server's rows, so the judge saw 2/3 and an EMPTY form for work that was
+// safe in sf_offline_queue — and redid it (2026-10-06 review). The cache restore shows 3/3
+// first, so wait for the server load to land before looking.
+await J.page.reload();
+await J.page.locator(".proj-item").first().waitFor({ timeout: 6000 });
+await J.page.waitForTimeout(2000);
+await check("refresh with a score still queued: it still counts as scored (3/3), not lost from view", async () => {
+  await J.page.getByText("3/3 scored").waitFor({ timeout: 2000 });
+  assert.equal(scoreOf("p_old8").length, 0, "the score reached the server — this check proves nothing");
+});
+await J.page.locator(".proj-item", { hasText: "Eighth Grade Rockets" }).click();
+await check("refresh with a score still queued: re-opening it shows the queued values, not an empty form", async () =>
+  assert.equal((await J.page.locator(".sc-total-num").innerText()).trim(), "42"));
+await J.page.getByRole("button", { name: /Back to my projects/ }).click();
+await J.page.locator(".proj-item").first().waitFor();
 store.failWrites = [];
 await J.page.getByRole("button", { name: "Sync Now" }).click();
 await J.page.waitForTimeout(1500);
@@ -125,6 +141,28 @@ await check("back online: queued score syncs and the queue empties", async () =>
   assert.equal(scoreOf("p_old8").length, 1);
   const q = await J.page.evaluate(() => JSON.parse(localStorage.getItem("sf_offline_queue") || "[]"));
   assert.equal(q.length, 0);
+});
+
+// A re-score that SUCCEEDS must retire the older queued copy of the same score. Left in the
+// queue, the old value was shown over the new one after a refresh and could be uploaded over
+// it by the next flush.
+const editSeed = async (nth) => {
+  await J.page.locator(".proj-item", { hasText: "Existing Volcano Study" }).click();
+  await J.page.locator(".rub-steps").first().locator("button").nth(nth).click();
+  await J.page.getByRole("button", { name: /Submit Score/ }).click();
+  await J.page.locator(".proj-item").first().waitFor();
+};
+store.failWrites = ["scores"];
+await editSeed(1);                                     // presentation → 2, rejected → queued
+store.failWrites = [];
+await editSeed(2);                                     // presentation → 4 (as before), saved
+// What the next flush would do with whatever is still queued (the button may be hidden when nothing is).
+await J.page.getByRole("button", { name: "Sync Now" }).click({ timeout: 1500 }).catch(() => {});
+await J.page.waitForTimeout(1200);
+await check("a later successful re-score retires the stale queued copy (the old value never overwrites it)", async () => {
+  const q = await J.page.evaluate(() => JSON.parse(localStorage.getItem("sf_offline_queue") || "[]"));
+  assert.equal(q.length, 0, "the stale copy is still queued");
+  assert.equal(scoreOf("p_seed")[0].criteria.presentation, 4, "the stale queued value overwrote the newer score");
 });
 
 console.log("\n── Judge: validate + revise");

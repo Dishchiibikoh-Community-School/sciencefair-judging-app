@@ -124,7 +124,8 @@ for (const round of [1, 2]) {
   await db.exec(mig("migration-2026-10k-judge-roster-and-panels.sql"));
   await db.exec(mig("migration-2026-10l-school-branding.sql"));
   await db.exec(mig("migration-2026-10m-ratelimit-regnum-project-moves.sql"));
-  ok(`migrations 2026-10 … 10m applied (round ${round} — re-runnable)`);
+  await db.exec(mig("migration-2026-10n-unique-project-numbers.sql"));
+  ok(`migrations 2026-10 … 10n applied (round ${round} — re-runnable)`);
 }
 
 // ── PART 1: names are private ──
@@ -1053,7 +1054,7 @@ ok("compat: set_judge_numbers (old range editor) writes the roster");
              ('cccccccc-0000-0000-0000-00000000000f', '${SM}', 'F', 3, 5, 'feedback');
     UPDATE departments SET rubric_id = '${RB}' WHERE id = 'cccccccc-0000-0000-0000-00000000000b';
     INSERT INTO projects (id, school_id, num, title, department_id)
-      VALUES ('p_m1', '${SM}', '001', 'Moves', 'cccccccc-0000-0000-0000-00000000000a');
+      VALUES ('p_m1', '${SM}', '010', 'Moves', 'cccccccc-0000-0000-0000-00000000000a');
     INSERT INTO judges (id, school_id, alias, department_id, projects)
       VALUES ('j_m1', '${SM}', 'Judge1', 'cccccccc-0000-0000-0000-00000000000a', '["p_m1"]');`);
 
@@ -1081,6 +1082,49 @@ ok("compat: set_judge_numbers (old range editor) writes the roster");
   await db.exec(`INSERT INTO scores (school_id, judge_id, project_id, criteria) VALUES ('${SM}', 'j_m1', 'p_m1', '{"a":3}'::jsonb)`);
   await as("authenticated", ADMIN, `UPDATE projects SET title = 'Renamed', room = 'Gym' WHERE id = 'p_m1' AND school_id = $1`, [SM]);
   ok("10m: a scored project's title/room/etc still save normally");
+}
+
+// ── PART: migration 2026-10n — a project number is unique within a school ──
+// Numbers are picked in the admin's browser, so two admins adding a project at once both
+// picked the same one and nothing refused it.
+{
+  const SN = "7a7a7a7a-0000-0000-0000-00000000010b";
+  await db.exec(`
+    INSERT INTO schools (id, name, slug, invite_code, admin_pin) VALUES ('${SN}', 'Num Test', 'num-test', 'NUMCODE1', '4821');
+    INSERT INTO school_admins (school_id, user_id) VALUES ('${SN}', '${ADMIN}');`);
+  const ADD = `INSERT INTO projects (id, school_id, num, title) VALUES ($1, $2, $3, 'P')`;
+  await as("authenticated", ADMIN, ADD, ["p_n1", SN, "001"]);
+  await fails("authenticated", ADMIN, ADD, /projects_school_num_uniq/,
+    "10n: a second project with the same number in the same school is refused", ["p_n2", SN, "001"]);
+  await as("authenticated", ADMIN, ADD, ["p_n2", SN, "002"]);
+  await fails("authenticated", ADMIN, `UPDATE projects SET num = '001' WHERE id = 'p_n2' AND school_id = $1`,
+    /projects_school_num_uniq/, "10n: editing a project onto a taken number is refused", [SN]);
+  await db.exec(`INSERT INTO projects (id, school_id, num, title) VALUES ('p_n_other', '${SID}', '001', 'Same number, other school')
+    ON CONFLICT DO NOTHING`);
+  await db.exec(`INSERT INTO projects (id, school_id, num, title) VALUES ('p_n3', '${SN}', '1', 'Unpadded')`);
+  ok('10n: the same number in another school, and "1" next to "001", are still allowed');
+
+  // submit_registration() numbers from MAX + 1 under a per-school lock — it must never hit the index.
+  await db.exec(`INSERT INTO registration_links (school_id, token, active) VALUES ('${SN}', 'NTOK', true)`);
+  const reg = (await as("anon", "", "SELECT submit_registration('NTOK', $1::jsonb) AS r", [JSON.stringify({
+    student_name: "Ana", student_email: "ana@x.com", grade_level: "8", project_title: "Reg project",
+    category: "Life Science", division: "Junior High", school_name: "Num Test", reg_prefix: "JHS-LS",
+    is_original_work: true, agrees_to_rules: true })])).rows[0].r;
+  assert.equal(reg.project_num, "003");
+  ok("10n: a public registration still gets the next free number (003)");
+
+  // The guard: a database that ALREADY holds a duplicate must not abort the migration.
+  await db.exec(`DROP INDEX projects_school_num_uniq;
+    INSERT INTO projects (id, school_id, num, title) VALUES ('p_n_dup', '${SN}', '001', 'Old duplicate');`);
+  await db.exec(mig("migration-2026-10n-unique-project-numbers.sql"));
+  const idxN = () => db.query(`SELECT indexdef FROM pg_indexes WHERE indexname = 'projects_school_num_uniq'`);
+  assert.equal((await idxN()).rows.length, 0);
+  ok("10n: with a duplicate already present the migration completes and skips the index (warns)");
+  await db.exec(`UPDATE projects SET num = '009' WHERE id = 'p_n_dup' AND school_id = '${SN}'`);
+  await db.exec(mig("migration-2026-10n-unique-project-numbers.sql"));
+  const def = (await idxN()).rows[0]?.indexdef || "";
+  assert.match(def, /UNIQUE/); assert.match(def, /school_id, num/);
+  ok("10n: once the duplicate is renumbered, re-running creates the unique (school_id, num) index");
 }
 
 console.log(`\nALL ${pass} CHECKS PASSED`);

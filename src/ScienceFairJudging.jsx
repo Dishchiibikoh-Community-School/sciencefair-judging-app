@@ -327,7 +327,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-06s";
+const ADMIN_HELP_UPDATED = "2026-10-07";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -433,7 +433,7 @@ const ADMIN_HELP = [
   ]},
   { title: "Judges", icon: "🧑‍⚖️", faq: [
     ["A judge's tablet died.", "Judges tab → Allow Transfer on that judge (Admin PIN). Within 10 minutes the judge signs in on the new device with the same judge number and invite code. Their scores are kept."],
-    ["A judge lost internet.", "Scores are kept on the device and sync automatically when it reconnects (or with Sync Now). The app will not let a judge sign out while scores are still only on the device."],
+    ["A judge lost internet.", "Scores are kept on the device and sync automatically when it reconnects (or with Sync Now). The app will not let a judge sign out while scores are still only on the device. A score waiting to sync stays ticked as scored even if the page is refreshed — the judge should NOT score it again."],
     ["Can a judge change a score?", "Yes — open the project again and resubmit, until they validate their results or you lock judging."],
     ["A judge validated too early.", "They can press Revise my validation until you finalize the results."],
     ["A judge cannot see a project you just added.", "Make sure the project has their department. It appears automatically; if not, ask them to refresh the page."],
@@ -462,6 +462,7 @@ const ADMIN_HELP = [
     ["A judge says their scores will not sync.", "IT Logs → look for OFFLINE_SYNC_FAILED with their alias. It shows how many scores are stuck and how long they have waited. The scores stay safe on their device; do NOT let them clear the browser. Send the report to your technical contact."],
     ["I cannot move a project to another department.", "If the project already has scores and the other department is judged differently — a different rubric, or one of them is comments-only — the move is refused, because those scores would be counted out of the wrong total or hidden from the results. Moving between departments judged the same way still works. To move it anyway, delete that project's scores first."],
     ["A project edit says \"Not saved\".", "Nothing was written and the list now shows what the database really holds. Your typing is still in the form — check the internet (or sign out and in) and press Save Changes again. IT Logs records it as PROJECT_UPDATE_FAILED."],
+    ["\"Project number … is already used by another project\".", "Every project number is unique in your school — another admin probably just used it. Type a different number, or clear the box to use the next free one, and save again. Nothing was saved. (If you left the number the form filled in, the app picks the next free one by itself.)"],
     ["Reset says some steps failed.", "Nothing is guaranteed cleared — the old judges and scores may still be live. Check the internet and press Reset everything again; it is safe to repeat. Only the green \"Reset Complete\" means it finished. IT Logs records FULL_RESET_FAILED."],
     ["Judges did not get a project I just added or moved.", "If IT Logs shows JUDGE_ASSIGNMENTS_SYNC_FAILED the server could not update their lists, so nothing was changed — your panels are untouched. Once the connection is back, re-save the judge grid (Setup → Judges) or press Rebalance on the Judges tab."],
     ["Something looks wrong.", "IT Logs tab (Admin PIN) → copy the report and send it to your technical contact. App crashes on any device are recorded automatically as CLIENT_ERROR."],
@@ -1645,6 +1646,25 @@ function scoresToMap(rows) {
     return acc;
   }, {});
 }
+// Scores this device has saved but not yet synced (sf_offline_queue), as score-map entries
+// for ONE school. Overlaid on every server load: loadScores() used to replace state with the
+// server's rows, so after a refresh a judge saw "0 scored" and an empty form for work that
+// was safe on the device — and redid it. The queued value always wins: the next flush
+// upserts exactly that value, so it is what the server is about to hold.
+function queuedScoresFor(schoolId) {
+  let queue = [];
+  try { queue = JSON.parse(localStorage.getItem("sf_offline_queue") || "[]"); } catch { return {}; }
+  if (!Array.isArray(queue)) return {};
+  return queue.reduce((acc, item) => {
+    const d = item?.data;
+    if (!d || d.school_id !== schoolId) return acc;
+    acc[`${d.judge_id}_${d.project_id}`] = {
+      criteria: d.criteria || {}, notes: d.notes || "", commendation: d.commendation || "",
+      time: item.ts || 0,
+    };
+    return acc;
+  }, {});
+}
 function delibNotesToMap(rows) {
   return rows.reduce((acc, row) => {
     acc[`${row.judge_id}_${row.project_id}`] = {
@@ -1921,6 +1941,7 @@ export default function App() {
   const [projSaveErr,        setProjSaveErr]         = useState("");   // "NOT saved" message in the project editor
   const [projSaving,         setProjSaving]          = useState(false); // a project save is in flight (disables the button)
   const projSavingRef = useRef(false);  // same flag, readable synchronously inside one click burst
+  const projAutoNumRef = useRef("");    // the number Add Project pre-filled — still that value = "pick one for me"
   const [scoreSaving,        setScoreSaving]         = useState(false); // a score submit is in flight
   const scoreSavingRef = useRef(false);
   const [projForm,           setProjForm]            = useState(blankProjForm("", catNames()[0] || ""));
@@ -2041,7 +2062,8 @@ export default function App() {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
     const { data } = await supabase.from("scores").select("*").eq("school_id", schoolId);
-    if (data) setScores(scoresToMap(data));
+    // Never let the server's copy hide a score that is still waiting to sync on this device.
+    if (data) setScores({ ...scoresToMap(data), ...queuedScoresFor(schoolId) });
   }
   async function loadLog(sid) {
     const schoolId = sid || currentSchool?.id;
@@ -4919,6 +4941,15 @@ export default function App() {
       const syncedAt = Date.now();
       setLastSyncAt(syncedAt);
       localStorage.setItem("sf_last_sync_at", String(syncedAt));
+      // An OLDER queued copy of this score (from a submit that failed earlier) is now stale.
+      // Left in the queue it would be shown over this newer score after a refresh
+      // (queuedScoresFor) and could be uploaded over it by the next flush.
+      const q = JSON.parse(localStorage.getItem("sf_offline_queue") || "[]");
+      const rest = q.filter(x => !(x.data.judge_id === judge.id && x.data.project_id === scoringPid));
+      if (rest.length !== q.length) {
+        localStorage.setItem("sf_offline_queue", JSON.stringify(rest));
+        setOfflineQueue(rest);
+      }
     }
     addLog(`${judge.alias} submitted ${feedback ? "a review" : "score"} for Project #${proj.num}`);
     addItLog("INFO","SCORE","SCORE_SUBMITTED","Judge submitted a review for an assigned project",
@@ -5110,6 +5141,10 @@ export default function App() {
   ];
   const MISSING_TABLE = (err) =>
     err && (err.code === "42P01" || err.code === "PGRST205" || /could not find the table|relation .* does not exist/i.test(err.message || ""));
+  // Two projects of one school with the same number (unique index, migration 2026-10n). Matched
+  // on the index name so a primary-key or any other unique clash is never mistaken for it.
+  const DUP_PROJECT_NUM = (err) =>
+    !!err && err.code === "23505" && /projects_school_num_uniq/.test(err.message || "");
 
   // Adviser + student names live in project_private (admin-only RLS) since migration
   // 2026-10b, because `projects` is publicly readable. Before that migration the names
@@ -5164,10 +5199,11 @@ export default function App() {
   async function createProject(data, baseProjects = projects) {
     const members = normMembers(data.members);
     const id = "p_" + uid();
-    const finalNum = (data.num || "").trim() || nextProjectNum(baseProjects);
+    const typedNum = (data.num || "").trim();
+    let finalNum = typedNum || nextProjectNum(baseProjects);
     // Public columns only — names go to project_private below.
-    const proj = {
-      id, num: finalNum, title: data.title.trim(), cat: data.cat,
+    const rowWith = (num) => ({
+      id, num, title: data.title.trim(), cat: data.cat,
       grade: normGrade(data.grade) || highestGrade(members),
       locked: false,
       department_id: data.department_id || null,
@@ -5175,16 +5211,40 @@ export default function App() {
       description: (data.description || "").trim(),
       motivation: (data.motivation || "").trim(),
       school_id: currentSchool.id,
-    };
+    });
     const advisorName = (data.advisor_name || "").trim();
-    const localProj = { ...proj, school_id: undefined, advisor_name: advisorName, group_members: members };
-    const nextProjects = [...baseProjects, localProj];
+    const localFor = (row) => ({ ...row, school_id: undefined, advisor_name: advisorName, group_members: members });
+    let proj = rowWith(finalNum);
+    let localProj = localFor(proj);
+    let nextProjects = [...baseProjects, localProj];
     setProjects(nextProjects);
-    const error = await writeProjectRow("insert", proj);
+    let error = await writeProjectRow("insert", proj);
+    // Another admin took this number between our read and our insert (migration 2026-10n
+    // makes the database refuse the clash; before it, both projects silently shared it).
+    // A number we picked ourselves is re-picked from the SERVER's list and tried once more;
+    // a number the admin typed is theirs to change, so say which one is taken.
+    if (DUP_PROJECT_NUM(error) && (!typedNum || data.numAuto)) {
+      const { data: serverRows } = await supabase.from("projects").select("num").eq("school_id", currentSchool.id);
+      const retryNum = nextProjectNum([...baseProjects, ...(serverRows || [])]);
+      addItLog("WARN","ADMIN","PROJECT_NUM_TAKEN","Project number was taken by another admin — retrying with the next free one",
+        { projectId:id, taken:finalNum, retry:retryNum });
+      finalNum = retryNum;
+      proj = rowWith(finalNum);
+      localProj = localFor(proj);
+      nextProjects = [...baseProjects, localProj];
+      setProjects(nextProjects);
+      error = await writeProjectRow("insert", proj);
+    }
     if (error) {
       // Roll back the optimistic insert so the UI never shows a project the DB rejected.
       setProjects(baseProjects);
-      addItLog("ERROR","ADMIN","PROJECT_ADD_FAILED","Failed to insert project",{ projectId:id, error:error.message });
+      addItLog("ERROR","ADMIN","PROJECT_ADD_FAILED","Failed to insert project",{ projectId:id, error:error.message, code:error.code || null });
+      if (DUP_PROJECT_NUM(error)) {
+        // The project holding that number may be one this browser has not seen yet.
+        loadProjects(currentSchool.id);
+        return { error: { ...error, message: `Project number ${finalNum} is already used by another project. Type a different number, or leave it blank to use the next free one.` },
+          nextProjects: baseProjects };
+      }
       return { error, nextProjects: baseProjects };
     }
     const privErr = await writeProjectPrivate(id, advisorName, members);
@@ -5216,7 +5276,10 @@ export default function App() {
     projSavingRef.current = true;
     setProjSaving(true);
     setProjSaveErr("");
-    const { error } = await createProject(projForm)
+    // A number the form pre-filled and the admin left alone counts as "not chosen": if another
+    // admin takes it first, createProject() may pick the next free one instead of refusing.
+    const numAuto = !!projForm.num && projForm.num.trim() === projAutoNumRef.current;
+    const { error } = await createProject({ ...projForm, numAuto })
       .finally(() => { projSavingRef.current = false; setProjSaving(false); });
     if (error) {
       // createProject() rolls the row back and logs; it used to return here in silence.
@@ -5266,7 +5329,9 @@ export default function App() {
     // the department-move guard (migration 2026-10m) surfaces its message.
     if (privErr || rowErr) {
       const e = rowErr || privErr;
-      setProjSaveErr(e.message || "Could not save this project. Check your connection and try again.");
+      setProjSaveErr(DUP_PROJECT_NUM(rowErr)
+        ? `Project number ${updated.num} is already used by another project. Pick a different number.`
+        : e.message || "Could not save this project. Check your connection and try again.");
       addItLog("ERROR","ADMIN","PROJECT_UPDATE_FAILED","Project edit was NOT saved — the editor stayed open",
         { projectId: pid, num: updated.num, namesSaved: !privErr, detailsSaved: !rowErr,
           error: e.code || e.message });
@@ -8284,7 +8349,9 @@ export default function App() {
                     📷 Scan forms
                   </button>
                   <button className="btn sm" style={{width:"auto"}} onClick={() => {
-                    setProjForm(blankProjForm(nextProjectNum(), catNames()[0] || ""));
+                    const autoNum = nextProjectNum();
+                    projAutoNumRef.current = autoNum;
+                    setProjForm(blankProjForm(autoNum, catNames()[0] || ""));
                     setShowAddProject(true); setEditingProject(null); setProjSaveErr("");
                   }}>
                     + Add Project

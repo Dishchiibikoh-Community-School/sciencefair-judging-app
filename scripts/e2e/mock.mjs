@@ -448,6 +448,19 @@ export function installMock(page, store, log) {
     if (method === "POST" && table === "rubrics" && (Array.isArray(body) ? body : [body]).some(r => r.is_active)
         && rows.some(r => r.is_active))
       return json(route, 409, { code: "23505", message: 'duplicate key value violates unique constraint "rubrics_one_default_per_school"' });
+    // 2026-10n: a project number is unique within a school (unique index). Fixtures pushed
+    // straight into the store bypass this, like rows that predate the migration.
+    if (table === "projects" && (method === "POST" || method === "PATCH")) {
+      const targets = method === "PATCH" ? rows.filter(r => matches(r, params)) : [];
+      const items = method === "PATCH" ? targets.map(t => ({ ...t, ...body })) : (Array.isArray(body) ? body : [body]);
+      const touchesNum = method === "POST" || (body && body.num !== undefined);
+      const clash = touchesNum && items.some(it => rows.some(r =>
+        r.school_id === it.school_id && String(r.num) === String(it.num) && r.id !== it.id));
+      if (clash) {
+        log.push(`  refused duplicate project number ${items[0]?.num}`);
+        return json(route, 409, { code: "23505", message: 'duplicate key value violates unique constraint "projects_school_num_uniq"' });
+      }
+    }
     if (method === "POST") {
       const items = Array.isArray(body) ? body : [body];
       // PostgREST upserts on the PRIMARY KEY when on_conflict is not given.
