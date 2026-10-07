@@ -441,6 +441,11 @@ If a judge's tablet fails and they need to continue on another device:
 > **same** way still works, so fixing a misfiled project mid-event is fine. If you really must move
 > it, delete that project's scores first.
 
+> **One click is enough.** While a project is saving the button reads *Saving…* and is disabled, so
+> an impatient second tap cannot create a duplicate. (It used to create two projects sharing one
+> number.) Note two admins adding a project at the same moment can still land on the same number —
+> agree who is entering projects.
+
 **Delete a Project:**
 1. Click **"Remove"**
 2. Confirm the prompt
@@ -837,6 +842,18 @@ A: Only via judges. Admin provides oversight and final award decisions, but scor
 - The change did not reach the database, and nothing changed — what you see is the real state
 - Check: internet connection; sign out and back in if your session may have expired
 - Then press the same button again. IT Logs shows the matching `*_FAILED` event with the error code
+
+### Scenario: Reset says some steps failed
+- The message reads *"N of 12 steps failed — NOTHING is guaranteed cleared"*. Take it literally:
+  the old judges and scores may still be live
+- Check the internet, then press **Reset everything** again — repeating it is safe
+- Only the green **Reset Complete** screen means it finished. IT Logs records `FULL_RESET_FAILED`
+
+### Scenario: Judges did not get a project you just added or moved
+- Look in IT Logs for `JUDGE_ASSIGNMENTS_SYNC_FAILED`. It means the server could not update the
+  judge lists, so **nothing was changed** — your "N judges per project" panels are untouched
+- Once the connection is back, re-save the judge grid (Setup → Judges) or press **Rebalance** on
+  the Judges tab
 
 ### Scenario: "Not saved" when moving a project to another department
 - Only happens to a project that **already has scores**, and only when the two departments are

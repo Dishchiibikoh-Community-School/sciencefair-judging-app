@@ -281,7 +281,21 @@ await A.page.locator('input[placeholder="••••"]').fill("482193");
 await A.page.keyboard.press("Enter");
 await check("6-digit PIN unlocks IT Logs (was impossible: box stopped at 4 digits)", () => A.page.getByText("IT Diagnostic Logs").first().waitFor({ timeout: 4000 }));
 await A.page.locator(".nav-it", { hasText: "Reset All Data" }).click();
+
+// A reset that could not delete must NOT claim it cleared anything (rule 55). Until
+// 2026-10-06 all twelve deletes were fired with Promise.all and every result discarded, so
+// the modal said "All data has been cleared" while the judges and scores were still live.
+store.failWrites = ["judges"];
 await A.page.locator('.modal-box input[type=password]').fill("482193");
+await A.page.getByRole("button", { name: "Reset everything" }).click();
+await check("a failed reset says NOTHING is guaranteed cleared and leaves the data alone", async () => {
+  await A.page.getByText(/NOTHING is guaranteed cleared/).waitFor({ timeout: 6000 });
+  assert.equal(await A.page.getByText("Reset Complete").count(), 0, "it claimed success anyway");
+  assert.ok(store.judges.length >= 1, "judges were deleted despite the failure");
+  const logged = store.it_logs.some(r => r.event === "FULL_RESET_FAILED");
+  assert.ok(logged, "FULL_RESET_FAILED was not logged");
+});
+store.failWrites = [];
 await A.page.getByRole("button", { name: "Reset everything" }).click();
 await A.page.waitForTimeout(1200);
 await check("reset clears scores, judges, validations, share links — keeps projects", async () => {

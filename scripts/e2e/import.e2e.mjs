@@ -177,6 +177,31 @@ await check("retrying the same edit saves it and closes the editor", async () =>
   assert.ok(byTitle(TITLE + " RENAMED"), "the retry did not save");
 });
 
+// ── DOUBLE-CLICKING "Add Project" MUST CREATE ONE PROJECT (2026-10-06) ─────
+// There was no in-flight guard, and nextProjectNum() reads the browser's list — so two taps
+// on a slow connection produced two projects carrying the SAME number.
+const beforeCount = B.projects.length;
+await PB.getByRole("button", { name: "+ Add Project" }).click();
+await PB.locator(".proj-form input[type=text]").first().fill("Double Click Study");
+await PB.route("**/rest/v1/projects*", async (route) => {           // slow the insert down
+  if (route.request().method() === "POST") await new Promise(r => setTimeout(r, 1200));
+  await route.fallback();
+});
+const addBtn = PB.getByRole("button", { name: /^(Add Project|Saving…)$/ });
+await addBtn.click();
+await check("the Add Project button disables itself while the save is in flight", async () =>
+  assert.equal(await addBtn.isDisabled(), true));
+await addBtn.click({ force: true, timeout: 2000 }).catch(() => {});  // the second, racing tap
+await PB.waitForTimeout(2500);
+await PB.unroute("**/rest/v1/projects*");
+await check("two rapid clicks create exactly ONE project, with one number", async () => {
+  const made = B.projects.filter(p => p.title === "Double Click Study");
+  assert.equal(made.length, 1, `created ${made.length} projects`);
+  assert.equal(B.projects.length, beforeCount + 1);
+  const nums = B.projects.map(p => p.num);
+  assert.equal(new Set(nums).size, nums.length, "two projects ended up with the same number");
+});
+
 await fileInput(PB).setInputFiles({ name: "projects.xlsx", mimeType: "application/vnd.ms-excel", buffer: Buffer.from("PK") });
 await check(".xlsx is refused with Save-As-CSV instructions", () => PB.getByText(/CSV UTF-8/).waitFor({ timeout: 3000 }));
 await fileInput(PB).setInputFiles({ name: "x.csv", mimeType: "text/csv", buffer: Buffer.from("Name,Score\nA,1\n") });

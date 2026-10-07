@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (241 checks). Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 328 checks across 15 files |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 332 checks across 15 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -691,7 +691,10 @@ applyDeptPreset(presetId)    // DEPT_PRESETS — only ADDS what is missing, neve
 addCategory(name, code), saveCategory(id), moveCategory(id, ±1)
 requestDeleteCategory(id) → deleteCategory(id)       // warns if projects use it; deletion is safe
 restoreDefaultCategories()   // adds back any missing DEFAULT_CATEGORIES; keeps the school's own
-submitScore()                // enforces judging lock + already-validated gate
+submitScore()                // enforces judging lock + already-validated gate; one submit at a time
+                             // (scoreSavingRef) — two taps wrote two audit entries
+MISSING_FN(err)              // module helper: "this RPC does not exist here", as opposed to any other
+                             // failure. Gates compatibility fallbacks — see rule 68
 flushOfflineQueue()          // guarded; body in runOfflineFlush(queue)
 
 // Admin / security
@@ -869,6 +872,13 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
     rubric (or hiding them in a comments-only department) is not. This is rule 61's sibling: 61 stops
     the DEPARTMENT changing under the scores, 67 stops the PROJECT moving out from under them.
 
+68. **A compatibility fallback may only run when the capability is genuinely absent.**
+    `syncJudgeAssignments()` fell back to the browser sync on ANY error from `sync_judge_projects()`,
+    and that fallback hands every judge every project in the department — so a single transient 503
+    silently undid a "3 judges per project" panel while `project_judges` still held the real one.
+    Gate every such fallback on `MISSING_FN()` / `MISSING_TABLE()` / `MISSING_COL()` and let a
+    transient failure fail loudly instead. Found in review 2026-10-06.
+
 **Supabase client pitfalls (both shipped as real bugs)**
 48. **Every Supabase query must be awaited, returned, inside `Promise.all`, or end in `.then()`.** A supabase-js query builder is lazy — a bare `supabase.from(x).insert(y);` statement sends **nothing**. This silently disabled the activity log, the IT log and "Revise my validation" for all of v2.
 49. **Never `await` a Supabase call inside `onAuthStateChange`.** supabase-js holds its auth lock while notifying listeners; an awaited query waits for that lock → deadlock. It made Sign Out hang forever. Defer with `setTimeout(() => …, 0)` (see `onAuthChanged`).
@@ -917,6 +927,33 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-06 — Five pre-event fixes from the second review** (no migration).
+All five are app-only, so rollback is a redeploy.
+1. **`executeReset()` claimed success after failed deletes.** Twelve requests went out in one
+   `Promise.all` with every result discarded, and the modal said "All data has been cleared" either
+   way — an organiser could believe the old judges and scores were gone while they were still live.
+   It now counts the failures, keeps the modal open with "NOTHING is guaranteed cleared", reloads the
+   real state and logs `FULL_RESET_FAILED`. Deletes are idempotent, so pressing it again is safe.
+2. **Two taps on Add Project made two projects with the same number** (no in-flight guard, and
+   `nextProjectNum()` reads the browser's list). Both Add Project and Save Changes now take a
+   synchronous ref guard and the button disables itself and reads "Saving…". A failed add also shows
+   its error instead of returning in silence. ⚠️ Two admins racing can still collide — see Known gaps.
+3. **A scored project's grade could be changed into an impossible total.** `projectMax()` drops
+   `abstract` below grade 5 but `getTotal()` still counted the stored value, so a grade-6 project
+   re-graded to 4 showed 42.0 / 36 and ranked on a number it could not reach. `getTotal()` now applies
+   the SAME exemption — one definition of "does this criterion apply", used by both. Chosen over a
+   database guard on purpose: it makes the data self-consistent instead of blocking a legitimate
+   correction, and the scoring form never collects `abstract` below grade 5 anyway.
+4. **A transient `sync_judge_projects()` failure destroyed panels** (rule 68). Any error dropped into
+   the browser fallback, which gives every judge every project in the department. It now falls back
+   only on `MISSING_FN()` (a database still on pre-10k) and otherwise stops, leaves panels alone and
+   says so.
+5. **Two taps on Submit Score** sent two upserts and wrote two `SCORE_SUBMITTED` entries. Guarded; the
+   button reads "Saving…". The score row was always correct (unique judge+project).
+Tests: browser 328 → 332 — a failed reset must not claim success, and two rapid Add Project clicks must
+create exactly one project with one number. Both **mutation-tested**: they fail against the pre-fix
+code. DB suite unchanged at 241, lint unchanged (26/5), `npm run build` clean.
 
 **2026-10-06 — Review fixes: invite lockout, reg numbers, project moves, two UI truth bugs**
 (migration `2026-10m`, **coupled** for part 1). An external review of the whole app produced 13
@@ -1443,29 +1480,16 @@ Already done (2026-10-06): school name + logo looked up server-side, all typed v
 ### Known gaps (not yet fixed)
 
 **From the second external review (2026-10-06). All verified in the code; none fixed yet.**
-- **`executeReset()` reports success even when the deletes fail.** Twelve requests go out in one
-  `Promise.all` and every result is discarded; the UI then says "All data has been cleared" while
-  judges and scores may still be in the database. Same class as the seven handlers fixed earlier that
-  day (rule 55) — this one was missed. Should be one admin RPC, in a transaction.
-- **Two clicks on Add Project create two projects with the SAME number.** No in-flight guard, and
-  `nextProjectNum()` reads the browser's list, so two admins racing collide the same way. Needs a
-  disabled-while-saving guard and server-side numbering.
-- **Changing a project's grade after it is scored can make the total exceed the maximum.** Score a
-  grade-6 project out of 42, change it to grade 4, and `projectMax()` drops to 36 while `getTotal()`
-  still counts the stored `abstract` value — the UI shows 42.0 / 36. The 2026-10m trigger guards the
-  DEPARTMENT of a scored project but not its GRADE; the same guard should cover both.
-- **A transient failure of `sync_judge_projects` destroys panel restrictions.** `syncJudgeAssignments()`
-  falls back to the browser sync on ANY error, and that fallback gives every judge every project in the
-  department — so one 503 silently undoes "3 judges per project" while `project_judges` still records
-  the real panel. The fallback must only run when the RPC genuinely does not exist (pre-10k).
 - **A lost response on a branding save deletes the file the row points at.** `saveBrandDraft()` removes
   the uploaded object whenever the RPC returns an error, including when the server committed first and
   only the reply was lost → a broken logo. Re-read the row before deleting anything.
 - **A refresh hides a queued-but-unsynced review from the judge.** `loadScores()` replaces state with
   the server's rows and never merges `sf_offline_queue`, so a judge sees 0/1 scored and an empty form
   for work that is safe on the device — and may well redo it. Belongs with the queue-versioning fix.
-- **Two clicks on Submit Score send two requests and write two audit entries.** The upsert keeps one
-  score row, so only the log is wrong.
+- **Project numbers are still allocated in the browser.** The double-click case is fixed, but two
+  admins adding a project at the same moment can still pick the same number — `nextProjectNum()` reads
+  each browser's own list and there is no uniqueness constraint on `(school_id, num)`. Server-side
+  allocation is the real fix; a guarded UNIQUE index would at least make the clash loud.
 - **Not verified here, reported and plausible:** `submit_registration()` has no idempotency key (a
   retried form creates a second project), it checks grade/division/category for presence rather than
   validity, and the two API handlers do not type-check input or time-box their upstream calls.

@@ -327,7 +327,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-06r";
+const ADMIN_HELP_UPDATED = "2026-10-06s";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -462,6 +462,8 @@ const ADMIN_HELP = [
     ["A judge says their scores will not sync.", "IT Logs → look for OFFLINE_SYNC_FAILED with their alias. It shows how many scores are stuck and how long they have waited. The scores stay safe on their device; do NOT let them clear the browser. Send the report to your technical contact."],
     ["I cannot move a project to another department.", "If the project already has scores and the other department is judged differently — a different rubric, or one of them is comments-only — the move is refused, because those scores would be counted out of the wrong total or hidden from the results. Moving between departments judged the same way still works. To move it anyway, delete that project's scores first."],
     ["A project edit says \"Not saved\".", "Nothing was written and the list now shows what the database really holds. Your typing is still in the form — check the internet (or sign out and in) and press Save Changes again. IT Logs records it as PROJECT_UPDATE_FAILED."],
+    ["Reset says some steps failed.", "Nothing is guaranteed cleared — the old judges and scores may still be live. Check the internet and press Reset everything again; it is safe to repeat. Only the green \"Reset Complete\" means it finished. IT Logs records FULL_RESET_FAILED."],
+    ["Judges did not get a project I just added or moved.", "If IT Logs shows JUDGE_ASSIGNMENTS_SYNC_FAILED the server could not update their lists, so nothing was changed — your panels are untouched. Once the connection is back, re-save the judge grid (Setup → Judges) or press Rebalance on the Judges tab."],
     ["Something looks wrong.", "IT Logs tab (Admin PIN) → copy the report and send it to your technical contact. App crashes on any device are recorded automatically as CLIENT_ERROR."],
   ]},
 ];
@@ -665,6 +667,15 @@ function fmtFull(ts){ return new Date(ts).toLocaleString([], { month:"short", da
 function fmtISO(ts) { return new Date(ts).toISOString(); }
 function itId()     { return "EVT-" + Math.random().toString(36).slice(2,8).toUpperCase(); }
 function requiresAbstract(proj) { return (parseInt(proj?.grade) || 0) >= 5; }
+
+// "This RPC does not exist on this database" — as opposed to any other failure. Used to decide
+// whether a compatibility fallback is allowed to run: a fallback that changes behaviour must
+// never fire on a transient error (see syncJudgeAssignments, rule 68).
+// PostgREST answers an unknown function with PGRST202 / 404; Postgres itself with 42883.
+function MISSING_FN(err) {
+  return !!err && (err.code === "PGRST202" || err.code === "42883" || err.code === "404" ||
+    /could not find the function|function .* does not exist/i.test(err.message || ""));
+}
 
 // CSV cell escaper. Always quotes, doubles inner quotes, and neutralises
 // spreadsheet formula injection by prefixing a leading = + - @ with an apostrophe.
@@ -1908,6 +1919,10 @@ export default function App() {
   const scanUrlsRef = useRef([]);   // object URLs for thumbnails — revoked when the scanner closes
   const [editingProject,     setEditingProject]      = useState(null); // project id being edited
   const [projSaveErr,        setProjSaveErr]         = useState("");   // "NOT saved" message in the project editor
+  const [projSaving,         setProjSaving]          = useState(false); // a project save is in flight (disables the button)
+  const projSavingRef = useRef(false);  // same flag, readable synchronously inside one click burst
+  const [scoreSaving,        setScoreSaving]         = useState(false); // a score submit is in flight
+  const scoreSavingRef = useRef(false);
   const [projForm,           setProjForm]            = useState(blankProjForm("", catNames()[0] || ""));
   const [showDeleteConfirm,  setShowDeleteConfirm]   = useState(false);
   const [deleteProjectId,    setDeleteProjectId]     = useState(null);
@@ -2957,7 +2972,20 @@ export default function App() {
         addItLog("INFO","ADMIN","JUDGE_ASSIGNMENTS_SYNCED","Judge project lists re-synced on the server after a project change",{ departments: targets.length });
         return;
       }
-      addItLog("ERROR","ADMIN","JUDGE_ASSIGNMENTS_SYNC_FAILED","Server re-sync failed — falling back to the browser",{ error: error.code || error.message });
+      // Fall through ONLY when the function genuinely is not there (a database still on
+      // pre-10k). The browser sync below gives every judge every project in the department,
+      // which silently destroys a "N judges per project" panel — so a transient 503 must not
+      // reach it. Stop instead and say so: a judge missing one late project is a far smaller
+      // problem than every judge being handed the whole department (review, 2026-10-06).
+      if (!MISSING_FN(error)) {
+        addItLog("ERROR","ADMIN","JUDGE_ASSIGNMENTS_SYNC_FAILED",
+          "Server re-sync failed — judge lists were NOT updated. Panels left untouched; press Rebalance or re-save the judge grid once the connection is back.",
+          { error: error.code || error.message, departments: targets.length });
+        return;
+      }
+      addItLog("WARN","ADMIN","JUDGE_ASSIGNMENTS_SYNC_LEGACY",
+        "sync_judge_projects() is missing (migration 2026-10k not run) — using the browser sync",
+        { error: error.code || error.message });
     }
     const list = projectList || projects;
     const updates = [];
@@ -4391,7 +4419,7 @@ export default function App() {
     addItLog("WARN","ADMIN","FULL_RESET","Admin performed a full data reset of the application",{ judgesCleared:judges.length, scoresCleared:Object.keys(scores).length, delibNotesCleared:Object.keys(deliberationNotes).length, decisionsCleared:Object.keys(finalDecisions).length, timestamp:fmtISO(Date.now()) });
     // Delete all transient data. activity_log is intentionally excluded (security audit trail).
     const sid = currentSchool.id;
-    await Promise.all([
+    const results = await Promise.all([
       supabase.from("scores").delete().eq("school_id", sid),
       supabase.from("judges").delete().eq("school_id", sid),
       supabase.from("share_links").delete().eq("school_id", sid),
@@ -4407,6 +4435,18 @@ export default function App() {
       // and kept serving the old roster.
       supabase.from("app_settings").upsert({ school_id: sid, key: "project_list_token",        value: "" }),
     ]);
+    // Rule 55. Until 2026-10-06 every one of those twelve results was discarded and the modal
+    // said "All data has been cleared" regardless — an admin could believe the old judges and
+    // scores were gone while they were still live. Deletes are idempotent, so a retry is safe.
+    const failed = results.filter(r => r?.error);
+    if (failed.length) {
+      setResetPinErr(`${failed.length} of ${results.length} steps failed — NOTHING is guaranteed cleared. Check your connection and press Reset everything again.`);
+      addItLog("ERROR","ADMIN","FULL_RESET_FAILED","Reset did NOT complete — some data may still be live",
+        { failedSteps: failed.length, totalSteps: results.length,
+          errors: [...new Set(failed.map(r => r.error.code || r.error.message))].slice(0, 5) });
+      await Promise.all([loadJudges(sid), loadScores(sid), loadSettings(sid)]);
+      return;
+    }
     setJudges([]);
     setScores({});
     addLog("Admin performed a full data reset — activity log preserved for security review");
@@ -4477,7 +4517,16 @@ export default function App() {
   function getTotal(s, p) {
     const proj = typeof p === "string" ? projects.find(x => x.id === p) : p;
     const crit = s?.criteria || s || {};
-    return projRubric(proj).reduce((t, r) => t + (Number(crit[r.id]) || 0), 0);
+    // Skip a criterion this project is exempt from — the SAME test projectMax() uses. Without
+    // it the two disagree: score a grade-6 project out of 42, then correct its grade to 4, and
+    // projectMax() drops to 36 while the stored `abstract` value keeps counting, so the project
+    // shows 42.0 / 36 and ranks on a number it cannot reach (found in review, 2026-10-06).
+    // The scoring form never collects `abstract` below grade 5, so this only ever affects a
+    // project whose grade changed after it was scored.
+    return projRubric(proj).reduce((t, r) => {
+      if (r.id === "abstract" && proj && !requiresAbstract(proj)) return t;
+      return t + (Number(crit[r.id]) || 0);
+    }, 0);
   }
 
   function projAvg(pid) {
@@ -4819,6 +4868,10 @@ export default function App() {
   }
 
   async function submitScore() {
+    // One submit at a time. Two taps on a slow connection used to send two upserts and write
+    // two SCORE_SUBMITTED audit entries; the unique (judge_id, project_id) constraint kept the
+    // score itself correct, so only the log was wrong (review, 2026-10-06).
+    if (scoreSavingRef.current) return;
     // Lock is enforced here, not just on the project tile — a judge already inside
     // the scoring form when the admin locks must not be able to submit.
     if (locked) {
@@ -4834,6 +4887,7 @@ export default function App() {
       return;
     }
     const total = draftTotal();
+    scoreSavingRef.current = true; setScoreSaving(true);
     // A comment-only department writes no criteria at all — the commendation and
     // the comment ARE the review. getTotal() then sums an empty object to 0, which
     // is why such departments are excluded from every ranking (rule 59).
@@ -4871,6 +4925,7 @@ export default function App() {
       { judgeId:judge.id, alias:judge.alias, projectId:scoringPid, projectNum:proj.num,
         mode: feedback ? "feedback" : "scored",
         ...(feedback ? { commendation } : { total, rubric: draftSc }) });
+    scoreSavingRef.current = false; setScoreSaving(false);
     setView("judge-home");
   }
 
@@ -5154,8 +5209,20 @@ export default function App() {
 
   async function addProject() {
     if (!projForm.title.trim()) return;
-    const { error } = await createProject(projForm);
-    if (error) return;
+    // Two taps used to create TWO projects, and because nextProjectNum() reads the browser's
+    // list both got the same number (review, 2026-10-06). The ref is checked synchronously —
+    // a state flag would not have updated before the second click's handler ran.
+    if (projSavingRef.current) return;
+    projSavingRef.current = true;
+    setProjSaving(true);
+    setProjSaveErr("");
+    const { error } = await createProject(projForm)
+      .finally(() => { projSavingRef.current = false; setProjSaving(false); });
+    if (error) {
+      // createProject() rolls the row back and logs; it used to return here in silence.
+      setProjSaveErr(error.message || "Could not add this project. Check your connection and try again.");
+      return;
+    }
     setProjForm(blankProjForm("", catNames()[0] || ""));
     setShowAddProject(false);
   }
@@ -5165,6 +5232,9 @@ export default function App() {
     if (!existing || existing.locked) return;
     const { title, cat, grade, num, department_id, advisor_name } = projForm;
     if (!title.trim()) return;
+    if (projSavingRef.current) return;      // same double-click guard as addProject()
+    projSavingRef.current = true;
+    setProjSaving(true);
     const membersArrProj = normMembers(projForm.members);
     const prevDept = existing.department_id || null;
     const updated = {
@@ -5202,6 +5272,7 @@ export default function App() {
           error: e.code || e.message });
       // Show what the database actually holds rather than the rejected edit.
       await loadProjects(currentSchool.id);
+      projSavingRef.current = false; setProjSaving(false);
       return;
     }
     // A department change moves the project between judge pools — resync both sides.
@@ -5232,6 +5303,7 @@ export default function App() {
       { projectId:pid, title:updated.title, num:updated.num, timestamp:fmtISO(Date.now()) });
     setEditingProject(null);
     setProjForm(blankProjForm("", catNames()[0] || ""));
+    projSavingRef.current = false; setProjSaving(false);
   }
 
   // ── PARTICIPATION-FORM SCANNER ──────────────────────────────
@@ -6305,8 +6377,8 @@ export default function App() {
                 <div className="sc-total-num">{draftTotal()}</div>
               </div>
             )}
-            <button className="btn" onClick={submitScore} disabled={!allMoved() || hasZeroScore()}>
-              {isFeedbackProject(proj) ? "Submit Review →" : "Submit Score →"}
+            <button className="btn" onClick={submitScore} disabled={!allMoved() || hasZeroScore() || scoreSaving}>
+              {scoreSaving ? "Saving…" : isFeedbackProject(proj) ? "Submit Review →" : "Submit Score →"}
             </button>
             {isFeedbackProject(proj) && !allMoved() && (
               <p style={{ textAlign:"center", fontSize:".72rem", color:"var(--dim)", marginTop:".4rem" }}>Choose or write a commendation to finish.</p>
@@ -8378,9 +8450,9 @@ export default function App() {
                   )}
                   <div style={{marginTop:".5rem",display:"flex",gap:".5rem"}}>
                     <button className="btn sm" style={{width:"auto"}}
-                      disabled={!projForm.title.trim()}
+                      disabled={!projForm.title.trim() || projSaving}
                       onClick={() => editingProject ? updateProject(editingProject) : addProject()}>
-                      {editingProject ? "Save Changes" : "Add Project"}
+                      {projSaving ? "Saving…" : editingProject ? "Save Changes" : "Add Project"}
                     </button>
                     <button className="btn sec sm" style={{width:"auto"}}
                       onClick={() => { setShowAddProject(false); setEditingProject(null); setProjSaveErr(""); setProjForm(blankProjForm("", catNames()[0] || "")); }}>
