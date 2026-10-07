@@ -151,10 +151,38 @@ await check("PreK grades survive import (project and per-student), and PreK < K 
   assert.equal(byTitle("Mixed Sprouts")?.grade, "K");
 });
 await PB.getByRole("button", { name: "Close" }).click();
+
+// ── A FAILED PROJECT EDIT MUST SAY SO (2026-10-06) ─────────────────────────
+// updateProject() used to discard the errors from BOTH its writes, log PROJECT_UPDATED and
+// close the editor — the admin's typing vanished with no warning (CLAUDE.md rule 55).
+const TITLE = "Existing Volcano Study";
+const edited = byTitle(TITLE);
+await PB.locator(".proj-mgmt-card", { hasText: TITLE }).locator(".proj-act-btn.edit").first().click();
+await check("the project editor opens with the stored title", async () =>
+  assert.equal(await PB.locator(".proj-form input[type=text]").first().inputValue(), TITLE));
+await PB.locator(".proj-form input[type=text]").first().fill(TITLE + " RENAMED");
+B.failWrites = ["projects"];
+await PB.getByRole("button", { name: "Save Changes" }).click();
+await check("a failed project edit says 'Not saved', keeps the editor open and changes nothing", async () => {
+  await PB.getByText(/Not saved —/).waitFor({ timeout: 6000 });
+  assert.equal(byTitle(TITLE + " RENAMED"), undefined, "a rejected edit reached the database");
+  assert.equal(edited.title, TITLE, "the stored title changed despite the failure");
+  assert.equal(await PB.locator(".proj-form input[type=text]").first().inputValue(), TITLE + " RENAMED",
+    "the admin's typing was thrown away");
+});
+B.failWrites = [];
+await PB.getByRole("button", { name: "Save Changes" }).click();
+await check("retrying the same edit saves it and closes the editor", async () => {
+  await PB.locator(".proj-form").waitFor({ state: "detached", timeout: 6000 });
+  assert.ok(byTitle(TITLE + " RENAMED"), "the retry did not save");
+});
+
 await fileInput(PB).setInputFiles({ name: "projects.xlsx", mimeType: "application/vnd.ms-excel", buffer: Buffer.from("PK") });
 await check(".xlsx is refused with Save-As-CSV instructions", () => PB.getByText(/CSV UTF-8/).waitFor({ timeout: 3000 }));
 await fileInput(PB).setInputFiles({ name: "x.csv", mimeType: "text/csv", buffer: Buffer.from("Name,Score\nA,1\n") });
 await check("a CSV without a Title column is refused", () => PB.getByText(/No "Title" column found/).waitFor({ timeout: 3000 }));
+
+
 
 const real = errs.filter(e => !/WebSocket|realtime|ERR_NAME_NOT_RESOLVED|Failed to load resource|mock\.supabase\.co|Failed to fetch/i.test(e));
 await check("no React/JS errors in the console", async () => assert.deepEqual(real, []));

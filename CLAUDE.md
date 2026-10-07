@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (241 checks). Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 325 checks across 15 files |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 328 checks across 15 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -950,7 +950,9 @@ Tests: DB 241 checks (13 new, including that the lockout now locks, that a corre
 while locked, that an unscored project still moves, that a same-rubric move still works, and that
 deleting the scores unblocks it). The two existing "wrong invite code" DB checks and the judge-reg
 E2E assertion were rewritten for the returned-error contract; the E2E mock mirrors it. Browser
-suite unchanged at 325. Lint baseline unchanged (26 purity / 5 immutability).
+suite 325 → 328: a new `import.e2e.mjs` check proves a rejected project edit shows "Not saved",
+keeps the draft and writes nothing (mutation-tested — it fails with the fix disabled). Lint
+baseline unchanged (26 purity / 5 immutability); `npm run build` clean.
 
 **2026-10-06 — Per-school branding: logo + fair poster** (migration `2026-10l`, **not** coupled).
 Every school's pages showed Dishchii'bikoh's wildcat (`public/logo.png`, 5000 px / 5 MB) and the text
@@ -1340,10 +1342,9 @@ its absence. See the `group_members` type split above.
 
 Read this first when resuming on another machine.
 
-- ⏳ **`2026-10m` has NOT been run on the live project yet** — run it, then deploy the matching app
-  build (it is coupled: `handleRegister()` reads the returned `error`). Safe on live data: it changes
-  no rows, and its UNIQUE index is skipped with a warning if duplicates already exist.
-- **All SQL migrations through `2026-10l` have been run on the live project** (10k and 10l verified with
+- **All SQL migrations through `2026-10m` have been run on the live project** (10m applied 2026-10-06,
+  with the matching app build deployed in `4c72c8c`)
+- Migrations through `2026-10l` (10k and 10l verified with
   anonymous probes: RLS refusals, bucket public, anon upload refused, anon cannot list).
 - **Dishchii'bikoh live data:** 63 projects imported (PreK 2 · K-5 8 · 6-8 31 · 9-12 19 · SPED 3); the
   energy category is renamed "Energy, Sustainable Forms & Design" (ESD). Logo = `builtin:dishchiibikoh`.
