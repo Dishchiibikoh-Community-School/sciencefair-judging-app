@@ -430,6 +430,17 @@ If a judge's tablet fails and they need to continue on another device:
 2. Change title, category, grade, number, or department
 3. Click **"Save Changes"**
 
+> **If the save fails** you get a red *"Not saved — …"* under the form. Nothing was written, the
+> list goes back to what the database really holds, and your typing stays in the form so you can
+> press **Save Changes** again. (Before 2026-10-06 a failed save closed the editor and said nothing.)
+
+> **Moving a project that already has scores.** If the department you are moving it to is judged
+> differently — a different rubric, or one of the two is **Comments only** — the move is refused and
+> says why. Those scores were given under the old department's rubric, so they would be counted out
+> of the wrong total, or hidden from the results entirely. Moving between departments judged the
+> **same** way still works, so fixing a misfiled project mid-event is fine. If you really must move
+> it, delete that project's scores first.
+
 **Delete a Project:**
 1. Click **"Remove"**
 2. Confirm the prompt
@@ -826,6 +837,12 @@ A: Only via judges. Admin provides oversight and final award decisions, but scor
 - The change did not reach the database, and nothing changed — what you see is the real state
 - Check: internet connection; sign out and back in if your session may have expired
 - Then press the same button again. IT Logs shows the matching `*_FAILED` event with the error code
+
+### Scenario: "Not saved" when moving a project to another department
+- Only happens to a project that **already has scores**, and only when the two departments are
+  judged differently (different rubric, or one is Comments only). The message names both
+- This is deliberate — see *Projects Tab → Edit a Project*
+- Either leave it where it is, or delete its scores and then move it
 
 ### Scenario: Can't finalize results
 - Check: Have ALL judges (across all departments) validated?

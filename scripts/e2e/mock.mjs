@@ -242,7 +242,10 @@ export function installMock(page, store, log) {
       if (fn === "verify_school_pin") return json(route, 200, body.p_pin === (store.pin || "4821"));
       if (fn === "registration_count") return json(route, 200, store.registration_submissions.length);
       if (fn === "register_judge") {
-        if (body.p_invite_code !== "ABC123") return json(route, 400, { code: "P0001", message: "Invalid invite code." });
+        // 2026-10m: a wrong code is a 200 RESULT carrying `error`, not a 400 — raising would
+        // roll back the lockout counter written in the same transaction. Everything else
+        // still rejects with a P0001 error, so both paths stay covered.
+        if (body.p_invite_code !== "ABC123") return json(route, 200, { error: "Invalid invite code" });
         // Mirrors migrations 2026-10g/10h: school-wide numbering when departments carry judge
         // numbers (unless the school opted back into per-department numbering); a number may
         // fall in several overlapping ranges → the judge covers all of those departments.

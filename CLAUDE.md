@@ -30,7 +30,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Vercel | `sciencefair-v2` — the **only** Vercel project |
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
-| Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite. Run after any `supabase/*.sql` or `api/` change |
+| Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (241 checks). Run after any `supabase/*.sql` or `api/` change |
 | Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths. Start the dev server first (see the file header). 325 checks across 15 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
@@ -57,6 +57,7 @@ always serves and cannot be redirected — never share it.
 | `migration-2026-10c-secure-school-signup.sql` | **`create_school()`** RPC; closes direct INSERT on `schools` and `school_admins` (anyone could make themselves admin of any school) | **Yes** — the sign-up form calls `create_school()`. Run before anyone registers a school |
 | `migration-2026-10d-judge-revise-validation.sql` | Judges may delete their own validation until results are finalized (never the admin's) | No — without it "Revise my validation" shows an error instead of unlocking |
 | `migration-2026-10e-categories-and-department-codes.sql` | **`categories`** table (per-school project categories) + seeds the six for every existing school; **`departments.code`** | No — **additive only**. Old app ignores both; new app falls back to `DEFAULT_CATEGORIES` and logs `CATEGORIES_TABLE_MISSING`. Safe to run in either order |
+| `migration-2026-10m-ratelimit-regnum-project-moves.sql` | **Three correctness fixes (2026-10-06 review)**: `register_judge()` now RETURNS `{"error":"Invalid invite code"}` instead of raising, so the 5-attempt lockout finally records anything (a RAISE rolled the counter back with the transaction — see rule 66); `submit_registration()` numbers from MAX not COUNT, plus a guarded UNIQUE index on `(school_id, reg_number)`; new `projects_guard_department_move` trigger — a **scored** project may not move to a department with a different rubric or scoring mode | **Yes for the app build** — `handleRegister()` reads `data.error`. An older build still refuses the wrong code, it just shows the generic "Registration failed" text. ⚠️ SUPERSEDES `register_judge()` (10k) and `submit_registration()` (10b) — re-run 10m after either |
 | `migration-2026-10k-judge-roster-and-panels.sql` | **Judge roster grid + N judges per project**: `judge_roster` (number ↔ department, public read, RPC-only writes), `judge_labels` (admin-only private names), `departments.judges_per_project`, `project_judges` (stored panel assignments); `register_judge()` / `set_judge_roster()` / `set_judges_per_project()` / `assign_panels(fill\|rebuild\|rebalance)` / `sync_judge_projects()`; `set_judge_numbers()` kept as a ranges→roster wrapper for cached apps; new departments still get a default block (now also in the roster) | **Yes — run it, then deploy the matching app.** The previous app keeps working (its range editor saves through the wrapper) but cannot show the grid or panels. ⚠️ Supersedes register_judge (10h), set_judge_numbers / set_judge_max / the numbering trigger (10i), departments_guard_judging (10j) — re-run 10k after any of those |
 | `migration-2026-10l-school-branding.sql` | **Per-school logo + fair poster**: `school_branding` (paths + poster description; public read, writes only via **`set_school_branding()`**), Storage bucket **`school-branding`** (public read, 2 MB, WebP/PNG/JPEG) + `storage.objects` policies (admin of THAT school, own folder, app-generated names, no overwrite), `can_manage_branding_object()`; seeds `builtin:dishchiibikoh` for the one school whose id **and** slug match | **No** — either order. Without it Dishchii'bikoh keeps its bundled logo, everyone else gets the monogram, and Setup says the migration is needed. ⚠️ Its storage part needs the Supabase SQL editor (`storage` schema); it is skipped on a database without one |
 | `migration-2026-10j-department-rubrics.sql` | **Each department picks its rubric**: `departments.rubric_id` (NULL = the school default = `rubrics.is_active`); one default per school (unique partial index, duplicates resolved to the newest); guard trigger — a department's rubric / comment-only setting cannot change once it has scores, and only its own school's rubrics; delete guard — the default and any rubric in use cannot be deleted; **`set_default_rubric()`** | No — old app keeps using the default for every department |
@@ -224,7 +225,7 @@ the only real controls. "The UI does not expose it" is never a control.
 
 | Function | Caller | Purpose |
 |---|---|---|
-| `register_judge(school, dept, alias, code)` | anon | The **only** way to create a judge row. Rewritten in 2026-10g: in school mode the number decides the department |
+| `register_judge(school, dept, alias, code)` | anon | The **only** way to create a judge row. Rewritten in 2026-10g: in school mode the number decides the department. **A wrong invite code is RETURNED as `{"error": …}`, not raised** (2026-10m, rule 66) — every other rejection still raises |
 | `set_judge_roster(school, roster)` | admin | Save the whole judge grid `[{number, department_ids}]` (2026-10k). Numbers ≤ `judge_max`; a signed-in judge may gain departments, never lose one; re-fills panels and re-syncs every judge |
 | `set_judges_per_project(school, dept, n)` | admin | N judges per project for one department (NULL = everyone scores all). Refused once the department has scores |
 | `assign_panels(school, dept, mode)` | admin | `fill` / `rebuild` / `rebalance` (only judges who signed in keep unscored work). Never removes a scored assignment. Returns `{judges_per_project, seats, short}` |
@@ -270,6 +271,10 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 - **Judges are anonymous.** Anyone holding the invite code can register and then write
   *another* judge's scores: policies prove *a* valid judge exists, not *which* judge is
   calling. Fix: per-judge identity (Supabase anonymous auth, `user_id` on the judges row).
+- **`scores`, `final_decisions` and `validations` are anon-SELECTable** (`USING (true)`, base schema),
+  so the Share tab's "locked until finalized" gate is cosmetic against the API: anyone with the anon
+  key can read live standings mid-event. Confirmed 2026-10-06. Fix belongs with per-judge identity —
+  move public results behind a `verify_share_token()` RPC and close the base-table reads.
 - **`share_links` and `registration_links` are anon-SELECTable** so visitors can validate
   their own token — tokens are enumerable, so links are "unlisted", not secret. Same for
   `app_settings.project_list_token`. Fix: `verify_*_token` SECURITY DEFINER RPCs.
@@ -850,6 +855,20 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 65. **The poster never goes on judges' screens** and always sits below the primary controls; posters are
     sized with max-width + max-height only (never a fixed width/height, never cropped).
 
+**SQL that must survive its own rejection**
+66. **A `RAISE` throws away everything the function wrote, including the rate-limit counter.**
+    PostgREST runs each RPC in one transaction, so `note_auth_failure()` followed by `RAISE` records
+    nothing at all — `register_judge()` claimed a 5-attempt invite-code lockout that had never once
+    counted a failure (found 2026-10-06; `verify_school_pin()` was always right because it RETURNS
+    false). Anything that must persist on a rejected call has to be **returned**, never raised.
+    `register_judge()` therefore answers a wrong code with `{"error": …}` and `handleRegister()`
+    checks `data.error` as well as `error`.
+67. **A scored project may not move to a differently-judged department** — `projects_guard_department_move`
+    (2026-10m). Moving between departments with the same rubric and mode stays allowed on purpose:
+    refiling a misplaced project mid-event is legitimate, reinterpreting its scores under another
+    rubric (or hiding them in a comments-only department) is not. This is rule 61's sibling: 61 stops
+    the DEPARTMENT changing under the scores, 67 stops the PROJECT moving out from under them.
+
 **Supabase client pitfalls (both shipped as real bugs)**
 48. **Every Supabase query must be awaited, returned, inside `Promise.all`, or end in `.then()`.** A supabase-js query builder is lazy — a bare `supabase.from(x).insert(y);` statement sends **nothing**. This silently disabled the activity log, the IT log and "Revise my validation" for all of v2.
 49. **Never `await` a Supabase call inside `onAuthStateChange`.** supabase-js holds its auth lock while notifying listeners; an awaited query waits for that lock → deadlock. It made Sign Out hang forever. Defer with `setTimeout(() => …, 0)` (see `onAuthChanged`).
@@ -898,6 +917,40 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-06 — Review fixes: invite lockout, reg numbers, project moves, two UI truth bugs**
+(migration `2026-10m`, **coupled** for part 1). An external review of the whole app produced 13
+findings; all 13 were real. Four were already documented here as accepted or parked risks (judge
+identity, anon-readable results, the unauthenticated email endpoint, its hardcoded school year).
+These five were fixed:
+1. **The invite-code lockout had never worked** (rule 66). `register_judge()` wrote the failure
+   counter and then raised, and the raise rolled the counter back — `security_attempts` stayed
+   empty across any number of wrong codes, while CLAUDE.md and JudgeInstructions.md both promised
+   "5 wrong attempts lock sign-in for 5 minutes". It now returns the rejection instead.
+2. **Registration numbers were reused after a deletion** — `COUNT(*) + 1` meant deleting submission
+   001 handed `JHS-LS-002` to two students. Now `MAX + 1`, plus a UNIQUE index on
+   `(school_id, reg_number)` that **v1 had and the v2 rewrite dropped**. The index is created only
+   when no duplicates exist, so the migration can never abort on live data.
+3. **A scored project could be moved to a department judged differently** (rule 67) — nothing
+   guarded it in the app or the database; `departments_guard_judging` only covers the departments
+   table. Its scores would then be totalled against another rubric, or hidden in a comments-only
+   department.
+4. **Project edits reported success after a failed save** — `updateProject()` discarded the results
+   of BOTH writes, logged `PROJECT_UPDATED` and closed the editor (rule 55; `createProject()` had
+   always checked). It now shows "Not saved — …", keeps the draft, reloads the real rows and logs
+   `PROJECT_UPDATE_FAILED` with which half was written.
+5. **Realtime score events erased commendations** — the handler rebuilt the entry inline and left
+   `commendation` out, so a comment-only review vanished from the Participants table and the
+   reopened form until reload. It now uses `scoresToMap([row])`, the same mapper as the loader.
+Also: removed a duplicate `fontSize` key in the rubric editor (the second always won).
+**Not fixed, by decision:** per-judge identity and anon-readable `scores` / `final_decisions` need
+one design change together (see Open risks); the offline-queue races and the unpaginated reads are
+recorded under Known gaps; the email endpoint stays parked.
+Tests: DB 241 checks (13 new, including that the lockout now locks, that a correct code is refused
+while locked, that an unscored project still moves, that a same-rubric move still works, and that
+deleting the scores unblocks it). The two existing "wrong invite code" DB checks and the judge-reg
+E2E assertion were rewritten for the returned-error contract; the E2E mock mirrors it. Browser
+suite unchanged at 325. Lint baseline unchanged (26 purity / 5 immutability).
 
 **2026-10-06 — Per-school branding: logo + fair poster** (migration `2026-10l`, **not** coupled).
 Every school's pages showed Dishchii'bikoh's wildcat (`public/logo.png`, 5000 px / 5 MB) and the text
@@ -1287,6 +1340,9 @@ its absence. See the `group_members` type split above.
 
 Read this first when resuming on another machine.
 
+- ⏳ **`2026-10m` has NOT been run on the live project yet** — run it, then deploy the matching app
+  build (it is coupled: `handleRegister()` reads the returned `error`). Safe on live data: it changes
+  no rows, and its UNIQUE index is skipped with a warning if duplicates already exist.
 - **All SQL migrations through `2026-10l` have been run on the live project** (10k and 10l verified with
   anonymous probes: RLS refusals, bucket public, anon upload refused, anon cannot list).
 - **Dishchii'bikoh live data:** 63 projects imported (PreK 2 · K-5 8 · 6-8 31 · 9-12 19 · SPED 3); the
@@ -1379,6 +1435,16 @@ Already done (2026-10-06): school name + logo looked up server-side, all typed v
 `scripts/registration-email.test.mjs`.
 
 ### Known gaps (not yet fixed)
+- **The offline queue can lose or resurrect a revision** (2026-10-06 review, deferred). `submitScore()`
+  leaves an older queued entry in place when a later submit SUCCEEDS, so a flush can overwrite the
+  newer server value; and `runOfflineFlush()` drops entries by `judge_id_project_id`, so a re-score
+  queued *during* the flush is deleted without being uploaded. Both windows are narrow (a server
+  rejection, then a re-score). The fix is a per-revision id acknowledged individually — not a
+  one-liner, so it was not done days before the fair.
+- **No query paginates.** `loadScores`, `loadLog` and `loadItLogs` fetch with no `.range()` and ignore
+  the error, so anything past Supabase's "Max rows" (Settings → API, default 1,000) is silently
+  missing. Not a risk for this fair (~190 scores with 3 judges per project in 6-8), but `activity_log`
+  WILL cross 1,000 and the Activity tab then stops being the full trail it claims to be.
 - `projListUrl()`, `generateProjListLink()`, `revokeProjListLink()` have no UI callers, so `public-projects` is unreachable in practice.
 - `submitDelibNote()` and `reviseDecision()` are defined but unreferenced (ESLint `no-unused-vars`).
 - No UI for `set_school_invite_code()`.

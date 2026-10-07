@@ -327,7 +327,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-06q";
+const ADMIN_HELP_UPDATED = "2026-10-06r";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -448,6 +448,7 @@ const ADMIN_HELP = [
     ["A department has too many projects for every judge to score them all.", "Setup → Judges → under that department choose e.g. '3 judges per project'. Each project is then scored by 3 judges and the projects are shared out evenly (the Projects column shows each judge's load). A project added later gets its judges automatically. This cannot be changed once the department has scores."],
     ["A judge did not come — their projects are missing reviews.", "Judges tab → the department's Panels card shows who has not signed in. Press Rebalance: their unscored projects move to the judges who are there. Scored work never moves."],
     ["Is '3 judges per project' fair if different projects get different judges?", "The app spreads the projects evenly so each judge sees a similar mix, and the Alerts tab still flags a judge far from a project's average. Every project in a department is still ranked on the same rubric."],
+    ["Judges keep getting \"Invalid invite code\".", "Check the code on the Overview tab and read it out — it is not case-sensitive. 5 wrong tries in a row lock sign-in for 5 minutes FOR THE WHOLE SCHOOL, so tell judges to confirm the code rather than guess. Wait 5 minutes if it happens."],
     ["Can numbers restart in each department instead?", "Yes: Setup → Judges → 'Numbers restart in each department'. Each department then has its own Judge1, Judge2… and judges pick their department when signing in. Not recommended — the same name then means several people, and 'judges per project' does not apply."],
   ]},
   { title: "Troubleshooting", icon: "🛠️", faq: [
@@ -459,6 +460,8 @@ const ADMIN_HELP = [
     ["A red message says something was \"NOT saved\" / \"NOT finalized\".", "The change did not reach the database, so nothing changed — the screen shows the real state. Check the internet (or sign out and in), then press the same button again. Applies to validations, awards, deliberation, Finalize and Reopen."],
     ["Live updates seem frozen (judges' scores are not appearing).", "Refresh the page. IT Logs shows REALTIME_DOWN when the live connection dropped and REALTIME_RECONNECTED when it came back."],
     ["A judge says their scores will not sync.", "IT Logs → look for OFFLINE_SYNC_FAILED with their alias. It shows how many scores are stuck and how long they have waited. The scores stay safe on their device; do NOT let them clear the browser. Send the report to your technical contact."],
+    ["I cannot move a project to another department.", "If the project already has scores and the other department is judged differently — a different rubric, or one of them is comments-only — the move is refused, because those scores would be counted out of the wrong total or hidden from the results. Moving between departments judged the same way still works. To move it anyway, delete that project's scores first."],
+    ["A project edit says \"Not saved\".", "Nothing was written and the list now shows what the database really holds. Your typing is still in the form — check the internet (or sign out and in) and press Save Changes again. IT Logs records it as PROJECT_UPDATE_FAILED."],
     ["Something looks wrong.", "IT Logs tab (Admin PIN) → copy the report and send it to your technical contact. App crashes on any device are recorded automatically as CLIENT_ERROR."],
   ]},
 ];
@@ -1904,6 +1907,7 @@ export default function App() {
   const [scanDiscardAsk,     setScanDiscardAsk]      = useState(false);
   const scanUrlsRef = useRef([]);   // object URLs for thumbnails — revoked when the scanner closes
   const [editingProject,     setEditingProject]      = useState(null); // project id being edited
+  const [projSaveErr,        setProjSaveErr]         = useState("");   // "NOT saved" message in the project editor
   const [projForm,           setProjForm]            = useState(blankProjForm("", catNames()[0] || ""));
   const [showDeleteConfirm,  setShowDeleteConfirm]   = useState(false);
   const [deleteProjectId,    setDeleteProjectId]     = useState(null);
@@ -2674,8 +2678,10 @@ export default function App() {
         })
         .on("postgres_changes", { event: "*", schema: "public", table: "scores", filter: f("scores") }, ({ eventType, new: row }) => {
           if (eventType === "INSERT" || eventType === "UPDATE") {
-            const key = `${row.judge_id}_${row.project_id}`;
-            setScores(prev => ({ ...prev, [key]: { criteria: row.criteria || {}, notes: row.notes||"", time: new Date(row.submitted_at).getTime() } }));
+            // ONE mapper shared with the initial load (scoresToMap). Spelling the object out
+            // here a second time is how `commendation` went missing: a realtime echo replaced
+            // the whole entry and comment-only reviews vanished until a reload.
+            setScores(prev => ({ ...prev, ...scoresToMap([row]) }));
           } else {
             loadScores(sid);
           }
@@ -4735,11 +4741,16 @@ export default function App() {
       p_invite_code:   regCode.trim(),
     });
 
-    if (error) {
-      // Our RAISE messages are already written for the judge to read.
-      setRegErr(error.message || "Registration failed. Please try again.");
+    // Two shapes of rejection, one path. Our RAISE messages are already written for the judge
+    // to read; a WRONG INVITE CODE instead comes back as a RESULT (`data.error`, migration
+    // 2026-10m) because raising would roll back the failure counter in the same transaction
+    // and the 5-attempt lockout then counted nothing. A real judges row has no `error` key.
+    const rejected = error ? (error.message || "Registration failed. Please try again.")
+                           : (data?.error || "");
+    if (rejected) {
+      setRegErr(rejected);
       addItLog("WARN","AUTH","JUDGE_REGISTER_REJECTED","register_judge rejected a sign-in attempt",
-        { attemptedName: name, dept: dept0.name, error: error.message, timestamp: fmtISO(Date.now()) });
+        { attemptedName: name, dept: dept0.name, error: rejected, timestamp: fmtISO(Date.now()) });
       return;
     }
 
@@ -5169,15 +5180,30 @@ export default function App() {
       motivation: (projForm.motivation || "").trim(),
     };
     const nextProjects = projects.map(pp => pp.id === pid ? updated : pp);
+    setProjSaveErr("");
     setProjects(nextProjects);
     // Names first: the projects UPDATE fires the realtime event other admin screens reload
     // on, so the private row must already be current when they do.
-    await writeProjectPrivate(pid, updated.advisor_name, updated.group_members);
-    await writeProjectRow("update", {
+    const privErr = await writeProjectPrivate(pid, updated.advisor_name, updated.group_members);
+    const rowErr  = await writeProjectRow("update", {
       title: updated.title, cat: updated.cat, grade: updated.grade, num: updated.num,
       department_id: updated.department_id,
       room: updated.room, description: updated.description, motivation: updated.motivation,
     }, pid);
+    // Rule 55: both writes have to land before the screen says the edit was saved. Until
+    // 2026-10-06 both results were discarded, so a rejected save still logged PROJECT_UPDATED
+    // and closed the editor — the admin's typing was gone with no warning. This is also where
+    // the department-move guard (migration 2026-10m) surfaces its message.
+    if (privErr || rowErr) {
+      const e = rowErr || privErr;
+      setProjSaveErr(e.message || "Could not save this project. Check your connection and try again.");
+      addItLog("ERROR","ADMIN","PROJECT_UPDATE_FAILED","Project edit was NOT saved — the editor stayed open",
+        { projectId: pid, num: updated.num, namesSaved: !privErr, detailsSaved: !rowErr,
+          error: e.code || e.message });
+      // Show what the database actually holds rather than the rejected edit.
+      await loadProjects(currentSchool.id);
+      return;
+    }
     // A department change moves the project between judge pools — resync both sides.
     if (prevDept !== updated.department_id) {
       await syncJudgeAssignments([prevDept, updated.department_id], nextProjects);
@@ -8187,7 +8213,7 @@ export default function App() {
                   </button>
                   <button className="btn sm" style={{width:"auto"}} onClick={() => {
                     setProjForm(blankProjForm(nextProjectNum(), catNames()[0] || ""));
-                    setShowAddProject(true); setEditingProject(null);
+                    setShowAddProject(true); setEditingProject(null); setProjSaveErr("");
                   }}>
                     + Add Project
                   </button>
@@ -8345,6 +8371,11 @@ export default function App() {
                     <textarea rows={2} value={projForm.motivation}
                       onChange={e => setProjForm(f => ({...f, motivation:e.target.value}))} />
                   </div>
+                  {projSaveErr && (
+                    <div className="err" style={{marginTop:".6rem"}}>
+                      ⚠ Not saved — {projSaveErr}
+                    </div>
+                  )}
                   <div style={{marginTop:".5rem",display:"flex",gap:".5rem"}}>
                     <button className="btn sm" style={{width:"auto"}}
                       disabled={!projForm.title.trim()}
@@ -8352,7 +8383,7 @@ export default function App() {
                       {editingProject ? "Save Changes" : "Add Project"}
                     </button>
                     <button className="btn sec sm" style={{width:"auto"}}
-                      onClick={() => { setShowAddProject(false); setEditingProject(null); setProjForm(blankProjForm("", catNames()[0] || "")); }}>
+                      onClick={() => { setShowAddProject(false); setEditingProject(null); setProjSaveErr(""); setProjForm(blankProjForm("", catNames()[0] || "")); }}>
                       Cancel
                     </button>
                   </div>
@@ -8410,7 +8441,7 @@ export default function App() {
                             <>
                               <button className="proj-act-btn edit"
                                 onClick={() => {
-                                  setEditingProject(p.id);
+                                  setEditingProject(p.id); setProjSaveErr("");
                                   const mem = normMembers(p.group_members?.length ? p.group_members : regSub?.group_members);
                                   setProjForm({
                                     title:p.title, cat:p.cat, grade:p.grade, num:p.num, department_id:p.department_id||"",
@@ -9256,7 +9287,7 @@ export default function App() {
                     <div className="rub-editor-card" key={c.id}>
                       <div className="rub-editor-head">
                         <span className="rub-editor-num">#{idx + 1}</span>
-                        <span style={{ fontSize:".88rem", color:"var(--dim)", fontFamily:"var(--ff-m)", fontSize:".72rem" }}>{c.id}</span>
+                        <span style={{ color:"var(--dim)", fontFamily:"var(--ff-m)", fontSize:".72rem" }}>{c.id}</span>
                         <div className="rub-editor-actions">
                           <button className="rub-move-btn" disabled={idx === 0} onClick={() => rubricDraftMove(idx, -1)}>↑</button>
                           <button className="rub-move-btn" disabled={idx === rubricDraft.length - 1} onClick={() => rubricDraftMove(idx, 1)}>↓</button>

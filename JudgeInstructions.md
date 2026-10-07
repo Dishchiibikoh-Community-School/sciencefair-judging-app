@@ -2,7 +2,7 @@
 
 ## Welcome to the Digital Judging Platform
 
-This guide will walk you through how to use the app to score science fair projects. The process is straightforward: register in your department, score all assigned projects, and submit your validation.
+This guide will walk you through how to use the app to score science fair projects. The process is straightforward: sign in with your judge number, score the projects assigned to you, and submit your validation.
 
 ---
 
@@ -227,10 +227,13 @@ A: You probably typed the wrong number. Tell your admin before you score anythin
 A: Another device is already signed in as you (or someone used your number). Ask the admin: Allow Transfer if it was you on another device, or Remove if it was someone else.
 
 **Q: Can I score projects from a different department?**
-A: No. Each judge is assigned to one department and only scores projects in that department.
+A: Only the departments your organizer put your number in. Most judges cover one department; at a small
+fair your number may cover two or more, and then your project list has a heading for each one — score
+everything in the list. You cannot add a department yourself: ask your organizer, who sets this up in the
+judge grid.
 
 **Q: How long does scoring take?**
-A: Typically 30–45 minutes depending on how many projects are in your department.
+A: Typically 30–45 minutes depending on how many projects are in your list.
 
 **Q: Can I leave and come back later?**
 A: Yes. Your progress is saved on this device. If you must sign in again, use the same judge number and invite code.

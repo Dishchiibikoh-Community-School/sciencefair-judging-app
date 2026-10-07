@@ -32,7 +32,9 @@ console.log("\n── Judge (tablet 820px)");
   await page.locator('input[placeholder="e.g. Judge1"]').fill("Judge1");
   await page.locator('input[placeholder="Event invite code"]').fill("WRONG");
   await page.getByRole("button", { name: /Enter as Judge/ }).click();
-  await check("wrong invite code shows the server message", () => page.getByText("Invalid invite code.").waitFor({ timeout: 4000 }));
+  // 2026-10m: this now arrives as a 200 result with an `error` key, not an HTTP error —
+  // the message must still reach the judge unchanged (and it is the SQL's exact wording).
+  await check("wrong invite code shows the server message", () => page.getByText("Invalid invite code").waitFor({ timeout: 4000 }));
   await page.locator('input[placeholder="Event invite code"]').fill("ABC123");
   await page.getByRole("button", { name: /Enter as Judge/ }).click();
   await check("judge reaches their project list", () => page.getByText("Existing Volcano Study").waitFor({ timeout: 5000 }));

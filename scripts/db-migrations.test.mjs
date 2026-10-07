@@ -123,7 +123,8 @@ for (const round of [1, 2]) {
   await db.exec(mig("migration-2026-10j-department-rubrics.sql"));
   await db.exec(mig("migration-2026-10k-judge-roster-and-panels.sql"));
   await db.exec(mig("migration-2026-10l-school-branding.sql"));
-  ok(`migrations 2026-10 … 10l applied (round ${round} — re-runnable)`);
+  await db.exec(mig("migration-2026-10m-ratelimit-regnum-project-moves.sql"));
+  ok(`migrations 2026-10 … 10m applied (round ${round} — re-runnable)`);
 }
 
 // ── PART 1: names are private ──
@@ -377,7 +378,10 @@ await as("authenticated", ADMIN, `INSERT INTO projects (id, school_id, num, titl
 ok("admin creates a department + 2 projects");
 
 const RJ = "SELECT register_judge($1, $2, $3, $4) AS j";
-await fails("anon", "", RJ, /Invalid invite code/i, "judge: wrong invite code rejected", [SID, D, "Judge1", "WRONG"]);
+// 2026-10m: a wrong code RETURNS {"error": …} instead of raising — raising rolled back the
+// failure counter written in the same transaction, so the lockout never counted anything.
+assert.equal((await as("anon", "", RJ, [SID, D, "Judge1", "WRONG"])).rows[0].j.error, "Invalid invite code");
+ok("judge: wrong invite code rejected (as a result, not a raise)");
 await fails("anon", "", RJ, null, "judge: alias above the department's max_judges rejected", [SID, D, "Judge3", "CODE"]);
 const j1 = (await as("anon", "", RJ, [SID, D, "Judge1", "CODE"])).rows[0].j;
 assert.ok(j1.id); assert.deepEqual([...j1.projects].sort(), ["p_a", "p_b"]);
@@ -496,6 +500,8 @@ await db.exec(mig("migration-2026-10h-shared-judges.sql"));
 await db.exec(mig("migration-2026-10i-judge-max.sql"));
 await db.exec(mig("migration-2026-10j-department-rubrics.sql"));
 await db.exec(mig("migration-2026-10k-judge-roster-and-panels.sql"));
+// 10k re-defines register_judge() with its OLD body — 10m must always follow it (see its header).
+await db.exec(mig("migration-2026-10m-ratelimit-regnum-project-moves.sql"));
 assert.deepEqual(await ranges(S3), { "A": "1-15", "B": "16-19" });
 ok("judge numbers: backfill numbers an existing school's departments in their order, sized by max judges");
 
@@ -508,7 +514,8 @@ await fails("anon", "", RJ, /already signed in/, "judge numbers: Judge3 cannot s
 await fails("anon", "", RJ, /already signed in/, "judge numbers: 'Judge03' is the same judge as Judge3", [S2, XK2, "Judge03", "CODE2"]);
 await fails("anon", "", RJ, /not on this school's judge list/, "judge numbers: Judge8 is outside every range → rejected", [S2, XMS, "Judge8", "CODE2"]);
 await fails("anon", "", RJ, /Enter your judge number/, "judge numbers: a non-number name is rejected", [S2, XMS, "Bob", "CODE2"]);
-await fails("anon", "", RJ, /Invalid invite code/i, "judge numbers: invite code is still checked first", [S2, XMS, "Judge5", "WRONG"]);
+assert.equal((await as("anon", "", RJ, [S2, XMS, "Judge5", "WRONG"])).rows[0].j.error, "Invalid invite code");
+ok("judge numbers: invite code is still checked first");
 
 // set_judge_numbers — admin only, validated
 const SJN = "SELECT set_judge_numbers($1, $2::jsonb)";
@@ -529,6 +536,8 @@ await db.exec(mig("migration-2026-10h-shared-judges.sql"));
 await db.exec(mig("migration-2026-10i-judge-max.sql"));
 await db.exec(mig("migration-2026-10j-department-rubrics.sql"));
 await db.exec(mig("migration-2026-10k-judge-roster-and-panels.sql"));
+// 10k re-defines register_judge() with its OLD body — 10m must always follow it (see its header).
+await db.exec(mig("migration-2026-10m-ratelimit-regnum-project-moves.sql"));
 assert.deepEqual(await ranges(S2), { "PreK": "1-1", "K-2": "2-4", "6-8": "5-9" });
 ok("judge numbers: re-running the migration never overwrites the admin's list");
 
@@ -610,6 +619,8 @@ await db.exec(mig("migration-2026-10h-shared-judges.sql"));
 await db.exec(mig("migration-2026-10i-judge-max.sql"));
 await db.exec(mig("migration-2026-10j-department-rubrics.sql"));
 await db.exec(mig("migration-2026-10k-judge-roster-and-panels.sql"));
+// 10k re-defines register_judge() with its OLD body — 10m must always follow it (see its header).
+await db.exec(mig("migration-2026-10m-ratelimit-regnum-project-moves.sql"));
 assert.deepEqual((await deptsOf("Judge4")).department_ids, [Y35]);
 ok("sharing: a pre-2026-10h judge row is backfilled to department_ids = [department_id]");
 
@@ -972,6 +983,104 @@ ok("compat: set_judge_numbers (old range editor) writes the roster");
   await db.exec(`DELETE FROM schools WHERE id = '${TMP}'`);
   assert.equal(await brand(TMP), undefined);
   ok("branding: deleting a school deletes its branding row");
+}
+
+// ── PART: migration 2026-10m — invite lockout, reg numbers, project moves ──
+// Each of the three shipped as a real defect; the "before" behaviour is named in each check.
+{
+  const SM = "7a7a7a7a-0000-0000-0000-00000000010a";
+  await db.exec(`
+    INSERT INTO schools (id, name, slug, invite_code, admin_pin) VALUES ('${SM}', 'Fix Test', 'fix-test', 'FIXCODE1', '4821');
+    INSERT INTO school_admins (school_id, user_id) VALUES ('${SM}', '${ADMIN}');`);
+
+  // ── 1. the invite-code lockout actually counts ──
+  const RJM = "SELECT register_judge($1, NULL, 'Judge1', $2) AS j";
+  for (let i = 0; i < 5; i++) {
+    const r = await as("anon", "", RJM, [SM, "NOPE"]);
+    assert.equal(r.rows[0].j.error, "Invalid invite code");
+  }
+  const cnt = (await db.query(
+    `SELECT fails FROM security_attempts WHERE school_id = $1 AND kind = 'invite'`, [SM])).rows[0];
+  assert.equal(cnt?.fails, 5);
+  ok("10m: five wrong invite codes record five failures (they were rolled back before — the lockout never existed)");
+  await fails("anon", "", RJM, /Too many attempts/, "10m: the 5-attempt lockout now actually locks the school", [SM, "NOPE"]);
+  await fails("anon", "", RJM, /Too many attempts/, "10m: while locked, even the CORRECT code is refused", [SM, "FIXCODE1"]);
+  await db.exec(`DELETE FROM security_attempts WHERE school_id = '${SM}'`);
+
+  // ── 2. registration numbers are never reused ──
+  await db.exec(`INSERT INTO registration_links (school_id, token, active) VALUES ('${SM}', 'MTOK', true)`);
+  const regForm = (n) => JSON.stringify({
+    student_name: n, student_email: n + "@x.com", grade_level: "8", project_title: n + " project",
+    category: "Life Science", division: "Junior High", school_name: "Fix Test", reg_prefix: "JHS-LS",
+    is_original_work: true, agrees_to_rules: true });
+  const submit = async (n) =>
+    (await as("anon", "", "SELECT submit_registration('MTOK', $1::jsonb) AS r", [regForm(n)])).rows[0].r;
+  assert.equal((await submit("Ana")).reg_number, "JHS-LS-001");
+  assert.equal((await submit("Ben")).reg_number, "JHS-LS-002");
+  await db.exec(`DELETE FROM registration_submissions WHERE school_id = '${SM}' AND student_name = 'Ana'`);
+  assert.equal((await submit("Cal")).reg_number, "JHS-LS-003");
+  ok("10m: deleting a submission does not free its number (was COUNT(*)+1 → a duplicate 002)");
+  const dupes = await db.query(
+    `SELECT reg_number FROM registration_submissions WHERE school_id = $1 GROUP BY 1 HAVING count(*) > 1`, [SM]);
+  assert.equal(dupes.rows.length, 0);
+  // Test the INDEX, not RLS: anon cannot insert here at all (WITH CHECK (false)), so an
+  // anon attempt would "pass" this check without the index ever being consulted.
+  const idx = await db.query(`SELECT indexdef FROM pg_indexes
+    WHERE tablename = 'registration_submissions' AND indexname = 'registration_submissions_school_regnum_uniq'`);
+  assert.equal(idx.rows.length, 1);
+  assert.match(idx.rows[0].indexdef, /UNIQUE/);
+  ok("10m: the unique (school_id, reg_number) index exists (v1 had it; the v2 rewrite dropped it)");
+  let dupErr = null;
+  try {
+    await db.exec(`INSERT INTO registration_submissions (school_id, reg_number, student_name)
+      VALUES ('${SM}', 'JHS-LS-003', 'Dup')`);   // as owner: RLS is not in the way
+  } catch (e) { dupErr = e; }
+  assert.ok(dupErr && /unique|duplicate/i.test(dupErr.message), "expected a unique violation, got: " + dupErr?.message);
+  ok(`10m: the database itself now refuses a duplicate reg_number  [${dupErr.message.slice(0, 60)}]`);
+  // Same number in ANOTHER school stays legal — the index is per school.
+  await db.exec(`INSERT INTO registration_submissions (school_id, reg_number, student_name)
+    VALUES ('${SID}', 'JHS-LS-003', 'OtherSchool')`);
+  ok("10m: the same reg_number in a different school is still allowed");
+
+  // ── 3. a scored project cannot move to a differently-judged department ──
+  const RB = (await db.query(
+    `INSERT INTO rubrics (school_id, name, criteria, is_active) VALUES ($1,'Other','[]'::jsonb,false) RETURNING id`, [SM])).rows[0].id;
+  await db.exec(`
+    INSERT INTO rubrics (school_id, name, criteria, is_active) VALUES ('${SM}', 'Default', '[]'::jsonb, true);
+    INSERT INTO departments (id, school_id, name, ord, max_judges, scoring_mode)
+      VALUES ('cccccccc-0000-0000-0000-00000000000a', '${SM}', 'A', 1, 5, 'scored'),
+             ('cccccccc-0000-0000-0000-00000000000b', '${SM}', 'B', 2, 5, 'scored'),
+             ('cccccccc-0000-0000-0000-00000000000f', '${SM}', 'F', 3, 5, 'feedback');
+    UPDATE departments SET rubric_id = '${RB}' WHERE id = 'cccccccc-0000-0000-0000-00000000000b';
+    INSERT INTO projects (id, school_id, num, title, department_id)
+      VALUES ('p_m1', '${SM}', '001', 'Moves', 'cccccccc-0000-0000-0000-00000000000a');
+    INSERT INTO judges (id, school_id, alias, department_id, projects)
+      VALUES ('j_m1', '${SM}', 'Judge1', 'cccccccc-0000-0000-0000-00000000000a', '["p_m1"]');`);
+
+  const MOVE = `UPDATE projects SET department_id = $2 WHERE id = 'p_m1' AND school_id = $1`;
+  await as("authenticated", ADMIN, MOVE, [SM, "cccccccc-0000-0000-0000-00000000000b"]);
+  ok("10m: an UNSCORED project still moves freely between departments");
+  await db.exec(`UPDATE projects SET department_id = 'cccccccc-0000-0000-0000-00000000000a' WHERE id = 'p_m1';
+    INSERT INTO scores (school_id, judge_id, project_id, criteria) VALUES ('${SM}', 'j_m1', 'p_m1', '{"a":3}'::jsonb);`);
+  await fails("authenticated", ADMIN, MOVE, /comments-only/,
+    "10m: a SCORED project cannot move into a comments-only department", [SM, "cccccccc-0000-0000-0000-00000000000f"]);
+  await fails("authenticated", ADMIN, MOVE, /different one/,
+    "10m: a SCORED project cannot move to a department on another rubric", [SM, "cccccccc-0000-0000-0000-00000000000b"]);
+
+  // The guard is about SCORES being reinterpreted, not about moving as such: same rubric and
+  // same mode is a legitimate "filed in the wrong place" fix and must keep working on event day.
+  await db.exec(`INSERT INTO departments (id, school_id, name, ord, max_judges, scoring_mode)
+    VALUES ('cccccccc-0000-0000-0000-00000000000c', '${SM}', 'C', 4, 5, 'scored')`);
+  await as("authenticated", ADMIN, MOVE, [SM, "cccccccc-0000-0000-0000-00000000000c"]);
+  ok("10m: a scored project STILL moves between departments judged the same way");
+  await db.exec(`DELETE FROM scores WHERE school_id = '${SM}' AND project_id = 'p_m1'`);
+  await as("authenticated", ADMIN, MOVE, [SM, "cccccccc-0000-0000-0000-00000000000f"]);
+  ok("10m: deleting the scores unblocks the move (the documented way out)");
+
+  // Editing anything else on a scored project must be unaffected.
+  await db.exec(`INSERT INTO scores (school_id, judge_id, project_id, criteria) VALUES ('${SM}', 'j_m1', 'p_m1', '{"a":3}'::jsonb)`);
+  await as("authenticated", ADMIN, `UPDATE projects SET title = 'Renamed', room = 'Gym' WHERE id = 'p_m1' AND school_id = $1`, [SM]);
+  ok("10m: a scored project's title/room/etc still save normally");
 }
 
 console.log(`\nALL ${pass} CHECKS PASSED`);
