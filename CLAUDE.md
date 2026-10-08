@@ -3,7 +3,7 @@
 > Single source of truth for AI-assisted development. Read it before changing anything.
 > Do not delete it. When code and this file disagree, the code wins — then fix this file.
 >
-> Last reviewed: 2026-10-07 (judging scenarios test + three fixes: reset sign-out, transfer save, concerns block Finalize; see Change History).
+> Last reviewed: 2026-10-08 (help/guides refreshed + event-day backup plan; live project corrections; live status re-read; see Change History).
 
 ---
 
@@ -961,6 +961,27 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 
 Full detail is in the git log for each commit.
 
+**2026-10-08 — Guides + Help refreshed; event-day backup plan; live project corrections** (no migration).
+1. **AdminInstructions.md / JudgeInstructions.md / `ADMIN_HELP`** were checked against the code and
+   corrected where they still described the pre-10g/10k app: judges "selecting their department",
+   per-department max judges, "Avg (out of 42)", Elementary/Middle/High as the departments, Lock
+   Judging "on the Overview tab" (it is the sidebar), the "Deliberation" tab (the sidebar says
+   **Validation**), the Judges-tab columns, "Submit & Next" / "Validate Results" (real labels:
+   **Submit Score →** and the **📋 Validate Computed Results** section), and what Reset keeps.
+2. **Event-day backup plan** (AdminInstructions "Event-day backup plan" + two new Data-safety FAQs):
+   day before / halfway / after Lock / after Finalize. Key point now stated plainly: **💾 Save Score
+   Backup is stored in the same database** — only the downloaded CSVs survive losing it, and scores
+   cannot be imported back (the CSV is the record for awarding by hand).
+3. **Live data, Dishchii'bikoh:** the organiser's revised entry sheet changed 8 of the 63 projects
+   (name spellings, two titles, two descriptions, one category, one teacher, one student moved
+   #050 → #053, one removed from #058). Applied with a one-off SQL-editor script (all-or-nothing,
+   matched on number + old title, refused locked projects, one activity-log row) — **kept outside
+   the repo** (student names). Tested on PGlite with the real migrations first, then verified live
+   with anonymous reads: all 63 projects match the sheet, no department changed. Why not the CSV
+   import: it only ever CREATES (duplicates matched by title), so it would have added 5 junk
+   projects from the sheet's department heading rows and duplicated the two retitled projects.
+`ADMIN_HELP_UPDATED` → 2026-10-08. Lint unchanged (26/5), build clean.
+
 **2026-10-07 — Judging scenario tests; three fixes** (no migration). A new browser test,
 `scripts/e2e/judging.e2e.mjs` (36 checks), covers what the lifecycle test does not: two judges →
 averages and per-department ranking, a double-tapped Submit Score (one save, one log row), a concern,
@@ -1488,9 +1509,25 @@ its absence. See the `group_members` type split above.
 
 ---
 
-## 📍 Live status / where we left off (end of 2026-10-06)
+## 📍 Live status / where we left off (end of 2026-10-08)
 
 Read this first when resuming on another machine.
+
+**Re-read live on 2026-10-08 (anonymous reads):**
+- **Projects:** 63, matching the organiser's revised "Approved Entry Forms" sheet (8 corrections
+  applied 2026-10-08, see Change History). **#062** (VEX robot) still has **no student names**.
+- **Judge grid:** set to numbers **1–15** (34 roster rows — some judges cover several departments).
+  `judge_max` is still **90** → lower it to 15 in Setup.
+- **Branding:** logo and poster uploaded (real Storage paths, not `builtin:`) — the upload path works.
+- **No judges signed in, no scores** — every judging setting can still be changed.
+- **All five departments are `scored` and use the default rubric.** That rubric is named
+  "Default (Northeast AZ Regional)" but holds the **detailed 20-item form** (sections 25/20/20/25/10),
+  NOT the 15/25/20/20/20 Cibecue weights recorded below as confirmed. The organiser said on
+  2026-10-08 the rubric "might change later — leave it for now". **Raise it again before judging
+  day** (it locks once a department has scores); also whether PreK is comments-only.
+- 6-8 still has `judges_per_project` unset (every 6-8 judge would score all 31).
+
+The bullets below are the 2026-10-06 snapshot; the to-do items 1 and 3 are done (see above).
 
 - **All SQL migrations through `2026-10m` have been run on the live project** (10m applied 2026-10-06,
   with the matching app build deployed in `4c72c8c`)
@@ -1570,6 +1607,10 @@ Worth noting what segmentation does and does not buy: splitting the workflow per
 goes down together. The actual resilience in the app is the **offline queue** — judges keep scoring
 through a network failure and sync afterwards.
 
+**Interim (2026-10-08):** the manual event-day plan is documented for admins (AdminInstructions →
+"Event-day backup plan", Help → Data safety): downloaded CSVs at fixed points, paper score sheets as a
+fallback. It protects the event, not the platform.
+
 Options to evaluate (not yet decided): Supabase Pro + PITR; a scheduled `pg_dump` to storage the
 school controls; or a nightly export job. Whatever is chosen must keep
 `registration_submissions` (student + guardian PII) out of the repo and off shared drives.
@@ -1588,7 +1629,26 @@ school controls; or a nightly export job. Whatever is chosen must keep
 Already done (2026-10-06): school name + logo looked up server-side, all typed values HTML-escaped,
 `scripts/registration-email.test.mjs`.
 
+### Future work — AI help assistant (parked 2026-10-08 by the organiser: "when we are really done")
+A Gemini "Ask a question" box. **No training** — send the help text (`ADMIN_HELP`, AdminInstructions.md,
+JudgeInstructions.md) with each question and answer only from it ("ask your organiser" otherwise),
+showing the section used. Admins first (top of Help & FAQ, admin-only endpoint like `api/scan-form.js`,
+same paid key). Judges later ("? Help" on the project list, never the scoring screen, judge guide only)
+— needs a server check that the caller is a signed-in judge of that school plus per-judge / per-school
+daily caps, because judges have no auth and a public endpoint spends the school's Gemini credit. Never
+send student names or scores; log counts, not question text. Its answers are only as good as the help
+text — keep rule 56.
+
 ### Known gaps (not yet fixed)
+
+- **Registration numbers break past 999.** `submit_registration()` (10b, 10m) formats with
+  `lpad(n::text, 3, '0')`, and Postgres `lpad` TRUNCATES: the 1000th registration in a school gets
+  `…-100`, which the 10m unique index then refuses. Irrelevant at this fair's size. Fix: pad only
+  when shorter (`CASE WHEN length(x) < 3 THEN lpad(x,3,'0') ELSE x END`), same for `v_pnum`.
+- **The CSV import cannot update existing projects** — it only creates, matching duplicates by title
+  (2026-10-08). A corrected sheet therefore needs hand edits (or SQL). Sheets in the organiser's own
+  layout also import badly: department heading rows become projects, newline-separated names become
+  one student, "Research Question/Purpose" is not a recognised heading, and there is no Department column.
 
 **From the second external review (2026-10-06). All verified in the code; two fixed 2026-10-07 (struck through).**
 - **A lost response on a branding save deletes the file the row points at.** `saveBrandDraft()` removes

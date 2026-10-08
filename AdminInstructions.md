@@ -52,15 +52,17 @@ judge device transfers. **You choose it when you register the school** — 4 to 
 | **Setup** | Your departments, **judge grid**, project categories, project codes, **school year** and **school logo / poster** |
 | **Judges** | Track judge registration and scoring progress, grouped by department |
 | **Projects** | Add, edit, remove, or lock projects — each assigned to a department |
-| **Registration** | Generate/deactivate student registration link; view all submitted registrations |
-| **Activity** | Human-readable timeline of all system events |
+| **Activity Log** | Human-readable timeline of all system events |
 | **Alerts** | Event health: connection, errors, scores stuck on devices, coverage, progress per department, idle judges, score outliers |
-| **Deliberation** | Validation workflow and award decisions |
+| **Validation** | Judges' and your own validation, deliberation, award decisions, Finalize |
 | **Share** | Generate live results link (after results finalized) |
 | **Score Export** | Per-judge CSV export and score backups |
+| **Registration** | Student registration link and submissions (not used in 2026-27) |
 | **Rubric** | Your rubric library — create, edit, rename, delete, set the default |
 | **IT Logs** | Diagnostic terminal for troubleshooting (PIN-gated) |
 | **Help & FAQ** | How the system works, checklist, do's and don'ts, troubleshooting |
+
+At the bottom of the sidebar: **🔓 Lock Judging**, **Exit**, **Sign Out** and **⚠️ Reset All Data**.
 
 ---
 
@@ -81,7 +83,7 @@ Run through this a few days before, not on the morning of.
 - [ ] **Finish the rubrics** (Rubric tab) and **pick one for each department** (Setup) before the first judge signs in.
 - [ ] **Do a dry run:** sign in as judge number 1 on a spare tablet, score one project, confirm it shows in Overview, then **Remove** that judge on the Judges tab.
 - [ ] **Write down** the school link, invite code, and which judge number each judge gets (Overview → "Judge sign-in details" lists the numbers per department).
-- [ ] **Save a score backup** (Score Export tab) at the halfway point on event day.
+- [ ] **Plan your backups** — see [Event-day backup plan](#event-day-backup-plan). The day before: download the Projects CSV and print the project list.
 
 ---
 
@@ -93,7 +95,7 @@ Everything in this section lives on the **⚙️ Setup** tab. Do it before judge
 
 #### Departments
 
-A **department** is one judging pool. Judges sign in to a department and score every project in it. Results, ties and awards are worked out *inside* each department — projects in different departments never compete.
+A **department** is one judging pool. Each judge number covers one or more departments (the judge grid, below), and its judges score that department's projects — all of them, or an even share when you choose "N judges per project". Results, ties and awards are worked out *inside* each department — projects in different departments never compete.
 
 A new school starts with **Elementary / Middle School / High School**, but that is only a starting point. Your fair can use anything:
 
@@ -283,15 +285,15 @@ their "Projects Assigned" count should go up by one.
 
 1. Click **"+ Add Project"**
 2. Fill in the form:
-   - **Department** — Which department this project belongs to (Elementary, Middle School, or High School)
+   - **Department** — one of your departments (Setup tab), e.g. 6-8
    - **Title** — Project name (e.g., "Solar Cell Efficiency Under Different Light Spectra")
-   - **Category** — Life Science · Earth & Environmental Science · Chemistry & Material Science · Physics, Math & Astronomy · Engineering, Robotics & Technology · Energy, Sustainability & Design
-   - **Grade** — Student grade level (e.g., 4, 6, 9, 11)
+   - **Category** — one of your school's categories (Setup tab)
+   - **Grade** — PreK, K or 1–12 (or leave it blank to use the highest student grade)
    - **Number** — Auto-generated, can edit (e.g., 001, 002, 003)
 3. Fill in **Teacher / Adviser**, **Room**, each **Student** with their grade (tap **+ Add student** for more), and the two short answers from the form
 4. Click **"Add Project"**
 
-**Important:** Judges only score projects in their own department. A judge registered under Elementary will only see Elementary projects.
+**Important:** Judges only see projects in the departments their number covers (and, in a "N judges per project" department, only the ones assigned to them).
 
 #### Registering teams yourself (2026-27 workflow)
 
@@ -303,8 +305,8 @@ appear on the project rows and on the printed project list PDF.
 |---|---|
 | Department | Required — a project with no department is scored by nobody |
 | Title | The project name |
-| Category | One of the six categories on the participation form |
-| Grade | Drives the abstract rule — grades below 5 skip the Abstract criterion and are scored out of 36 |
+| Category | One of your school's categories (Setup tab) |
+| Grade | PreK, K or 1–12. On the 42-point rubric, grades below 5 skip the Abstract criterion (scored out of 36); the 100-point rubrics have no such rule |
 | Number | Auto-filled; edit if you use your own numbering |
 | Teacher / Adviser | Teacher/coach — optional but appears on the project list |
 | Room | Where the project is — shown to judges and on the project list |
@@ -344,7 +346,7 @@ add projects with **+ Add Project** instead.
 **Tips:**
 - Assign every project to a department before judging begins
 - Projects without a department assigned will not appear in any judge's list
-- Use consistent numbering per department (e.g., Elementary: 001–020, Middle: 021–040)
+- Project numbers are unique across the whole school; the project code (e.g. G68-LS-014) already shows the department, so numbering straight through (001, 002, …) is fine
 
 ### 3. Prepare Judge Credentials
 
@@ -365,7 +367,7 @@ add projects with **+ Add Project** instead.
 **Per-department stats:**
 
 Each department shows its own section with:
-- **Judge count** — registered vs max for that department (e.g., 3/5)
+- **Judge count** — judges signed in vs judge numbers in that department (e.g., 3/5)
 - **Judge numbers** — set on the Setup tab
 - **Leaderboard** — real-time ranked list of projects in that department
 
@@ -374,10 +376,12 @@ Each department shows its own section with:
 | **#** | Rank within department (by current average) |
 | **Project** | Title |
 | **Category** | Subject area |
-| **Avg** | Current average score (out of 42) |
+| **Avg** | Current average score, out of that department's rubric total (e.g. 100) |
 | **Reviews** | How many judges have scored it |
 
-Unscored projects (no reviews yet) appear below a divider at reduced opacity.
+Unscored projects (no reviews yet) appear below a divider at reduced opacity. A **Comments only**
+department shows a **Participants** list instead (commendations and review count, by project number —
+never ranked).
 
 ### Judges Tab — Per-Judge Status
 
@@ -386,16 +390,18 @@ judges have signed in, who has not, and how many projects are short of judges. *
 lists every project with its judge numbers (✓ = already scored). **⚖ Rebalance** moves unscored work
 from judges who have not signed in to those who have.
 
-Judges are grouped by department with a section header for each.
+Judges are grouped by department with a section header for each. A judge who covers several
+departments is listed under each one ("also K-5").
 
 | Column | Meaning |
 |---|---|
-| **Judge Name** | Who they are |
-| **Department** | Which department they registered under |
-| **Projects Assigned** | Count they're responsible for |
-| **Completed** | How many they've finished |
-| **Progress %** | Visual completion indicator |
-| **Status** | "Scoring", "Validated", or "Pending" |
+| **Alias** | The judge number they signed in with (e.g. Judge7) |
+| **Department** | The department of this section, plus any others they cover |
+| **Joined** | When they signed in |
+| **Assigned** | How many projects they have to score |
+| **Progress** | Bar + scored / assigned (e.g. 8/16) |
+| **Status** | Not Started · In Progress · Complete |
+| **Device / remove** | **Allow Transfer** (new device) and **Remove** (wrong sign-in) — both need the Admin PIN |
 
 **Use this to:**
 - Identify judges who are falling behind — within their department
@@ -493,7 +499,7 @@ banner at the top says how many things need attention.
   total, with the far-off ones in red. When only two judges scored a project, both are always
   equally far from the average, so the card says the scores disagree rather than blaming either.
 
-### Activity Tab — Audit Trail
+### Activity Log Tab — Audit Trail
 
 Complete log of all events: judge registrations, score submissions, project changes, resets, deliberation events.
 
@@ -529,8 +535,10 @@ Students fill out a 6-section form:
 
 On submission:
 - Project is auto-saved to the Projects list
-- Student receives a **confirmation email** with their registration number (e.g. `Elem-LF-001`)
+- Student receives a **confirmation email** with their registration number (e.g. `Elem-LS-001`)
 - Registration number format: `{Division}-{Category}-{NNN}`
+- ⚠️ The new project has **no department yet**, so no judge will see it — give it one on the Projects tab.
+  The form's divisions (Elementary / Junior High / Senior High) are not your Setup departments.
 
 ### Registration Number Format
 
@@ -566,7 +574,7 @@ Click **Deactivate Registration Link** when registration period ends. The link s
 
 ### Step 1: Judges Validate Their Results
 
-After a judge completes scoring all projects in their department:
+After a judge has scored every project assigned to them:
 1. Judge sees a read-only ranked list of their projects
 2. Two options:
    - **"Approve Results"** — scores look good
@@ -574,7 +582,7 @@ After a judge completes scoring all projects in their department:
 
 ### Step 2: Admin Reviews Validations
 
-**On the Deliberation tab:**
+**On the Validation tab:**
 - See all judges' validation statuses across all departments
 - Green = Approved, Amber = Concern, Gray = Pending
 - Admin also validates themselves
@@ -663,11 +671,34 @@ the app shows exactly what will change, offers to save a score backup first, and
 If a save fails you will see **Rubric NOT saved** and your edits stay on screen. Best practice: finish
 the rubric before judging starts.
 
-### Backups
+### Event-day backup plan
 
-At the halfway point and at the end: **Score Export → 💾 Save Score Backup** (includes the rubric),
-**⬇ Download Judge Scores CSV**, and **Projects → ⬇ Download Projects CSV**. Keep the files somewhere
-safe and private — they contain student names.
+**Why bother:** the online database has **no undo and no restore**. If data is deleted by mistake,
+or the database is unavailable, the only copies are the files *you* downloaded. **💾 Save Score
+Backup** on its own is not enough: it is stored in the same database. Always press its **⬇ CSV**
+as well, so a copy is on your computer.
+
+| When | Do this | Where |
+|---|---|---|
+| **Day before** | ⬇ Download Projects CSV + 🖨 Export Project List PDF (print one copy) | Projects tab |
+| **Day before** | Open your school link; if it does not load, wake the project in the Supabase dashboard | Browser |
+| **Day before** | Print a few blank paper score sheets — if the app is down, judges score on paper and you enter it later | Your rubric |
+| **Halfway through judging** | 💾 Save Score Backup → then **⬇ CSV** on that backup row; ⬇ Download Judge Scores CSV | Score Export tab |
+| **Right after Lock Judging** | The same again: 💾 Save Score Backup + ⬇ CSV, ⬇ Download Judge Scores CSV | Score Export tab |
+| **After Finalize** | ⬇ Download Results CSV, and ⬇ Download Projects CSV once more | Share tab, Projects tab |
+
+**Where to keep the files:** on a school computer or school drive that only fair staff can open.
+They contain **student names** — not on a personal phone, not in a shared or public folder, never
+emailed outside the staff. Give each file a date in its name.
+
+**What each file can bring back:**
+- **Projects CSV** — can be re-imported (Projects → ⬆ Import projects) into this or a new school.
+- **Judge Scores CSV / backup CSV** — every judge's score per criterion. It cannot be imported back
+  automatically; it is the record you would decide awards from by hand if the app were unavailable.
+- **Results CSV** — the final ranking per department, for your records.
+
+If a judge's tablet loses internet, nothing needs backing up: scores wait on the tablet and send
+themselves when it reconnects (the judge must not sign out or clear the browser meanwhile).
 
 ### Restoring projects / copying them to a new school
 
@@ -703,20 +734,21 @@ If some rows say **NOT saved**, nothing was half-written; press Import again to 
 - All deliberation notes and decisions
 - All validation entries
 - Share link (public results **and** project list links)
-- Per-department judge counts return to 0 (max judges become editable again)
-- Every judge's device is signed out the next time it opens the app — judges sign in again
+- The judging lock, deliberation and Finalize go back to off
+- Every judge's device is signed out the next time it opens the app — judges sign in again with the same numbers
 
 **What is NOT reset:**
-- Projects
-- Department definitions and max judges settings
+- Projects (and student names)
+- Departments, the judge grid, categories, rubrics, school year, logo and poster
+- Registrations
 - Activity log (security audit trail is permanent)
 
 ### Lock Judging
 
-1. **Overview tab**
-2. Click **"Lock Judging"** toggle
-3. Red banner appears — judges cannot submit scores
-4. Affects all departments simultaneously
+1. In the **sidebar** (bottom), click **🔓 Lock Judging**
+2. It turns into **🔒 Unlock Judging** — judges can no longer submit scores
+3. Affects all departments at once. Click again to unlock
+4. If it says **"⚠ Lock failed — retry"**, judges are NOT locked yet — check the internet and click again
 
 ---
 
@@ -747,8 +779,9 @@ results page directly. If you **Revoke** it, or it expires, the link shows "Link
 
 ### What the Public Sees
 
-- Results are split by department — Elementary, Middle School, High School each have their own section
-- Each department shows a Podium (top 3) and full ranked table
+- Results are split by department — each of your departments has its own section
+- Each scored department shows a Podium (top 3) and full ranked table
+- A **Comments only** department is listed under *"Everyone is a winner"* with its commendations — no rank, no score
 - Award badges if assigned
 - Optional rubric breakdown if enabled
 - Judge names are never shown
@@ -786,7 +819,8 @@ with their original time (`ctx.delayed: true`).
 - `JUDGE_REGISTERED` — New judge signed in
 - `SCORE_SUBMITTED` — Score recorded
 - `PROJECT_ADDED/REMOVED` — Project management
-- `MAX_JUDGES_UPDATED` — Department max judges changed
+- `JUDGE_ROSTER_SAVED` — Judge grid saved (Setup → Judges)
+- `JUDGE_REMOVED` / `JUDGE_TRANSFER_APPROVED` — Judges tab actions
 - `FULL_RESET` — All data cleared
 
 **Problems to watch for** (added 2026-10-06):
@@ -827,15 +861,17 @@ Logs never contain student names or form text.
 ## Workflow Summary
 
 ### Pre-Event
-1. Set max judges per department (Elementary, Middle School, High School)
+1. Setup tab: departments, how each is judged (rubric or Comments only), categories, the judge grid
 2. Add all projects — assign each to the correct department
-3. Prepare judge credentials (names, department assignment, invite code)
+3. Give each judge the school link, the invite code and their judge number
+4. Day before: the backups in the [Event-day backup plan](#event-day-backup-plan)
 
 ### During Event
-1. Judges register — they select their department at sign-in
-2. Each judge scores only the projects in their department
-3. Monitor progress on Overview tab (per department)
-4. Lock judging when deadline passed
+1. Judges sign in with their number — the number decides their department(s)
+2. Each judge scores the projects assigned to them
+3. Watch the Alerts tab (and Overview for leaderboards)
+4. Halfway: save a score backup and download its CSV
+5. Lock judging (sidebar) when time is up, then back up again
 
 ### Post-Scoring
 1. Judges validate their results
@@ -863,7 +899,7 @@ A: Yes. Setup → Judges → tick more judge numbers under that department → *
 A: Judges in that department will see an empty project list and cannot complete scoring. Always assign projects to departments before judging begins.
 
 **Q: Can judges see projects from other departments?**
-A: No. Each judge only sees and scores projects assigned to their department.
+A: No. A judge sees only the departments their number covers in the judge grid — and in a "N judges per project" department, only the projects assigned to them.
 
 **Q: Can I enter results manually?**
 A: Only via judges. Admin provides oversight and final award decisions, but scores must come from registered judges.
@@ -873,14 +909,15 @@ A: Only via judges. Admin provides oversight and final award decisions, but scor
 ## Troubleshooting
 
 ### Scenario: Judge can't find their projects
-- Check: Is the judge registered in the correct department?
-- Check: Are projects assigned to that department in the Projects tab?
-- Check: Did the judge select the right department at registration?
+- Check: The top of their list shows who the device is signed in as (e.g. *"👤 Judge15 · PreK"*). Is that their number?
+- Check: Is that number ticked under the right department in Setup → Judges?
+- Check: Do the projects have that department (Projects tab)?
+- In a "N judges per project" department a judge sees only their share — Judges tab → Panels → Show assignments
 
-### Scenario: Judges can't register
-- Check: Is that department's max judges already full?
-- Check: Are they using the correct invite code?
-- Check: Is their name already taken in that department?
+### Scenario: Judges can't sign in
+- *"Judge N is not on this school's judge list"* — that number is not ticked in the judge grid (or is above Maximum judges)
+- *"Invalid invite code"* — check the code on the Overview tab. 5 wrong tries lock sign-in for 5 minutes for the whole school
+- *"Judge7 is already signed in"* — another device has that number: **Allow Transfer** if it was them, **Remove** if it was someone else
 
 ### Scenario: Scores not showing up
 - Check: Did judge complete all rubric fields and click Submit?
@@ -928,9 +965,9 @@ Judges who have not validated yet do not block Finalize.
 
 ## Summary
 
-1. Set max judges per department + add projects (with department assigned) before judging
-2. Judges select their department at registration — they only score projects in their dept
-3. Monitor per-department progress on Overview tab
+1. Before judging: set up departments, the judge grid and every project (each with a department)
+2. Judges sign in with their number — it decides their department(s) and the projects they score
+3. Watch Alerts and Overview during judging; back up halfway and after locking
 4. Validate, deliberate if needed, finalize results
 5. Generate share link — public page splits results by department
 6. Preserve activity log for audit trail

@@ -13,7 +13,7 @@ This guide will walk you through how to use the app to score science fair projec
 - Your **judge number** (for example **7**) — provided by your event organizer. Each number belongs to one person, so you do **not** choose a department: the app fills it in from your number. At small fairs one judge may cover **two or more departments** — the sign-in screen then shows them all (e.g. *"✓ Judge 2 · PreK + K-2"*) and your project list has a heading for each department. Score every project in the list.
 - Invite code: **provided by your event organizer** (a short code set by your school)
 - A tablet, phone, or laptop with internet access
-- About 30–45 minutes to score all projects
+- About 5 minutes per project in your list (your organizer will tell you roughly how many)
 
 ---
 
@@ -30,7 +30,7 @@ This guide will walk you through how to use the app to score science fair projec
 
 If you see an error:
 - **"Judge N is not on this school's judge list"** — the number is wrong. Check it with your organizer.
-- **"Already signed in"** — Ask the admin to approve device transfer in the Judges tab, then try again
+- **"Judge7 is already signed in"** — your number is in use on another device. Ask the admin to approve a device transfer, then try again
 - **"Invalid invite code"** — Double-check the code with organizers. The code is checked on the
   server, and **5 wrong attempts lock sign-in for 5 minutes** for everyone at your school — so
   confirm the code with an organizer rather than guessing.
@@ -96,7 +96,7 @@ they differ per section because some sections are worth more. There is no zero �
 is still worth points, so the lowest possible total is 20 out of 100. Each section lists the things
 to look at underneath its name; read them, then give the section one rating.
 
-**If the buttons show only numbers**, you are on the 42-point rubric:
+**If the buttons show only numbers (0–6)**, you are on the 42-point rubric:
 
 | Points | Meaning |
 |---|---|
@@ -108,9 +108,11 @@ to look at underneath its name; read them, then give the section one rating.
 On that rubric, projects below grade 5 skip the Abstract criterion (so they are scored out of 36),
 and projects in grade 5 and up cannot be given a 0 — the form will tell you if you try.
 
-### Scoring Rubric (10 Criteria, 42 Points Max)
+### Reference: the 42-point rubric (10 criteria)
 
-> Your school can customise its rubric, so the criteria and the maximum below may differ. The app always shows the live total at the top of the scoring form — trust that over this page.
+> Only if your form uses it. Your organizer chooses the rubric for each department, so your form
+> may look completely different — the app always shows the criteria and the live total on the form
+> itself. Trust that over this page.
 
 Based on the Northeast AZ Regional Science and Engineering Fair scoring sheet.
 
@@ -130,14 +132,14 @@ Based on the Northeast AZ Regional Science and Engineering Fair scoring sheet.
 Do:
 - Read the project thoroughly before scoring
 - Use the scoring guide consistently
-- Make all 10 scores before submitting
+- Give every criterion a score before submitting (the button stays disabled until you do)
 - Take notes if something stands out
 
 Don't:
 - Compare projects while scoring (evaluate each independently)
 - Second-guess yourself excessively
 
-### Scoring Examples
+### Scoring Examples (42-point rubric)
 
 **Example 1: Strong Project**
 - Presentation: 6, Testable Q: 3, Background: 3, Hypothesis: 3
@@ -153,16 +155,16 @@ Don't:
 
 ## Step 4: Complete All Projects
 
-1. Work through all projects in your department in any order
-2. Click **"Submit & Next"** after each project
+1. Work through every project in your list, in any order
+2. Press **"Submit Score →"** (or **"Submit Review →"** in a comments-only group) after each project
 3. Check the progress bar — it updates as you go
-4. Once **100% complete**, you'll see a "Validate Results" button
+4. Once **100% complete**, a **"📋 Validate Computed Results"** section appears on your project list
 
 ---
 
 ## Step 5: Validate Your Results
 
-After scoring all projects in your department:
+After scoring every project in your list:
 
 1. **You'll see a read-only summary** — All your projects and their average scores, ranked
 2. **Two options:**
@@ -256,7 +258,7 @@ If you encounter issues:
 2. Check your internet connection
 3. Contact an organizer with:
    - Your judge number (e.g., 3)
-   - Your department (e.g., Middle School)
+   - Your department (e.g., 6-8)
    - What you were doing when the error occurred
    - Any error message (screenshot if possible)
 
@@ -265,7 +267,7 @@ If you encounter issues:
 ## Summary
 
 1. Sign in with your **judge number** and the invite code — your department is filled in for you
-2. Score all projects in your department using the rubric
+2. Score every project in your list using the form for its department
 3. Add optional notes for each project
 4. Validate (approve or flag) your results
 5. Wait for final rankings and results

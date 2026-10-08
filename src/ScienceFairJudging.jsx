@@ -327,13 +327,13 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-07c";
+const ADMIN_HELP_UPDATED = "2026-10-08";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
     "Everything is saved to a secure online database the moment you press Save or a judge presses Submit. App updates never erase your data.",
     "The flow: set up → add projects → judges sign in → judges score → judges validate → (deliberation if there is a tie) → you finalize → you share the results link.",
-    "Each judge scores every project in their own department, and only those.",
+    "Each judge number covers one or more departments (Setup → Judges). A judge scores the projects of those departments only — all of them, or an even share when a department is set to 'N judges per project'.",
     "A department can be set to 'Comments only' (Setup tab) — judges there give a commendation instead of scores, nothing is ranked, and everyone is shown as a winner. Everything below about scores, ties and leaderboards applies only to scored departments.",
     "Totals are always calculated with the CURRENT rubric. On the 42-point rubric, grades below 5 skip the Abstract criterion and grades 5 and up cannot be given a 0; the 100-point rubric has neither rule (its lowest possible total is 20).",
     "Score outliers in the Alerts tab are judges more than about a fifth of a project's total away from its average — so the alert means the same thing on a 42-point and a 100-point rubric.",
@@ -349,16 +349,15 @@ const ADMIN_HELP = [
     "Setup tab → School year: check it shows the right year (e.g. SY 2026-2027).",
     "Setup tab → School branding: upload your school logo (and, if you like, your fair poster). Without a logo your pages show your school's initials.",
     "Setup tab: set any department that should NOT be scored (PreK, K-2) to 'Comments only'. This cannot be changed once that department has scores.",
-    "Rubric tab + Setup: build your rubrics and pick one for each department (or Comments only) BEFORE the first judge signs in — a department's rubric locks once it has scores.",
-    "Rubric tab: finish the rubric BEFORE the first judge signs in. Press a preset to start from one of the ready-made rubrics (Northeast AZ 42-point, or Cibecue/ISEF-style 100-point), then edit it if you need to.",
+    "Rubric tab + Setup: build your rubrics and pick one for each department (or Comments only) BEFORE the first judge signs in — a department's rubric locks once it has scores. The ready-made presets (Northeast AZ 42-point, Cibecue/ISEF-style 100-point, Detailed form — 20 items) are a starting point you can edit.",
     "Projects tab: add every project (📷 Scan forms or + Add Project) and give each one a department — a project with no department is scored by nobody.",
     "Lock (🔒) projects whose details are final, so they cannot be edited or deleted by accident.",
-    "Download Projects CSV and the Project List PDF as your own backup copy.",
+    "The day before: ⬇ Download Projects CSV and 🖨 Export Project List PDF (print one), and print a few blank paper score sheets in case the app is unavailable. See Data safety → 'What is the event-day backup plan?'.",
     "Dry run: on a spare tablet sign in as judge number 1, score one project, check it on Overview, then remove that judge on the Judges tab (or Reset All Data).",
     "Give each judge: the school link, the invite code and their judge number — all three are on the Overview tab. They do not choose a department; their number decides it.",
   ]},
   { title: "Do", icon: "👍", items: [
-    "Save a score backup (Score Export → 💾 Save Score Backup) and download the CSVs at the halfway point and at the end.",
+    "Back up halfway through judging and again right after you lock judging: Score Export → 💾 Save Score Backup, then ⬇ CSV on that backup's row, and ⬇ Download Judge Scores CSV. The saved backup alone lives in the same database — the downloaded files are your real copy.",
     "Check every scanned card against its photo — amber boxes are where the AI was unsure.",
     "Keep the paper participation forms as the original record.",
     "Lock judging (sidebar → Lock Judging) when scoring time is over.",
@@ -374,7 +373,7 @@ const ADMIN_HELP = [
     "Don't open the app on any address other than qritiko.com.",
   ]},
   { title: "Departments & categories (Setup tab)", icon: "⚙️", faq: [
-    ["What is a department?", "One judging pool. Judges sign in to a department and score every project in it. Results, ties and awards are worked out inside each department — projects in different departments never compete. Use whatever fits your fair: school levels, grade bands (PreK, K-2, 3-5, 6-8, 9-12), a SPED division, or a single pool."],
+    ["What is a department?", "One judging pool. The judges whose numbers cover it score its projects (all of them, or an even share with 'N judges per project'). Results, ties and awards are worked out inside each department — projects in different departments never compete. Use whatever fits your fair: school levels, grade bands (PreK, K-2, 3-5, 6-8, 9-12), a SPED division, or a single pool."],
     ["How do I change my departments?", "Setup tab → Departments. Add one, ✏️ rename it, ↑↓ reorder, or 🗑 delete it. Or press a preset to add a whole set at once — a preset only ADDS what you don't have, it never deletes."],
     ["Why won't it let me delete a department?", "Because projects or judges are still in it. Deleting it would leave them unassigned, and an unassigned project is scored by nobody. Move them to another department first (Projects tab → edit → Department), then delete."],
     ["Can a department be judged without scores?", "Yes. Setup tab → set that department to 'Comments only'. Judges there give a commendation (from a list, or in their own words) and an optional comment instead of the rubric. Nothing is scored, ranked or compared, and on the results page every project in it is shown as a winner. Made for PreK and K-2."],
@@ -382,7 +381,7 @@ const ADMIN_HELP = [
     ["Is it safe to rename a department?", "Yes. Projects, judges and scores stay attached — only the label changes."],
     ["Can I use my own project categories?", "Yes. Setup tab → Project Categories. They belong to your school only; no other school sees your list. Add, rename, reorder or delete freely — a robotics fair can replace all six."],
     ["What happens to projects if I delete or rename a category?", "Nothing. A project keeps the category text it was saved with; only the choice disappears from the dropdowns. A project on a category you removed shows it as \"(old category)\" when you edit it, and you can pick a new one."],
-    ["What is the little Code for?", "A short code used to build student registration numbers, like JHS-LS-001. Leave it blank and the app makes one from the name."],
+    ["What is the little Code for?", "It builds each project's code, like G68-LS-014 (department code · category code · number) — see Project codes. A category's code is also used in student registration numbers (JHS-LS-001). Leave it blank and the app makes one from the name."],
     ["I changed a category — do I need to tell the form scanner?", "No. 📷 Scan forms asks the AI to pick from your current list automatically."],
   ]},
   { title: "Project codes", icon: "🏷️", faq: [
@@ -417,7 +416,9 @@ const ADMIN_HELP = [
   { title: "Data safety", icon: "🛡️", faq: [
     ["Will updates to the app erase my projects or scores?", "No. Updates replace the website, never your data. Database changes are tested on a copy first and only add or tighten things."],
     ["What does Reset All Data clear?", "Judges, scores, validations, deliberation notes, awards, the share link and the lock / finalize settings. It keeps projects, departments, the rubric, registrations and the activity log. Every judge's device is signed out the next time it opens the app, so judges sign in again afterwards."],
-    ["How do I back up?", "Score Export → 💾 Save Score Backup (stores scores AND the rubric), ⬇ Download Judge Scores CSV, and Projects → ⬇ Download Projects CSV. Download copies at the halfway point and at the end."],
+    ["How do I back up?", "Score Export → 💾 Save Score Backup (stores scores AND the rubric), then ⬇ CSV on that backup's row; ⬇ Download Judge Scores CSV; and Projects → ⬇ Download Projects CSV. The saved backup is kept in the same database, so only the downloaded files protect you if that database is unavailable."],
+    ["What is the event-day backup plan?", "Day before: Projects CSV + Project List PDF (print one) and a few blank paper score sheets. Halfway through judging: Save Score Backup + its ⬇ CSV, and the Judge Scores CSV. Right after Lock Judging: the same again. After Finalize: Share → ⬇ Download Results CSV, and the Projects CSV once more. Keep the files on a school computer or drive only fair staff can open — they contain student names."],
+    ["Can a deleted project or score be brought back?", "Not from the app — there is no undo and no automatic restore. Projects can be re-imported from a Projects CSV you downloaded. Scores cannot be imported back; your Judge Scores / backup CSV is the record you would decide awards from by hand. That is why the backup plan matters."],
     ["How do I restore projects, or copy them into a new school?", "Projects tab → ⬆ Import projects (CSV) and choose a file from ⬇ Download Projects CSV (you may edit it in Excel first — save it as \"CSV UTF-8\"). You see every row before anything is saved: duplicates start unticked, and any department name this school does not have gets a dropdown to pick the right one. Press Import. Numbers are kept unless already taken. Only projects are imported — not scores or judges."],
     ["How do I write grades in the import file?", "PreK, K, or 1–12 in the Grade column. For a group with different grades, leave Grade empty and write each student as Name (Gr 8), e.g. \"Ana (Gr 7), Ben (Gr 8)\" — the project then takes the highest grade."],
     ["Import says my file is a spreadsheet workbook.", "Import reads CSV, not .xlsx. In Excel: File → Save As → \"CSV UTF-8 (Comma delimited)\", then import that file."],
