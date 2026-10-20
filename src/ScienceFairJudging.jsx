@@ -212,6 +212,9 @@ const MEDALS = ["🥇","🥈","🥉"];
 
 const RECOMMENDATIONS = ["Recommend for Award","Strong Contender","Good Work","Needs Improvement"];
 const AWARD_OPTIONS   = ["1st Place","2nd Place","3rd Place","Honorable Mention","Best in Category","No Award","Pending"];
+// The three the "minimum score to place" rule governs (rule 72). Honorable Mention and Best in
+// Category are deliberately NOT here — they are the admin's to give at any score.
+const PLACE_AWARDS    = ["1st Place","2nd Place","3rd Place"];
 
 // ── DEPARTMENTS ──────────────────────────────────────────────
 // Departments are per-school rows in the `departments` table, fully editable in
@@ -327,7 +330,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-08";
+const ADMIN_HELP_UPDATED = "2026-10-20";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -347,6 +350,7 @@ const ADMIN_HELP = [
     "Big department? Under its column choose '3 judges per project' — each project is then scored by 3 judges and the app shares the projects out evenly, instead of every judge scoring every project.",
     "Setup tab: check your project categories. They are yours alone — rename them, delete the ones you don't use, or add your own (a robotics fair can replace all six).",
     "Setup tab → School year: check it shows the right year (e.g. SY 2026-2027).",
+    "Setup tab → Minimum score to place: decide whether a weak project may still take 1st/2nd/3rd. Leave it at 0 for no rule. Set it BEFORE judging and tell the judges.",
     "Setup tab → School branding: upload your school logo (and, if you like, your fair poster). Without a logo your pages show your school's initials.",
     "Setup tab: set any department that should NOT be scored (PreK, K-2) to 'Comments only'. This cannot be changed once that department has scores.",
     "Rubric tab + Setup: build your rubrics and pick one for each department (or Comments only) BEFORE the first judge signs in — a department's rubric locks once it has scores. The ready-made presets (Northeast AZ 42-point, Cibecue/ISEF-style 100-point, Detailed form — 20 items) are a starting point you can edit.",
@@ -412,6 +416,16 @@ const ADMIN_HELP = [
     ["What do judges see on the 100-point rubrics?", "Buttons labelled Needs improvement, Fair, Good, Very Good and Excellent with the points underneath — a judge picks the rating and never does the arithmetic. The 20-item form shows section headings (Project Title, Scientific Inquiry, …)."],
     ["Why is the lowest score 20 and not 0?", "The paper form's scale starts at 1 (Needs improvement), so there is no zero to give. On both 100-point rubrics the lowest possible total is 20. That is expected, not a bug."],
     ["What happens to scores already given if I edit a rubric?", "Totals are recalculated with the edited rubric for every department that uses it, so rankings change. The app shows exactly what changes and offers a backup before saving. Finish your rubrics before judging starts."],
+  ]},
+  { title: "Minimum score to place", icon: "🥉", faq: [
+    ["What is it?", "Setup → Minimum score to place. A project must average at least this much of ITS OWN maximum to take 1st, 2nd or 3rd. Below it the project still appears in the results with its real score — it simply gets no medal and no spot on the podium. Set 0 to turn the rule off; that is how the app behaves if you never touch it."],
+    ["Why a percentage and not points?", "Because \"50 points\" does not mean the same thing twice. Your departments can use different rubrics (42 points, 100 points), and a project below grade 5 skips the Abstract criterion, so its maximum is 36 and not 42. A percentage means the same everywhere. The Setup card shows you what it works out to in points for each rubric you actually use."],
+    ["Does the project disappear from the results?", "No. It keeps its position in the ranked list with its real average and its review count. Only the medal is withheld. Nothing is hidden from families."],
+    ["Who gets the medal instead?", "The next project down that DOES clear the minimum. The medals always go to the top three qualifying projects in that department — they are not left empty."],
+    ["What if a project is exactly on the line?", "It places. 50% means \"50% or more\", so a project averaging exactly 21.0 out of 42 still takes its medal."],
+    ["Does it stop me awarding a project anyway?", "No. The Validation tab still lets you give any award to any project — if you pick 1st, 2nd or 3rd for a project below the minimum it shows a warning with the numbers, and saves if you go ahead. Honorable Mention and Best in Category are never affected by this rule."],
+    ["Where do I see which projects cannot place?", "Overview → the department leaderboard marks them \"no place\", and judges see \"below N%\" in their validation list so nobody reports it as a bug."],
+    ["When should I set it?", "Before judging starts, and tell the judges. Changing it later does not alter a single score — it only changes who gets a medal — but changing it after you have announced winners is confusing."],
   ]},
   { title: "Data safety", icon: "🛡️", faq: [
     ["Will updates to the app erase my projects or scores?", "No. Updates replace the website, never your data. Database changes are tested on a copy first and only add or tighten things."],
@@ -1878,6 +1892,13 @@ export default function App() {
   const [schoolYearDraft,  setSchoolYearDraft]  = useState(null);  // null = not editing
   const [schoolYearMsg,    setSchoolYearMsg]    = useState(null);  // { ok, text }
   const syText              = schoolYear || AUTO_SCHOOL_YEAR;
+  // Minimum score to place (Setup → Minimum score to place). 0 = off, nothing changes.
+  // Stored as a PERCENT, never points: two rubrics are in use (42 and 100) and
+  // projectMax() varies per project (grade < 5 drops abstract), so "50 points" would
+  // mean "impossible" on one rubric and "half" on another. See rule 72.
+  const [minPlacePct,      setMinPlacePct]      = useState(0);
+  const [minPlaceDraft,    setMinPlaceDraft]    = useState(null);  // null = not editing
+  const [minPlaceMsg,      setMinPlaceMsg]      = useState(null);  // { ok, text }
   const defaultResultsTitle = `Science Fair SY ${syText} — Final Results`;
   // School branding (migration 2026-10l). schoolId says WHICH school these paths belong to —
   // brandingUrl() refuses to show them for any other school.
@@ -2221,6 +2242,9 @@ export default function App() {
       setJudgeMaxSetting(/^\d{1,3}$/.test(map.judge_max || "") ? Math.min(90, Math.max(1, parseInt(map.judge_max, 10))) : null);
       // A hand-edited / invalid value falls back to automatic rather than printing garbage.
       setSchoolYear(validateSchoolYear(map.school_year) ? "" : cleanSchoolYear(map.school_year));
+      // Minimum score to place. Absent / invalid / out of range → 0 (off), so a bad row can
+      // never silently strip every medal.
+      setMinPlacePct(/^\d{1,2}$/.test(map.min_place_pct || "") ? parseInt(map.min_place_pct, 10) : 0);
       // Note: judge/admin validations are loaded separately by loadValidations()
       // from the validations table — not from app_settings.
     }
@@ -4166,6 +4190,52 @@ export default function App() {
     addItLog("INFO","ADMIN","SCHOOL_YEAR_SET","School year changed",{ value: value || "auto" });
   }
 
+  // ── Minimum score to place (Setup) — app_settings.min_place_pct, admin-write by RLS ──
+  // The threshold is a PERCENT of THIS project's maximum, so it means the same thing on a
+  // 42-point rubric, a 100-point one, and a grade-4 project that skips Abstract (rule 72).
+  function minPlacePts(proj) { return projectMax(proj) * minPlacePct / 100; }
+  // Does this project qualify for 1st / 2nd / 3rd? Off (0) → everything qualifies, exactly
+  // as before. A project with no score never qualifies (it has nothing to compare).
+  function placesEligible(proj) {
+    if (minPlacePct <= 0) return true;
+    const avg = proj?.avg !== undefined ? proj.avg : projAvg(proj?.id);
+    return avg !== null && avg !== undefined && Number(avg) >= minPlacePts(proj);
+  }
+  // The projects that actually take the medals in one ranked, same-department list:
+  // the top three that QUALIFY, in ranking order. Everyone else keeps their position number.
+  function placeWinners(rankedList) {
+    return rankedList.filter(p => p.avg !== null && placesEligible(p)).slice(0, 3);
+  }
+  function minPlaceText() {
+    const maxima = [...new Set(scoredProjects().map(p => projectMax(p)))].sort((a, b) => b - a);
+    if (!maxima.length) return `${minPlacePct}%`;
+    return `${minPlacePct}% (${maxima.map(m => `${+(m * minPlacePct / 100).toFixed(1)} of ${m}`).join(" · ")})`;
+  }
+
+  async function saveMinPlacePct() {
+    const sid = currentSchool?.id;
+    if (!sid) return;
+    const raw = String(minPlaceDraft ?? "").trim();
+    if (!/^\d{1,2}$/.test(raw || "0")) {
+      setMinPlaceMsg({ ok: false, text: "Enter a whole number from 0 to 99." });
+      return;
+    }
+    const value = Math.max(0, Math.min(99, parseInt(raw || "0", 10)));
+    const { error } = await supabase.from("app_settings").upsert({ school_id: sid, key: "min_place_pct", value: String(value) });
+    if (error) {
+      setMinPlaceMsg({ ok: false, text: `NOT saved — ${error.message}` });
+      addItLog("ERROR","ADMIN","MIN_PLACE_SAVE_FAILED","The minimum score to place could not be saved",{ error: error.message });
+      return;
+    }
+    setMinPlacePct(value);
+    setMinPlaceDraft(null);
+    setMinPlaceMsg({ ok: true, text: value > 0
+      ? `Saved — a project must average at least ${value}% of its own maximum to take 1st, 2nd or 3rd.`
+      : "Saved — every project can place again, however low its score." });
+    addLog(`Admin set the minimum score to place to ${value > 0 ? `${value}%` : "off"}`);
+    addItLog("INFO","ADMIN","MIN_PLACE_SET","Minimum score to place changed",{ pct: value });
+  }
+
   // ── School branding (Setup → School branding, migration 2026-10l) ──
   // Public URL of a branding path — ONLY for the school on screen. "builtin:" paths resolve to
   // the bundled file for the one school they were made for; storage paths must sit in this
@@ -5021,7 +5091,10 @@ export default function App() {
       null, // unassigned projects form their own group
     ];
     return groups.some(deptId => {
-      const scored = rankedProjectsIn(deptId).filter(p => p.avg !== null);
+      // Only a tie that decides a MEDAL is worth stopping the event for. Two projects level
+      // below the minimum to place cannot take 1st/2nd/3rd from each other (rule 72), and
+      // before this the amber alert would never switch off for them.
+      const scored = rankedProjectsIn(deptId).filter(p => p.avg !== null && placesEligible(p));
       for (let i = 0; i < scored.length - 1; i++) {
         if (scored[i].avg === scored[i + 1].avg) return true;
       }
@@ -6545,7 +6618,11 @@ export default function App() {
                       <div className="jh-dept-head">{departments.find(d => d.id === p._dept)?.name}</div>}
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:".55rem .75rem",borderBottom:"1px solid var(--bd)",fontSize:".88rem"}}>
                       <span style={{color:"var(--dim)",fontFamily:"var(--ff-m)",marginRight:".5rem"}}>{p._rank}.</span>
-                      <span style={{flex:1}}>{p.title}</span>
+                      <span style={{flex:1}}>
+                        {p.title}
+                        {minPlacePct > 0 && !placesEligible(p) &&
+                          <span className="badge br" style={{marginLeft:".4rem",fontSize:".6rem"}}>below {minPlacePct}%</span>}
+                      </span>
                       <span style={{fontFamily:"var(--ff-m)",color:"var(--navy)",fontWeight:600}}>{p.avg ?? "—"} pts</span>
                     </div>
                     </div>
@@ -7942,7 +8019,12 @@ export default function App() {
                         <tbody>
                           {scored.map((p,i) => (
                             <tr key={p.id}>
-                              <td style={{fontFamily:"var(--ff-m)",color:"var(--dim)"}}>{i+1}</td>
+                              <td style={{fontFamily:"var(--ff-m)",color:"var(--dim)"}}>
+                                {i+1}
+                                {minPlacePct > 0 && !placesEligible(p) &&
+                                  <span className="badge br" style={{marginLeft:".35rem",fontSize:".6rem"}}
+                                    title={`Below the ${minPlacePct}% minimum to place`}>no place</span>}
+                              </td>
                               <td style={{maxWidth:"200px"}}>{p.title}</td>
                               <td><span className="badge bb">{p.cat}</span></td>
                               <td style={{fontFamily:"var(--ff-m)",color:"var(--navy)"}}>{p.avg}</td>
@@ -8384,6 +8466,42 @@ export default function App() {
                     ↺ Restore built-in categories
                   </button>
                 </div>
+              </div>
+
+              {/* ── Minimum score to place (rule 72) ── */}
+              <div className="card" id="min-place">
+                <div className="lbl" style={{marginBottom:".4rem"}}>Minimum score to place</div>
+                <p style={{fontSize:".82rem",color:"var(--dim)",marginBottom:".7rem"}}>
+                  A project must average at least this much of <b>its own maximum</b> to take 1st, 2nd or 3rd.
+                  Anything below still appears in the results with its real score — it just gets no medal.
+                  Set <b>0</b> to turn the rule off. It is a percentage, not points, so it means the same on
+                  every rubric you use{" "}
+                  {minPlacePct > 0 && <>— currently <b>{minPlaceText()}</b></>}.
+                </p>
+                {minPlaceDraft === null ? (
+                  <div style={{display:"flex",alignItems:"center",gap:".6rem",flexWrap:"wrap"}}>
+                    <span className={`badge ${minPlacePct > 0 ? "ba" : "bg"}`} style={{fontFamily:"var(--ff-m)"}}>
+                      {minPlacePct > 0 ? `${minPlacePct}% to place` : "Off — any score can place"}
+                    </span>
+                    <button className="btn sec sm" style={{width:"auto"}}
+                      onClick={() => { setMinPlaceDraft(String(minPlacePct)); setMinPlaceMsg(null); }}>✏️ Change</button>
+                  </div>
+                ) : (
+                  <div style={{display:"flex",alignItems:"center",gap:".5rem",flexWrap:"wrap"}}>
+                    <input type="text" aria-label="Minimum score to place, percent" maxLength={2}
+                      style={{width:"5rem"}} placeholder="0"
+                      value={minPlaceDraft}
+                      onChange={e => { setMinPlaceDraft(e.target.value.replace(/\D/g,"").slice(0,2)); setMinPlaceMsg(null); }}
+                      onKeyDown={e => { if (e.key === "Enter") saveMinPlacePct(); }} />
+                    <span style={{fontSize:".85rem",color:"var(--dim)"}}>% of each project's maximum</span>
+                    <button className="btn sm" style={{width:"auto"}} onClick={saveMinPlacePct}>Save</button>
+                    <button className="btn sec sm" style={{width:"auto"}}
+                      onClick={() => { setMinPlaceDraft(null); setMinPlaceMsg(null); }}>Cancel</button>
+                  </div>
+                )}
+                {minPlaceMsg && (
+                  <div className={minPlaceMsg.ok ? "brand-ok" : "brand-err"} role={minPlaceMsg.ok ? "status" : "alert"}>{minPlaceMsg.text}</div>
+                )}
               </div>
 
               {/* ── School year ("SY 2026-2027") ── */}
@@ -9417,6 +9535,14 @@ export default function App() {
                                 onChange={e => setFinalDecisions(prev => ({ ...prev, [p.id]: { ...prev[p.id], award: e.target.value, finalized:false, adminNotes:prev[p.id]?.adminNotes||"" } }))}>
                                 {AWARD_OPTIONS.map(a => <option key={a} value={a}>{a}</option>)}
                               </select>
+                              {/* A warning, never a block: the awards are the admin's call, and on
+                                  event day a refusal with no override is worse than a clear note. */}
+                              {minPlacePct > 0 && !placesEligible(p) && PLACE_AWARDS.includes(decision?.award) && (
+                                <div className="err" style={{flexBasis:"100%",marginTop:".3rem"}}>
+                                  ⚠ {p.avg} is below the {minPlacePct}% minimum to place ({+minPlacePts(p).toFixed(1)} of {projectMax(p)}).
+                                  The public results will not give it a medal — save it only if you mean to award it anyway.
+                                </div>
+                              )}
                               <button className="btn sm" style={{width:"auto"}}
                                 disabled={!decision?.award || decision?.award==="Pending"}
                                 onClick={() => saveFinalDecision(p.id, decision?.award||"Pending", decision?.adminNotes||"")}>
@@ -10354,7 +10480,10 @@ export default function App() {
     function DeptResults({ deptProjects, deptName }) {
       const scored   = deptProjects.filter(p => p.avg);
       const unscored = deptProjects.filter(p => !p.avg);
-      const top3     = scored.slice(0, 3);
+      // The medals go to the top three that CLEAR the minimum (rule 72). Everything else
+      // keeps its position in the list with its real score — it competed, it just did not place.
+      const top3     = placeWinners(scored);
+      const medalOf  = new Map(top3.map((p, i) => [p.id, i]));
       return (
         <>
           {top3.length > 0 && (
@@ -10389,7 +10518,7 @@ export default function App() {
           <div className="results-table">
             {scored.map((p, i) => (
               <div key={p.id} className="res-row">
-                <div className="res-rank">{i < 3 ? MEDALS[i] : <span>{i+1}</span>}</div>
+                <div className="res-rank">{medalOf.has(p.id) ? MEDALS[medalOf.get(p.id)] : <span>{i+1}</span>}</div>
                 <div>
                   <div className="res-title">
                     {p.title}

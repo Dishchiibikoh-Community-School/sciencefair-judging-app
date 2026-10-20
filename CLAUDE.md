@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (247 checks). Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`). Start the dev server first (see the file header). 393 checks across 17 files |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`). Start the dev server first (see the file header). 409 checks across 18 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -188,7 +188,7 @@ files, no Tailwind, no CSS modules.
 | `adminTab` | Content |
 |---|---|
 | `overview` | Stats, per-department leaderboards, "Get started" card (checklist only until the first judge registers; school URL + invite code **always** — it becomes "Judge sign-in details"), Change PIN card, Lock Judging, a summary card linking to Setup |
-| `setup` | **Departments** (add / rename / reorder / delete / max judges / presets), the **judge grid**, **project categories** (add / rename / reorder / delete / restore defaults), project codes, **School year** and **School branding** (logo + poster, see 🎨). Departments and categories are per-school data — see rule 14 |
+| `setup` | **Departments** (add / rename / reorder / delete / max judges / presets), the **judge grid**, **project categories** (add / rename / reorder / delete / restore defaults), project codes, **Minimum score to place** (rule 72), **School year** and **School branding** (logo + poster, see 🎨). Departments and categories are per-school data — see rule 14 |
 | `judges` | Per-judge progress grouped by department; Allow Transfer (PIN) |
 | `projects` | Add/edit/remove/lock projects, **📷 Scan forms** (AI form reader), rubric breakdown, project-list PDF |
 | `registration` | Student registration links + submissions, registration CSV |
@@ -318,7 +318,7 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `validations` | Judge/admin validation; `judge_id = 'admin'` for the admin. Conflict `(school_id, judge_id)` |
 | `deliberation_notes` | Judge recommendation/comment/flag per project |
 | `final_decisions` | Admin award per project. Conflict `(school_id, project_id)` |
-| `app_settings` | Key/value, PK `(school_id, key)`: `locked`, `deliberation_open`, `results_finalized`, `judge_transfer_allowances`, `project_list_token`, `judge_numbering` (`school` default when absent \| `department`), `judge_sharing`, `judge_max`, **`project_code_format`** (default `{DEPT}-{CAT}-{NUM}`), **`school_year`** (`2026-2027`; empty/missing = automatic — August starts a new year) |
+| `app_settings` | Key/value, PK `(school_id, key)`: `locked`, `deliberation_open`, `results_finalized`, `judge_transfer_allowances`, `project_list_token`, `judge_numbering` (`school` default when absent \| `department`), `judge_sharing`, `judge_max`, **`project_code_format`** (default `{DEPT}-{CAT}-{NUM}`), **`school_year`** (`2026-2027`; empty/missing = automatic — August starts a new year), **`min_place_pct`** (0–99; `0`/absent = off — the minimum share of a project's own maximum needed to take 1st/2nd/3rd, rule 72) |
 | `share_links` | Public results tokens, expiry, `revoked_at` |
 | `score_backups` | Admin snapshots — scores **and a copy of the rubric** |
 | `registration_links` | Student registration tokens |
@@ -438,6 +438,11 @@ Rankings are auto-computed (`projAvg`, `rankedProjectsIn`). The workflow validat
    alert) or a manual "Open Manually". Admin sees per-judge score bars, judges' scoring notes,
    deliberation notes (recommendation pill, flags) and assigns final awards. Judges get a
    💬 notes form (`delibDrafts`) while `deliberationOpen`. Persisted in `app_settings.deliberation_open`.
+**Minimum score to place (optional, rule 72).** `app_settings.min_place_pct` — when set, a project
+must average at least that share of **its own** `projectMax()` to take 1st/2nd/3rd. It changes who gets
+a medal, never a score, a ranking position or a total: below-minimum projects still appear in every list
+with their real average, and the medals pass to the next projects that do qualify. Off by default.
+
 5. **Finalize** — allowed when `finalizeBlocker()` returns "": admin approved, deliberation closed,
    and **no judge has an open concern** (`openConcerns()`, 2026-10-07). A judge who has not validated
    does NOT block it, so a volunteer who leaves early can never stop the results; the admin can
@@ -647,6 +652,11 @@ scoredProjects()             // projects that carry a score — every leaderboar
 participantsIn(deptId)       // a feedback department's projects + their commendations, by number
 deptMode(id) / isFeedbackDept(id) / isFeedbackProject(proj)
 updateDeptScoringMode(deptId, 'scored'|'feedback')   // refuses once that department has scores
+minPlacePts(proj), placesEligible(proj), placeWinners(rankedList), minPlaceText()
+                             // "minimum score to place" (rule 72). placesEligible() is the ONLY
+                             // test for "may this project take a medal"; placeWinners() returns the
+                             // top three that qualify, in ranking order. Off (0) → everything qualifies.
+saveMinPlacePct()            // app_settings.min_place_pct, upsert + error check (rule 55)
 judgeComp(judge)             // { done, total, pct } — pct 0 when total 0
 hasScored(pid), totalScored(), possible(), draftTotal(), allMoved()
 getAnomalies()               // outliers > 8 pts from the project average
@@ -891,6 +901,17 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 71. **Time on the Alerts board comes from `nowTick`** (a 30 s interval while an admin is signed in), never
     `Date.now()` during render — that is a purity finding (rule 37).
 
+72. **"Minimum score to place" is a PERCENT of `projectMax(proj)`, never a point value.** Departments
+    can be on different rubrics (42 and 100 points) and a project below grade 5 skips `abstract` (36, not
+    42), so a stored "50 points" would mean "unreachable" on one rubric and "half" on another. Every
+    medal decision goes through **`placesEligible(proj)`** and the medal list through **`placeWinners()`** —
+    do not re-derive "top three" with `slice(0, 3)` anywhere else, or the podium and the ranked table
+    will disagree about who won. The rule withholds a MEDAL only: it never hides a project, changes a
+    score, or renumbers the ranking. It also gates `hasTie()` (a tie below the line cannot decide a medal,
+    and before this the amber deliberation alert would never switch off for one). It governs 1st/2nd/3rd
+    only — Honorable Mention and Best in Category stay the admin's to give — and in the Validation tab it
+    **warns, never blocks**: a refusal with no override on event day is worse than a clear note.
+
 **SQL that must survive its own rejection**
 66. **A `RAISE` throws away everything the function wrote, including the rate-limit counter.**
     PostgREST runs each RPC in one transaction, so `note_auth_failure()` followed by `RAISE` records
@@ -960,6 +981,29 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-20 — Minimum score to place** (no migration — `app_settings` is key/value).
+The organiser asked whether a project scoring below 50 could be kept off 3rd place. It could not:
+`rankedProjects()` sorted by average with no floor and the podium was `scored.slice(0, 3)`, so the
+lowest score in a department took bronze whatever it was. On the 100-point rubric the floor is 20
+(no zero step), so that is not a theoretical case.
+- New Setup card **Minimum score to place** → `app_settings.min_place_pct` (0–99, **0 = off**, which
+  is exactly the old behaviour). Stored as a percent of `projectMax(proj)`, never points (rule 72);
+  the card prints what it works out to for each rubric in use ("50% (21 of 42)").
+- Below the minimum: no podium slot, no medal in the ranked table — **the project is still listed**
+  with its real average and review count, and the medals pass to the next qualifying projects rather
+  than being left empty. Exactly on the line places (`>=`).
+- `hasTie()` now ignores ties that cannot decide a medal, so the amber alert switches off properly.
+- Admin leaderboard marks "no place"; the judge's validation list marks "below N%" so a judge does
+  not report the missing medal as a bug; Validation **warns but never blocks** a place award.
+- Deliberately NOT a database constraint: scores stay exactly as judged, and the rule can be turned
+  off mid-event with no data change.
+Tests: new `scripts/e2e/min-place.e2e.mjs` (16 checks: off by default, the Setup card saves and
+explains itself, the medal moves to the next qualifier, exactly-on-the-line places, the project stays
+listed with its score, the leaderboard marker, the deliberation warning naming score and threshold,
+the warning not blocking Save, no warning for a qualifying project, and 0 restoring every medal).
+**Mutation-tested** — 4 of the 16 fail with `placesEligible()` forced true. Browser 393 → 409 across
+18 files; DB suite unchanged at 247; lint unchanged (26/5); build clean.
 
 **2026-10-08 — Guides + Help refreshed; event-day backup plan; live project corrections** (no migration).
 1. **AdminInstructions.md / JudgeInstructions.md / `ADMIN_HELP`** were checked against the code and

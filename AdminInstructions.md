@@ -906,6 +906,40 @@ A: Only via judges. Admin provides oversight and final award decisions, but scor
 
 ---
 
+## Minimum score to place
+
+**Setup → Minimum score to place.** By default the top three averages in each department take 1st,
+2nd and 3rd — **however low they are**. If you do not want a weak project on the podium, set a minimum.
+
+It is a **percentage of each project's own maximum**, not a number of points. That is deliberate:
+your departments may use different rubrics (42 points, 100 points), and a project below grade 5 skips
+the Abstract criterion so its maximum is 36, not 42. A percentage means the same thing everywhere.
+The card shows you what it comes to in points for the rubrics you actually use — e.g. *50% (21 of 42)*.
+
+| | What happens |
+|---|---|
+| **0 (default)** | No rule. Any score can place. |
+| **50** | A project must average at least half its own maximum to take 1st, 2nd or 3rd. |
+
+**A project below the minimum is not hidden.** It keeps its position in the results with its real
+average and review count — it just gets no medal and no place on the podium. The medals pass to the
+next projects down that *do* qualify, so you never end up with an empty podium step.
+
+A project **exactly on the line places** — 50% means "50% or more".
+
+**Where you will see it:**
+- Overview → the department leaderboard marks those projects **no place**
+- Judges → their validation list marks them **below N%**, so a judge does not report the missing
+  medal as a fault
+- Validation → if you choose 1st, 2nd or 3rd for one anyway, you get a warning with the numbers.
+  **It does not stop you** — the award is still yours to give. Honorable Mention and Best in
+  Category are never affected by this rule
+
+**Set it before judging starts and tell the judges.** Changing it later changes no score at all —
+only who gets a medal — but changing it after you have announced winners is confusing for everyone.
+
+---
+
 ## Troubleshooting
 
 ### Scenario: Judge can't find their projects
@@ -928,6 +962,10 @@ A: Only via judges. Admin provides oversight and final award decisions, but scor
 - The change did not reach the database, and nothing changed — what you see is the real state
 - Check: internet connection; sign out and back in if your session may have expired
 - Then press the same button again. IT Logs shows the matching `*_FAILED` event with the error code
+
+### Scenario: A project with a low score still took 3rd place
+- By default there is no minimum — the top three averages in a department place, however low
+- Set one in **Setup → Minimum score to place** (see below). It only affects medals, never scores
 
 ### Scenario: Reset says some steps failed
 - The message reads *"N of 12 steps failed — NOTHING is guaranteed cleared"*. Take it literally:

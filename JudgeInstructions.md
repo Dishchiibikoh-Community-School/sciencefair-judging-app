@@ -185,6 +185,17 @@ If you see a red **"Your validation was NOT saved"** message, nothing was record
 internet connection and press the button again. The same applies to deliberation notes
 ("Your note … was NOT saved").
 
+### "below 50%" next to a project
+
+Your organizer can set a **minimum score to place**: a project has to reach a certain share of the
+points available to it before it can take 1st, 2nd or 3rd. If your school uses one, projects under
+it are marked (for example *below 50%*) in the list you are asked to validate.
+
+Nothing about your scoring changes, and the project is not removed — it keeps its position and its
+real score. It simply will not be given a medal. **This is not a fault**, so there is no need to flag
+it as a concern. If you think the project deserves a medal anyway, say so in your comment — the
+organizer can still award it.
+
 ### After Validation
 - Admin will see your validation status
 - You cannot change scores after validating
