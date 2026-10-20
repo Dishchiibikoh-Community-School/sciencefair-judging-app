@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
+import { Analytics } from '@vercel/analytics/react'
 import App from './ScienceFairJudging.jsx'
 
 // Register service worker — enables PWA install prompt and offline caching
@@ -9,5 +10,6 @@ registerSW({ immediate: true })
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <App />
+    <Analytics />
   </StrictMode>,
 )
