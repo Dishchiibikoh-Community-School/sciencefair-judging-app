@@ -490,6 +490,7 @@ const ADMIN_HELP = [
     ["Can numbers restart in each department instead?", "Yes: Setup → Judges → 'Numbers restart in each department'. Each department then has its own Judge1, Judge2… and judges pick their department when signing in. Not recommended — the same name then means several people, and 'judges per project' does not apply."],
   ]},
   { title: "Troubleshooting", icon: "🛠️", faq: [
+    ["Nothing happens when I press Edit on a project.", "The form opens at the TOP of the Projects tab, above the list, and the page now scrolls to it for you — its heading names the project, e.g. \"Edit Project #046 — Local Cactus BioScaffold\". If the page does not move, you are on an older version still cached on the device: reload the page (or close and reopen the installed app) and press Edit again. Until it reloads you can simply scroll up to the form yourself; it is open."],
     ["Where is the judge invite code?", "Overview tab, at the top. Before any judge signs in it is inside the \"Get started\" card; after that the card becomes \"Judge sign-in details\" and still shows the school address and invite code with Copy buttons."],
     ["\"Email not confirmed\" when signing in.", "Click the link in the confirmation email (check spam / junk), then sign in again."],
     ["PIN entry is locked.", "5 wrong PINs lock PIN entry for 5 minutes. Wait, then try again."],
@@ -2069,6 +2070,11 @@ export default function App() {
   const [projSaving,         setProjSaving]          = useState(false); // a project save is in flight (disables the button)
   const projSavingRef = useRef(false);  // same flag, readable synchronously inside one click burst
   const projAutoNumRef = useRef("");    // the number Add Project pre-filled — still that value = "pick one for me"
+  // The add/edit form renders at the TOP of the Projects tab, so on a 63-project list pressing
+  // Edit opened it far above the viewport and looked like nothing had happened (reported
+  // 2026-10-21). Bring it on screen instead of moving it — it is one form for both Add and Edit,
+  // and the list below has to stay visible to check numbers against.
+  const projFormRef = useRef(null);
   const [scoreSaving,        setScoreSaving]         = useState(false); // a score submit is in flight
   const scoreSavingRef = useRef(false);
   const judgesLoadedRef = useRef(false); // the judges list was READ from the server (empty ≠ unreachable)
@@ -3075,6 +3081,15 @@ export default function App() {
     const t = setInterval(() => setNowTick(Date.now()), 30000);
     return () => { clearTimeout(first); clearInterval(t); };
   }, [adminHere]);
+
+  // Opening Add/Edit Project scrolls the form on screen. Without this, an admin scrolled down to
+  // project #46 pressed Edit and nothing visibly happened — the form had opened above the list,
+  // off the top of the viewport. `block: "center"` rather than "start" so Save Changes is visible
+  // too; the admin area is its own scroll container (.adm-main) and scrollIntoView handles that.
+  useEffect(() => {
+    if (!showAddProject && !editingProject) return;
+    projFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [showAddProject, editingProject]);
 
   // ── SESSION SYNC (after Supabase loads) ───────────────────
   // Refresh judge from DB, or clear if admin has reset all data.
@@ -9087,9 +9102,14 @@ export default function App() {
 
               {/* Add / Edit project form */}
               {(showAddProject || editingProject) && (
-                <div className="proj-form">
+                <div className="proj-form" ref={projFormRef}>
+                  {/* Name the project being edited: "Edit Project" alone is ambiguous on a
+                      63-project list, and the card it was opened from is now scrolled away. */}
                   <div style={{fontWeight:600,marginBottom:".75rem",fontSize:".95rem"}}>
-                    {editingProject ? "Edit Project" : "Add New Project"}
+                    {editingProject
+                      ? `Edit Project${(() => { const ep = projects.find(p => p.id === editingProject);
+                          return ep ? ` #${ep.num} — ${ep.title}` : ""; })()}`
+                      : "Add New Project"}
                   </div>
                   <div className="proj-form-grid full">
                     <div>

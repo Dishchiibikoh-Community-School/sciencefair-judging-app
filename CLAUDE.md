@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (247 checks). Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`). Start the dev server first (see the file header). 429 checks across 19 files |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`). Start the dev server first (see the file header). 435 checks across 20 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -623,7 +623,7 @@ cards), then scan the same form in the app.
 - Scoring: `.rub-steps` (wraps — labelled steps overflowed a phone card otherwise), `.rub-step-btn` (`.selected`, `.labelled` + `.rub-step-lab` / `.rub-step-pts`)
 - Validation: `.val-status-pill` (`.approved` `.concern` `.pending`), `.val-stat-pill`, `.val-consensus-card` (`.reached`), `.val-tie-alert`, `.val-finalized-banner`
 - Deliberation: `.delib-section`, `.delib-proj`, `.delib-rec-select`, `.delib-flag-wrap`, `.delib-submitted`, `.delib-comment-card`, `.delib-rec-pill` (`.award` `.strong` `.good` `.needs`), `.delib-flag-badge`, `.delib-discuss`, `.delib-phase-toggle`, `.delib-finalized`, `.award-badge` (`.gold` `.silver` `.bronze` `.hm` `.best` `.none`)
-- Projects: `.proj-mgmt-header`, `.proj-mgmt-table`, `.proj-act-btn`, `.proj-form-overlay`/`.proj-form-card`, `.proj-form-grid`, `.proj-lock-badge`
+- Projects: `.proj-mgmt-header`, `.proj-mgmt-table`, `.proj-act-btn`, `.proj-form` (the Add/Edit form — inline at the top of the tab, NOT an overlay; `projFormRef` scrolls it into view), `.proj-form-grid`, `.proj-lock-badge`
 - Banners/modals: `.offline-banner`, `.locked-banner`, `.modal-overlay`/`.modal-box`, `.pin-gate`, `.it-term`
 - Onboarding: `.mkt-*` (homepage), `.setup-guide*` / `.setup-check*` / `.setup-share*` (admin "Get started" card)
 - Setup tab: `.setup-rows`, `.setup-row`, `.setup-ord`, `.setup-main`, `.setup-name`, `.setup-meta`, `.setup-acts`, `.setup-maxj`, `.setup-edit`, `.setup-code-in`, `.setup-add`, `.setup-presets`, `.setup-preset-grid`, `.setup-preset`, `.setup-mode`
@@ -1000,6 +1000,25 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-21 — "Nothing happens when I press Edit" on a project** (no migration).
+Reported by the organiser while applying entry-sheet corrections to project #046 of 63. The
+Add/Edit form renders at the **top** of the Projects tab, so pressing Edit on a project far down
+the list opened it **6,184 px above the viewport** (measured) — the button looked dead. Nothing was
+broken: the form was open, just off screen.
+- `projFormRef` + an effect on `[showAddProject, editingProject]` → `scrollIntoView({ block: "center" })`
+  so Save Changes is visible too. `.adm-main` is its own scroll container; scrollIntoView handles it.
+- The heading now names the project — **"Edit Project #046 — Local Cactus BioScaffold"**. "Edit
+  Project" alone is ambiguous on a 63-project list once the card has scrolled away.
+- Chose scrolling over turning the form into a modal: the list below has to stay readable for
+  checking numbers, and one form serves both Add and Edit.
+⚠️ **The Design System section listed `.proj-form-overlay` / `.proj-form-card`, which have never
+existed in the CSS** — the form is the plain inline `.proj-form`. Corrected above.
+Tests: new `scripts/e2e/proj-edit.e2e.mjs` (6 checks on a deliberately 40-project fixture — the bug
+cannot appear on a short list: the form comes on screen, the heading names the project, it carries
+THAT project's values, the edit still saves and touches only that row, Add Project is on screen and
+not labelled as an edit). **Mutation-tested** — with the scroll removed the first check fails with
+`top -6184`. Browser 429 → 435 across 20 files; lint 26/5; build clean.
 
 **2026-10-21 — Suggested judge setup + per-judge time in the grid** (no migration, rule 73).
 Reading the live roster showed why this was needed: with every department on "every judge scores

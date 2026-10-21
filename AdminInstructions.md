@@ -434,9 +434,17 @@ If a judge's tablet fails and they need to continue on another device:
 - **Actions:** Edit, Delete, Lock
 
 **Edit a Project:**
-1. Click **"Edit"**
-2. Change title, category, grade, number, or department
-3. Click **"Save Changes"**
+1. Click **"Edit"** on the project's card
+2. The page scrolls up to the form — its heading names the project, e.g. *Edit Project #046 —
+   Local Cactus BioScaffold*. There is **one** form for Add and Edit and it sits at the **top** of
+   the tab, above the list
+3. Change title, category, grade, number, department, teacher, students, room or either answer
+4. Click **"Save Changes"**
+
+> **"Nothing happens when I press Edit."** Fixed 2026-10-21 — the page now scrolls to the form. On a
+> device still running an older cached version the form opens *above* your scroll position, so it
+> looks like the button did nothing. Reload the page (or close and reopen the installed app). Until
+> then just scroll up to the top of the Projects tab — the form is open and waiting.
 
 > **If the save fails** you get a red *"Not saved — …"* under the form. Nothing was written, the
 > list goes back to what the database really holds, and your typing stays in the form so you can
