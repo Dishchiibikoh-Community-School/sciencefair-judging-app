@@ -52,6 +52,20 @@ After registering, you'll see:
 - **Empty circle** = Not yet scored
 - **Click any project** to open the scoring form
 
+### If your fair uses a timed schedule
+
+Your list is your **morning in order**: each row starts with the round and its time (**R3 · 8:46**),
+then the project **code**, the **booth**, and the title. Breaks appear between the rounds; a round with
+nothing for you says *free*.
+
+At the top, the dark **NEXT** card shows where to go now — e.g. **NEXT · R3 · 8:46–8:53 ·
+G68-ERT-015 · Booth 14**. Tap it to open that project's form. After you press **Submit Score**, NEXT
+moves on to your next round. You will also get a printed sheet with the same rounds — tick each project
+on it when you have submitted it in the app.
+
+If you are standing in for another judge, sign in with **their number**: you get their projects in
+their rounds.
+
 **Note:** You only see the projects assigned to you. If the list changes during the event (for example a late project, or the organizer moves work from a judge who could not come), it updates on its own — projects you already scored never disappear.
 
 ---

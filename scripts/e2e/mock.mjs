@@ -95,12 +95,16 @@ export function installMock(page, store, log) {
   store.storageLog = store.storageLog || [];
   store.school_branding = store.school_branding || [];
   store.project_judges = store.project_judges || [];
+  store.judge_schedule = store.judge_schedule || [];   // 2026-10p
   const roster = () => store.judge_roster;
   const byOrd = () => [...store.departments].sort((a, b) => a.ord - b.ord);
   const rosterDepts = (n) => byOrd().filter(d => roster().some(r => r.judge_number === n && r.department_id === d.id));
   const seatsOf = (deptId) => roster().filter(r => r.department_id === deptId).map(r => r.judge_number).sort((a, b) => a - b);
   const seatScored = (pid, n) => store.scores.some(sc => sc.project_id === pid && store.judges.some(j => j.id === sc.judge_id && j.alias === `Judge${n}`));
-  const judgeProjects = (n, deptIds) => store.projects.filter(p => deptIds.includes(p.department_id)).filter(p => {
+  // Mirrors _judge_projects() after 2026-10p: while a schedule exists, the judge's visits in round order.
+  const judgeProjects = (n, deptIds) => store.judge_schedule.length
+    ? store.judge_schedule.filter(s => s.judge_number === n).sort((a, b) => a.round_no - b.round_no).map(s => s.project_id)
+    : store.projects.filter(p => deptIds.includes(p.department_id)).filter(p => {
     const d = store.departments.find(x => x.id === p.department_id);
     return !d?.judges_per_project || store.project_judges.some(x => x.project_id === p.id && x.judge_number === n);
   }).map(p => p.id);
@@ -302,6 +306,42 @@ export function installMock(page, store, log) {
           if (ns.length) d.max_judges = ns.length;
           if (d.judges_per_project) fillPanels(d.id, seatsOf(d.id));
         }
+        resync();
+        return json(route, 200, null);
+      }
+      // ── 2026-10p judging schedule, mirrored from the SQL ──
+      if (fn === "set_judge_schedule") {
+        const err = (message) => json(route, 400, { code: "P0001", message });
+        if (!isAdmin) return err("Not authorised");
+        if (store.failScheduleRpc) return json(route, 503, { code: "PGRST000", message: "simulated database outage" });
+        const max = parseInt(store.app_settings.find(r => r.key === "judge_max")?.value || "15", 10);
+        const es = body.p_entries || [];
+        if (!es.length) return err("The schedule has no visits.");
+        const over = es.find(e => e.number > max);
+        if (over) return err(`Judge ${over.number} is outside 1–${max} (the maximum). Raise Maximum judges in Setup first.`);
+        if (es.some(e => !store.projects.some(p => p.id === e.project_id))) return err("A visit names a project that is not in this school.");
+        for (const j of store.judges) {
+          const n = parseInt(j.alias.slice(5));
+          const lost = store.scores.find(sc => sc.judge_id === j.id && !es.some(e => e.number === n && e.project_id === sc.project_id));
+          if (lost) return err(`${j.alias} has already scored project #${store.projects.find(p => p.id === lost.project_id)?.num}, and this schedule takes that visit away. Keep that visit in the schedule.`);
+        }
+        store.judge_schedule = es.map(e => ({ school_id: SID, judge_number: e.number, round_no: e.round, project_id: e.project_id }));
+        const st = store.app_settings.find(r => r.key === "judging_schedule");
+        if (st) st.value = JSON.stringify(body.p_slots); else store.app_settings.push({ school_id: SID, key: "judging_schedule", value: JSON.stringify(body.p_slots) });
+        // The grid follows the schedule (set_judge_roster in the SQL).
+        const next = [];
+        for (const n of [...new Set(es.map(e => e.number))]) {
+          const ds = [...new Set(es.filter(e => e.number === n).map(e => store.projects.find(p => p.id === e.project_id)?.department_id).filter(Boolean))];
+          for (const d of ds) next.push({ school_id: SID, judge_number: n, department_id: d });
+        }
+        store.judge_roster = next;
+        resync();
+        return json(route, 200, { judges: new Set(es.map(e => e.number)).size, visits: es.length, projects: new Set(es.map(e => e.project_id)).size });
+      }
+      if (fn === "clear_judge_schedule") {
+        if (!isAdmin) return json(route, 400, { code: "P0001", message: "Not authorised" });
+        store.judge_schedule = [];
+        store.app_settings = store.app_settings.filter(r => r.key !== "judging_schedule");
         resync();
         return json(route, 200, null);
       }

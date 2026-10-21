@@ -98,3 +98,78 @@ Honest, specific notes on work done, for later portfolio/interview use.
   (~1¼ hours each), explained its own reasoning on screen, never wrote to the database without the
   organiser pressing Save, and came with a mutation-tested browser suite plus a written rule for why it
   must not become a model call."
+
+### 2026-10-21 — The final 2026-27 evaluation forms, scoring drafts, and a safety alert
+- **Project:** Qritiko (science-fair judging platform)
+- **What I built/fixed:** The committee's two final paper forms as built-in rubrics — a 20-item
+  middle/high school form (five sections, 100 points) and an 8-item elementary form rated 1–5 that the
+  paper converts with "× 2.5 = out of 100". Elementary judges also write a Strength and a Next step and
+  answer "Safety / rule concern? Yes / No"; a Yes lands as a red card on the organiser's live Alerts
+  board. Every tap on the scoring screen is now kept on the tablet until it is submitted.
+- **Why I built it:** The organiser sent the forms they will use on the day and asked whether the app
+  could follow them exactly. With 7-minute rounds and 20 items per form, a judge who left the scoring
+  screen before pressing Submit lost everything — that was the most dangerous gap I found.
+- **Problem(s) encountered:**
+  - **"× 2.5" could have touched every piece of maths in the app.** Instead the factor lives in the
+    rubric's *steps* (2.5, 5, 7.5, 10, 12.5): totals, rankings, the 60% minimum and the outlier check
+    all just see a 100-point rubric, and the "× 2.5" is only a display ("Ratings 32 / 40 × 2.5 = 80 / 100").
+  - **A latent bug that would have rewritten every elementary score.** The rubric editor parsed steps and
+    maximums with `parseInt`, so merely opening and saving the elementary rubric turned 7.5 into 7 and
+    triggered the "this changes N scores" path. My first test for it passed for the wrong reason (it
+    auto-confirmed the warning); I rewrote it so an untouched rubric must save with *no* warning, and
+    proved it fails when `parseInt` comes back.
+  - **A new database column the live site might not have yet.** Without the migration, PostgREST rejects
+    the whole score row — and the offline queue would retry it forever. `upsertScore()` retries without
+    the new columns only on a genuine "missing column" error and folds the comments and the safety flag
+    into the notes, so nothing a judge writes is ever lost.
+  - **The judge's home screen had shown the old 42-point scoring guide to every judge on every rubric.**
+  - **Two older tests matched departments by text**, which collided with the new form names ("Middle &
+    High School form" contains "High School"); fixed by selecting by accessible label.
+- **How I solved it:** Two presets with rubric-level settings matched by criteria (no schema change), one
+  additive migration for the feedback and safety columns, drafts in localStorage keyed like scores
+  (deleted the moment a score is saved or queued — a draft is never a score), and a written rule for each.
+- **Skills/tools demonstrated:** modelling a scale factor without spreading it through the code;
+  backward-compatible database changes with a narrowly gated fallback; offline-first state on tablets;
+  Playwright E2E with **mutation testing** (drafts off → 3 checks fail, fallback off → 2, `parseInt` → 1).
+- **Portfolio angle:** "Turned a school's two paper judging forms into the live app's scoring in a day,
+  including the paper's own × 2.5 conversion shown on screen, a safety concern that reaches the organiser
+  live, and offline drafts so a judge never loses a half-scored project — and found and fixed a latent
+  editor bug that would have silently rewritten every elementary score."
+
+### 2026-10-21 — A timed judging schedule the whole app follows
+- **Project:** Qritiko (science-fair judging platform)
+- **What I built/fixed:** Import of the organiser's own Excel schedule (15 judges × 12 rounds of 7
+  minutes, two breaks, a wrap-up). Each judge's tablet now lists their morning in round order — round,
+  time, project code, booth — with a NEXT card that moves on after each submit; the schedule becomes the
+  single source of who judges what. Plus booth-number import, printable judge sheets and a booth
+  visit-times sheet, and event-day support ("not signed in yet", stand-ins, unscheduled-project alerts).
+- **Why I built it:** The fair runs on a fixed rotation. The app could only say "every judge scores the
+  whole department" or let the app choose panels — neither reproduces a hand-built schedule, and neither
+  had rounds or times, so judges would have hunted through an unordered list every eight minutes.
+- **Problem(s) encountered:**
+  - **Three features could silently undo a printed schedule** — the judge grid, panel Rebalance and the
+    Suggested setup all reassign work. All three are switched off while a schedule exists, and Rebalance
+    is replaced by "give a stand-in the absent judge's number" (Rebalance knows nothing about rounds and
+    could book one judge for two projects at once).
+  - **Overriding a server function safely.** Rather than touch the sign-in function, I redefined the one
+    helper it calls (`_judge_projects`), so sign-in and every re-sync follow the schedule with no other
+    change — and documented that re-running the older migration would undo it, with a test proving the
+    re-run order restores it.
+  - **Scored work must never vanish.** A re-imported schedule that drops a visit a judge has already
+    scored is refused by the database with a message naming the judge and project.
+  - **Parsing the real file**: title rows, line breaks inside quoted header cells ("R1\n8:30–8:37"),
+    "COMMON BREAK" filler, a legend under the grid, "—" for free rounds, Excel's two CSV encodings.
+  - **A test that had worked for months broke** — not from a bug, but because a fixed 700 ms sleep became
+    too short once the screen did more. Replaced the sleep with waiting for the actual result.
+- **How I solved it:** One table (`judge_schedule`, RPC-only writes, cascade on project delete), two admin
+  functions that validate everything server-side, a review screen that blocks bad files before saving,
+  and the organiser's real schedule imported through the UI against the 63 live projects: 15 judges, 179
+  visits, every code matched, no booth double-booked.
+- **Skills/tools demonstrated:** PostgreSQL schema + RLS + SECURITY DEFINER functions tested on real
+  Postgres (PGlite, 19 new checks); designing a feature so that existing automation cannot fight it;
+  CSV parsing of real-world spreadsheet exports; Playwright E2E with **mutation testing** (3 key
+  safeguards each proven to fail when removed).
+- **Portfolio angle:** "Made a school's hand-built judging rotation the source of truth for a live
+  judging platform — every judge's tablet follows it round by round, the database refuses any change
+  that would orphan already-scored work, and the organiser's actual file was verified end to end against
+  the real project list before the event."

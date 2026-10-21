@@ -447,7 +447,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-21b";
+const ADMIN_HELP_UPDATED = "2026-10-21c";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -467,7 +467,8 @@ const ADMIN_HELP = [
     "Big department? Under its column choose '3 judges per project' — each project is then scored by 3 judges and the app shares the projects out evenly, instead of every judge scoring every project.",
     "Setup tab: check your project categories. They are yours alone — rename them, delete the ones you don't use, or add your own (a robotics fair can replace all six).",
     "Setup tab → School year: check it shows the right year (e.g. SY 2026-2027).",
-    "Setup tab → Judges → Suggested setup: type how many judges are coming, press Apply, check the grid, Save judges. Watch the About column — nobody should be far above the others.",
+    "Setup tab → Judges → Suggested setup: type how many judges are coming, press Apply, check the grid, Save judges. Watch the About column — nobody should be far above the others. (Skip this if you use a judging schedule — the schedule sets the grid.)",
+    "Using a timed judging schedule? Setup → 📅 Judging schedule → ⬆ Import schedule (CSV) → check the review → Save schedule. Then import the booth numbers, print the judge sheets and the booth visit times, and do the dry run with it.",
     "Setup tab → Minimum score to place: decide whether a weak project may still take 1st/2nd/3rd. The 2026-27 fair uses 60 (= 60 points on a 100-point rubric). Leave it at 0 for no rule. Set it BEFORE judging and tell the judges.",
     "Setup tab → School branding: upload your school logo (and, if you like, your fair poster). Without a logo your pages show your school's initials.",
     "Setup tab: set any department that should NOT be scored (PreK, K-2) to 'Comments only'. This cannot be changed once that department has scores.",
@@ -577,6 +578,17 @@ const ADMIN_HELP = [
     ["A student ticked \"Not sure yet\" for the category.", "The card cannot be saved until you choose one of the six categories."],
     ["It says \"possible duplicate\".", "A project with the same title or the same students already exists. Save only if it really is a different project (\"Save anyway\")."],
     ["It says scanning is not set up / the API key was rejected.", "That is a setup problem, not your photo — tell your technical contact. Use + Add Project meanwhile."],
+  ]},
+  { title: "Judging schedule (rounds & times)", icon: "📅", faq: [
+    ["What does the judging schedule do?", "It makes your timed schedule the plan the app follows. Each judge's tablet lists their projects in round order with the times (e.g. 'R3 · 8:46–8:53 · G68-ERT-015 · Booth 14'), shows the breaks, and puts a NEXT card at the top that moves on after every submit. The schedule decides who judges what: the judge grid, 'judges per project', Rebalance and the Suggested setup are switched off until you remove it."],
+    ["How do I import it?", "Make the grid in Excel: one row per judge (Judge 1, Judge 2, …), one column per round with its time in the heading (R1 8:30–8:37), BREAK / WRAP-UP columns if you like, and a project CODE in each cell exactly as the app shows it (e.g. G68-ERT-015). '—' means the judge is free. Save it as CSV (File → Save As → CSV UTF-8), then Setup → 📅 Judging schedule → ⬆ Import schedule (CSV)."],
+    ["What does the review check?", "Before anything is saved it shows the judges, rounds, breaks, the number of visits and how many visits each project gets. A code that matches no project, a judge visiting the same project twice, or a judge number above Maximum judges blocks saving (fix the file and import again). A project nobody visits, and two judges at the same booth in the same round, are shown as warnings."],
+    ["How do booth numbers get onto the tablets?", "Fill in the 'Booth #' column of the booth template, save it as CSV, and press ⬆ Import booth numbers (CSV) in the same box. Each project's booth is saved as its Room / booth and shown to judges next to the code. Locked projects are skipped (unlock them first)."],
+    ["What can I print?", "🖨 Judge sheets — one page per judge: round, time, code, booth and title, with the breaks, and a box to tick each project. 🖨 Booth visit times — every booth with the times and judge numbers of its visits, so students know when to be there. No student names and no scores are printed."],
+    ["A judge did not come.", "Give a stand-in that judge's number and the invite code — they get exactly the same projects in the same rounds. The Judges tab lists which scheduled judges have not signed in yet. Rebalance is off while a schedule is in use (it knows nothing about rounds and could give a judge two projects at once)."],
+    ["Can I change the schedule after judging starts?", "Yes — edit the file and import it again (Replace the schedule). It is refused if it takes away a visit a judge has already scored; keep those visits in the file. Moving a visit to another round is fine."],
+    ["The Alerts tab says a project is not in the judging schedule.", "It was added after the schedule was imported, so nobody will visit it. Add it to a judge's row in the file and import it again."],
+    ["How do I stop using the schedule?", "Setup → 📅 Judging schedule → Remove schedule. Lists go back to the judge grid (every judge scores every project of their departments, or 'judges per project'). No score is lost."],
   ]},
   { title: "Judges", icon: "🧑‍⚖️", faq: [
     ["A judge's tablet died.", "Judges tab → Allow Transfer on that judge (Admin PIN). Within 10 minutes the judge signs in on the new device with the same judge number and invite code. Their scores are kept. If the box says \"The transfer was NOT approved\", nothing was saved — check the internet and press Approve transfer again."],
@@ -947,6 +959,46 @@ function projectsFromCsv(text) {
   return { rows, error: "" };
 }
 
+// ── Judging schedule CSV (2026-10p) ─────────────────────────────────────────
+// The organiser's grid, saved from Excel as CSV: title rows, then a header row
+//   Judge | Judge Name | Interviews | R1 8:30–8:37 | … | BREAK 9:02–9:07 | … | WRAP-UP 10:16–10:30
+// then one row per judge ("Judge 7") with a project CODE per round ("—" = free). Header cells
+// carry a line break inside the quotes ("R1\n8:30–8:37"); any dash between the times works.
+// → { slots: [{ kind: "round"|"break", no?, label, start, end, col }], rows: [{ number, line, cells:
+//     [{ round, code }] }], error }. Codes are matched to projects by the caller (projectCode()).
+const SCHED_FREE = /^(?:[—–-]+|free|none)?$/i;
+function parseScheduleCsv(text) {
+  const all = parseCsv(String(text || ""));
+  const norm = (v) => String(v ?? "").replace(/\s+/g, " ").trim();
+  const headAt = all.findIndex(r => /^judge$/i.test(norm(r[0])) && r.some(c => /^R\s*\d+\b/i.test(norm(c))));
+  if (headAt < 0) return { slots: [], rows: [], error: "No header row found. The file needs a row starting with \"Judge\" and round columns like \"R1 8:30–8:37\"." };
+  const slots = [];
+  all[headAt].forEach((raw, col) => {
+    const h = norm(raw);
+    const t = h.match(/(\d{1,2}:\d{2})\s*[–—-]\s*(\d{1,2}:\d{2})/);
+    const r = h.match(/^R\s*(\d{1,2})\b/i);
+    if (r) slots.push({ kind: "round", no: parseInt(r[1], 10), label: `R${parseInt(r[1], 10)}`, start: t?.[1] || "", end: t?.[2] || "", col });
+    else if (/^(break|lunch|wrap|recess|debrief)/i.test(h))
+      slots.push({ kind: "break", label: h.replace(/\s*\d{1,2}:\d{2}.*$/, "") || "Break", start: t?.[1] || "", end: t?.[2] || "", col });
+  });
+  const rounds = slots.filter(s => s.kind === "round");
+  if (!rounds.length) return { slots: [], rows: [], error: "No round columns (R1, R2, …) found in the header row." };
+  if (new Set(rounds.map(s => s.no)).size !== rounds.length) return { slots: [], rows: [], error: "Two columns have the same round number." };
+  const rows = [];
+  for (let i = headAt + 1; i < all.length; i++) {
+    const m = norm(all[i][0]).match(/^judge\s*0*(\d{1,3})$/i);
+    if (!m) continue;   // notes, blank lines, the legend under the grid
+    const cells = [];
+    for (const s of rounds) {
+      const code = norm(all[i][s.col]).toUpperCase();
+      if (!SCHED_FREE.test(code)) cells.push({ round: s.no, code });
+    }
+    rows.push({ number: parseInt(m[1], 10), line: i + 1, cells });
+  }
+  if (!rows.length) return { slots: [], rows: [], error: "No judge rows found (rows starting with \"Judge 1\", \"Judge 2\", …)." };
+  return { slots, rows, error: "" };
+}
+
 // Read a criterion value from a score row. v2 stores { criteria: {...} };
 // legacy v1 rows / backups stored the criterion ids as flat top-level fields.
 function critVal(scoreOrEntry, rid) {
@@ -1256,6 +1308,22 @@ const CSS = `
   .st-done{background:var(--green-l);color:var(--green);}
   .st-pend{background:var(--s2);color:var(--dim);}
   .st-draft{background:var(--amber-l);color:var(--amber);font-weight:600;}
+  /* Judging schedule (2026-10p): the judge's rounds in order, the Next card, admin review. */
+  .js-next{background:var(--navy);color:#fff;border-radius:var(--r);padding:.9rem 1.1rem;margin-bottom:.85rem;cursor:pointer;
+    display:grid;grid-template-columns:1fr auto;gap:.15rem .8rem;align-items:center;box-shadow:0 4px 14px rgba(30,58,95,.25);}
+  .js-next-lab{grid-column:1/-1;font-family:var(--ff-m);font-size:.74rem;letter-spacing:.06em;opacity:.85;}
+  .js-next-code{font-family:var(--ff-m);font-size:1.5rem;font-weight:700;letter-spacing:.03em;}
+  .js-next-title{grid-column:1;font-size:.86rem;opacity:.92;line-height:1.35;}
+  .js-next-go{grid-column:2;grid-row:2/4;font-weight:700;background:#fff;color:var(--navy);border-radius:8px;padding:.45rem .8rem;}
+  .js-round{font-family:var(--ff-m);font-size:.78rem;font-weight:700;color:var(--navy);min-width:3.2rem;display:flex;flex-direction:column;line-height:1.2;}
+  .js-round span{font-weight:400;color:var(--dim);font-size:.7rem;}
+  .js-break{background:var(--amber-l);color:#92400e;font-size:.8rem;font-weight:600;padding:.4rem .9rem;margin:.25rem 0;border-radius:6px;}
+  .js-free{display:flex;align-items:center;gap:.8rem;padding:.55rem .9rem;color:var(--dim);font-size:.82rem;font-style:italic;}
+  .sched-lock{background:var(--blue-l);border:1px solid #2563eb30;border-radius:8px;padding:.6rem .8rem;font-size:.82rem;margin-bottom:.6rem;color:var(--navy);}
+  .sched-sum,.sched-review{background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:.75rem .9rem;margin-top:.4rem;}
+  .sched-bad{color:var(--red);font-size:.83rem;margin-top:.4rem;}
+  .sched-warn{color:#92400e;background:var(--amber-l);border-radius:6px;padding:.35rem .55rem;font-size:.82rem;margin-top:.4rem;}
+  .sched-ask{display:inline-flex;gap:.4rem;align-items:center;flex-wrap:wrap;font-size:.82rem;}
   /* Scoring screen (2026-10-21): the rubric's own scale guide, the restored-draft note,
      the ×2.5 working, the elementary comment boxes and the safety check. */
   .sc-guide{background:var(--blue-l);border:1px solid #2563eb30;border-radius:var(--r);padding:.75rem 1rem;
@@ -2054,6 +2122,14 @@ export default function App() {
   const [sugJudges,        setSugJudges]        = useState("");     // "" = use the numbers in use
   const [sugPanel,         setSugPanel]         = useState(3);
   const [projectJudges,    setProjectJudges]    = useState([]);    // panels: [{ project_id, judge_number }]
+  // Judging schedule (2026-10p). While it has rows it decides who judges what, in which round.
+  const [schedule,         setSchedule]         = useState([]);    // [{ judge_number, round_no, project_id }]
+  const [scheduleSlots,    setScheduleSlots]    = useState([]);    // [{ kind, no?, label, start, end }]
+  const [hasSchedule,      setHasSchedule]      = useState(true);  // false = migration 2026-10p not run
+  const [schedDraft,       setSchedDraft]       = useState(null);  // an imported file under review
+  const [schedMsg,         setSchedMsg]         = useState(null);  // { ok, text }
+  const [schedBusy,        setSchedBusy]        = useState(false);
+  const [schedClearAsk,    setSchedClearAsk]    = useState(false);
   const [panelBusy,        setPanelBusy]        = useState("");    // deptId while a panel action runs
   const [panelMsg,         setPanelMsg]         = useState("");
   const [panelOpen,        setPanelOpen]        = useState({});    // { [deptId]: true } assignment table shown
@@ -2426,6 +2502,11 @@ export default function App() {
       // Minimum score to place. Absent / invalid / out of range → 0 (off), so a bad row can
       // never silently strip every medal.
       setMinPlacePct(/^\d{1,2}$/.test(map.min_place_pct || "") ? parseInt(map.min_place_pct, 10) : 0);
+      // The schedule's rounds + breaks (2026-10p), written by set_judge_schedule().
+      try {
+        const sl = JSON.parse(map.judging_schedule || "[]");
+        setScheduleSlots(Array.isArray(sl) ? sl.filter(s => s && (s.kind === "round" || s.kind === "break")) : []);
+      } catch { setScheduleSlots([]); }
       // Note: judge/admin validations are loaded separately by loadValidations()
       // from the validations table — not from app_settings.
     }
@@ -2576,6 +2657,15 @@ export default function App() {
     const { data, error } = await supabase.from("project_judges").select("project_id, judge_number").eq("school_id", schoolId);
     noteLoadError("project_judges", error, schoolId);
     if (!error && data) setProjectJudges(data);
+  }
+  async function loadSchedule(sid) {
+    const schoolId = sid || currentSchool?.id;
+    if (!schoolId) return;
+    const { data, error } = await supabase.from("judge_schedule")
+      .select("judge_number, round_no, project_id").eq("school_id", schoolId).order("judge_number").order("round_no");
+    if (error) { noteLoadError("judge_schedule", error, schoolId); if (MISSING_TABLE(error)) setHasSchedule(false); return; }
+    setHasSchedule(true);
+    setSchedule(data || []);
   }
   // Admin-only names behind judge numbers (RLS: nobody else can read them).
   async function loadJudgeLabels(sid) {
@@ -3002,6 +3092,7 @@ export default function App() {
         loadLog(sid), loadItLogs(sid), loadShare(sid), loadSettings(sid),
         loadDelibNotes(sid), loadFinalDecisions(sid), loadValidations(sid),
         loadScoreBackups(sid), loadRubrics(sid), loadRoster(sid), loadProjectJudges(sid), loadBranding(sid),
+        loadSchedule(sid),
       ]).catch(err => {
         // A loader threw (network drop mid-load, unexpected response). Previously an
         // unhandled rejection: the screen waited for the 8 s timeout and nothing was logged.
@@ -3063,6 +3154,7 @@ export default function App() {
         .on("postgres_changes", { event: "*", schema: "public", table: "rubrics",     filter: f("rubrics")     }, () => loadRubrics(sid))
         .on("postgres_changes", { event: "*", schema: "public", table: "judge_roster", filter: f("judge_roster") }, () => loadRoster(sid))
         .on("postgres_changes", { event: "*", schema: "public", table: "project_judges", filter: f("project_judges") }, () => loadProjectJudges(sid))
+        .on("postgres_changes", { event: "*", schema: "public", table: "judge_schedule", filter: f("judge_schedule") }, () => loadSchedule(sid))
         // Admin-only by RLS (realtime enforces it): nobody else ever receives a judge's name.
         .on("postgres_changes", { event: "*", schema: "public", table: "judge_labels", filter: f("judge_labels") }, () => loadJudgeLabels(sid))
         .on("postgres_changes", { event: "*", schema: "public", table: "categories",  filter: f("categories")  }, () => loadCategories(sid))
@@ -4007,6 +4099,209 @@ export default function App() {
       });
     const absentUnscored = rows.reduce((t, r) => t + r.nums.filter(s => !present.includes(s) && !r.scored.includes(s)).length, 0);
     return { n, seats, present, rows, short: rows.filter(r => r.nums.length < n).length, absentUnscored };
+  }
+
+  // ── Judging schedule (2026-10p) ─────────────────────────────────────────────
+  // While the schedule has rows it is the ONLY source of who judges what (the server fills each
+  // judge's list from it, in round order — _judge_projects). The grid, panels, Rebalance and the
+  // Suggested setup are read-only meanwhile, so nothing can silently reshuffle a printed schedule.
+  function scheduleActive() { return schedule.length > 0; }
+  function scheduleFor(n) { return schedule.filter(s => s.judge_number === n).sort((a, b) => a.round_no - b.round_no); }
+  function scheduleRounds() { return scheduleSlots.filter(s => s.kind === "round"); }
+  function roundTime(no) { const s = scheduleSlots.find(x => x.kind === "round" && x.no === no); return s?.start ? `${s.start}–${s.end}` : ""; }
+  // Projects nobody visits (e.g. added after the import) — scored by NOBODY while the schedule rules.
+  function unscheduledProjects() {
+    const inSched = new Set(schedule.map(s => s.project_id));
+    return projects.filter(p => p.department_id && !inSched.has(p.id));
+  }
+  async function readCsvFile(file) {
+    const buf = await file.arrayBuffer();
+    try { return new TextDecoder("utf-8", { fatal: true }).decode(buf); }
+    catch { return new TextDecoder("windows-1252").decode(buf); }   // Excel's plain "CSV"
+  }
+  async function importScheduleFile(file) {
+    setSchedMsg(null); setSchedClearAsk(false);
+    if (!file) return;
+    if (/\.(xlsx|xls|xlsm|numbers)$/i.test(file.name)) {
+      setSchedMsg({ ok: false, text: "That is a spreadsheet workbook, not a CSV. In Excel choose File → Save As → \"CSV UTF-8 (Comma delimited)\", then import that file." });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) { setSchedMsg({ ok: false, text: "That file is over 2 MB — it does not look like a schedule." }); return; }
+    const { slots, rows, error } = parseScheduleCsv(await readCsvFile(file));
+    if (error) {
+      setSchedMsg({ ok: false, text: error });
+      addItLog("WARN","ADMIN","SCHEDULE_IMPORT_UNREADABLE","A judging schedule CSV could not be read",{ error });
+      return;
+    }
+    // Codes → projects, through the SAME projectCode() the judges and printouts show.
+    const byCode = new Map(projects.map(p => [projectCode(p).toUpperCase(), p]));
+    const entries = [], unknown = [], twice = [], overMax = new Set();
+    for (const r of rows) {
+      if (r.number > judgeMax()) overMax.add(r.number);
+      const seen = new Set();
+      for (const c of r.cells) {
+        const p = byCode.get(c.code);
+        if (!p) { unknown.push({ number: r.number, round: c.round, code: c.code }); continue; }
+        if (seen.has(p.id)) twice.push({ number: r.number, code: c.code });
+        seen.add(p.id);
+        entries.push({ number: r.number, round: c.round, project: p });
+      }
+    }
+    if (new Set(rows.map(r => r.number)).size !== rows.length) {
+      setSchedMsg({ ok: false, text: "The same judge number appears on two rows. Each judge needs exactly one row." });
+      return;
+    }
+    // Warnings (do not block): two judges at one booth in the same round, projects nobody visits,
+    // and how many visits each project gets.
+    const atBooth = new Map();
+    for (const e of entries) {
+      const k = `${e.round}|${e.project.id}`;
+      atBooth.set(k, [...(atBooth.get(k) || []), e.number]);
+    }
+    const clash = [...atBooth.entries()].filter(([, ns]) => ns.length > 1)
+      .map(([k, ns]) => ({ round: parseInt(k.split("|")[0], 10), code: projectCode(projects.find(p => p.id === k.split("|")[1])), judges: ns }));
+    const visits = new Map();
+    for (const e of entries) visits.set(e.project.id, (visits.get(e.project.id) || 0) + 1);
+    const missing = projects.filter(p => p.department_id && !visits.has(p.id));
+    const spread = {};
+    for (const n of visits.values()) spread[n] = (spread[n] || 0) + 1;
+    setSchedDraft({ fileName: file.name, slots: slots.map(s => ({ kind: s.kind, no: s.no, label: s.label, start: s.start, end: s.end })), entries, judges: rows.length,
+      unknown, twice, overMax: [...overMax].sort((a, b) => a - b), clash, missing, spread });
+    addItLog("INFO","ADMIN","SCHEDULE_IMPORT_OPENED","Admin opened a judging schedule for review",
+      { judges: rows.length, visits: entries.length, unknown: unknown.length });
+  }
+  function schedDraftBlocked(d) { return !d || d.unknown.length > 0 || d.twice.length > 0 || d.overMax.length > 0 || !d.entries.length; }
+  async function saveSchedule() {
+    const d = schedDraft;
+    if (schedDraftBlocked(d) || schedBusy) return;
+    setSchedBusy(true); setSchedMsg(null);
+    const sid = currentSchool.id;
+    const { data, error } = await supabase.rpc("set_judge_schedule", {
+      p_school_id: sid, p_slots: d.slots,
+      p_entries: d.entries.map(e => ({ number: e.number, round: e.round, project_id: e.project.id })),
+    });
+    setSchedBusy(false);
+    if (error) {
+      const missingFn = MISSING_FN(error);
+      setSchedMsg({ ok: false, text: missingFn
+        ? "The schedule needs a database update that has not been run yet (migration 2026-10p). Nothing was saved."
+        : `Schedule NOT saved: ${error.message}` });
+      addItLog("ERROR","ADMIN","SCHEDULE_SAVE_FAILED","The judging schedule could not be saved",{ error: error.code || error.message });
+      return;
+    }
+    setSchedDraft(null);
+    await Promise.all([loadSchedule(sid), loadSettings(sid), loadRoster(sid), loadDepartments(sid), loadJudges(sid)]);
+    setSchedMsg({ ok: true, text: `Saved — ${data?.judges ?? d.judges} judges, ${data?.visits ?? d.entries.length} visits, ${data?.projects ?? "?"} projects. Judges' lists now follow the schedule.` });
+    addLog(`Admin imported the judging schedule (${data?.judges ?? d.judges} judges, ${data?.visits ?? d.entries.length} visits)`);
+    addItLog("INFO","ADMIN","SCHEDULE_IMPORTED","Admin saved the judging schedule",
+      { judges: data?.judges ?? d.judges, visits: data?.visits ?? d.entries.length, projects: data?.projects ?? null });
+  }
+  async function clearSchedule() {
+    setSchedClearAsk(false); setSchedMsg(null); setSchedBusy(true);
+    const sid = currentSchool.id;
+    const { error } = await supabase.rpc("clear_judge_schedule", { p_school_id: sid });
+    setSchedBusy(false);
+    if (error) {
+      setSchedMsg({ ok: false, text: `Schedule NOT removed: ${error.message}` });
+      addItLog("ERROR","ADMIN","SCHEDULE_CLEAR_FAILED","The judging schedule could not be removed",{ error: error.code || error.message });
+      return;
+    }
+    await Promise.all([loadSchedule(sid), loadSettings(sid), loadJudges(sid)]);
+    setSchedMsg({ ok: true, text: "Schedule removed — judges' lists follow the judge grid again." });
+    addLog("Admin removed the judging schedule");
+    addItLog("WARN","ADMIN","SCHEDULE_CLEARED","Admin removed the judging schedule",{});
+  }
+  // Booth numbers from the booth template (columns "Booth #" + "Project code") → projects.room.
+  async function importBoothFile(file) {
+    setSchedMsg(null);
+    if (!file) return;
+    if (/\.(xlsx|xls|xlsm|numbers)$/i.test(file.name)) {
+      setSchedMsg({ ok: false, text: "That is a spreadsheet workbook, not a CSV. Save it as \"CSV UTF-8 (Comma delimited)\" first." });
+      return;
+    }
+    const all = parseCsv((await readCsvFile(file)));
+    const norm = (v) => String(v ?? "").replace(/\s+/g, " ").trim();
+    const headAt = all.findIndex(r => r.some(c => /booth|room/i.test(norm(c))) && r.some(c => /code/i.test(norm(c))));
+    if (headAt < 0) { setSchedMsg({ ok: false, text: "No \"Booth\" and \"Project code\" columns found. Use the booth template." }); return; }
+    const head = all[headAt].map(norm);
+    const bi = head.findIndex(h => /booth|room/i.test(h)), ci = head.findIndex(h => /code/i.test(h));
+    const byCode = new Map(projects.map(p => [projectCode(p).toUpperCase(), p]));
+    const sid = currentSchool.id;
+    let updated = 0, unchanged = 0;
+    const unknown = [], locked = [], failed = [];
+    for (const r of all.slice(headAt + 1)) {
+      const code = norm(r[ci]).toUpperCase(), booth = uncsvCell(norm(r[bi])).slice(0, 40);
+      if (!code || !booth) continue;
+      const p = byCode.get(code);
+      if (!p) { unknown.push(code); continue; }
+      if (p.locked) { locked.push(code); continue; }     // rule 12: a locked project is not edited
+      if ((p.room || "") === booth) { unchanged += 1; continue; }
+      const { data, error } = await supabase.from("projects").update({ room: booth })
+        .eq("school_id", sid).eq("id", p.id).select("id");
+      if (error || !data?.length) failed.push(code); else updated += 1;
+    }
+    await loadProjects(sid);
+    const bits = [`${updated} booth number${updated !== 1 ? "s" : ""} saved`];
+    if (unchanged) bits.push(`${unchanged} already right`);
+    if (locked.length) bits.push(`${locked.length} skipped because the project is locked (${locked.slice(0, 5).join(", ")})`);
+    if (unknown.length) bits.push(`${unknown.length} code${unknown.length !== 1 ? "s" : ""} not found (${unknown.slice(0, 5).join(", ")})`);
+    if (failed.length) bits.push(`${failed.length} NOT saved — check the connection and import again (${failed.slice(0, 5).join(", ")})`);
+    setSchedMsg({ ok: !failed.length, text: bits.join(" · ") + "." });
+    addLog(`Admin imported booth numbers (${updated} updated)`);
+    addItLog(failed.length ? "WARN" : "INFO","ADMIN","BOOTHS_IMPORTED","Admin imported booth numbers",
+      { updated, unchanged, unknown: unknown.length, locked: locked.length, failed: failed.length });
+  }
+  // Printouts — no student names, no scores. One page per judge, and one list of booths.
+  function schedPrintWindow(title, body) {
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escHtml(title)}</title>
+      <style>
+        body{font-family:"Segoe UI",Arial,sans-serif;color:#1e293b;margin:0;padding:1.5rem 2rem;font-size:.9rem}
+        h1{font-size:1.3rem;color:#1e3a5f;margin:.1rem 0 .2rem} .sub{color:#64748b;font-size:.8rem;margin-bottom:.8rem}
+        table{width:100%;border-collapse:collapse} th{background:#1e3a5f;color:#fff;text-align:left;padding:.35rem .5rem;font-size:.78rem}
+        td{padding:.42rem .5rem;border-bottom:1px solid #e2e8f0;vertical-align:top} .code{font-family:Consolas,monospace;font-weight:700;font-size:1.02rem;color:#1e3a5f;white-space:nowrap}
+        tr.brk td{background:#fef3c7;color:#92400e;font-weight:600} .pg{page-break-after:always;margin-bottom:1.5rem}
+        @media print{body{padding:.6rem 1rem}button{display:none!important}}
+      </style></head><body>${body}
+      <div style="text-align:center;margin-top:1.5rem"><button onclick="window.print()" style="padding:.5rem 1.5rem;background:#1e3a5f;color:#fff;border:none;border-radius:6px;cursor:pointer">🖨 Print / Save as PDF</button></div>
+      </body></html>`;
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(html); w.document.close(); }
+  }
+  function printJudgeSheets() {
+    const nums = [...new Set(schedule.map(s => s.judge_number))].sort((a, b) => a - b);
+    const school = escHtml(currentSchool?.name || "");
+    const pages = nums.map(n => {
+      const mine = scheduleFor(n);
+      const rows = scheduleSlots.map(slot => {
+        if (slot.kind === "break") return `<tr class="brk"><td colspan="4">${escHtml(slot.label)} · ${escHtml(slot.start)}–${escHtml(slot.end)}</td></tr>`;
+        const e = mine.find(m => m.round_no === slot.no);
+        const p = e && projects.find(x => x.id === e.project_id);
+        return `<tr><td style="white-space:nowrap"><b>R${slot.no}</b> ${escHtml(slot.start)}–${escHtml(slot.end)}</td>
+          <td class="code">${p ? escHtml(projectCode(p)) : "—"}</td><td>${p ? escHtml(p.room || "") : ""}</td>
+          <td>${p ? escHtml(p.title) : "<i>free</i>"}</td></tr>`;
+      }).join("");
+      return `<div class="pg"><div class="sub">${school}</div><h1>Judge ${n} — judging schedule</h1>
+        <div class="sub">${mine.length} project${mine.length !== 1 ? "s" : ""} · ☐ tick each one when you have submitted it in the app</div>
+        <table><thead><tr><th style="width:9rem">Round</th><th style="width:9rem">Code</th><th style="width:6rem">Booth</th><th>Project</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>`;
+    }).join("");
+    schedPrintWindow("Judge schedules", pages);
+    addItLog("INFO","ADMIN","SCHEDULE_PRINTED","Admin printed the judge schedule sheets",{ judges: nums.length });
+  }
+  function printBoothSheet() {
+    const deptOrd = (id) => departments.find(d => d.id === id)?.ord ?? 999;
+    const list = [...projects].filter(p => schedule.some(s => s.project_id === p.id))
+      .sort((a, b) => deptOrd(a.department_id) - deptOrd(b.department_id) || String(a.num).localeCompare(String(b.num), undefined, { numeric: true }));
+    const rows = list.map(p => {
+      const v = schedule.filter(s => s.project_id === p.id).sort((a, b) => a.round_no - b.round_no)
+        .map(s => `R${s.round_no} ${escHtml(roundTime(s.round_no))} · Judge ${s.judge_number}`).join("<br>");
+      return `<tr><td class="code">${escHtml(projectCode(p))}</td><td>${escHtml(p.room || "")}</td><td>${escHtml(p.title)}</td><td style="white-space:nowrap">${v}</td></tr>`;
+    }).join("");
+    schedPrintWindow("Booth visit times", `<div class="sub">${escHtml(currentSchool?.name || "")}</div>
+      <h1>When judges come to each booth</h1><div class="sub">${list.length} projects · students should be at their booth from their first visit</div>
+      <table><thead><tr><th style="width:9rem">Code</th><th style="width:6rem">Booth</th><th>Project</th><th style="width:15rem">Judge visits</th></tr></thead>
+      <tbody>${rows}</tbody></table>`);
+    addItLog("INFO","ADMIN","SCHEDULE_PRINTED","Admin printed the booth visit sheet",{ projects: list.length });
   }
 
   async function setJudgeNumberingMode(mode) {
@@ -5281,7 +5576,8 @@ export default function App() {
     const noDept = projects.filter(p => !p.department_id || !deptIds.has(p.department_id));
     const deptsNoJudge = departments.filter(d => d.id && projIn(d.id).length
       && !judges.some(j => judgeDeptIds(j).includes(d.id)));
-    const panelShort = departments.map(d => {
+    // Panels do not apply while a judging schedule decides the visits (2026-10p).
+    const panelShort = scheduleActive() ? [] : departments.map(d => {
       const pi = d.id ? panelInfo(d) : null;
       return pi && pi.short ? { d, short: pi.short, n: pi.n } : null;
     }).filter(Boolean);
@@ -5342,9 +5638,11 @@ export default function App() {
       safety.push({ p, alias: judges.find(j => j.id === judgeId)?.alias || "A judge", time: sc.time || 0, fb: sc.feedback || {} });
     }
     safety.sort((a, b) => b.time - a.time);
-    const problems = noDept.length + deptsNoJudge.length + panelShort.length + stuck.length + safety.length
+    // With a judging schedule, a project nobody visits is scored by nobody (e.g. added after import).
+    const notScheduled = scheduleActive() ? unscheduledProjects() : [];
+    const problems = noDept.length + deptsNoJudge.length + panelShort.length + stuck.length + safety.length + notScheduled.length
       + (realtime.status === "down" ? 1 : 0) + (isOnline ? 0 : 1);
-    return { noDept, deptsNoJudge, panelShort, progress, idle, stuck, recentErrors, safety, problems };
+    return { noDept, deptsNoJudge, panelShort, progress, idle, stuck, recentErrors, safety, notScheduled, problems };
   }
 
   // Deliberation helpers
@@ -6857,6 +7155,32 @@ export default function App() {
     const done   = myProj.filter(p => hasScored(p.id)).length;
     const pct    = Math.round((done / myProj.length) * 100);
     const drafts = readDrafts();   // unsubmitted work on this device (startScoring/editDraft)
+    // Judging schedule (2026-10p): the judge's visits in round order, with the times.
+    const myNum    = judgeNumOf(judge.alias);
+    const mySched  = scheduleActive() && myNum ? scheduleFor(myNum).filter(s => projects.some(p => p.id === s.project_id)) : [];
+    const useSched = mySched.length > 0;
+    const nextVisit = useSched ? mySched.find(s => !hasScored(s.project_id)) : null;
+    const canScore = !locked && !judgeValidations[judge.id];
+    const item = (proj, roundLabel) => {
+      const scored = hasScored(proj.id);
+      const ex = scores[`${judge.id}_${proj.id}`];
+      return (
+        <div className={"proj-item" + (roundLabel ? " js-item" : "")}
+          onClick={() => canScore && startScoring(proj.id)}
+          style={{ cursor: canScore ? "pointer" : "not-allowed", opacity:scored?.75:1 }}>
+          {roundLabel && <div className="js-round">{roundLabel}</div>}
+          <div className="proj-num">{projectCode(proj)}</div>
+          <div className="proj-info">
+            <div className="proj-title">{proj.title}</div>
+            <div className="proj-meta">{proj.room ? <><b>Booth {proj.room}</b> · </> : ""}{proj.cat} · Grade {proj.grade}</div>
+          </div>
+          {drafts[`${judge.id}_${proj.id}`]
+            ? <span className="proj-st st-draft" title="Started on this device but not submitted yet">✎ Draft — not submitted</span>
+            : scored ? <span className="proj-st st-done">{isFeedbackProject(proj) ? "✓ Reviewed" : `✓ ${getTotal(ex, proj)}pts`}</span>
+                  : <span className="proj-st st-pend">Pending →</span>}
+        </div>
+      );
+    };
     return (
       <div className="app"><style>{CSS}</style>{backdrop}
         <div className="center"><div className="inner">
@@ -6894,28 +7218,42 @@ export default function App() {
               </div>
             </div>
           )}
-          <div className="card proj-list">
-            {myProj.map((proj, i) => {
-              const scored = hasScored(proj.id);
-              const ex = scores[`${judge.id}_${proj.id}`];
+          {useSched && nextVisit && canScore && (() => {
+            const p = projects.find(x => x.id === nextVisit.project_id);
+            return p && (
+              <div className="js-next" data-testid="js-next" onClick={() => startScoring(p.id)}>
+                <div className="js-next-lab">NEXT · R{nextVisit.round_no}{roundTime(nextVisit.round_no) ? ` · ${roundTime(nextVisit.round_no)}` : ""}</div>
+                <div className="js-next-code">{projectCode(p)}</div>
+                <div className="js-next-title">{p.title}{p.room ? <> · <b>Booth {p.room}</b></> : ""}</div>
+                <div className="js-next-go">Open →</div>
+              </div>
+            );
+          })()}
+          <div className="card proj-list" data-testid={useSched ? "js-list" : undefined}>
+            {useSched ? <>
+              {/* Every slot of the morning in order: rounds (with this judge's project, or "free")
+                  and the breaks, so the list reads like the printed schedule. */}
+              {scheduleSlots.map((slot, i) => {
+                if (slot.kind === "break") return (
+                  <div key={`b${i}`} className="js-break">☕ {slot.label}{slot.start ? ` · ${slot.start}–${slot.end}` : ""}</div>);
+                const e = mySched.find(s => s.round_no === slot.no);
+                const p = e && projects.find(x => x.id === e.project_id);
+                const label = <>R{slot.no}{slot.start ? <span>{slot.start}</span> : null}</>;
+                return p ? <div key={`r${slot.no}`}>{item(p, label)}</div>
+                  : <div key={`r${slot.no}`} className="js-free"><span className="js-round">{label}</span> free</div>;
+              })}
+              {/* Anything assigned outside the schedule (should not happen) is never hidden. */}
+              {myProj.filter(p => !mySched.some(s => s.project_id === p.id)).length > 0 && <>
+                <div className="jh-dept-head">Other projects</div>
+                {myProj.filter(p => !mySched.some(s => s.project_id === p.id)).map(p => <div key={p.id}>{item(p)}</div>)}
+              </>}
+            </> : myProj.map((proj, i) => {
               // A judge covering several departments (2026-10h) sees a heading per department.
               const showHead = judgeDeptIds(judge).length > 1 && (i === 0 || myProj[i - 1].department_id !== proj.department_id);
               return (
                 <div key={proj.id}>
                 {showHead && <div className="jh-dept-head">{departments.find(d => d.id === proj.department_id)?.name || "Unassigned"}</div>}
-                <div className="proj-item"
-                  onClick={() => !locked && !judgeValidations[judge.id] && startScoring(proj.id)}
-                  style={{ cursor: locked || judgeValidations[judge.id] ? "not-allowed" : "pointer", opacity:scored?.75:1 }}>
-                  <div className="proj-num">{projectCode(proj)}</div>
-                  <div className="proj-info">
-                    <div className="proj-title">{proj.title}</div>
-                    <div className="proj-meta">{proj.cat} · Grade {proj.grade}</div>
-                  </div>
-                  {drafts[`${judge.id}_${proj.id}`]
-                    ? <span className="proj-st st-draft" title="Started on this device but not submitted yet">✎ Draft — not submitted</span>
-                    : scored ? <span className="proj-st st-done">{isFeedbackProject(proj) ? "✓ Reviewed" : `✓ ${getTotal(ex, proj)}pts`}</span>
-                          : <span className="proj-st st-pend">Pending →</span>}
-                </div>
+                {item(proj)}
                 </div>
               );
             })}
@@ -8657,6 +8995,13 @@ export default function App() {
                         Until then judges keep their current numbers.
                       </div>
                     ) : (<>
+                      {scheduleActive() && (
+                        <div className="sched-lock" data-testid="grid-locked">
+                          📅 <b>The judging schedule decides who judges what.</b> The ticks below were set from it and
+                          cannot be changed here — edit the schedule file and import it again (see <i>Judging schedule</i>
+                          below). Names can still be edited.
+                        </div>
+                      )}
                       <div className="jn-max">
                         <span><strong>Maximum judges:</strong> numbers 1–{judgeMax()}</span>
                         <input type="number" min="1" max="90" aria-label="Maximum judges"
@@ -8685,8 +9030,8 @@ export default function App() {
                                   {d.name}
                                   <div className="roster-sub">{seatsOf(d.id).length} judge{seatsOf(d.id).length !== 1 ? "s" : ""} · {projects.filter(p => p.department_id === d.id).length} proj.</div>
                                   <select aria-label={`Judges per project for ${d.name}`} value={d.judges_per_project ?? ""}
-                                    disabled={dirty || panelBusy === d.id}
-                                    title={dirty ? "Save the judge list first" : "How many judges score each project"}
+                                    disabled={dirty || panelBusy === d.id || scheduleActive()}
+                                    title={scheduleActive() ? "The judging schedule decides this" : dirty ? "Save the judge list first" : "How many judges score each project"}
                                     onChange={e => setDeptJudgesPerProject(d.id, e.target.value)}>
                                     <option value="">Every judge scores all</option>
                                     {[1, 2, 3, 4, 5].map(k => <option key={k} value={k}>{k} judge{k !== 1 ? "s" : ""} per project</option>)}
@@ -8710,7 +9055,7 @@ export default function App() {
                                   </td>
                                   {sorted.map(d => (
                                     <td key={d.id}>
-                                      <input type="checkbox" aria-label={`Judge ${n} judges ${d.name}`}
+                                      <input type="checkbox" aria-label={`Judge ${n} judges ${d.name}`} disabled={scheduleActive()}
                                         checked={(map[n] || []).includes(d.id)} onChange={() => toggleRosterCell(n, d.id)} />
                                     </td>
                                   ))}
@@ -8731,8 +9076,9 @@ export default function App() {
                       {noJudges.map(d => <div key={d.id} className="judge-num-miss" style={{textAlign:"left"}}>⚠ Nobody judges {d.name} — it has projects but no judge is ticked.</div>)}
                       {tooFew.map(d => <div key={d.id} className="judge-num-miss" style={{textAlign:"left"}}>⚠ {d.name} needs {d.judges_per_project} judges per project but only {seatsOf(d.id).length} {seatsOf(d.id).length === 1 ? "is" : "are"} ticked.</div>)}
 
-                      {/* ── Suggested setup (rule 73) — plain arithmetic, no AI, nothing saved ── */}
-                      {(() => {
+                      {/* ── Suggested setup (rule 73) — plain arithmetic, no AI, nothing saved ──
+                          Hidden while a judging schedule is in charge: Apply would fight it. */}
+                      {!scheduleActive() && (() => {
                         const inUse = nums.filter(n => (map[n] || []).length).length;
                         const want  = /^\d{1,2}$/.test(sugJudges) ? Math.min(90, Math.max(1, parseInt(sugJudges, 10))) : (inUse || 0);
                         const sug   = want > 0 ? suggestRoster(want, sugPanel) : null;
@@ -8834,6 +9180,100 @@ export default function App() {
                   </div>
                 );
               })()}
+
+              {/* ── Judging schedule (2026-10p) ── */}
+              <div className="card" id="schedule">
+                <div className="lbl" style={{marginBottom:".4rem"}}>📅 Judging schedule</div>
+                {!hasSchedule ? (
+                  <div className="judge-num-miss" style={{textAlign:"left"}}>
+                    The judging schedule needs a database update that has not been run yet (migration 2026-10p).
+                  </div>
+                ) : <>
+                <p style={{fontSize:".82rem",color:"var(--dim)",marginBottom:".6rem"}}>
+                  Import your schedule grid (one row per judge, one column per round, a project <b>code</b> in each
+                  cell — save it from Excel as <b>CSV</b>). Once saved, each judge's tablet lists their projects
+                  <b> in round order with the times</b>, and the schedule decides who judges what: the grid above,
+                  "judges per project", Rebalance and the Suggested setup are switched off until you remove it.
+                </p>
+                {scheduleActive() && !schedDraft && (() => {
+                  const nums = [...new Set(schedule.map(s => s.judge_number))];
+                  const projs = new Set(schedule.map(s => s.project_id));
+                  const missing = unscheduledProjects();
+                  return (
+                    <div className="sched-sum" data-testid="sched-active">
+                      <div><span className="badge bg">● In use</span>{" "}
+                        <b>{nums.length}</b> judges · <b>{scheduleRounds().length}</b> rounds
+                        {scheduleRounds().length > 0 && <> ({scheduleRounds()[0].start}–{scheduleRounds()[scheduleRounds().length - 1].end})</>} ·
+                        <b> {schedule.length}</b> visits · <b>{projs.size}</b> of {projects.filter(p => p.department_id).length} projects</div>
+                      {missing.length > 0 && <div className="judge-num-miss" style={{textAlign:"left",marginTop:".5rem"}}>
+                        ⚠ {missing.length} project{missing.length !== 1 ? "s are" : " is"} not in the schedule, so nobody will visit {missing.length !== 1 ? "them" : "it"}:{" "}
+                        {missing.slice(0, 8).map(p => projectCode(p)).join(", ")}{missing.length > 8 ? "…" : ""}. Add {missing.length !== 1 ? "them" : "it"} to the file and import it again.
+                      </div>}
+                      <div style={{display:"flex",gap:".5rem",flexWrap:"wrap",marginTop:".6rem"}}>
+                        <button className="btn sec sm" style={{width:"auto"}} onClick={printJudgeSheets}>🖨 Judge sheets</button>
+                        <button className="btn sec sm" style={{width:"auto"}} onClick={printBoothSheet}>🖨 Booth visit times</button>
+                        {!schedClearAsk
+                          ? <button className="btn danger sm" style={{width:"auto"}} disabled={schedBusy} onClick={() => setSchedClearAsk(true)}>Remove schedule</button>
+                          : <span className="sched-ask">Remove it? Lists go back to the judge grid. Scores are kept.
+                              <button className="btn danger sm" style={{width:"auto"}} disabled={schedBusy} onClick={clearSchedule}>Yes, remove</button>
+                              <button className="btn sec sm" style={{width:"auto"}} onClick={() => setSchedClearAsk(false)}>Cancel</button></span>}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {schedDraft ? (() => {
+                  const d = schedDraft, blocked = schedDraftBlocked(d);
+                  const rounds = d.slots.filter(s => s.kind === "round");
+                  return (
+                    <div className="sched-review" data-testid="sched-review">
+                      <div style={{fontWeight:600,marginBottom:".35rem"}}>Check before saving — {d.fileName}</div>
+                      <div style={{fontSize:".85rem"}}>
+                        <b>{d.judges}</b> judges · <b>{rounds.length}</b> rounds
+                        {rounds.length > 0 && <> ({rounds[0].start}–{rounds[rounds.length - 1].end})</>}
+                        {d.slots.some(s => s.kind === "break") && <> · {d.slots.filter(s => s.kind === "break").map(s => `${s.label} ${s.start}–${s.end}`).join(" · ")}</>}
+                        <br/><b>{d.entries.length}</b> visits · visits per project:{" "}
+                        {Object.entries(d.spread).sort((a, b) => b[0] - a[0]).map(([v, n]) => `${n} project${n !== 1 ? "s" : ""} × ${v}`).join(" · ")}
+                      </div>
+                      {d.unknown.length > 0 && <div className="sched-bad" data-testid="sched-unknown">
+                        ✗ {d.unknown.length} code{d.unknown.length !== 1 ? "s do" : " does"} not match any project:{" "}
+                        {d.unknown.slice(0, 8).map(u => `${u.code} (Judge ${u.number}, R${u.round})`).join(", ")}{d.unknown.length > 8 ? "…" : ""}.
+                        Codes must match exactly what the app shows (e.g. {projects[0] ? projectCode(projects[0]) : "PK-LS-001"}).</div>}
+                      {d.twice.length > 0 && <div className="sched-bad">✗ A judge visits the same project twice: {d.twice.map(t => `Judge ${t.number} → ${t.code}`).join(", ")}.</div>}
+                      {d.overMax.length > 0 && <div className="sched-bad">✗ Judge {d.overMax.join(", ")} {d.overMax.length !== 1 ? "are" : "is"} above Maximum judges ({judgeMax()}). Raise it in the Judges box above first.</div>}
+                      {d.missing.length > 0 && <div className="sched-warn" data-testid="sched-missing">
+                        ⚠ {d.missing.length} project{d.missing.length !== 1 ? "s are" : " is"} in no judge's row — nobody would visit {d.missing.length !== 1 ? "them" : "it"}:{" "}
+                        {d.missing.slice(0, 8).map(p => projectCode(p)).join(", ")}{d.missing.length > 8 ? "…" : ""}.</div>}
+                      {d.clash.length > 0 && <div className="sched-warn" data-testid="sched-clash">
+                        ⚠ Two judges at the same booth in the same round: {d.clash.slice(0, 6).map(c => `${c.code} in R${c.round} (Judges ${c.judges.join(" + ")})`).join(", ")}.</div>}
+                      {!blocked && d.missing.length === 0 && d.clash.length === 0 &&
+                        <div className="brand-ok" style={{marginTop:".4rem"}}>✓ Every code matches a project, every project is visited, and no booth has two judges at once.</div>}
+                      <div style={{display:"flex",gap:".5rem",flexWrap:"wrap",marginTop:".6rem"}}>
+                        <button className="btn sm" style={{width:"auto"}} disabled={blocked || schedBusy} onClick={saveSchedule}>
+                          {schedBusy ? "Saving…" : scheduleActive() ? "Replace the schedule" : "Save schedule"}</button>
+                        <button className="btn sec sm" style={{width:"auto"}} onClick={() => { setSchedDraft(null); setSchedMsg(null); }}>Cancel</button>
+                        {blocked && <span style={{fontSize:".78rem",color:"var(--red)"}}>Fix the ✗ items in the file and import it again.</span>}
+                      </div>
+                    </div>
+                  );
+                })() : (
+                  <div style={{display:"flex",gap:".6rem",flexWrap:"wrap",alignItems:"center",marginTop:".4rem"}}>
+                    <label className="btn sec sm" style={{width:"auto",cursor:"pointer"}}>
+                      ⬆ {scheduleActive() ? "Import a new version" : "Import schedule (CSV)"}
+                      <input type="file" accept=".csv,text/csv,.xlsx,.xls" style={{display:"none"}} aria-label="Import judging schedule"
+                        onChange={e => { importScheduleFile(e.target.files?.[0]); e.target.value = ""; }} />
+                    </label>
+                    <label className="btn sec sm" style={{width:"auto",cursor:"pointer"}}>
+                      ⬆ Import booth numbers (CSV)
+                      <input type="file" accept=".csv,text/csv,.xlsx,.xls" style={{display:"none"}} aria-label="Import booth numbers"
+                        onChange={e => { importBoothFile(e.target.files?.[0]); e.target.value = ""; }} />
+                    </label>
+                    <span style={{fontSize:".76rem",color:"var(--dim)"}}>Booth numbers: the booth template with its “Booth #” column filled in — saved as each project's Room / booth.</span>
+                  </div>
+                )}
+                {schedMsg && <div className={schedMsg.ok ? "brand-ok" : "brand-err"} role={schedMsg.ok ? "status" : "alert"} data-testid="sched-msg">{schedMsg.text}</div>}
+                </>}
+              </div>
 
               {/* ── Project codes ("PK-LS-001") ── */}
               {(() => {
@@ -9152,8 +9592,29 @@ export default function App() {
             {adminTab==="judges" && <>
               <div className="adm-h1">Judge Management</div>
               <div className="adm-sub">Monitor activity and completion per judge · approve device transfer only when needed</div>
+              {/* With a judging schedule (2026-10p) the schedule decides the visits: no panels, no
+                  Rebalance (it knows nothing about rounds and could double-book a judge). An absent
+                  judge is covered by a STAND-IN signing in with that judge's number. */}
+              {scheduleActive() && (() => {
+                const nums = [...new Set(schedule.map(s => s.judge_number))].sort((a, b) => a - b);
+                const absent = nums.filter(n => !judges.some(j => j.alias === `Judge${n}`));
+                return (
+                  <div className="card panel-card" data-testid="sched-judges">
+                    <div style={{fontWeight:700,color:"var(--navy)"}}>📅 Judging schedule — {nums.length} judges, {scheduleRounds().length} rounds</div>
+                    <div style={{fontSize:".84rem",marginTop:".3rem"}}>
+                      {absent.length === 0
+                        ? <span style={{color:"var(--green)"}}>✓ Every scheduled judge has signed in.</span>
+                        : <>Not signed in yet: <b>{absent.map(n => `Judge ${n}`).join(", ")}</b>.</>}
+                    </div>
+                    <div className="hb-note" style={{marginTop:".35rem"}}>
+                      A judge who does not come: give a stand-in that judge's <b>number</b> and the invite code — they get
+                      the same projects in the same rounds. Rebalance is off while the schedule is in use.
+                    </div>
+                  </div>
+                );
+              })()}
               {/* Panels (2026-10k): departments where each project gets N judges. */}
-              {departments.filter(d => d.judges_per_project).map(d => {
+              {!scheduleActive() && departments.filter(d => d.judges_per_project).map(d => {
                 const info = panelInfo(d);
                 return (
                   <div className="card panel-card" key={`panel-${d.id}`}>
@@ -9808,7 +10269,11 @@ export default function App() {
 
               <div className="card hb-card">
                 <div className="sec-title">Coverage</div>
-                {h.noDept.length === 0 && h.deptsNoJudge.length === 0 && h.panelShort.length === 0 && ok("Every project has a department, every department has a judge, every panel is full.")}
+                {h.noDept.length === 0 && h.deptsNoJudge.length === 0 && h.panelShort.length === 0 && h.notScheduled.length === 0 && ok("Every project has a department, every department has a judge, every panel is full.")}
+                {h.notScheduled.length > 0 && <div className="hb-item" data-testid="hb-notscheduled">
+                  <span className="badge br">{h.notScheduled.length}</span> project{h.notScheduled.length !== 1 ? "s are" : " is"} <strong>not in the judging schedule</strong> — nobody will visit {h.notScheduled.length !== 1 ? "them" : "it"}:
+                  {" "}{h.notScheduled.slice(0, 6).map(p => projectCode(p)).join(", ")}{h.notScheduled.length > 6 ? "…" : ""}. Add {h.notScheduled.length !== 1 ? "them" : "it"} to the schedule file and import it again.
+                  <button className="btn sec sm hb-act" onClick={() => setAdminTab("setup")}>Schedule →</button></div>}
                 {h.noDept.length > 0 && <div className="hb-item" data-testid="hb-nodept">
                   <span className="badge br">{h.noDept.length}</span> project{h.noDept.length !== 1 ? "s have" : " has"} <strong>no department</strong> — nobody will score {h.noDept.length !== 1 ? "them" : "it"}:
                   {" "}{h.noDept.slice(0, 6).map(p => projectCode(p) || `#${p.num}`).join(", ")}{h.noDept.length > 6 ? "…" : ""}.

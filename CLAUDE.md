@@ -3,7 +3,7 @@
 > Single source of truth for AI-assisted development. Read it before changing anything.
 > Do not delete it. When code and this file disagree, the code wins — then fix this file.
 >
-> Last reviewed: 2026-10-21 (the 2026-27 evaluation forms, scoring drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
+> Last reviewed: 2026-10-21 (Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
 
 ---
 
@@ -30,8 +30,8 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Vercel | `sciencefair-v2` — the **only** Vercel project |
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
-| Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (252 checks). Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`), the 2026-27 forms + drafts + safety (`rubrics-2627.e2e.mjs`). Start the dev server first (see the file header). 462 checks across 21 files |
+| Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (271 checks). Run after any `supabase/*.sql` or `api/` change |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`), the 2026-27 forms + drafts + safety (`rubrics-2627.e2e.mjs`), the judging schedule (`schedule.e2e.mjs`). Start the dev server first (see the file header). 479 checks across 22 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -60,6 +60,7 @@ always serves and cannot be redirected — never share it.
 | `migration-2026-10m-ratelimit-regnum-project-moves.sql` | **Three correctness fixes (2026-10-06 review)**: `register_judge()` now RETURNS `{"error":"Invalid invite code"}` instead of raising, so the 5-attempt lockout finally records anything (a RAISE rolled the counter back with the transaction — see rule 66); `submit_registration()` numbers from MAX not COUNT, plus a guarded UNIQUE index on `(school_id, reg_number)` (⚠️ **partial fix** — deleting the HIGHEST submission still frees its number; see Known gaps); new `projects_guard_department_move` trigger — a **scored** project may not move to a department with a different rubric or scoring mode | **Yes for the app build** — `handleRegister()` reads `data.error`. An older build still refuses the wrong code, it just shows the generic "Registration failed" text. ⚠️ SUPERSEDES `register_judge()` (10k) and `submit_registration()` (10b) — re-run 10m after either |
 | `migration-2026-10n-unique-project-numbers.sql` | **UNIQUE `(school_id, projects.num)`** — two admins adding a project at once no longer share a number. Guarded: if duplicates already exist it RAISEs a WARNING and skips the index (renumber, re-run) | No — either order. Old app: a clash shows the raw DB error instead of a silent duplicate. New app without it: as before |
 | `migration-2026-10o-score-feedback.sql` | **`scores.feedback`** JSONB `{strength, next_step}` (CHECK: an object) + **`scores.safety_concern`** BOOLEAN — the 2026-27 elementary form's two comment boxes and its safety question. Existing row policies cover them; `scores` is already in realtime | No — **additive**, either order. New app without it: `upsertScore()` retries without the two columns and folds them into `notes` (IT log `SCORE_FEEDBACK_COLS_MISSING`) — nothing lost, but the Alerts safety card cannot appear. **Run before judging day** |
+| `migration-2026-10p-judging-schedule.sql` | **Judging schedule**: `judge_schedule` (school, judge_number, round_no, project_id — public read, RPC-only writes, FK → projects ON DELETE CASCADE, a judge visits a project once and has one project per round); `app_settings.judging_schedule` (the slots: rounds with times + breaks); **`_judge_projects()` redefined** — while a schedule has rows a judge's list is their visits in round order; **`set_judge_schedule()`** (validates, refuses to drop an already-SCORED visit, derives the judge grid through `set_judge_roster()`) / **`clear_judge_schedule()`** | No — **additive**, either order: with no rows every function behaves as before. New app without it: the schedule card says the migration is needed. ⚠️ SUPERSEDES `_judge_projects()` (10k) — re-run 10p after 10k |
 | `migration-2026-10k-judge-roster-and-panels.sql` | **Judge roster grid + N judges per project**: `judge_roster` (number ↔ department, public read, RPC-only writes), `judge_labels` (admin-only private names), `departments.judges_per_project`, `project_judges` (stored panel assignments); `register_judge()` / `set_judge_roster()` / `set_judges_per_project()` / `assign_panels(fill\|rebuild\|rebalance)` / `sync_judge_projects()`; `set_judge_numbers()` kept as a ranges→roster wrapper for cached apps; new departments still get a default block (now also in the roster) | **Yes — run it, then deploy the matching app.** The previous app keeps working (its range editor saves through the wrapper) but cannot show the grid or panels. ⚠️ Supersedes register_judge (10h), set_judge_numbers / set_judge_max / the numbering trigger (10i), departments_guard_judging (10j) — re-run 10k after any of those |
 | `migration-2026-10l-school-branding.sql` | **Per-school logo + fair poster**: `school_branding` (paths + poster description; public read, writes only via **`set_school_branding()`**), Storage bucket **`school-branding`** (public read, 2 MB, WebP/PNG/JPEG) + `storage.objects` policies (admin of THAT school, own folder, app-generated names, no overwrite), `can_manage_branding_object()`; seeds `builtin:dishchiibikoh` for the one school whose id **and** slug match | **No** — either order. Without it Dishchii'bikoh keeps its bundled logo, everyone else gets the monogram, and Setup says the migration is needed. ⚠️ Its storage part needs the Supabase SQL editor (`storage` schema); it is skipped on a database without one |
 | `migration-2026-10j-department-rubrics.sql` | **Each department picks its rubric**: `departments.rubric_id` (NULL = the school default = `rubrics.is_active`); one default per school (unique partial index, duplicates resolved to the newest); guard trigger — a department's rubric / comment-only setting cannot change once it has scores, and only its own school's rubrics; delete guard — the default and any rubric in use cannot be deleted; **`set_default_rubric()`** | No — old app keeps using the default for every department |
@@ -95,7 +96,7 @@ The v1 Vercel project was deleted 2026-09-30. **Do not resurrect v1.**
 │   ├── scan-form.test.mjs       ← mocked tests for api/scan-form.js (free, offline)
 │   ├── db-migrations.test.mjs   ← schema + all migrations on real Postgres (PGlite): RLS, RPCs
 │   ├── e2e/                     ← browser tests (playwright-core + mocked backend); screenshots in e2e/out/ (gitignored)
-│   │                              scan · judge-reg · signup · setup (departments/categories) · alerts (event health + IT-log diagnostics) · judging (2 judges, ties, deliberation, awards, transfer, reset) · lifecycle
+│   │                              scan · judge-reg · signup · setup (departments/categories) · alerts (event health + IT-log diagnostics) · judging (2 judges, ties, deliberation, awards, transfer, reset) · rubrics-2627 (the 2026-27 forms, drafts, safety) · schedule (judging schedule) · lifecycle
 │   ├── registration-email.test.mjs ← mocked tests for the email: only the school's OWN branding, HTML escaping
 │   └── scan-form-smoke.mjs      ← real-Gemini smoke test for form scanning (needs GEMINI_API_KEY)
 ├── supabase/
@@ -176,7 +177,7 @@ files, no Tailwind, no CSS modules.
 | `school-register` | School sign-up — auth user, school row (PIN hashed by trigger), settings, departments, rubric |
 | `landing` | Per-school landing — Judge / Admin cards (+ "LIVE RESULTS" card while a share link is live) |
 | `judge-register` | Judge sign-in (department + alias + invite code) |
-| `judge-home` | Judge's project list, progress, validation, deliberation notes |
+| `judge-home` | Judge's project list, progress, validation, deliberation notes. **With a judging schedule** (2026-10p): the morning in round order (R#, time, code, booth; breaks; "free") and a NEXT card |
 | `judge-scoring` | Scoring form for one project |
 | `admin-login` | Admin email + password |
 | `admin-home` | Admin dashboard (tabbed) |
@@ -189,12 +190,12 @@ files, no Tailwind, no CSS modules.
 | `adminTab` | Content |
 |---|---|
 | `overview` | Stats, per-department leaderboards, "Get started" card (checklist only until the first judge registers; school URL + invite code **always** — it becomes "Judge sign-in details"), Change PIN card, Lock Judging, a summary card linking to Setup |
-| `setup` | **Departments** (add / rename / reorder / delete / max judges / presets), the **judge grid** (+ **Suggested setup**, rule 73), **project categories** (add / rename / reorder / delete / restore defaults), project codes, **Minimum score to place** (rule 72), **School year** and **School branding** (logo + poster, see 🎨). Departments and categories are per-school data — see rule 14 |
-| `judges` | Per-judge progress grouped by department; Allow Transfer (PIN) |
+| `setup` | **Departments** (add / rename / reorder / delete / max judges / presets), the **judge grid** (+ **Suggested setup**, rule 73), the **📅 Judging schedule** (import / review / booth numbers / printouts, rule 77), **project categories** (add / rename / reorder / delete / restore defaults), project codes, **Minimum score to place** (rule 72), **School year** and **School branding** (logo + poster, see 🎨). Departments and categories are per-school data — see rule 14 |
+| `judges` | Per-judge progress grouped by department; Allow Transfer (PIN); Panels card — or, with a judging schedule, "not signed in yet" + the stand-in advice (no Rebalance) |
 | `projects` | Add/edit/remove/lock projects, **📷 Scan forms** (AI form reader), rubric breakdown, project-list PDF |
 | `registration` | Student registration links + submissions, registration CSV |
 | `activity` | Human-readable activity log with keyword filter |
-| `alerts` | **Event health** (2026-10-07): this screen's real connection state, errors in the last hour, scores stuck on devices, coverage (no department / no judge / short panels), progress per department, idle judges, outliers grouped per project with every judge's total. `eventHealth()` + `getOutlierGroups()` |
+| `alerts` | **Event health** (2026-10-07): this screen's real connection state, errors in the last hour, scores stuck on devices, coverage (no department / no judge / short panels), progress per department, idle judges, outliers grouped per project with every judge's total; a red **safety-concern** card (2026-10o) and projects **not in the judging schedule** (2026-10p). `eventHealth()` + `getOutlierGroups()` |
 | `deliberation` | Validation & deliberation workflow, final awards, finalize |
 | `share` | Public results link — **locked until results are finalized**; results CSV |
 | `export` | Per-judge CSV + score backups |
@@ -313,13 +314,14 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `project_private` | PK `(project_id, school_id)`, FK → projects **ON DELETE CASCADE**: advisor_name, group_members (JSONB), updated_at — **admin-only** |
 | `judge_roster` | (school_id, judge_number, department_id) — which departments each judge NUMBER covers (2026-10k). Replaces departments.judge_from/judge_to as the source of truth (those are kept in step for old apps). Public read, writes only via `set_judge_roster()` |
 | `judge_labels` | (school_id, judge_number, label) — **admin-only** private names behind numbers; anon has no privileges |
+| `judge_schedule` | (school_id, judge_number, round_no, project_id) — one row per visit (2026-10p). While it has rows it is the ONLY source of who judges what; the slots (times, breaks) live in `app_settings.judging_schedule`. Public read, writes only via `set_judge_schedule()` / `clear_judge_schedule()` |
 | `project_judges` | (school_id, project_id, judge_number) — panel assignments for departments with `judges_per_project` set. Stored, never recomputed on the fly; scored assignments are never removed |
 | `judges` | alias, `projects` (JSON array of pids), department_id (FIRST department), **`department_ids`** (every department covered — 2026-10h), joined_at. UNIQUE(department_id, alias) |
 | `scores` | One row per judge+project; `criteria` JSONB, notes, `submitted_at`, **`commendation`** (feedback departments only — `criteria` is `{}` there), **`feedback`** `{strength, next_step}` + **`safety_concern`** (2026-10o, elementary form). UNIQUE(judge_id, project_id). **There is NO total column** — every total is computed from `criteria` + the current rubric (`getTotal`), which is why rubric edits change past totals |
 | `validations` | Judge/admin validation; `judge_id = 'admin'` for the admin. Conflict `(school_id, judge_id)` |
 | `deliberation_notes` | Judge recommendation/comment/flag per project |
 | `final_decisions` | Admin award per project. Conflict `(school_id, project_id)` |
-| `app_settings` | Key/value, PK `(school_id, key)`: `locked`, `deliberation_open`, `results_finalized`, `judge_transfer_allowances`, `project_list_token`, `judge_numbering` (`school` default when absent \| `department`), `judge_sharing`, `judge_max`, **`project_code_format`** (default `{DEPT}-{CAT}-{NUM}`), **`school_year`** (`2026-2027`; empty/missing = automatic — August starts a new year), **`min_place_pct`** (0–99; `0`/absent = off — the minimum share of a project's own maximum needed to take 1st/2nd/3rd, rule 72) |
+| `app_settings` | Key/value, PK `(school_id, key)`: `locked`, `deliberation_open`, `results_finalized`, `judge_transfer_allowances`, `project_list_token`, `judge_numbering` (`school` default when absent \| `department`), `judge_sharing`, `judge_max`, **`project_code_format`** (default `{DEPT}-{CAT}-{NUM}`), **`school_year`** (`2026-2027`; empty/missing = automatic — August starts a new year), **`min_place_pct`** (0–99; `0`/absent = off — the minimum share of a project's own maximum needed to take 1st/2nd/3rd, rule 72), **`judging_schedule`** (JSON slots `[{kind:"round",no,label,start,end} | {kind:"break",label,start,end}]`, 2026-10p) |
 | `share_links` | Public results tokens, expiry, `revoked_at` |
 | `score_backups` | Admin snapshots — scores **and a copy of the rubric** |
 | `registration_links` | Student registration tokens |
@@ -742,6 +744,13 @@ flushOfflineQueue()          // guarded; body in runOfflineFlush(queue)
 upsertScore(payload)         // the ONLY score write (submit + offline flush) — 2026-10o fallback, rule 76
 startScoring(pid), editDraft(patch), discardDraft()   // scoring screen; every edit → sf_score_drafts (rule 75)
 readDrafts(), writeDraft(key, draft|null), DRAFTS_KEY // module helpers
+
+// Judging schedule (2026-10p, rule 77)
+parseScheduleCsv(text), SCHED_FREE   // module: the organiser's grid → { slots, rows:[{number, cells:[{round, code}]}], error }
+loadSchedule(sid), scheduleActive(), scheduleFor(n), scheduleRounds(), roundTime(no), unscheduledProjects()
+importScheduleFile(file) → schedDraft (review, nothing saved) → saveSchedule() (set_judge_schedule RPC) · clearSchedule()
+importBoothFile(file)        // booth template ("Booth #" + "Project code") → projects.room; skips locked (rule 12)
+printJudgeSheets(), printBoothSheet(), schedPrintWindow()   // no names, no scores
 rubricSettings(criteria)     // module: the matching preset's settings (guide, factor, feedback, safety) or {}
 ratingOf(settings, v)        // module: points → the rating the judge tapped (v / factor); display only
 queuedScoresFor(sid)         // module helper: this device's unsynced scores for one school as score-map
@@ -972,6 +981,18 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
     elementary score stuck in the offline queue forever. The safety flag is logged as a flag
     (`SAFETY_CONCERN_RAISED`, only when newly raised), never with the comment text (rule 69).
 
+**Judging schedule (2026-10p)**
+77. **While `judge_schedule` has rows it is the ONLY source of who judges what.** The server fills
+    `judges.projects` from it in round order (`_judge_projects`), so nothing in the browser may compute
+    a scheduled judge's list. Everything that reassigns work is OFF meanwhile — the grid's ticks and
+    "judges per project" (read-only; `set_judge_schedule()` derives the grid itself), **Rebalance** (it
+    knows nothing about rounds and could give one judge two projects in one round), the **Suggested
+    setup** (Apply would fight the schedule) and the panel-short coverage warning. An absent judge is
+    covered by a stand-in using THAT judge's number. Codes in the file are matched with `projectCode()`
+    — the same code the judge and the printouts show — never by number alone. A re-import that drops a
+    visit already scored is refused by the server (same promise as panels: scored work never moves).
+    A project not in the schedule is scored by nobody — `eventHealth().notScheduled` puts it on Alerts.
+
 **SQL that must survive its own rejection**
 66. **A `RAISE` throws away everything the function wrote, including the rate-limit counter.**
     PostgREST runs each RPC in one transaction, so `note_auth_failure()` followed by `RAISE` records
@@ -1041,6 +1062,39 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-21 — Phase 2: the judging schedule** (migration `2026-10p`, **not** coupled; rule 77).
+The organiser's timed schedule (15 judges × 12 rounds of 7 min, 8:30–10:15, two breaks, a wrap-up;
+3 visits per scored project, 1 per PreK / SPED) could not be expressed: the app only knew "every judge
+scores the department" or app-chosen panels, with no rounds or times.
+- **Import** (Setup → 📅 Judging schedule): the organiser's own Excel grid saved as CSV —
+  `parseScheduleCsv()` finds the "Judge" header row, reads `R1 8:30–8:37` / `BREAK …` / `WRAP-UP …`
+  columns (line breaks inside cells, any dash), ignores title rows, the legend and "COMMON BREAK" filler;
+  "—" = free. **Review before saving**: unknown code / a judge twice on a project / a number above
+  Maximum judges BLOCK; a project nobody visits and two judges at one booth in one round WARN; visits per
+  project are summarised. Save → `set_judge_schedule()`.
+- **Server** (`judge_schedule` + `_judge_projects()` redefined): each judge's list = their visits in
+  round order; the judge grid is derived from it (sign-in still shows the departments); a re-import may
+  not drop an already-scored visit. `clear_judge_schedule()` hands lists back to the grid.
+- **Judge's tablet**: the morning in order (R#, time, code, booth, title; breaks; "free"), a **NEXT**
+  card that advances after each submit. Unscheduled assignments are never hidden ("Other projects").
+- **Admin**: grid + "judges per project" read-only, Suggested setup hidden, Rebalance replaced on the
+  Judges tab by "not signed in yet: Judge 4, 9 · use a stand-in with that number"; Alerts lists projects
+  not in the schedule; **booth numbers** imported from the booth template into `projects.room` (locked
+  projects skipped); **printouts**: judge sheets (one page each, tick boxes) and booth visit times — no
+  names, no scores.
+- **Verified against the real file**: the organiser's `Judges Schedule.csv` imported through the UI
+  against a copy of the 63 live projects (public fields only): 15 judges, 12 rounds, 179 visits,
+  58 × 3 + 5 × 1, every code matched, no booth double-booked.
+Also: the two CSV readers had a literal U+FEFF inside a regex (`no-irregular-whitespace`) — parseCsv()
+already strips the BOM, so the duplicate strip was removed.
+Tests: DB 252 → 271 (19: RLS/RPC-only writes, every refusal — other school's project, two projects in a
+round, a project twice, above the maximum, a refused save writes nothing — slots stored, grid derived,
+sign-in gets the list IN ROUND ORDER across departments, a number with no visits is not on the list,
+dropping a scored visit refused, a re-import re-syncs a signed-in judge's order, project delete cascades,
+anon can read, clear restores the grid's lists, and re-running 10k then 10p restores the schedule body).
+New `scripts/e2e/schedule.e2e.mjs` (17). **Mutation-tested**: the judge screen ignoring the schedule → 2
+fail; unknown codes not blocking → 1; the grid not locked → 1. Lint 28/5, build clean.
 
 **2026-10-21 — The 2026-27 evaluation forms; drafts; safety concerns** (migration `2026-10o`, **not**
 coupled). Phase 1 of the plan for the fair on **2026-12-11** (Phase 2 = the judging schedule, Phase 3 =
@@ -1705,11 +1759,9 @@ its absence. See the `group_members` type split above.
 
 Read this first when resuming on another machine.
 
-**THE FAIR IS 2026-12-11.** Plan agreed 2026-10-21: Phase 1 (forms, drafts, safety — done, see Change
-History), Phase 2 = **judging schedule** (import the organiser's 15-judge × 12-round grid, 7-min rounds
-8:30–10:15; the judge sees Round · time · CODE · booth in order with "Next"; the schedule becomes the
-source of who judges what, auto-fill / Rebalance / Suggested setup switched off for it; a stand-in uses an
-absent judge's number; printouts per judge and per booth), Phase 3 = **awards by department (default) +
+**THE FAIR IS 2026-12-11.** Plan agreed 2026-10-21: Phase 1 (forms, drafts, safety — done), Phase 2
+(**judging schedule** — done, see Change History; run **2026-10p** on the live project, then import the
+organiser's `Judges Schedule.csv` + the booth numbers), Phase 3 = **awards by department (default) +
 an optional per-department "award by category"** (`departments.award_grouping` already exists, unused),
 optional printed comment sheets for students (setting, off by default; no scores, no judge names).
 Dry run late November; code freeze **2026-12-01**.
@@ -1722,8 +1774,12 @@ are real codes, 3 per scored project / 1 per PreK & SPED, no judge twice on a pr
 one booth in a round, no student in two projects. A booth template (`booth-template-2026-27.csv`, titles
 only) is on the work PC Desktop — booth numbers TBD (no map yet).
 
-**To do on the live project before the dry run:** run **2026-10o**; Setup → K-5 = Elementary form,
-6-8 + 9-12 = Middle & High School form; Setup → minimum to place **60**; Maximum judges **15**;
+**Done on the live project 2026-10-21 (verified with anonymous reads):** 2026-10o and **2026-10p** run (judge_schedule
+readable, anon writes refused by RLS, both schedule RPCs answer "Not authorised" to anon); K-5 = Elementary form,
+6-8 + 9-12 = Middle & High School form, PreK + SPED comments only; minimum to place = 60.
+
+**Still to do before the dry run:** import the organiser's `Judges Schedule.csv` (Setup → 📅 Judging schedule) and
+the booth numbers when the map exists; print the judge sheets; Maximum judges **15** (still 90);
 **#053 → Edit → Save** (a 2026-10-08 SQL fix left its grade blank — the app stores the derived grade
 at save time, so the database really holds ''); #062 has no students (noted, organiser's call); judges
 sign in at the briefing, not at 8:30 (5 wrong invite codes lock the whole school for 5 minutes); the
@@ -1856,6 +1912,15 @@ send student names or scores; log counts, not question text. Its answers are onl
 text — keep rule 56.
 
 ### Known gaps (not yet fixed)
+
+- **NEXT is the first UNSCORED visit, not the clock** (2026-10p). A judge who skips a round still sees the
+  skipped project as NEXT; nothing reads the time of day (rules 37 / 71: no `Date.now()` in render). The
+  times on screen and on the printouts are the plan, not a timer.
+- **Printouts and codes can go stale.** A judge sheet shows codes and booths as they were when printed;
+  changing a department / category code, a project number or a booth afterwards changes the screen but not
+  the paper. Settle codes and booths before printing.
+- **Removing a schedule leaves the judge grid as the schedule set it** (each number ticked into the
+  departments of its visits) — lists then follow that grid. Re-tick the grid by hand if that is not wanted.
 
 - **Renaming a category does not update its projects** (2026-10-21). `projects.cat` is a text snapshot,
   so after a rename the old projects keep the old name, show "(old category)" when edited, and would form

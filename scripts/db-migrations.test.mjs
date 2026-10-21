@@ -126,7 +126,8 @@ for (const round of [1, 2]) {
   await db.exec(mig("migration-2026-10m-ratelimit-regnum-project-moves.sql"));
   await db.exec(mig("migration-2026-10n-unique-project-numbers.sql"));
   await db.exec(mig("migration-2026-10o-score-feedback.sql"));
-  ok(`migrations 2026-10 … 10o applied (round ${round} — re-runnable)`);
+  await db.exec(mig("migration-2026-10p-judging-schedule.sql"));
+  ok(`migrations 2026-10 … 10p applied (round ${round} — re-runnable)`);
 }
 
 // ── PART 1: names are private ──
@@ -1160,6 +1161,85 @@ ok("compat: set_judge_numbers (old range editor) writes the roster");
   const all = (await db.query(`SELECT count(*)::int n FROM scores WHERE judge_id <> 'j_o1'`)).rows[0].n;
   assert.equal(old, all);
   ok(`10o: every existing score (${all}) reads feedback {} / safety_concern false — nothing changed for them`);
+}
+
+// ── 10p: the judging schedule ───────────────────────────────────────────────────
+{
+  // Earlier parts re-ran 10k on its own (which re-creates the pre-schedule _judge_projects) —
+  // exactly the case the 10k header warns about. Re-running 10p must restore the schedule body.
+  await db.exec(mig("migration-2026-10k-judge-roster-and-panels.sql"));
+  await db.exec(mig("migration-2026-10m-ratelimit-regnum-project-moves.sql"));
+  await db.exec(mig("migration-2026-10p-judging-schedule.sql"));
+  const SP = "7a7a7a7a-0000-0000-0000-00000000010d";
+  const DA = "d7a00000-0000-0000-0000-000000000001", DB = "d7a00000-0000-0000-0000-000000000002";
+  await db.exec(`
+    INSERT INTO schools (id, name, slug, invite_code, admin_pin) VALUES ('${SP}', 'Schedule Test', 'sched-test', 'SCH', '4821');
+    INSERT INTO school_admins (school_id, user_id) VALUES ('${SP}', '${ADMIN}');
+    INSERT INTO departments (id, school_id, name, max_judges, ord) VALUES ('${DA}', '${SP}', 'K-5', 2, 0), ('${DB}', '${SP}', '6-8', 2, 1);
+    INSERT INTO projects (id, school_id, num, title, department_id) VALUES
+      ('ps1', '${SP}', '001', 'One', '${DA}'), ('ps2', '${SP}', '002', 'Two', '${DA}'),
+      ('ps3', '${SP}', '003', 'Three', '${DB}'), ('ps4', '${SP}', '004', 'Four', '${DB}');`);
+  const SET = "SELECT set_judge_schedule($1, $2::jsonb, $3::jsonb) AS r";
+  const SLOTS = JSON.stringify([{ kind: "round", no: 1, start: "8:30", end: "8:37" }, { kind: "round", no: 2, start: "8:38", end: "8:45" },
+    { kind: "break", label: "BREAK", start: "8:46", end: "8:50" }, { kind: "round", no: 3, start: "8:50", end: "8:57" }]);
+  const E = (...xs) => JSON.stringify(xs.map(([number, round, project_id]) => ({ number, round, project_id })));
+  // Judge 1 crosses departments on purpose (K-5 then 6-8): the schedule, not the grid, decides.
+  const PLAN = E([1, 1, "ps3"], [1, 2, "ps1"], [1, 3, "ps4"], [2, 1, "ps1"], [2, 2, "ps3"], [2, 3, "ps2"]);
+
+  await fails("anon", "", SET, /Not authorised/, "10p: anon cannot set a schedule", [SP, SLOTS, PLAN]);
+  await fails("authenticated", OTHER, SET, /Not authorised/, "10p: another school's admin cannot set one", [SP, SLOTS, PLAN]);
+  await fails("authenticated", ADMIN, "INSERT INTO judge_schedule (school_id, judge_number, round_no, project_id) VALUES ($1, 1, 1, 'ps1')",
+    /row-level security/, "10p: even an admin cannot write the table directly (RPC only)", [SP]);
+  await fails("authenticated", ADMIN, SET, /not in this school/, "10p: a visit to another school's project is refused",
+    [SP, SLOTS, E([1, 1, "ps1"], [1, 2, "p_seed_other"])]);
+  await fails("authenticated", ADMIN, SET, /two projects in round 1/, "10p: one judge, two projects in one round — refused",
+    [SP, SLOTS, E([1, 1, "ps1"], [1, 1, "ps2"])]);
+  await fails("authenticated", ADMIN, SET, /visits project #001 twice/, "10p: a judge visiting the same project twice — refused",
+    [SP, SLOTS, E([1, 1, "ps1"], [1, 2, "ps1"])]);
+  await fails("authenticated", ADMIN, SET, /outside 1–15/, "10p: a judge number above Maximum judges — refused",
+    [SP, SLOTS, E([16, 1, "ps1"])]);
+  assert.equal((await db.query("SELECT count(*)::int n FROM judge_schedule WHERE school_id=$1", [SP])).rows[0].n, 0);
+  ok("10p: a refused schedule writes nothing");
+
+  const r = (await as("authenticated", ADMIN, SET, [SP, SLOTS, PLAN])).rows[0].r;
+  assert.deepEqual(r, { judges: 2, visits: 6, projects: 4 });
+  ok("10p: the admin saves the schedule (2 judges, 6 visits, 4 projects)");
+  const slots = (await db.query("SELECT value FROM app_settings WHERE school_id=$1 AND key='judging_schedule'", [SP])).rows[0].value;
+  assert.equal(JSON.parse(slots).length, 4);
+  ok("10p: the rounds + break are stored with it (app_settings.judging_schedule)");
+  const grid = (await db.query(`SELECT judge_number n, array_agg(department_id::text ORDER BY department_id) d
+    FROM judge_roster WHERE school_id=$1 GROUP BY 1 ORDER BY 1`, [SP])).rows;
+  assert.deepEqual(grid.map(g => [g.n, g.d.length]), [[1, 2], [2, 2]]);
+  ok("10p: the judge grid follows the schedule (each number → the departments of its projects)");
+
+  const j1 = (await as("anon", "", RJ, [SP, DA, "Judge1", "SCH"])).rows[0].j;
+  assert.deepEqual(j1.projects, ["ps3", "ps1", "ps4"]);
+  ok("10p: a judge signing in gets their scheduled projects IN ROUND ORDER (6-8, K-5, 6-8)");
+  await fails("anon", "", RJ, /not on this school's judge list/, "10p: a number with no visits is not on the list", [SP, DA, "Judge3", "SCH"]);
+
+  // Judge1 scores ps3 (round 1); a new schedule that drops that visit is refused.
+  await as("anon", "", `INSERT INTO scores (school_id, judge_id, project_id, criteria) VALUES ($1, $2, 'ps3', '{"x":3}'::jsonb)`, [SP, j1.id]);
+  await fails("authenticated", ADMIN, SET, /Judge1 has already scored project #003/,
+    "10p: a new schedule may not take away a visit that was already scored", [SP, SLOTS, E([1, 1, "ps1"], [2, 1, "ps3"])]);
+  // Moving the scored visit to another round is fine; Judge1's list re-syncs to the new order.
+  await as("authenticated", ADMIN, SET, [SP, SLOTS, E([1, 1, "ps1"], [1, 3, "ps3"], [2, 1, "ps3"], [2, 2, "ps2"])]);
+  const relisted = (await db.query("SELECT projects FROM judges WHERE id=$1", [j1.id])).rows[0].projects;
+  assert.deepEqual(relisted, ["ps1", "ps3"]);
+  ok("10p: replacing the schedule (scored visit kept) re-syncs a signed-in judge's list to the new order");
+
+  await db.exec(`DELETE FROM projects WHERE id = 'ps2' AND school_id = '${SP}'`);
+  assert.equal((await db.query("SELECT count(*)::int n FROM judge_schedule WHERE project_id='ps2'")).rows[0].n, 0);
+  ok("10p: deleting a project deletes its visits (FK cascade)");
+  assert.ok((await as("anon", "", "SELECT count(*)::int n FROM judge_schedule WHERE school_id=$1", [SP])).rows[0].n > 0);
+  ok("10p: judges' tablets (anon) can read the schedule");
+
+  await fails("anon", "", "SELECT clear_judge_schedule($1)", /Not authorised/, "10p: anon cannot remove the schedule", [SP]);
+  await as("authenticated", ADMIN, "SELECT clear_judge_schedule($1)", [SP]);
+  assert.equal((await db.query("SELECT count(*)::int n FROM judge_schedule WHERE school_id=$1", [SP])).rows[0].n, 0);
+  assert.equal((await db.query("SELECT count(*)::int n FROM app_settings WHERE school_id=$1 AND key='judging_schedule'", [SP])).rows[0].n, 0);
+  const back = (await db.query("SELECT projects FROM judges WHERE id=$1", [j1.id])).rows[0].projects;
+  assert.deepEqual([...back].sort(), ["ps1", "ps3", "ps4"]);
+  ok("10p: removing it puts lists back on the grid (Judge1 → every project of K-5 + 6-8 again)");
 }
 
 console.log(`\nALL ${pass} CHECKS PASSED`);

@@ -27,6 +27,8 @@
 --   • departments: new rows still get a default block of numbers, now also in the roster;
 --     the guard trigger also locks judges_per_project once a department has scores
 --
+-- ⚠️ _judge_projects() is itself SUPERSEDED by 2026-10p (judging schedule). If you re-run this
+--   file, re-run migration-2026-10p-judging-schedule.sql straight after it.
 -- ⚠️ SUPERSEDES register_judge() (10h), set_judge_numbers() (10i), set_judge_max() (10i),
 --   departments_assign_judge_range() (10i) and departments_guard_judging() (10j).
 --   If you re-run any of those files, re-run THIS one straight after.

@@ -104,6 +104,9 @@ await check("valid grid saved: Elementary 1, Middle School 2–4, High School no
   await A.page.waitForTimeout(700);
   const nums = (id) => store.judge_roster.filter(r => r.department_id === id).map(r => r.judge_number).sort((a, b) => a - b);
   assert.deepEqual(nums(DEPTS.D_ELEM), [1]); assert.deepEqual(nums(DEPTS.D_MID), [2, 3, 4]); assert.deepEqual(nums(DEPTS.D_HIGH), []);
+  // The log is written after the reloads that follow the save — wait for it rather than for a fixed
+  // 700 ms (that sleep became too short once the Setup tab gained the schedule card, 2026-10-21).
+  for (let i = 0; i < 40 && !store.it_logs.some(r => r.event === "JUDGE_ROSTER_SAVED"); i++) await A.page.waitForTimeout(100);
   assert.ok(store.it_logs.some(r => r.event === "JUDGE_ROSTER_SAVED"));
   assert.equal(store.judge_labels.find(r => r.judge_number === 3)?.label, "Ms. Rabah");
 });

@@ -75,6 +75,8 @@ Run through this a few days before, not on the morning of.
 - [ ] **Set up your departments** (Setup tab). A new school starts with Elementary / Middle School / High School — change them to whatever your fair uses, or press a preset. If the list is empty, sign out and back in; they re-seed on admin sign-in.
 - [ ] **Check your project categories** (Setup tab) — rename, remove or add so they match your entry form.
 - [ ] **Set up the judges** (Setup tab → Judges grid): tick the departments each judge number covers.
+      **Or**, with a timed schedule: Setup → **📅 Judging schedule** → import it (the grid fills itself),
+      import the booth numbers, and print the judge sheets and booth visit times.
 - [ ] **Check the school year** (Setup tab → School year) shows the right year, e.g. SY 2026-2027.
 - [ ] **Upload your school logo** (Setup tab → School branding) — and your fair poster if you have one.
 - [ ] **Enter every project/team**, each assigned to a department, with adviser and members.
@@ -866,6 +868,7 @@ with their original time (`ctx.delayed: true`).
 - `OFFLINE_SYNC_FAILED` — a judge's queued scores were rejected by the server when they came back online. Shows the alias, how many scores, the error code and how long the oldest has waited. The scores stay on the judge's device.
 - `SCORE_QUEUED` — now records whether the device was simply **offline** or the **server refused** the score (`reason`).
 - `REALTIME_DOWN` / `REALTIME_RECONNECTED` — the live-update connection was down for **over 30 seconds while the screen was in use** / came back (with how long it was down). Brief drops and phones with a locked screen are no longer logged — they used to fill the log. While down, dashboards do not update by themselves; refresh the page.
+- `SCHEDULE_IMPORTED` / `SCHEDULE_CLEARED` / `SCHEDULE_SAVE_FAILED` / `BOOTHS_IMPORTED` — judging schedule and booth numbers.
 - `SAFETY_CONCERN_RAISED` — a judge answered Yes to the safety question (the comment text is never logged).
 - `SCORE_FEEDBACK_COLS_MISSING` — database update 2026-10o has not been run; elementary comments and safety answers are being saved inside notes instead. Tell your technical contact.
 - `CLIENT_ERROR` — the app crashed or hit an unexpected error on some device (judge tablets included). Includes screen width and browser. Each distinct error is logged once per session, at most 20.
@@ -987,6 +990,73 @@ is quicker, and a 20-item rubric is slower. The figure turns amber above 20 proj
 > SPED riding along with K-5's three. Everyone reviews **11–13 projects, about 1¼ hours**, and every
 > project gets 3 scores. Left on "every judge scores all" the same roster puts one judge on **58
 > projects — nearly 6 hours.**
+
+---
+
+## Judging schedule (rounds and times)
+
+**Setup → 📅 Judging schedule.** If your fair runs on a timed schedule — judges moving from booth to
+booth in fixed rounds — import it, and every judge's tablet follows it.
+
+**What judges see:** their projects **in round order with the times**, the breaks between, and a big
+**NEXT** card at the top — *"NEXT · R3 · 8:46–8:53 · G68-ERT-015 · Booth 14"*. After they submit a
+project, NEXT moves on to the following round. A round where they have nothing reads *free*.
+
+### Making the file
+
+Build the grid in Excel (the 2026-27 schedule already has this shape):
+
+| Judge | Judge Name | Interviews | R1 8:30–8:37 | R2 8:38–8:45 | … | BREAK 9:02–9:07 | R5 9:07–9:14 | … | WRAP-UP 10:16–10:30 |
+|---|---|---|---|---|---|---|---|---|---|
+| Judge 1 | | 12 | PK-EES-004 | G68-CMS-020 | … | COMMON BREAK | G68-LS-044 | … | |
+
+- One row per judge, starting **Judge 1**, **Judge 2**, …
+- One column per round, with the round and its time in the heading (**R1 8:30–8:37**). **BREAK** and
+  **WRAP-UP** columns are shown to judges as breaks; anything typed in them is ignored.
+- In each cell the project **code exactly as the app shows it** (e.g. **G68-ERT-015**). **—** means free.
+- Title rows above the grid and notes below it are fine — they are ignored.
+- Save it as **CSV** (File → Save As → *CSV UTF-8 (Comma delimited)*).
+
+### Importing it
+
+1. **⬆ Import schedule (CSV)** and choose the file. **Nothing is saved yet.**
+2. Check the review: judges, rounds, breaks, how many visits, and how many visits each project gets
+   (e.g. *58 projects × 3 · 5 projects × 1*).
+   - **✗ (blocks saving):** a code that matches no project, a judge visiting the same project twice,
+     or a judge number above Maximum judges. Fix the file and import again.
+   - **⚠ (warning):** a project in nobody's row (nobody would visit it), or two judges at the same
+     booth in the same round.
+3. **Save schedule.** The judge grid fills itself from the schedule, and judges' lists follow it.
+
+**While a schedule is in use** the judge grid, *judges per project*, **Rebalance** and the
+*Suggested setup* are switched off — so nothing can quietly reshuffle a schedule you have printed.
+To change it, edit the file and import it again (**Replace the schedule**). Removing a visit a judge
+has **already scored** is refused; moving it to another round is fine.
+
+### Booth numbers
+
+Fill in the **Booth #** column of the booth template, save it as CSV, and press
+**⬆ Import booth numbers (CSV)** in the same box. Each project's booth is saved as its *Room / booth*
+and appears next to the code on the judges' tablets and on the printouts. Locked projects are skipped.
+
+### Printouts
+
+- **🖨 Judge sheets** — one page per judge: round, time, code, booth, title, the breaks, and a box to
+  tick each project once it is submitted in the app.
+- **🖨 Booth visit times** — every booth with the times and judge numbers of its visits, so students
+  know when to be at their project.
+
+Neither has student names or scores.
+
+### On the day
+
+- **Judges tab** shows which scheduled judges have **not signed in** yet.
+- **A judge did not come:** give a stand-in that judge's **number** and the invite code — they get the
+  same projects in the same rounds.
+- **Alerts** warns if a project is *not in the judging schedule* (added after the import).
+- **Remove schedule** puts lists back on the judge grid. No score is lost.
+
+> Needs the database update **2026-10p**. Without it the box says so and nothing else changes.
 
 ---
 
