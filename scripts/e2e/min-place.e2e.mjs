@@ -163,6 +163,30 @@ await check("a qualifying project gets no warning for the same award", async () 
   assert.equal(await A.getByText(/42\.0 is below/).count(), 0);
 });
 
+// ── The NUMBER must be honoured, not just "some minimum is on" ──
+// Raising 50 → 60 moves the line past Edge Ecology (21.0, exactly 50% of 42, 60% would be 25.2),
+// so it must lose the silver it held at 50%. This is what would fail if anyone ever hardcoded 50.
+console.log("\n── Raising the minimum to 60% moves the line");
+await tab(A, "Setup");
+await A.locator("#min-place").getByRole("button", { name: /Change/ }).click();
+await A.locator('#min-place input[aria-label="Minimum score to place, percent"]').fill("60");
+await A.locator("#min-place").getByRole("button", { name: "Save" }).click();
+await check("60 is saved and confirmed", async () => {
+  await A.locator("#min-place").getByText(/at least 60%/).waitFor({ timeout: 5000 });
+  assert.equal(setting("min_place_pct"), "60");
+});
+await check("Setup recomputes the points for 60% (25.2 of 42, not 21)", () =>
+  A.locator("#min-place").getByText(/25\.2 of 42/).waitFor({ timeout: 4000 }));
+P = await newPage({ width: 820, height: 1180 });
+await P.goto(`${BASE}/s/test?token=PUBTOKEN`);
+await P.getByText("Top Tomatoes").first().waitFor({ timeout: 8000 });
+await check("at 60% only Top Tomatoes is left on the podium", async () =>
+  assert.deepEqual(await podiumTitles(P), ["Top Tomatoes"]));
+await check("Edge Ecology (21.0 = 50%) loses the silver it held at 50% — the number is not hardcoded", async () =>
+  assert.equal(await rankOf(P, "Edge Ecology"), "2"));
+await check("Top Tomatoes (42.0 = 100%) still takes gold", async () =>
+  assert.equal(await rankOf(P, "Top Tomatoes"), "🥇"));
+
 console.log("\n── Turning it back off restores every medal");
 await tab(A, "Setup");
 await A.locator("#min-place").getByRole("button", { name: /Change/ }).click();

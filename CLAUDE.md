@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (247 checks). Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`). Start the dev server first (see the file header). 409 checks across 18 files |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`). Start the dev server first (see the file header). 414 checks across 18 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -989,7 +989,7 @@ lowest score in a department took bronze whatever it was. On the 100-point rubri
 (no zero step), so that is not a theoretical case.
 - New Setup card **Minimum score to place** → `app_settings.min_place_pct` (0–99, **0 = off**, which
   is exactly the old behaviour). Stored as a percent of `projectMax(proj)`, never points (rule 72);
-  the card prints what it works out to for each rubric in use ("50% (21 of 42)").
+  the card prints what it works out to for each rubric in use ("60% (60 of 100)").
 - Below the minimum: no podium slot, no medal in the ranked table — **the project is still listed**
   with its real average and review count, and the medals pass to the next qualifying projects rather
   than being left empty. Exactly on the line places (`>=`).
@@ -1004,6 +1004,12 @@ listed with its score, the leaderboard marker, the deliberation warning naming s
 the warning not blocking Save, no warning for a qualifying project, and 0 restoring every medal).
 **Mutation-tested** — 4 of the 16 fail with `placesEligible()` forced true. Browser 393 → 409 across
 18 files; DB suite unchanged at 247; lint unchanged (26/5); build clean.
+**2026-10-21:** the fair settled on **60%**; the docs and `ADMIN_HELP` examples now use it (60 of 100 on
+both 100-point rubrics = a straight "Good", and the exact midpoint of the achievable 20–100 range).
+The suite gained 5 checks that raise the setting 50 → 60 and prove the LINE MOVES (Edge Ecology at 21.0
+loses the silver it held at 50%) — 2 of them fail if the threshold is hardcoded to 50. 409 → 414.
+⚠️ It is a per-school SETTING, not a constant: `min_place_pct` was still unset on the live project as of
+2026-10-21, so the rule was OFF there until an admin typed 60 into Setup.
 
 **2026-10-08 — Guides + Help refreshed; event-day backup plan; live project corrections** (no migration).
 1. **AdminInstructions.md / JudgeInstructions.md / `ADMIN_HELP`** were checked against the code and

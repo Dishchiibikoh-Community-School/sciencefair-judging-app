@@ -330,7 +330,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-20";
+const ADMIN_HELP_UPDATED = "2026-10-21";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -350,7 +350,7 @@ const ADMIN_HELP = [
     "Big department? Under its column choose '3 judges per project' — each project is then scored by 3 judges and the app shares the projects out evenly, instead of every judge scoring every project.",
     "Setup tab: check your project categories. They are yours alone — rename them, delete the ones you don't use, or add your own (a robotics fair can replace all six).",
     "Setup tab → School year: check it shows the right year (e.g. SY 2026-2027).",
-    "Setup tab → Minimum score to place: decide whether a weak project may still take 1st/2nd/3rd. Leave it at 0 for no rule. Set it BEFORE judging and tell the judges.",
+    "Setup tab → Minimum score to place: decide whether a weak project may still take 1st/2nd/3rd. The 2026-27 fair uses 60 (= 60 points on a 100-point rubric). Leave it at 0 for no rule. Set it BEFORE judging and tell the judges.",
     "Setup tab → School branding: upload your school logo (and, if you like, your fair poster). Without a logo your pages show your school's initials.",
     "Setup tab: set any department that should NOT be scored (PreK, K-2) to 'Comments only'. This cannot be changed once that department has scores.",
     "Rubric tab + Setup: build your rubrics and pick one for each department (or Comments only) BEFORE the first judge signs in — a department's rubric locks once it has scores. The ready-made presets (Northeast AZ 42-point, Cibecue/ISEF-style 100-point, Detailed form — 20 items) are a starting point you can edit.",
@@ -419,11 +419,12 @@ const ADMIN_HELP = [
   ]},
   { title: "Minimum score to place", icon: "🥉", faq: [
     ["What is it?", "Setup → Minimum score to place. A project must average at least this much of ITS OWN maximum to take 1st, 2nd or 3rd. Below it the project still appears in the results with its real score — it simply gets no medal and no spot on the podium. Set 0 to turn the rule off; that is how the app behaves if you never touch it."],
-    ["Why a percentage and not points?", "Because \"50 points\" does not mean the same thing twice. Your departments can use different rubrics (42 points, 100 points), and a project below grade 5 skips the Abstract criterion, so its maximum is 36 and not 42. A percentage means the same everywhere. The Setup card shows you what it works out to in points for each rubric you actually use."],
+    ["Why a percentage and not points?", "Because \"60 points\" does not mean the same thing twice. Your departments can use different rubrics (42 points, 100 points), and a project below grade 5 skips the Abstract criterion, so its maximum is 36 and not 42. A percentage means the same everywhere. The Setup card shows you what it works out to in points for each rubric you actually use."],
     ["Does the project disappear from the results?", "No. It keeps its position in the ranked list with its real average and its review count. Only the medal is withheld. Nothing is hidden from families."],
     ["Who gets the medal instead?", "The next project down that DOES clear the minimum. The medals always go to the top three qualifying projects in that department — they are not left empty."],
-    ["What if a project is exactly on the line?", "It places. 50% means \"50% or more\", so a project averaging exactly 21.0 out of 42 still takes its medal."],
+    ["What if a project is exactly on the line?", "It places. 60% means \"60% or more\", so on a 100-point rubric a project averaging exactly 60.0 still takes its medal."],
     ["Does it stop me awarding a project anyway?", "No. The Validation tab still lets you give any award to any project — if you pick 1st, 2nd or 3rd for a project below the minimum it shows a warning with the numbers, and saves if you go ahead. Honorable Mention and Best in Category are never affected by this rule."],
+    ["What number should we use?", "Whatever your committee decides — the 2026-27 Dishchii'bikoh fair uses 60%. On both 100-point rubrics that is 60 points, which is a straight \"Good\" (3 out of 5) across every section or item. It is also the exact middle of what a project can actually score: neither 100-point rubric has a zero, so the lowest possible total is 20, and 60 sits halfway between 20 and 100."],
     ["Where do I see which projects cannot place?", "Overview → the department leaderboard marks them \"no place\", and judges see \"below N%\" in their validation list so nobody reports it as a bug."],
     ["When should I set it?", "Before judging starts, and tell the judges. Changing it later does not alter a single score — it only changes who gets a medal — but changing it after you have announced winners is confusing."],
   ]},

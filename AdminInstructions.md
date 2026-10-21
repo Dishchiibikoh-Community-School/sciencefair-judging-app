@@ -914,18 +914,23 @@ A: Only via judges. Admin provides oversight and final award decisions, but scor
 It is a **percentage of each project's own maximum**, not a number of points. That is deliberate:
 your departments may use different rubrics (42 points, 100 points), and a project below grade 5 skips
 the Abstract criterion so its maximum is 36, not 42. A percentage means the same thing everywhere.
-The card shows you what it comes to in points for the rubrics you actually use — e.g. *50% (21 of 42)*.
+The card shows you what it comes to in points for the rubrics you actually use — e.g. *60% (60 of 100)*.
 
 | | What happens |
 |---|---|
 | **0 (default)** | No rule. Any score can place. |
-| **50** | A project must average at least half its own maximum to take 1st, 2nd or 3rd. |
+| **60** | A project must average at least 60% of its own maximum to take 1st, 2nd or 3rd. **This is what the 2026-27 fair uses.** |
 
 **A project below the minimum is not hidden.** It keeps its position in the results with its real
 average and review count — it just gets no medal and no place on the podium. The medals pass to the
 next projects down that *do* qualify, so you never end up with an empty podium step.
 
-A project **exactly on the line places** — 50% means "50% or more".
+A project **exactly on the line places** — 60% means "60% or more".
+
+**Why 60 for this fair.** On both 100-point rubrics 60% is 60 points, which is a straight *Good*
+(3 out of 5) on every section or item. Neither rubric has a zero, so the lowest total a project can
+possibly get is 20 — which puts 60 exactly halfway between the floor (20) and full marks (100).
+That is an easy bar to explain to a parent: *a project has to average "Good" to place.*
 
 **Where you will see it:**
 - Overview → the department leaderboard marks those projects **no place**
