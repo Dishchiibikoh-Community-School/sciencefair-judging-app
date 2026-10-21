@@ -1834,7 +1834,7 @@ place goes back to **0** — both are the organiser's Setup changes (see Still t
 
 **Still to do before the dry run:** Setup → PreK and SPED → *Add from a preset* → **PreK & SPED Recognition (2026-27)**
 (allowed: no scores yet); Setup → Minimum score to place → **0**; import the organiser's `Judges Schedule.csv` (Setup → 📅 Judging schedule) and
-the booth numbers when the map exists; print the judge sheets; Maximum judges **15** (still 90);
+the booth numbers when the map exists; print the judge sheets; ~~Maximum judges 15~~ (done — `judge_max` = 15 verified 2026-10-21);
 **#053 → Edit → Save** (a 2026-10-08 SQL fix left its grade blank — the app stores the derived grade
 at save time, so the database really holds ''); #062 has no students (noted, organiser's call); judges
 sign in at the briefing, not at 8:30 (5 wrong invite codes lock the whole school for 5 minutes); the
@@ -1844,7 +1844,7 @@ sign in at the briefing, not at 8:30 (5 wrong invite codes lock the whole school
 - **Projects:** 63, matching the organiser's revised "Approved Entry Forms" sheet (8 corrections
   applied 2026-10-08, see Change History). **#062** (VEX robot) still has **no student names**.
 - **Judge grid:** set to numbers **1–15** (34 roster rows — some judges cover several departments).
-  `judge_max` is still **90** → lower it to 15 in Setup.
+  `judge_max` was **90** → lowered to 15 on 2026-10-21 (verified, roster = numbers 1–15).
 - **Branding:** logo and poster uploaded (real Storage paths, not `builtin:`) — the upload path works.
 - **No judges signed in, no scores** — every judging setting can still be changed.
 - **All five departments are `scored` and use the default rubric.** That rubric is named
