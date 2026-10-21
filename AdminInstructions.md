@@ -1032,6 +1032,9 @@ Build the grid in Excel (the 2026-27 schedule already has this shape):
 
 **While a schedule is in use** the judge grid, *judges per project*, **Rebalance** and the
 *Suggested setup* are switched off — so nothing can quietly reshuffle a schedule you have printed.
+In Setup → Judges the ticks are greyed out (they show which departments each judge visits, filled in
+from the schedule), each department column reads **📅 Set by the schedule**, and the Projects column
+is each judge's number of visits. The private **Name** boxes stay editable.
 To change it, edit the file and import it again (**Replace the schedule**). Removing a visit a judge
 has **already scored** is refused; moving it to another round is fine.
 

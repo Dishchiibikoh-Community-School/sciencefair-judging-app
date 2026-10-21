@@ -135,6 +135,12 @@ await check("the judge grid is locked and the Suggested setup is hidden while th
   assert.equal(await A.page.getByLabel("Judge 1 judges Elementary").isDisabled(), true);
   assert.equal(await A.page.getByText("💡 Suggested setup").count(), 0);
 });
+// Organiser, 2026-10-21: a greyed "Every judge scores all" read as if it applied. Under a schedule
+// each department column says the schedule decides instead.
+await check("each department column says '📅 Set by the schedule', not a greyed 'Every judge scores all'", async () => {
+  assert.equal(await A.page.locator("[data-testid=dept-by-schedule]").count(), 3);
+  assert.equal(await A.page.getByLabel("Judges per project for Elementary").count(), 0);
+});
 
 console.log("\n── Booth numbers from the booth template");
 await pick(A.page, "Import booth numbers", F.booths);
@@ -217,6 +223,7 @@ await check("removed: no visits, no slots, the grid editable again, Judge 1's sc
   assert.equal(store.judge_schedule.length, 0);
   assert.ok(!store.app_settings.some(r => r.key === "judging_schedule"));
   assert.equal(await A.page.getByLabel("Judge 1 judges Elementary").isDisabled(), false);
+  assert.equal(await A.page.getByLabel("Judges per project for Elementary").count(), 1);   // the setting is back
   assert.equal(store.scores.length, 1);
 });
 

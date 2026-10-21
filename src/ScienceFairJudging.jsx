@@ -447,7 +447,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-21c";
+const ADMIN_HELP_UPDATED = "2026-10-21d";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -580,6 +580,7 @@ const ADMIN_HELP = [
     ["It says scanning is not set up / the API key was rejected.", "That is a setup problem, not your photo — tell your technical contact. Use + Add Project meanwhile."],
   ]},
   { title: "Judging schedule (rounds & times)", icon: "📅", faq: [
+    ["Why is the judge grid greyed out?", "Because a judging schedule is in use, and the schedule decides who judges what. The ticks were filled in from it — they show which departments each judge visits — and each department column says '📅 Set by the schedule'. They are locked so a click cannot hand judges different projects from your printed schedule. The Projects column is each judge's number of visits. The Name boxes stay editable. To change who judges what, edit the schedule file and import it again; Remove schedule unlocks the grid."],
     ["What does the judging schedule do?", "It makes your timed schedule the plan the app follows. Each judge's tablet lists their projects in round order with the times (e.g. 'R3 · 8:46–8:53 · G68-ERT-015 · Booth 14'), shows the breaks, and puts a NEXT card at the top that moves on after every submit. The schedule decides who judges what: the judge grid, 'judges per project', Rebalance and the Suggested setup are switched off until you remove it."],
     ["How do I import it?", "Make the grid in Excel: one row per judge (Judge 1, Judge 2, …), one column per round with its time in the heading (R1 8:30–8:37), BREAK / WRAP-UP columns if you like, and a project CODE in each cell exactly as the app shows it (e.g. G68-ERT-015). '—' means the judge is free. Save it as CSV (File → Save As → CSV UTF-8), then Setup → 📅 Judging schedule → ⬆ Import schedule (CSV)."],
     ["What does the review check?", "Before anything is saved it shows the judges, rounds, breaks, the number of visits and how many visits each project gets. A code that matches no project, a judge visiting the same project twice, or a judge number above Maximum judges blocks saving (fix the file and import again). A project nobody visits, and two judges at the same booth in the same round, are shown as warnings."],
@@ -1319,6 +1320,8 @@ const CSS = `
   .js-round span{font-weight:400;color:var(--dim);font-size:.7rem;}
   .js-break{background:var(--amber-l);color:#92400e;font-size:.8rem;font-weight:600;padding:.4rem .9rem;margin:.25rem 0;border-radius:6px;}
   .js-free{display:flex;align-items:center;gap:.8rem;padding:.55rem .9rem;color:var(--dim);font-size:.82rem;font-style:italic;}
+  .roster-sched{font-size:.72rem;font-weight:600;color:var(--navy);background:var(--blue-l);border-radius:6px;
+    padding:.2rem .45rem;margin-top:.2rem;white-space:nowrap;font-family:var(--ff-b);letter-spacing:0;text-transform:none;}
   .sched-lock{background:var(--blue-l);border:1px solid #2563eb30;border-radius:8px;padding:.6rem .8rem;font-size:.82rem;margin-bottom:.6rem;color:var(--navy);}
   .sched-sum,.sched-review{background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:.75rem .9rem;margin-top:.4rem;}
   .sched-bad{color:var(--red);font-size:.83rem;margin-top:.4rem;}
@@ -9033,13 +9036,20 @@ export default function App() {
                                 <th key={d.id}>
                                   {d.name}
                                   <div className="roster-sub">{seatsOf(d.id).length} judge{seatsOf(d.id).length !== 1 ? "s" : ""} · {projects.filter(p => p.department_id === d.id).length} proj.</div>
+                                  {/* Under a schedule the department's stored setting does NOT apply — showing
+                                      a greyed "Every judge scores all" read as if it did (organiser, 2026-10-21). */}
+                                  {scheduleActive() ? (
+                                    <div className="roster-sched" data-testid="dept-by-schedule"
+                                      title="The judging schedule decides who visits each project">📅 Set by the schedule</div>
+                                  ) : (
                                   <select aria-label={`Judges per project for ${d.name}`} value={d.judges_per_project ?? ""}
-                                    disabled={dirty || panelBusy === d.id || scheduleActive()}
-                                    title={scheduleActive() ? "The judging schedule decides this" : dirty ? "Save the judge list first" : "How many judges score each project"}
+                                    disabled={dirty || panelBusy === d.id}
+                                    title={dirty ? "Save the judge list first" : "How many judges score each project"}
                                     onChange={e => setDeptJudgesPerProject(d.id, e.target.value)}>
                                     <option value="">Every judge scores all</option>
                                     {[1, 2, 3, 4, 5].map(k => <option key={k} value={k}>{k} judge{k !== 1 ? "s" : ""} per project</option>)}
                                   </select>
+                                  )}
                                 </th>
                               ))}
                               <th>Projects</th>
@@ -9060,6 +9070,7 @@ export default function App() {
                                   {sorted.map(d => (
                                     <td key={d.id}>
                                       <input type="checkbox" aria-label={`Judge ${n} judges ${d.name}`} disabled={scheduleActive()}
+                                        title={scheduleActive() ? "Set by the judging schedule — this judge visits at least one project here" : undefined}
                                         checked={(map[n] || []).includes(d.id)} onChange={() => toggleRosterCell(n, d.id)} />
                                     </td>
                                   ))}
