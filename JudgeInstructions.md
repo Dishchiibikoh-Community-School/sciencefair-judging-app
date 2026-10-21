@@ -61,12 +61,19 @@ After registering, you'll see:
 ### Scoring Form Layout
 When you open a project to score, you'll see:
 
-1. **Project heading** — Project number, title, category, grade, room (if given), and a short
-   description of what the students planned to investigate or build
-2. **The scoring criteria** — each with buttons to tap
-3. **Notes field** — Optional: add comments about the project
-4. **Total score** — Automatically calculated at the bottom
-5. **Submit Score button** — Save and go back to your project list
+1. **Project heading** — the **project code in large type** (e.g. **G68-ERT-015** — match it to the
+   booth sign and your schedule), the title, category, grade, room (if given), and a short description
+   of what the students planned to investigate or build
+2. **The scale for your form** (blue box) — what 1 to 5 means
+3. **The scoring criteria** — each with buttons to tap
+4. **Comments** — the comment box(es) on your form
+5. **Total score** — Automatically calculated at the bottom
+6. **Submit Score button** — Save and go back to your project list
+
+**Nothing you tap is lost before you submit.** Your answers are kept on the tablet as you go — if you
+go back to the list, the page refreshes or the tablet restarts, the project shows **✎ Draft — not
+submitted** and opening it brings your answers back. A draft does **not** count until you press
+**Submit Score**. Use **Discard draft** if you want to start that project over.
 
 ### How Scoring Works
 
@@ -86,9 +93,29 @@ different departments can use different rubrics, so if you judge two departments
 between them. The app always shows the live total and the maximum on the form itself — trust that over
 this page.
 
+### The 2026-27 forms
+
+**Middle & High School form** — 20 items under five headings (Project Overview & Purpose · Scientific
+Inquiry & Method · Data & Conclusion · Presentation & Defense · Research, Collaboration & Compliance).
+Tap **1 to 5** for each item, exactly like circling on the paper form:
+1 = Needs Improvement · 2 = Fair · 3 = Good · 4 = Very Good · 5 = Excellent. The total is out of 100
+(lowest possible 20). Then write your **Judge Comments & Constructive Feedback** — positive feedback
+and actionable suggestions. Scores are not shared with students during booth visits.
+
+**Elementary form** — 8 items. Judge age-appropriately: focus on the student's own work, thinking,
+evidence and understanding — not the cost or appearance of the project. Tap **1 to 5** for each item
+(1 = just starting · 3 = getting there · 5 = shining). Each number shows its points underneath because
+the form counts **× 2.5**: the total reads e.g. *Ratings 32 / 40 × 2.5 = 80 / 100* — the same sum as
+the paper form, done for you. Then:
+- **Strength / What the student did well**
+- **Next step / Suggestion for improvement** — one helpful next step
+- **Safety / rule concern?** — leave it on **No**, or tap **Yes — notify the Science Fair
+  Committee**. *Yes* alerts the organizer's screen as soon as you submit; please also tell a
+  committee member in person.
+
 **If the form has headings** (Project Title, Scientific Inquiry, Data and Conclusion, Presentation,
-Further Research) **and about 20 rows**, you are on the detailed 20-item form: rate every item from
-Needs improvement to Excellent (1–5 points each, 100 in total, lowest possible 20).
+Further Research) **and about 20 rows**, you are on an earlier version of the 20-item form: rate every
+item from Needs improvement to Excellent (1–5 points each, 100 in total, lowest possible 20).
 
 **If the buttons show words** (Needs improvement · Fair · Good · Very Good · Excellent), you are on
 the 100-point rubric. Tap the rating that fits; the points for that section appear underneath, and

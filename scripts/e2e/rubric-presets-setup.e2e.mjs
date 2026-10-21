@@ -68,8 +68,16 @@ await check("a second department gets the 20-item form the same way", async () =
   assert.equal(store.departments.find(d => d.id === DEPTS.D_MID).rubric_id, r.id);
   assert.equal(store.rubrics.length, 3, "default + 2 presets, nothing duplicated");
 });
-await check("once every preset is in the library the 'Add from a preset' group disappears", async () =>
-  assert.equal(await sel("Elementary").locator('optgroup[label="Add from a preset"]').count(), 0));
+// The two 2026-27 forms (2026-10-21) are presets too — add them so the library holds every one.
+await sel("Elementary").selectOption("preset:elementary-2627");
+for (let i = 0; i < 30 && store.rubrics.length < 4; i++) await page.waitForTimeout(100);
+await sel("Elementary").selectOption("preset:isef-ms-hs-2627");
+for (let i = 0; i < 30 && store.rubrics.length < 5; i++) await page.waitForTimeout(100);
+await check("once every preset is in the library the 'Add from a preset' group disappears", async () => {
+  assert.equal(store.rubrics.length, 5, "default + 4 presets: " + store.rubrics.map(r => r.name).join(" | "));
+  await page.waitForTimeout(300);
+  assert.equal(await sel("Elementary").locator('optgroup[label="Add from a preset"]').count(), 0);
+});
 
 // A department with scores refuses BEFORE anything is created.
 store.scores.push({ id: "s1", school_id: SID, judge_id: "j_x", project_id: "p_seed", criteria: { presentation: 4 }, notes: "", submitted_at: new Date().toISOString() });

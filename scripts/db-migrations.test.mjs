@@ -125,7 +125,8 @@ for (const round of [1, 2]) {
   await db.exec(mig("migration-2026-10l-school-branding.sql"));
   await db.exec(mig("migration-2026-10m-ratelimit-regnum-project-moves.sql"));
   await db.exec(mig("migration-2026-10n-unique-project-numbers.sql"));
-  ok(`migrations 2026-10 … 10n applied (round ${round} — re-runnable)`);
+  await db.exec(mig("migration-2026-10o-score-feedback.sql"));
+  ok(`migrations 2026-10 … 10o applied (round ${round} — re-runnable)`);
 }
 
 // ── PART 1: names are private ──
@@ -1125,6 +1126,40 @@ ok("compat: set_judge_numbers (old range editor) writes the roster");
   const def = (await idxN()).rows[0]?.indexdef || "";
   assert.match(def, /UNIQUE/); assert.match(def, /school_id, num/);
   ok("10n: once the duplicate is renumbered, re-running creates the unique (school_id, num) index");
+}
+
+// ── 10o: structured judge feedback + the safety concern on a score ──────────────
+{
+  const SO = "7a7a7a7a-0000-0000-0000-00000000010c";
+  await db.exec(`
+    INSERT INTO schools (id, name, slug, invite_code, admin_pin) VALUES ('${SO}', 'Feedback Test', 'fb-test', 'FB', '4821');
+    INSERT INTO projects (id, school_id, num, title) VALUES ('p_o1', '${SO}', '001', 'Elementary project');
+    INSERT INTO judges (id, school_id, alias) VALUES ('j_o1', '${SO}', 'Judge1');`);
+  // What the app's upsertScore() sends for an elementary review — as the anonymous judge.
+  const UPSERT_FB = `INSERT INTO scores (school_id, judge_id, project_id, criteria, notes, feedback, safety_concern)
+    VALUES ($1, $2, 'p_o1', $3::jsonb, '', $4::jsonb, $5)
+    ON CONFLICT (judge_id, project_id) DO UPDATE SET criteria = EXCLUDED.criteria,
+      feedback = EXCLUDED.feedback, safety_concern = EXCLUDED.safety_concern`;
+  await as("anon", "", UPSERT_FB, [SO, "j_o1", JSON.stringify({ el_question: 7.5, el_plan: 12.5 }),
+    JSON.stringify({ strength: "Clear question", next_step: "Repeat the test" }), true]);
+  let row = (await db.query("SELECT criteria, feedback, safety_concern FROM scores WHERE judge_id='j_o1'")).rows[0];
+  assert.equal(row.safety_concern, true); assert.equal(row.feedback.next_step, "Repeat the test");
+  assert.equal(row.criteria.el_question, 7.5);   // the ×2.5 steps are stored exactly
+  ok("10o: a judge saves Strength / Next step + a safety concern (and 7.5-point steps) through the existing policies");
+  await as("anon", "", UPSERT_FB, [SO, "j_o1", "{}", "{}", false]);
+  row = (await db.query("SELECT safety_concern FROM scores WHERE judge_id='j_o1'")).rows[0];
+  assert.equal(row.safety_concern, false);
+  ok("10o: re-submitting with 'No' clears the concern (one row, updated in place)");
+  await fails("anon", "", UPSERT_FB, /row-level security/, "10o: a made-up judge still cannot write feedback",
+    [SO, "j_fake", "{}", JSON.stringify({ strength: "x" }), true]);
+  await fails("anon", "", UPSERT_FB, /scores_feedback_is_object/, "10o: feedback must be an object, not text",
+    [SO, "j_o1", "{}", JSON.stringify("just text"), false]);
+  // Every score written before 10o (or by any other rubric) reads the defaults.
+  const old = (await db.query(`SELECT count(*)::int n FROM scores WHERE feedback = '{}'::jsonb AND safety_concern = false
+    AND judge_id <> 'j_o1'`)).rows[0].n;
+  const all = (await db.query(`SELECT count(*)::int n FROM scores WHERE judge_id <> 'j_o1'`)).rows[0].n;
+  assert.equal(old, all);
+  ok(`10o: every existing score (${all}) reads feedback {} / safety_concern false — nothing changed for them`);
 }
 
 console.log(`\nALL ${pass} CHECKS PASSED`);

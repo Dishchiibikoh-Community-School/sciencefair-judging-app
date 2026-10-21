@@ -128,7 +128,8 @@ A new school starts with **Elementary / Middle School / High School**, but that 
 Each department row has a **how it is judged** dropdown with three groups:
 
 - **Your rubrics** — every rubric in your library (the default is marked).
-- **Add from a preset** — the built-in rubrics you have not added yet (e.g. *Cibecue / ISEF-style — 100
+- **Add from a preset** — the built-in rubrics you have not added yet, including the two **2026-27
+  evaluation forms** (see *The 2026-27 evaluation forms* below) and e.g. *Cibecue / ISEF-style — 100
   points*, *Detailed form — 20 items*). Picking one **adds it to your rubrics and assigns it** in one step;
   after that it is listed under *Your rubrics* and can be edited in the Rubric tab.
 - **Comments only (not scored)**.
@@ -492,6 +493,9 @@ banner at the top says how many things need attention.
   until it reconnects — refresh the page if it stays that way. Also shows the judging lock and
   whether the results link is live.
 - **Errors in the last hour** — how many, and which kinds. **Open IT Logs →** goes straight there.
+- **⚠ Safety / rule concerns** (red, only when there is one) — a judge answered **Yes** to the
+  elementary form's safety question. Shows the project code and title, which judge, when, and their
+  comments. Notify the Science Fair Committee. It clears when that judge re-submits with **No**.
 - **Scores stuck on a device** — judges whose tablet reports scores still waiting to sync, and for
   how long. *Server refusing* means the scores reach the server but are rejected: tell the judge
   **not** to sign out or clear the browser, and send the IT Logs report to your technical contact.
@@ -649,19 +653,45 @@ each project belongs to.
 - The default can't be switched while a department that follows it has scores — pick that
   department's rubric explicitly first, then change the default.
 
-### The built-in presets
+### The 2026-27 evaluation forms
 
-Three are built in; use them for a new rubric or to replace the criteria of the one on screen.
+These two match the paper forms exactly. **Setup → each department's dropdown → Add from a preset**:
+**K-5 → Elementary form**, **6-8 and 9-12 → Middle & High School form**. Do it before the first judge
+scores — a department's rubric locks once it has scores.
+
+| Form | What the judge does | Out of |
+|---|---|---|
+| **Middle & High School form (2026-27)** | Rates 20 items **1–5** under five headings: Project Overview & Purpose (3 items = 15), Scientific Inquiry & Method (5 = 25), Data & Conclusion (4 = 20), Presentation & Defense (4 = 20), Research, Collaboration & Compliance (4 = 20). One comment box: *Judge Comments & Constructive Feedback*. | 100 (lowest possible 20) |
+| **Elementary form (2026-27)** | Rates 8 items **1–5** (= 40), then writes a **Strength**, a **Next step**, and answers **Safety / rule concern? No / Yes**. | 40 × 2.5 = **100** |
+
+**How the elementary form gets to 100.** The paper form says *"Committee use: total × 2.5 = score out
+of 100"*. The app does that multiplication for you and shows it, so the 100 is never a mystery:
+
+- each button shows the **rating** (1–5) with its **points** underneath — a 3 is worth 7.5 points
+- the total shows the working, e.g. **Ratings 32 / 40 × 2.5 = 80 / 100**
+- results, rankings, the minimum to place (60% = 60 of 100 = an average "3") all work out of 100,
+  exactly like middle and high school
+- the judge-scores CSV has both columns: **Total** (out of 100) and **Ratings** (out of 40)
+
+**The safety question.** When a judge answers **Yes**, a red card appears at the top of the **Alerts**
+tab straight away — project code, title, which judge, and their comments — and the activity log
+records it. Please also expect the judge to tell a committee member in person. The card clears when
+that judge re-submits the project with **No**.
+
+> These forms need the database update **2026-10o** for the comments and the safety question to be
+> stored in their own fields. Without it nothing is lost — they are saved inside the judge's notes —
+> but the Alerts card cannot appear, and IT Logs shows `SCORE_FEEDBACK_COLS_MISSING`.
+
+### Other built-in presets
 
 | Preset | Shape | Score range |
 |---|---|---|
 | **Northeast AZ Regional** | 10 criteria, 0–6 points each. Grades below 5 skip Abstract (so they are judged out of 36). Grades 5+ may not be given a 0. | 0–42 |
 | **Cibecue / ISEF-style** | 5 sections, each rated Needs improvement · Fair · Good · Very Good · Excellent, weighted: Project Title 15, Scientific Inquiry 25, Data and Conclusion 20, Presentation 20, Further Research 20. | 20–100 |
-| **Detailed form — 20 items** | Every item on the judging form rated 1–5 (Needs improvement → Excellent), grouped under five headings: Project Title (5 items), Scientific Inquiry (4), Data and Conclusion (4), Presentation (5), Further Research (2). | 20–100 |
+| **Detailed form — 20 items** | An earlier version of the item-by-item form: 20 items rated 1–5 under Project Title (5 items), Scientific Inquiry (4), Data and Conclusion (4), Presentation (5), Further Research (2). | 20–100 |
 
-On the 100-point rubric judges tap the **rating word**, not a number — the section's points appear
-underneath. The detailed sub-points from the paper form are listed under each section heading, so a
-judge reads all of them and then gives one rating for the section.
+On the Cibecue rubric judges tap the **rating word**, not a number — the section's points appear
+underneath.
 
 **Why the lowest score is 20, not 0:** the paper scale starts at 1 (Needs improvement), so there is
 no zero to give. Five sections at the lowest rating = 20/100. That is correct, not a bug.
@@ -836,6 +866,8 @@ with their original time (`ctx.delayed: true`).
 - `OFFLINE_SYNC_FAILED` — a judge's queued scores were rejected by the server when they came back online. Shows the alias, how many scores, the error code and how long the oldest has waited. The scores stay on the judge's device.
 - `SCORE_QUEUED` — now records whether the device was simply **offline** or the **server refused** the score (`reason`).
 - `REALTIME_DOWN` / `REALTIME_RECONNECTED` — the live-update connection was down for **over 30 seconds while the screen was in use** / came back (with how long it was down). Brief drops and phones with a locked screen are no longer logged — they used to fill the log. While down, dashboards do not update by themselves; refresh the page.
+- `SAFETY_CONCERN_RAISED` — a judge answered Yes to the safety question (the comment text is never logged).
+- `SCORE_FEEDBACK_COLS_MISSING` — database update 2026-10o has not been run; elementary comments and safety answers are being saved inside notes instead. Tell your technical contact.
 - `CLIENT_ERROR` — the app crashed or hit an unexpected error on some device (judge tablets included). Includes screen width and browser. Each distinct error is logged once per session, at most 20.
 - `INIT_TIMEOUT` — the school's data took over 8 seconds to load.
 - `LOAD_FAILED` — one kind of data could not be loaded (the payload names the `table` and error `code`), so that screen may show old or missing data. Logged once per table per page load. Usually an expired sign-in or a dropped connection — refresh, or sign out and in.

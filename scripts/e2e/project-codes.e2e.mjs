@@ -43,7 +43,11 @@ await J.page.getByRole("button", { name: /Enter as Judge/ }).click();
 await check("the judge's list shows PK-LS-002 (PreK · Life Science · 002)", async () =>
   assert.equal((await J.page.locator(".proj-num").first().innerText()).trim(), "PK-LS-002"));
 await J.page.getByText("Growing Beans").click();
-await check("the scoring form header says PROJECT PK-LS-002", () => J.page.getByText("PROJECT PK-LS-002").waitFor({ timeout: 4000 }));
+// 2026-10-21: the code is its own large badge (.sc-code) — no "PROJECT" prefix any more.
+await check("the scoring form header shows the code PK-LS-002", async () => {
+  await J.page.locator(".sc-code").waitFor({ timeout: 4000 });
+  assert.equal((await J.page.locator(".sc-code").innerText()).trim(), "PK-LS-002");
+});
 
 console.log("\n── Admin: Setup → Project codes");
 const A = await newPage();

@@ -51,17 +51,20 @@ console.log("\n── Setup tab shows and controls the mode");
 const A0 = await adminPage();
 await A0.page.locator(".nav-it", { hasText: "Setup" }).click();
 await check("a comment-only department is badged in Setup", async () => {
-  const row = A0.page.locator(".setup-row", { hasText: "Elementary" }).first();
+  // The row that OWNS Elementary's select — every row's dropdown also lists "Elementary form".
+  const row = A0.page.locator(".setup-row").filter({ has: A0.page.getByLabel("How Elementary is judged") });
   await row.getByText("Comments only").first().waitFor({ timeout: 4000 });
   assert.equal(await row.locator("select.setup-mode").inputValue(), "feedback");
 });
 await check("switching a department's mode persists", async () => {
-  const row = A0.page.locator(".setup-row", { hasText: "High School" }).first();
-  await row.locator("select.setup-mode").selectOption("feedback");
+  // By the select's label, not the row's text: since 2026-10-21 every row's dropdown contains the
+  // option "Middle & High School form", so a row matched on "High School" was the FIRST row.
+  const modeSel = A0.page.getByLabel("How High School is judged");
+  await modeSel.selectOption("feedback");
   await A0.page.waitForTimeout(500);
   assert.equal(store.departments.find(d => d.id === DEPTS.D_HIGH).scoring_mode, "feedback");
   // Back to scored = pick a rubric (2026-10j: the selector lists the school's rubrics).
-  await row.locator("select.setup-mode").selectOption({ index: 0 });
+  await modeSel.selectOption({ index: 0 });
   await A0.page.waitForTimeout(400);
   assert.equal(store.departments.find(d => d.id === DEPTS.D_HIGH).scoring_mode, "scored");
 });

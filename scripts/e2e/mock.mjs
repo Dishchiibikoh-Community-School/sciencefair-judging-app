@@ -476,6 +476,10 @@ export function installMock(page, store, log) {
         return json(route, 409, { code: "23505", message: 'duplicate key value violates unique constraint "projects_school_num_uniq"' });
       }
     }
+    // Migration 2026-10o not run: PostgREST refuses a row that names an unknown column.
+    if (method === "POST" && table === "scores" && store.scoresFeedbackMissing
+        && (Array.isArray(body) ? body : [body]).some(it => "feedback" in it || "safety_concern" in it))
+      return json(route, 400, { code: "PGRST204", message: "Could not find the 'feedback' column of 'scores' in the schema cache" });
     if (method === "POST") {
       const items = Array.isArray(body) ? body : [body];
       // PostgREST upserts on the PRIMARY KEY when on_conflict is not given.

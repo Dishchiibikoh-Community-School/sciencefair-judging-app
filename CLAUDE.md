@@ -3,7 +3,7 @@
 > Single source of truth for AI-assisted development. Read it before changing anything.
 > Do not delete it. When code and this file disagree, the code wins — then fix this file.
 >
-> Last reviewed: 2026-10-08 (help/guides refreshed + event-day backup plan; live project corrections; live status re-read; see Change History).
+> Last reviewed: 2026-10-21 (the 2026-27 evaluation forms, scoring drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
 
 ---
 
@@ -30,8 +30,8 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Vercel | `sciencefair-v2` — the **only** Vercel project |
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
-| Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (247 checks). Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`). Start the dev server first (see the file header). 435 checks across 20 files |
+| Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (252 checks). Run after any `supabase/*.sql` or `api/` change |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`), the 2026-27 forms + drafts + safety (`rubrics-2627.e2e.mjs`). Start the dev server first (see the file header). 462 checks across 21 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -59,6 +59,7 @@ always serves and cannot be redirected — never share it.
 | `migration-2026-10e-categories-and-department-codes.sql` | **`categories`** table (per-school project categories) + seeds the six for every existing school; **`departments.code`** | No — **additive only**. Old app ignores both; new app falls back to `DEFAULT_CATEGORIES` and logs `CATEGORIES_TABLE_MISSING`. Safe to run in either order |
 | `migration-2026-10m-ratelimit-regnum-project-moves.sql` | **Three correctness fixes (2026-10-06 review)**: `register_judge()` now RETURNS `{"error":"Invalid invite code"}` instead of raising, so the 5-attempt lockout finally records anything (a RAISE rolled the counter back with the transaction — see rule 66); `submit_registration()` numbers from MAX not COUNT, plus a guarded UNIQUE index on `(school_id, reg_number)` (⚠️ **partial fix** — deleting the HIGHEST submission still frees its number; see Known gaps); new `projects_guard_department_move` trigger — a **scored** project may not move to a department with a different rubric or scoring mode | **Yes for the app build** — `handleRegister()` reads `data.error`. An older build still refuses the wrong code, it just shows the generic "Registration failed" text. ⚠️ SUPERSEDES `register_judge()` (10k) and `submit_registration()` (10b) — re-run 10m after either |
 | `migration-2026-10n-unique-project-numbers.sql` | **UNIQUE `(school_id, projects.num)`** — two admins adding a project at once no longer share a number. Guarded: if duplicates already exist it RAISEs a WARNING and skips the index (renumber, re-run) | No — either order. Old app: a clash shows the raw DB error instead of a silent duplicate. New app without it: as before |
+| `migration-2026-10o-score-feedback.sql` | **`scores.feedback`** JSONB `{strength, next_step}` (CHECK: an object) + **`scores.safety_concern`** BOOLEAN — the 2026-27 elementary form's two comment boxes and its safety question. Existing row policies cover them; `scores` is already in realtime | No — **additive**, either order. New app without it: `upsertScore()` retries without the two columns and folds them into `notes` (IT log `SCORE_FEEDBACK_COLS_MISSING`) — nothing lost, but the Alerts safety card cannot appear. **Run before judging day** |
 | `migration-2026-10k-judge-roster-and-panels.sql` | **Judge roster grid + N judges per project**: `judge_roster` (number ↔ department, public read, RPC-only writes), `judge_labels` (admin-only private names), `departments.judges_per_project`, `project_judges` (stored panel assignments); `register_judge()` / `set_judge_roster()` / `set_judges_per_project()` / `assign_panels(fill\|rebuild\|rebalance)` / `sync_judge_projects()`; `set_judge_numbers()` kept as a ranges→roster wrapper for cached apps; new departments still get a default block (now also in the roster) | **Yes — run it, then deploy the matching app.** The previous app keeps working (its range editor saves through the wrapper) but cannot show the grid or panels. ⚠️ Supersedes register_judge (10h), set_judge_numbers / set_judge_max / the numbering trigger (10i), departments_guard_judging (10j) — re-run 10k after any of those |
 | `migration-2026-10l-school-branding.sql` | **Per-school logo + fair poster**: `school_branding` (paths + poster description; public read, writes only via **`set_school_branding()`**), Storage bucket **`school-branding`** (public read, 2 MB, WebP/PNG/JPEG) + `storage.objects` policies (admin of THAT school, own folder, app-generated names, no overwrite), `can_manage_branding_object()`; seeds `builtin:dishchiibikoh` for the one school whose id **and** slug match | **No** — either order. Without it Dishchii'bikoh keeps its bundled logo, everyone else gets the monogram, and Setup says the migration is needed. ⚠️ Its storage part needs the Supabase SQL editor (`storage` schema); it is skipped on a database without one |
 | `migration-2026-10j-department-rubrics.sql` | **Each department picks its rubric**: `departments.rubric_id` (NULL = the school default = `rubrics.is_active`); one default per school (unique partial index, duplicates resolved to the newest); guard trigger — a department's rubric / comment-only setting cannot change once it has scores, and only its own school's rubrics; delete guard — the default and any rubric in use cannot be deleted; **`set_default_rubric()`** | No — old app keeps using the default for every department |
@@ -314,7 +315,7 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `judge_labels` | (school_id, judge_number, label) — **admin-only** private names behind numbers; anon has no privileges |
 | `project_judges` | (school_id, project_id, judge_number) — panel assignments for departments with `judges_per_project` set. Stored, never recomputed on the fly; scored assignments are never removed |
 | `judges` | alias, `projects` (JSON array of pids), department_id (FIRST department), **`department_ids`** (every department covered — 2026-10h), joined_at. UNIQUE(department_id, alias) |
-| `scores` | One row per judge+project; `criteria` JSONB, notes, total, **`commendation`** (feedback departments only — `criteria` is `{}` there). UNIQUE(judge_id, project_id) |
+| `scores` | One row per judge+project; `criteria` JSONB, notes, `submitted_at`, **`commendation`** (feedback departments only — `criteria` is `{}` there), **`feedback`** `{strength, next_step}` + **`safety_concern`** (2026-10o, elementary form). UNIQUE(judge_id, project_id). **There is NO total column** — every total is computed from `criteria` + the current rubric (`getTotal`), which is why rubric edits change past totals |
 | `validations` | Judge/admin validation; `judge_id = 'admin'` for the admin. Conflict `(school_id, judge_id)` |
 | `deliberation_notes` | Judge recommendation/comment/flag per project |
 | `final_decisions` | Admin award per project. Conflict `(school_id, project_id)` |
@@ -398,9 +399,22 @@ Scoring UI is discrete tap buttons (`.rub-step-btn`), never sliders.
 | `northeast-az` | `DEFAULT_RUBRIC` — 10 criteria, 0–6 each, 42 pts. Has an `abstract` criterion, allows 0 |
 | `dishchiibikoh-20` | The detailed judging form: **20 items rated 1–5**, grouped by an optional `section` field (Project Title 5 · Scientific Inquiry 4 · Data and Conclusion 4 · Presentation 5 · Further Research 2) = 100 pts, floor 20. `section` is display-only (headings in the scoring form) |
 | `cibecue-100` | 5 weighted sections rated 1–5, **100 pts**: Project Title 15 · Scientific Inquiry 25 · Data and Conclusion 20 · Presentation 20 · Further Research 20. **No zero step — the floor is 20/100.** No `abstract` criterion |
+| `isef-ms-hs-2627` | **THE 2026-27 middle/high form** (final, from the organiser 2026-10-21): **20 items rated 1–5**, ids `hs_*`, five `section`s — Project Overview & Purpose 3 · Scientific Inquiry & Method 5 · Data & Conclusion 4 · Presentation & Defense 4 · Research, Collaboration & Compliance 4 = **15/25/20/20/20 = 100**, floor 20. **Numbers only** (no `stepLabels`; the scale is in `settings.guide`). "Abstract & Background" is `hs_abstract_bg`, NOT `abstract` (that id carries the grade-<5 exemption) |
+| `elementary-2627` | **THE 2026-27 elementary form**: **8 items rated 1–5** (= 40), ids `el_*`. The paper's "committee use: total × 2.5" is **built into the steps** — `steps [2.5, 5, 7.5, 10, 12.5]`, `max 12.5`, `stepLabels ["1".."5"]` — so every total, average, ranking, the 60% minimum and the outlier check are out of **100** with no downstream code knowing. `settings`: `factor 2.5` (display: "Ratings 32 / 40 × 2.5 = 80 / 100"), `feedback: "strength_next"`, `safety: true` |
 
 Applying a preset goes through `requestSaveRubric()`, so the impact warning + backup offer
 still fire when scores exist. Presets are starting points; every criterion stays editable.
+
+**Rubric-level settings (2026-10-21) come from the PRESET, not a column.** `rubricSettings(criteria)`
+returns the `settings` of the preset whose criteria match (`sameCriteria`: same ids, order, maxima) —
+the scale `guide`, `commentsLabel`/`commentsHint`, the × `factor`, `feedback: "strength_next"`, `safety`.
+No migration, and a renamed or copied rubric keeps them; changing an id or a max turns them off (it is
+no longer that form). A hand-written rubric therefore cannot have the Strength/Next/safety boxes — a
+deliberate limit until a school needs it (then: a `rubrics.settings` column, rule 68-style fallback).
+
+**2026-10-21: the 2026-27 middle/high form ends the disagreement below.** Its section totals are simply
+item count × 5 (3/5/4/4/4 items → 15/25/20/20/20), so the item-by-item form and the summary weights now
+agree. Use `isef-ms-hs-2627` for 6-8 and 9-12, `elementary-2627` for K-5. The paragraph below is history.
 
 **The two source documents disagree; 15/25/20/20/20 is the correct one — confirmed by the
 organiser 2026-10-06. Do not "fix" it.** The detailed Dishchii'bikoh form has 20 sub-items at
@@ -472,6 +486,7 @@ with their real average, and the medals pass to the next projects that do qualif
 | `sf_scores_cache` | This judge's scores |
 | `sf_offline_queue` | Score payloads pending sync |
 | `sf_last_sync_at` | Last successful sync timestamp |
+| `sf_score_drafts` | Unsubmitted scoring taps per `${judgeId}_${projectId}` (2026-10-21, rule 75). Deleted on submit / queue; never synced, never counted |
 | `sf_it_outbox` | IT-log entries this device could not write (offline / failed request), ≤ 50; sent by `flushItOutbox()` with their original time (`ctx.delayed`) |
 
 ---
@@ -724,6 +739,11 @@ submitScore()                // enforces judging lock + already-validated gate; 
 MISSING_FN(err)              // module helper: "this RPC does not exist here", as opposed to any other
                              // failure. Gates compatibility fallbacks — see rule 68
 flushOfflineQueue()          // guarded; body in runOfflineFlush(queue)
+upsertScore(payload)         // the ONLY score write (submit + offline flush) — 2026-10o fallback, rule 76
+startScoring(pid), editDraft(patch), discardDraft()   // scoring screen; every edit → sf_score_drafts (rule 75)
+readDrafts(), writeDraft(key, draft|null), DRAFTS_KEY // module helpers
+rubricSettings(criteria)     // module: the matching preset's settings (guide, factor, feedback, safety) or {}
+ratingOf(settings, v)        // module: points → the rating the judge tapped (v / factor); display only
 queuedScoresFor(sid)         // module helper: this device's unsynced scores for one school as score-map
                              // entries. loadScores() overlays them — the queued value always wins
 
@@ -835,7 +855,7 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 37. **Never write anything that makes the React Compiler bail out of `App`.** A bailout silently disables `react-hooks/purity` and `react-hooks/immutability` **for the entire file** — the findings do not move or change, they vanish, so the lint report looks *better* when you have just broken it. Two confirmed triggers:
     - `try/finally` inside `App` — use `.finally()` on a promise instead (see `flushOfflineQueue()`).
     - **Mutating a closed-over variable inside a callback**, e.g. `let ord = …; list.map(x => ({ …, ord: ord++ }))`. Use the index: `list.map((x, i) => ({ …, ord: base + i }))`. (Found 2026-10-06 while adding the Setup tab.)
-    - **How to check:** `npx eslint src/ScienceFairJudging.jsx -f json` and count findings per rule. The healthy baseline is **26 `react-hooks/purity` + 5 `react-hooks/immutability`** (27 → 26 on 2026-10-06 when the save-then-update rewrite merged two `Date.now()` lines; same findings, not a bailout). If those two drop to zero you have caused a bailout — a plain error count is not enough to notice, so compare per-rule before every commit that touches `App`.
+    - **How to check:** `npx eslint src/ScienceFairJudging.jsx -f json` and count findings per rule. The healthy baseline is **28 `react-hooks/purity` + 5 `react-hooks/immutability`** (27 → 26 on 2026-10-06 when the save-then-update rewrite merged two `Date.now()` lines; 26 → 28 on 2026-10-21 when `runOfflineFlush()` started calling `upsertScore()` and the compiler began REPORTING its two existing `Date.now()` lines — more of the file analysed, the opposite of a bailout; verified by diffing the findings by source line). If those two drop to zero you have caused a bailout — a plain error count is not enough to notice, so compare per-rule before every commit that touches `App`.
 38. **Discrete score buttons only** — never `<input type="range">`.
 
 **Form scanning**
@@ -931,6 +951,27 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
     unions in each signed-in judge's current departments, because `set_judge_roster()` refuses to take
     one away. `MIN_PER_PROJECT` (6) drives the "About" time hints only — nothing in scoring reads it.
 
+**Scoring forms & drafts (2026-10-21)**
+74. **A scale factor lives in the STEPS, never in the maths.** The elementary form's × 2.5 is
+    `steps [2.5 … 12.5]`, so `getTotal`, `projectMax`, rankings, `placesEligible`, outliers and every
+    export stay rubric-agnostic (rule 5). `settings.factor` is DISPLAY-only (`ratingOf()`: the rating
+    on the button, "4 / 5" per item, the "Ratings 32 / 40 × 2.5" working, the CSV "Ratings" columns).
+    Steps and Max Points may be decimals: `parseSteps()` and the Max Points box use `parseFloat`
+    (`parseInt` turned 7.5 into 7, so merely opening and saving the elementary rubric fired the impact
+    warning and would have rewritten every elementary score). Never reintroduce `parseInt` there.
+75. **A draft is never a score.** `sf_score_drafts` holds a judge's unsubmitted taps per
+    `${judgeId}_${projectId}`, written by `editDraft()` on every edit and restored by `startScoring()`
+    (the draft wins over the saved score — it is always newer). It is deleted the moment `submitScore()`
+    succeeds OR queues, never synced, never counted, and wiped with the session when a reset removes the
+    judge. Every input on the scoring screen must go through `editDraft()`, not a bare setter — a field
+    that bypasses it silently drops out of the draft. `writeDraft()` stamps `ts` at module level so no
+    `Date.now()` runs inside `App` (rule 37).
+76. **Write scores only through `upsertScore()`** (submit AND offline flush). It retries a row that
+    names the 2026-10o columns WITHOUT them on `MISSING_COL` only (rule 68), folding the comments and a
+    "⚠ SAFETY / RULE CONCERN" line into `notes` — otherwise one unmigrated database would leave every
+    elementary score stuck in the offline queue forever. The safety flag is logged as a flag
+    (`SAFETY_CONCERN_RAISED`, only when newly raised), never with the comment text (rule 69).
+
 **SQL that must survive its own rejection**
 66. **A `RAISE` throws away everything the function wrote, including the rate-limit counter.**
     PostgREST runs each RPC in one transaction, so `note_auth_failure()` followed by `RAISE` records
@@ -1000,6 +1041,44 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-21 — The 2026-27 evaluation forms; drafts; safety concerns** (migration `2026-10o`, **not**
+coupled). Phase 1 of the plan for the fair on **2026-12-11** (Phase 2 = the judging schedule, Phase 3 =
+per-category awards — see the roadmap). The organiser supplied the final forms:
+1. **Two presets** (Data Model → Rubric presets): `isef-ms-hs-2627` (20 items 1–5, five sections =
+   15/25/20/20/20 — which finally reconciles the old summary-vs-detailed disagreement) and
+   `elementary-2627` (8 items 1–5 = 40, × 2.5 = 100 built into the steps, rule 74). Numbers only, by the
+   committee's choice; each form's scale is shown above the items (`settings.guide`). Assigned per
+   department from Setup's "Add from a preset" like the others.
+2. **Elementary comments + safety question**: Strength / Next step boxes and "Safety / rule concern?
+   No / Yes" → `scores.feedback` + `scores.safety_concern` (2026-10o). A Yes puts a red card at the top of
+   **Alerts** (project, judge, comments; clears when re-submitted with No), an activity-log line and a
+   `SAFETY_CONCERN_RAISED` IT entry (flag only). Shown in the deliberation breakdown, the judge-scores CSV
+   (Strength / Next step / Safety concern, plus Ratings / Ratings out of for the × 2.5 form) and backups.
+3. **Drafts** (rule 75): every tap is kept on the device until submit — leaving the screen, a refresh or
+   a restart lost a half-scored project before (with 7-minute rounds and 20 items that was a real risk).
+   "✎ Draft — not submitted" in the list, a restore note, Discard draft.
+4. **The judge's home screen showed the 42-point "Scoring Guide"** (0 = not present … 3 or 6 =
+   exceptional) to every judge on every rubric — removed; each form now shows its own scale.
+5. **The project code is emphasised** (list badge + large badge on the scoring card) — judges find
+   booths by code. The scoring header lost its "PROJECT " prefix (project-codes test updated).
+6. **Rubric editor kept whole numbers only**: `parseSteps()` and Max Points used `parseInt`, so opening
+   and saving the elementary rubric turned 7.5 into 7 and fired the "this changes N scores" warning.
+   Now `parseFloat`, halves allowed.
+7. `upsertScore()` (rule 76) — the only score write; retries without the 2026-10o columns on
+   `MISSING_COL`, folding them into notes, so an unmigrated database never strands elementary scores.
+Also: CLAUDE.md said `scores` has a `total` column — it never had; corrected.
+Tests: DB 247 → 252 (feedback + safety through the existing judge policies, 7.5-point steps stored exactly,
+re-submit with No clears it, a made-up judge still refused, feedback must be an object, every older score
+reads the defaults). New `scripts/e2e/rubrics-2627.e2e.mjs` (27: presets via Setup, both forms total 100,
+section weights, no `abstract` id, the 42-pt guide gone, the code badge, buttons 1–5 with points, "4 / 5",
+draft survives Back AND a reload, the × 2.5 working, stored values/feedback/safety, draft cleared, activity
++ IT log without comment text, Discard draft, 20 items in 5 sections, numbers only, 60/100 at all-3s, a
+middle/high score keeps its old shape, the Alerts card, the deliberation breakdown, the CSV, the unmigrated
+fallback, the editor keeping halves). **Mutation-tested**: drafts off → 3 fail; fallback off → 2 fail;
+`parseInt` back → 1 fails (the first version of that check did NOT catch it — it auto-confirmed the
+impact warning; rewritten so an untouched rubric must save with no warning). rubric-presets-setup now adds
+the two new presets before asserting the library is complete. Lint 28/5 (see rule 37), build clean.
 
 **2026-10-21 — "Nothing happens when I press Edit" on a project** (no migration).
 Reported by the organiser while applying entry-sheet corrections to project #046 of 63. The
@@ -1622,9 +1701,33 @@ its absence. See the `group_members` type split above.
 
 ---
 
-## 📍 Live status / where we left off (end of 2026-10-08)
+## 📍 Live status / where we left off (2026-10-21)
 
 Read this first when resuming on another machine.
+
+**THE FAIR IS 2026-12-11.** Plan agreed 2026-10-21: Phase 1 (forms, drafts, safety — done, see Change
+History), Phase 2 = **judging schedule** (import the organiser's 15-judge × 12-round grid, 7-min rounds
+8:30–10:15; the judge sees Round · time · CODE · booth in order with "Next"; the schedule becomes the
+source of who judges what, auto-fill / Rebalance / Suggested setup switched off for it; a stand-in uses an
+absent judge's number; printouts per judge and per booth), Phase 3 = **awards by department (default) +
+an optional per-department "award by category"** (`departments.award_grouping` already exists, unused),
+optional printed comment sheets for students (setting, off by default; no scores, no judge names).
+Dry run late November; code freeze **2026-12-01**.
+
+**Decisions 2026-10-21:** elementary results out of 100 (× 2.5, shown); numbers only on both forms;
+category stays **"Life Science"** (the MS/HS form's "Life, Health & Behavior" is the same category —
+renaming would leave the 16 existing projects on the old text, see Known gaps); one form per judge,
+averaged. The organiser's schedule PDF was checked cell by cell against the live data: all 179 visits
+are real codes, 3 per scored project / 1 per PreK & SPED, no judge twice on a project, no two judges at
+one booth in a round, no student in two projects. A booth template (`booth-template-2026-27.csv`, titles
+only) is on the work PC Desktop — booth numbers TBD (no map yet).
+
+**To do on the live project before the dry run:** run **2026-10o**; Setup → K-5 = Elementary form,
+6-8 + 9-12 = Middle & High School form; Setup → minimum to place **60**; Maximum judges **15**;
+**#053 → Edit → Save** (a 2026-10-08 SQL fix left its grade blank — the app stores the derived grade
+at save time, so the database really holds ''); #062 has no students (noted, organiser's call); judges
+sign in at the briefing, not at 8:30 (5 wrong invite codes lock the whole school for 5 minutes); the
+14-min wrap-up is tight (noted).
 
 **Re-read live on 2026-10-08 (anonymous reads):**
 - **Projects:** 63, matching the organiser's revised "Approved Entry Forms" sheet (8 corrections
@@ -1753,6 +1856,16 @@ send student names or scores; log counts, not question text. Its answers are onl
 text — keep rule 56.
 
 ### Known gaps (not yet fixed)
+
+- **Renaming a category does not update its projects** (2026-10-21). `projects.cat` is a text snapshot,
+  so after a rename the old projects keep the old name, show "(old category)" when edited, and would form
+  a separate group once awards go per category. Their code survives only by luck (`autoCode` of the old
+  name). Fix with the per-category awards: rename = update the category AND its projects in one RPC.
+- **The judge's tablet shows the running total while scoring.** The 2026-27 MS/HS form says scores are
+  not shared with students during booth visits; a student at the booth can read the screen. A "hide the
+  total until submitted" option was offered, not requested.
+- **Rubric-level settings exist only for the presets** (rule 74 / `rubricSettings`) — a hand-built rubric
+  cannot get the guide, the × factor or the elementary comment boxes.
 
 - **Registration numbers break past 999.** `submit_registration()` (10b, 10m) formats with
   `lpad(n::text, 3, '0')`, and Postgres `lpad` TRUNCATES: the 1000th registration in a school gets

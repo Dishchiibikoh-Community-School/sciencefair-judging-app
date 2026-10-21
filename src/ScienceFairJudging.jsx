@@ -152,7 +152,113 @@ const RUBRIC_PRESETS = [
     ].flatMap(([section, items]) => items.map(([id, label]) =>
       ({ id, label, section, desc: "", max: 5, steps: [1, 2, 3, 4, 5], stepLabels: RATING_5 }))),
   },
+  {
+    // 2026-27 evaluation form, middle + high school: 20 items rated 1–5 in five sections.
+    // The section totals (15 / 25 / 20 / 20 / 20) are simply item count × 5, so the
+    // item-by-item form and the summary weights finally agree. Numbers only (the committee
+    // chose that, 2026-10-21); the scale words are in `settings.guide`. Ids are prefixed
+    // `hs_` so they never collide with another rubric's columns in the CSV exports, and
+    // "Abstract & Background" is deliberately NOT id "abstract" — that id carries the old
+    // grade-below-5 exemption (requiresAbstract), which must not apply here.
+    id: "isef-ms-hs-2627",
+    label: "Middle & High School form (2026-27) — 20 items, 100 points",
+    desc: "20 items rated 1–5 in five sections: Project Overview 15 · Scientific Inquiry 25 · Data & Conclusion 20 · Presentation & Defense 20 · Research & Compliance 20. No zero: the lowest possible total is 20.",
+    settings: {
+      guide: "Rate each item 1–5: 1 = Needs Improvement · 2 = Fair · 3 = Good · 4 = Very Good · 5 = Excellent. Scores are not shared with students during booth visits.",
+      commentsLabel: "Judge Comments & Constructive Feedback",
+      commentsHint: "Positive feedback and actionable suggestions for future work…",
+    },
+    criteria: () => [
+      ["Project Overview & Purpose", [
+        ["hs_creativity",   "Creativity",              "Reflects students' originality and creative thinking."],
+        ["hs_clarity",      "Clarity & Focus",         "Has a clear, focused purpose and well-defined objective."],
+        ["hs_reallife",     "Real-Life Connection",    "Topic relates to real-world context or practical experimentation."]]],
+      ["Scientific Inquiry & Method", [
+        ["hs_question",     "Question / Problem",      "Clearly defines a scientific question or engineering problem."],
+        ["hs_abstract_bg",  "Abstract & Background",   "Complete abstract with clear background research/study."],
+        ["hs_hypothesis",   "Hypothesis",              "Formulates a testable and logical hypothesis."],
+        ["hs_organization", "Organization",            "Experiment or investigation is well-organized and systematic."],
+        ["hs_method",       "Scientific Method",       "Follows the correct sequential steps of the scientific method or the engineering design process."]]],
+      ["Data & Conclusion", [
+        ["hs_data_enough",  "Data Sufficiency",        "Provides sufficient quantitative and/or qualitative data."],
+        ["hs_data_own",     "Data Collection",         "Data is collected directly from the student's own experiment or investigation."],
+        ["hs_data_accuracy","Data Accuracy",           "Collected data and measurements are accurate and reliable."],
+        ["hs_conclusion",   "Conclusion",              "The conclusion is reliable, supported by evidence, and directly answers the question."]]],
+      ["Presentation & Defense", [
+        ["hs_communication","Communication",           "Information is clear and well presented both verbally and in writing."],
+        ["hs_display",      "Display Board",           "The trifold display board is neat, visually clear, and well-organized."],
+        ["hs_understanding","Scientific Understanding","Students demonstrate strong conceptual understanding behind their project."],
+        ["hs_qa",           "Q&A Defense",             "Students confidently and accurately answer judge questions about their investigation."]]],
+      ["Research, Collaboration & Compliance", [
+        ["hs_teamwork",     "Originality / Teamwork",  "Reflects authentic teamwork or unique individual effort."],
+        ["hs_sources",      "Source Diversity",        "Uses articles, journals, and other references for deeper investigation."],
+        ["hs_citations",    "Citations",               "Clearly document and provide a variety of resources used in the research."],
+        ["hs_safety",       "Safety Rules",            "Adheres strictly to all safety rules, protocols, and restrictions."]]],
+    ].flatMap(([section, items]) => items.map(([id, label, desc]) =>
+      ({ id, label, section, desc, max: 5, steps: [1, 2, 3, 4, 5] }))),
+  },
+  {
+    // 2026-27 evaluation form, elementary: 8 items rated 1–5 = 40, and "committee use:
+    // total × 2.5 = score out of 100". The ×2.5 is built into the STEPS (2.5 … 12.5) so every
+    // total, average, ranking, the 60% minimum and the outlier check work on 100 points exactly
+    // like the middle/high form — nothing downstream needs to know. The judge still taps the
+    // rating 1–5 (`stepLabels`, numbers only), and `settings.factor` lets the scoring screen
+    // show the paper arithmetic: "32 / 40 × 2.5 = 80 / 100".
+    id: "elementary-2627",
+    label: "Elementary form (2026-27) — 8 items, 40 × 2.5 = 100 points",
+    desc: "8 items rated 1–5 (40 points), counted × 2.5 so results are out of 100. Strength / Next step comments and a safety-concern check. No zero: the lowest possible total is 20 of 100.",
+    settings: {
+      factor: 2.5,
+      guide: "Judge age-appropriately: focus on the student's own work, thinking, evidence and understanding — not the cost or appearance of the project. Rate each item 1–5: 1 = just starting · 3 = getting there · 5 = shining.",
+      feedback: "strength_next",
+      safety: true,
+    },
+    criteria: () => [
+      ["el_question",   "Research Question / Problem or Goal", "Clear and focused; explains what the student is trying to find out, test, solve, or improve."],
+      ["el_background", "Background & Prediction / Idea",      "Shows background learning and gives a reasonable prediction, hypothesis, or design idea."],
+      ["el_plan",       "Plan & Method",                       "Materials and steps are clear and logical; the test or design plan makes sense."],
+      ["el_evidence",   "Evidence / Data / Testing",           "Uses observations or measurements from the student's own work and enough testing when appropriate."],
+      ["el_analysis",   "Analysis & Conclusion",               "Explains results using evidence and answers the question or explains whether the design worked."],
+      ["el_creativity", "Creativity & Real-World Connection",  "Shows student ideas/originality and connects the project to a useful real-world purpose."],
+      ["el_display",    "Display & Organization",              "The project is neat, readable, and well organized; important information and visuals are easy to follow."],
+      ["el_interview",  "Student Understanding & Interview",   "Explains the project in their own words, answers questions, and shows ownership of the work."],
+    ].map(([id, label, desc]) =>
+      ({ id, label, desc, max: 12.5, steps: [2.5, 5, 7.5, 10, 12.5], stepLabels: ["1", "2", "3", "4", "5"] })),
+  },
 ];
+
+// Rubric-level behaviour (scale guide, ×2.5 display, Strength/Next-step comments, the safety
+// check) belongs to the PRESET a rubric came from, recognised by sameCriteria() — the same
+// match the Setup dropdown already uses. No column stores it, so it needs no migration and a
+// renamed or copied rubric keeps it. Editing the criteria' ids or maxima turns it off (the
+// rubric is no longer that form); rewording labels/descriptions keeps it. → {} when none.
+function rubricSettings(criteria) {
+  return RUBRIC_PRESETS.find(p => p.settings && sameCriteria(p.criteria(), criteria))?.settings || {};
+}
+// A criterion value as the judge rated it: the 1–5 rating on a ×2.5 rubric, else the points.
+function ratingOf(settings, v) {
+  const f = Number(settings?.factor) || 1;
+  return Math.round((Number(v) / f) * 100) / 100;
+}
+
+// ── Unsubmitted scoring drafts (2026-10-21) ──
+// Every tap on the scoring screen is kept on the device until Submit succeeds or is queued,
+// so leaving the screen, a refresh or a dead battery never loses a half-scored project (a
+// 7-minute round leaves no time to re-enter 20 items). Keyed `${judgeId}_${projectId}`, like
+// scores. Not a score: it never syncs, never counts, and the judge can discard it.
+const DRAFTS_KEY = "sf_score_drafts";
+function readDrafts() {
+  try { const d = JSON.parse(localStorage.getItem(DRAFTS_KEY) || "{}"); return d && typeof d === "object" ? d : {}; }
+  catch { return {}; }
+}
+function writeDraft(key, draft) {
+  try {
+    const all = readDrafts();
+    // Stamped here, at module level, so no Date.now() runs inside App (rule 37 purity baseline).
+    if (draft) all[key] = { ...draft, ts: Date.now() }; else delete all[key];
+    localStorage.setItem(DRAFTS_KEY, JSON.stringify(all));
+  } catch { /* storage full / private mode — the draft is a convenience, never the score */ }
+}
 
 // A rubric row is usable only if every criterion has an id and at least one step.
 // rubrics.criteria defaults to '[]' — an empty or malformed rubric would give judges a
@@ -341,7 +447,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-21";
+const ADMIN_HELP_UPDATED = "2026-10-21b";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -419,13 +525,17 @@ const ADMIN_HELP = [
   ]},
   { title: "The rubric", icon: "📐", faq: [
     ["Can departments use different rubrics?", "Yes. Each department picks its own in Setup → Departments (the dropdown on each row): one of 'Your rubrics', a built-in preset under 'Add from a preset' (picking it adds it to your rubrics and assigns it in one step), or 'Comments only'. Judges automatically get the rubric of the department each project is in — e.g. 3-5 on the 42-point sheet and 6-8 on the 100-point sheet."],
-    ["Where are the 100-point rubrics?", "In each department's dropdown in Setup, under 'Add from a preset' — 'Cibecue / ISEF-style' (5 sections) and 'Detailed form — 20 items'. Once added they move to 'Your rubrics' and can be edited in the Rubric tab."],
+    ["Where are the 2026-27 evaluation forms?", "In each department's dropdown in Setup, under 'Add from a preset': 'Middle & High School form (2026-27)' (20 items, 100 points) and 'Elementary form (2026-27)' (8 items, 40 × 2.5 = 100 points). Picking one adds it to your rubrics and assigns it in one step; choose the same middle/high form for 6-8 and 9-12. Set them BEFORE the first judge scores — a department's rubric locks once it has scores."],
+    ["How does the elementary form get to 100?", "Exactly like the paper form: judges rate 8 items 1–5 (40 points) and the committee multiplies by 2.5. The app does the × 2.5 for you — each button shows the rating (1–5) with its points underneath (3 = 7.5 pts), and the total shows the working, e.g. 'Ratings 32 / 40 × 2.5 = 80 / 100'. Results, rankings and the minimum to place are all out of 100, like middle and high school. The judge-scores CSV has both the 'Total' (out of 100) and the 'Ratings' (out of 40)."],
+    ["What are the elementary comment boxes and the safety question?", "The elementary form asks each judge for a Strength (what the student did well), a Next step (one helpful suggestion) and 'Safety / rule concern? No / Yes'. When a judge picks Yes, a red card appears at the top of Alerts straight away — project code, title, which judge and their comments — and the activity log records it. It clears when that judge re-submits the project with No. Comments are never shown to the public."],
+    ["Where are the older 100-point rubrics?", "Still in the same dropdown: 'Cibecue / ISEF-style' (5 sections) and 'Detailed form — 20 items'. Once added they move to 'Your rubrics' and can be edited in the Rubric tab."],
     ["How do I add a rubric or write my own?", "Rubric tab → ＋ New rubric. Give it a name and start blank (write your own criteria), from a preset, or as a copy of the one on screen. Then choose it for a department in Setup."],
-    ["Which rubrics are built in?", "Three presets: 'Northeast AZ Regional' (10 criteria, 42 points), 'Cibecue / ISEF-style' (5 sections rated Needs improvement → Excellent, 100 points) and 'Detailed form — 20 items' (every item on the judging form rated 1–5, grouped in 5 sections, 100 points)."],
+    ["Which rubrics are built in?", "Five presets: the two 2026-27 forms — 'Middle & High School form' (20 items rated 1–5 in five sections: Project Overview 15 · Scientific Inquiry 25 · Data & Conclusion 20 · Presentation & Defense 20 · Research & Compliance 20) and 'Elementary form' (8 items rated 1–5, × 2.5 = 100) — plus 'Northeast AZ Regional' (10 criteria, 42 points), 'Cibecue / ISEF-style' (5 sections, 100 points) and 'Detailed form — 20 items' (100 points)."],
     ["What is the default rubric?", "The one every scored department uses until you pick another for it. Rubric tab → choose a rubric → ★ Make default. It is refused while a department that follows the default already has scores — pick that department's rubric explicitly first."],
     ["Can I change a department's rubric after judging started?", "No — once a department has scores its rubric (and comment-only setting) is locked, because those scores would suddenly count against a different rubric. Remove the scores first (Reset All Data, or remove the judges who gave them)."],
     ["Can I delete a rubric?", "Yes, if no department uses it and it is not the default. The Rubric tab shows 'Used by: …' for each one."],
-    ["What do judges see on the 100-point rubrics?", "Buttons labelled Needs improvement, Fair, Good, Very Good and Excellent with the points underneath — a judge picks the rating and never does the arithmetic. The 20-item form shows section headings (Project Title, Scientific Inquiry, …)."],
+    ["What do judges see on the scoring screen?", "The project code in large type (to match the booth sign), the scale for that form at the top (e.g. '1 = Needs Improvement … 5 = Excellent'), then one row of buttons per item. On the 2026-27 forms the buttons are the numbers 1–5, like circling on paper; the middle/high form shows its five section headings. The total adds itself up. Judges never do arithmetic."],
+    ["A judge left the scoring screen before submitting — is it lost?", "No. Every tap is kept on that tablet until the score is submitted, even through a refresh or a restart. The project shows '✎ Draft — not submitted' in their list; opening it brings the answers back with a note, and 'Discard draft' starts over. A draft is never a score: it does not count and is not sent until the judge presses Submit."],
     ["Why is the lowest score 20 and not 0?", "The paper form's scale starts at 1 (Needs improvement), so there is no zero to give. On both 100-point rubrics the lowest possible total is 20. That is expected, not a bug."],
     ["What happens to scores already given if I edit a rubric?", "Totals are recalculated with the edited rubric for every department that uses it, so rankings change. The app shows exactly what changes and offers a backup before saving. Finish your rubrics before judging starts."],
   ]},
@@ -507,6 +617,7 @@ const ADMIN_HELP = [
     ["\"Project number … is already used by another project\".", "Every project number is unique in your school — another admin probably just used it. Type a different number, or clear the box to use the next free one, and save again. Nothing was saved. (If you left the number the form filled in, the app picks the next free one by itself.)"],
     ["Reset says some steps failed.", "Nothing is guaranteed cleared — the old judges and scores may still be live. Check the internet and press Reset everything again; it is safe to repeat. Only the green \"Reset Complete\" means it finished. IT Logs records FULL_RESET_FAILED."],
     ["Judges did not get a project I just added or moved.", "If IT Logs shows JUDGE_ASSIGNMENTS_SYNC_FAILED the server could not update their lists, so nothing was changed — your panels are untouched. Once the connection is back, re-save the judge grid (Setup → Judges) or press Rebalance on the Judges tab."],
+    ["IT Logs shows SCORE_FEEDBACK_COLS_MISSING.", "The database update for the elementary comments and safety question (migration 2026-10o) has not been run. Nothing is lost — the app saves the Strength / Next step and any safety concern inside the judge's notes instead — but the Alerts board cannot show safety concerns until it is run. Tell your technical contact."],
     ["Something looks wrong.", "IT Logs tab (Admin PIN) → pick \"last 2 hours\" → 📋 Copy Full Report, and send it to your technical contact. Every entry says which app version (build) and which device (admin, judge number or visitor) it came from. App crashes on any device are recorded automatically as CLIENT_ERROR."],
     ["Can I clear the IT logs?", "No — the IT log is permanent, like the activity log. Use the level and time filters to see only what matters."],
   ]},
@@ -1135,13 +1246,28 @@ const CSS = `
   .proj-item{display:flex;align-items:center;gap:1rem;padding:1rem .85rem;border-radius:10px;
     cursor:pointer;transition:all .15s;border:1px solid transparent;}
   .proj-item:hover{background:var(--s1);border-color:var(--bd);}
-  .proj-num{font-family:var(--ff-m);font-size:.8rem;color:var(--navy);min-width:38px;font-weight:500;}
+  /* The project code is how a judge finds the booth (2026-10-21: "more emphasized"). */
+  .proj-num{font-family:var(--ff-m);font-size:.95rem;color:var(--navy);min-width:38px;font-weight:700;
+    background:var(--blue-l);padding:.2rem .5rem;border-radius:6px;white-space:nowrap;letter-spacing:.02em;}
   .proj-info{flex:1;}
   .proj-title{font-size:1rem;font-weight:600;margin-bottom:.2rem;line-height:1.35;color:var(--text);}
   .proj-meta{font-size:.85rem;color:var(--dim);}
   .proj-st{font-size:.8rem;font-family:var(--ff-m);padding:.25rem .65rem;border-radius:100px;white-space:nowrap;}
   .st-done{background:var(--green-l);color:var(--green);}
   .st-pend{background:var(--s2);color:var(--dim);}
+  .st-draft{background:var(--amber-l);color:var(--amber);font-weight:600;}
+  /* Scoring screen (2026-10-21): the rubric's own scale guide, the restored-draft note,
+     the ×2.5 working, the elementary comment boxes and the safety check. */
+  .sc-guide{background:var(--blue-l);border:1px solid #2563eb30;border-radius:var(--r);padding:.75rem 1rem;
+    margin-bottom:1rem;font-size:.86rem;color:var(--navy);line-height:1.5;}
+  .sc-draft-note{background:var(--amber-l);border:1px solid #d9770640;border-radius:var(--r);padding:.6rem .9rem;
+    margin-bottom:1rem;font-size:.84rem;color:var(--text);display:flex;gap:.6rem;align-items:center;justify-content:space-between;flex-wrap:wrap;}
+  .sc-working{font-family:var(--ff-m);font-size:.8rem;color:var(--dim);margin-top:.15rem;}
+  .sc-safety{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.4rem;}
+  .sc-safety button{flex:1;min-width:8rem;padding:.6rem .8rem;border:2px solid var(--bd);border-radius:8px;
+    background:var(--s1);font:inherit;font-size:.86rem;cursor:pointer;color:var(--text);}
+  .sc-safety button.on-no{border-color:var(--green);background:var(--green-l);color:var(--green);font-weight:600;}
+  .sc-safety button.on-yes{border-color:var(--red);background:var(--red-l);color:var(--red);font-weight:700;}
   .locked-banner{background:var(--red-l);border:1px solid #dc262630;border-radius:10px;padding:.8rem 1.1rem;
     text-align:center;font-size:.95rem;color:var(--red);margin-bottom:1rem;font-weight:500;}
   .offline-banner{background:var(--amber-l);border:1px solid #d9770630;border-radius:10px;padding:.7rem 1.1rem;
@@ -1155,6 +1281,8 @@ const CSS = `
   /* SCORING */
   .sc-header{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:1.35rem 1.5rem;
     margin-bottom:1rem;box-shadow:var(--shadow);}
+  .sc-code{display:inline-block;font-family:var(--ff-m);font-size:1.35rem;font-weight:700;color:var(--navy);
+    background:var(--blue-l);border:2px solid #2563eb40;border-radius:8px;padding:.2rem .65rem;margin-bottom:.55rem;letter-spacing:.03em;}
   .sc-header h2{font-family:var(--ff-d);font-size:1.35rem;margin-bottom:.4rem;line-height:1.25;color:var(--navy);}
   .rub-item{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:1.3rem 1.5rem;
     margin-bottom:.75rem;box-shadow:var(--shadow);}
@@ -1464,6 +1592,8 @@ const CSS = `
     line-height:1.15;padding:.5rem .3rem;flex:1 1 84px;}
   .rub-step-lab{font-size:.74rem;font-weight:600;font-family:var(--ff-b);}
   .rub-step-pts{font-size:.68rem;opacity:.65;font-family:var(--ff-m);}
+  /* × 2.5 form: the RATING (1–5) is what the judge reads; the points are the small print. */
+  .rub-step-btn.rated .rub-step-lab{font-size:1.05rem;font-weight:700;font-family:var(--ff-m);}
 
   /* Comment-only (feedback) departments — PreK / K-2 */
   .fb-banner{background:var(--purple-l);border:1px solid #7c3aed30;border-radius:var(--r);
@@ -1751,6 +1881,10 @@ function scoresToMap(rows) {
       // Feedback-mode departments only; '' everywhere else, and undefined until
       // migration 2026-10f has been run.
       commendation: row.commendation || "",
+      // Strength / Next-step comments and the safety check (migration 2026-10o; the
+      // elementary form). {} / false on every other rubric and before the migration.
+      feedback: row.feedback && typeof row.feedback === "object" ? row.feedback : {},
+      safety: row.safety_concern === true,
       time: new Date(row.submitted_at).getTime(),
     };
     return acc;
@@ -1770,6 +1904,7 @@ function queuedScoresFor(schoolId) {
     if (!d || d.school_id !== schoolId) return acc;
     acc[`${d.judge_id}_${d.project_id}`] = {
       criteria: d.criteria || {}, notes: d.notes || "", commendation: d.commendation || "",
+      feedback: d.feedback && typeof d.feedback === "object" ? d.feedback : {}, safety: d.safety_concern === true,
       time: item.ts || 0,
     };
     return acc;
@@ -1896,6 +2031,11 @@ export default function App() {
   // Feedback-mode only: the commendation this judge is giving. Free text, seeded
   // from COMMENDATIONS but never limited to it.
   const [draftCommend, setDraftCommend] = useState("");
+  // Elementary form (2026-27): Strength / Next step + the safety-concern check.
+  const [draftFb,     setDraftFb]     = useState({ strength: "", next_step: "" });
+  const [draftSafety, setDraftSafety] = useState(false);
+  // When the form was refilled from an unsubmitted draft (shown so the judge knows why).
+  const [draftRestoredAt, setDraftRestoredAt] = useState(null);
   const [regName,    setRegName]     = useState("");
   const [regCode,    setRegCode]     = useState("");
   const [regDept,    setRegDept]     = useState("");
@@ -2719,7 +2859,9 @@ export default function App() {
   }
 
   function parseSteps(raw, max) {
-    const nums = raw.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n >= 0 && n <= max);
+    // parseFloat, not parseInt: the elementary form counts × 2.5 (steps 2.5 … 12.5) and
+    // parseInt silently turned 7.5 into 7 the moment an admin touched the field (2026-10-21).
+    const nums = raw.split(",").map(s => Math.round(parseFloat(s.trim()) * 100) / 100).filter(n => !isNaN(n) && n >= 0 && n <= max);
     const sorted = [...new Set(nums)].sort((a,b) => a-b);
     return sorted.length >= 2 ? sorted : null;
   }
@@ -3119,6 +3261,7 @@ export default function App() {
         localStorage.removeItem("sf_scores_cache");
         localStorage.removeItem("sf_offline_queue");
         localStorage.removeItem("sf_judge_slug");
+        localStorage.removeItem(DRAFTS_KEY);   // drafts of a judge that no longer exists
         setJudge(null); setView("landing");
       }
     }
@@ -3201,7 +3344,7 @@ export default function App() {
     for (const item of queue) {
       const key = `${item.data.judge_id}_${item.data.project_id}`;
       flushedKeys.add(key);
-      const { error } = await supabase.from("scores").upsert(item.data, { onConflict: "judge_id,project_id" });
+      const { error } = await upsertScore(item.data);
       if (error) { failedKeys.add(key); failErrors.push(error.code || error.message || "unknown"); }
     }
     // Re-read localStorage after the async loop — submitScore may have added new items
@@ -4534,6 +4677,8 @@ export default function App() {
           total:        getTotal(sc, proj),
           rubricName:   rubricRowFor(proj?.department_id)?.name || "",
           notes:        sc.notes || "",
+          feedback:     { ...(sc.feedback || {}) },
+          safetyConcern: sc.safety === true,
           submittedAt:  sc.time ? new Date(sc.time).toISOString() : "",
         });
       }
@@ -4620,7 +4765,8 @@ export default function App() {
     const header = [
       "Judge","Department","Code","Project #","Project Title","Category","Grade","Rubric",
       ...cols.map(r => `${r.label} (${r.max})`),
-      "Total","Out of","Notes","Submitted"
+      // "Ratings" = the paper form's own total on a ×2.5 rubric (elementary: Total = Ratings × 2.5).
+      "Total","Out of","Ratings","Ratings out of","Notes","Strength","Next step","Safety concern","Submitted"
     ];
     const rows = [header.map(csvCell)];
     for (const judge of [...judges].sort((a,b) => a.alias.localeCompare(b.alias))) {
@@ -4641,7 +4787,14 @@ export default function App() {
           ...cols.map(r => projRubric(proj).some(c => c.id === r.id) ? critVal(sc, r.id) : ""),
           isFeedbackProject(proj) ? "" : getTotal(sc, proj),
           isFeedbackProject(proj) ? "" : projectMax(proj),
+          ...(() => {
+            const f = isFeedbackProject(proj) ? 0 : Number(rubricSettings(projRubric(proj)).factor) || 0;
+            return f ? [ratingOf({ factor: f }, getTotal(sc, proj)), ratingOf({ factor: f }, projectMax(proj))] : ["", ""];
+          })(),
           sc.notes || "",
+          sc.feedback?.strength || "",
+          sc.feedback?.next_step || "",
+          sc.safety ? "YES" : "",
           sc.time ? new Date(sc.time).toISOString() : "",
         ].map(csvCell));
       }
@@ -4665,7 +4818,7 @@ export default function App() {
     const header = [
       "Judge","Department","Project #","Project Title","Category","Grade","Rubric",
       ...snapRubric.map(r => `${r.label} (${r.max})`),
-      "Total","Notes","Submitted"
+      "Total","Notes","Strength","Next step","Safety concern","Submitted"
     ];
     const rows = [header.map(csvCell), ...entries.map(e => [
       e.judgeAlias,
@@ -4678,6 +4831,9 @@ export default function App() {
       ...snapRubric.map(r => critVal(e, r.id) ?? ""),
       e.total,
       e.notes || "",
+      e.feedback?.strength || "",       // absent in backups taken before 2026-10-21
+      e.feedback?.next_step || "",
+      e.safetyConcern ? "YES" : "",
       e.submittedAt,
     ].map(csvCell))];
     const csv = rows.map(r => r.join(",")).join("\n");
@@ -5175,9 +5331,20 @@ export default function App() {
       .filter(x => x.alias).sort((a, b) => b.mins - a.mins);
 
     const recentErrors = itLogs.filter(e => e.level === "ERROR" && now - e.ts < 3600000);
-    const problems = noDept.length + deptsNoJudge.length + panelShort.length + stuck.length
+    // Safety / rule concerns ticked by judges (the elementary form, 2026-10-21). Straight from
+    // the scores, so they arrive live (realtime) and stay until that judge re-submits with "No".
+    const safety = [];
+    for (const [key, sc] of Object.entries(scores)) {
+      if (!sc?.safety) continue;
+      const p = projects.find(x => key.endsWith(`_${x.id}`));
+      if (!p) continue;
+      const judgeId = key.slice(0, key.lastIndexOf(`_${p.id}`));
+      safety.push({ p, alias: judges.find(j => j.id === judgeId)?.alias || "A judge", time: sc.time || 0, fb: sc.feedback || {} });
+    }
+    safety.sort((a, b) => b.time - a.time);
+    const problems = noDept.length + deptsNoJudge.length + panelShort.length + stuck.length + safety.length
       + (realtime.status === "down" ? 1 : 0) + (isOnline ? 0 : 1);
-    return { noDept, deptsNoJudge, panelShort, progress, idle, stuck, recentErrors, problems };
+    return { noDept, deptsNoJudge, panelShort, progress, idle, stuck, recentErrors, safety, problems };
   }
 
   // Deliberation helpers
@@ -5420,10 +5587,65 @@ export default function App() {
 
   function startScoring(pid) {
     setScoringPid(pid);
-    const ex = scores[`${judge.id}_${pid}`];
-    if (ex) { setDraftSc({ ...ex.criteria }); setDraftNotes(ex.notes||""); setDraftCommend(ex.commendation||""); }
-    else { setDraftSc({}); setDraftNotes(""); setDraftCommend(""); }
+    const key = `${judge.id}_${pid}`;
+    // An unsubmitted draft wins over the saved score: it holds the judge's LATEST taps (it is
+    // deleted the moment a submit succeeds or is queued, so it can never be older).
+    const dr = readDrafts()[key];
+    const src = dr || scores[key];
+    setDraftSc({ ...(src?.criteria || {}) });
+    setDraftNotes(src?.notes || "");
+    setDraftCommend(src?.commendation || "");
+    setDraftFb({ strength: src?.feedback?.strength || "", next_step: src?.feedback?.next_step || "" });
+    setDraftSafety(src?.safety === true);
+    setDraftRestoredAt(dr ? (dr.ts || 1) : null);   // ts is stamped by writeDraft()
     setView("judge-scoring");
+  }
+  // Every edit on the scoring screen goes through here: update the screen AND keep a copy on
+  // the device. Called from event handlers only (never during render — rule 37).
+  function editDraft(patch) {
+    const next = {
+      criteria: patch.criteria ?? draftSc, notes: patch.notes ?? draftNotes,
+      commendation: patch.commendation ?? draftCommend, feedback: patch.feedback ?? draftFb,
+      safety: patch.safety ?? draftSafety,
+    };
+    if (patch.criteria !== undefined) setDraftSc(next.criteria);
+    if (patch.notes !== undefined) setDraftNotes(next.notes);
+    if (patch.commendation !== undefined) setDraftCommend(next.commendation);
+    if (patch.feedback !== undefined) setDraftFb(next.feedback);
+    if (patch.safety !== undefined) setDraftSafety(next.safety);
+    if (judge && scoringPid) writeDraft(`${judge.id}_${scoringPid}`, next);
+  }
+  function discardDraft() {
+    if (!judge || !scoringPid) return;
+    writeDraft(`${judge.id}_${scoringPid}`, null);
+    const ex = scores[`${judge.id}_${scoringPid}`];
+    setDraftSc({ ...(ex?.criteria || {}) }); setDraftNotes(ex?.notes || ""); setDraftCommend(ex?.commendation || "");
+    setDraftFb({ strength: ex?.feedback?.strength || "", next_step: ex?.feedback?.next_step || "" });
+    setDraftSafety(ex?.safety === true); setDraftRestoredAt(null);
+    addItLog("INFO","SCORE","SCORE_DRAFT_DISCARDED","Judge discarded an unsubmitted scoring draft",
+      { judgeId: judge.id, projectId: scoringPid });
+  }
+
+  // Write one score. The feedback / safety_concern columns arrive with migration 2026-10o; on
+  // a database without them PostgREST refuses the whole row (PGRST204), which would leave the
+  // score stuck in the offline queue forever. So retry WITHOUT them, folding the comments and
+  // the safety flag into `notes` so nothing the judge wrote is lost (rule 68: only on a
+  // genuinely missing column, never on any other error).
+  async function upsertScore(payload) {
+    const res = await supabase.from("scores").upsert(payload, { onConflict: "judge_id,project_id" });
+    const extra = payload.feedback !== undefined || payload.safety_concern !== undefined;
+    if (!res.error || !extra || !MISSING_COL(res.error)) return res;
+    const { feedback, safety_concern, ...rest } = payload;
+    const parts = [
+      safety_concern ? "⚠ SAFETY / RULE CONCERN — notify the Science Fair Committee." : "",
+      feedback?.strength ? `Strength: ${feedback.strength}` : "",
+      feedback?.next_step ? `Next step: ${feedback.next_step}` : "",
+      rest.notes || "",
+    ].filter(Boolean);
+    addItLog("WARN","DB","SCORE_FEEDBACK_COLS_MISSING",
+      "Scores table has no feedback / safety_concern columns (migration 2026-10o not run) — saved them inside notes",
+      { judgeId: payload.judge_id, projectId: payload.project_id });
+    return supabase.from("scores").upsert({ ...rest, notes: parts.join("\n") }, { onConflict: "judge_id,project_id" });
   }
 
   async function submitScore() {
@@ -5454,16 +5676,28 @@ export default function App() {
     const feedback = isFeedbackProject(proj);
     const criteria = feedback ? {} : { ...draftSc };
     const commendation = feedback ? draftCommend.trim() : "";
+    // The elementary form's Strength / Next step / safety check. Sent only for a rubric that
+    // has them, so every other score keeps exactly its pre-2026-10o shape.
+    const rs = feedback ? {} : rubricSettings(projRubric(proj));
+    const fb = rs.feedback ? { strength: draftFb.strength.trim(), next_step: draftFb.next_step.trim() } : null;
+    const safety = rs.safety ? draftSafety === true : null;
+    // Log a concern when it is RAISED, not again on every re-submit of the same review.
+    const safetyIsNew = safety === true && scores[`${judge.id}_${scoringPid}`]?.safety !== true;
     setScores(p => ({ ...p, [`${judge.id}_${scoringPid}`]:
-      { criteria, notes: draftNotes, commendation, time: Date.now() } }));
+      { criteria, notes: draftNotes, commendation, feedback: fb || {}, safety: safety === true, time: Date.now() } }));
     const payload = {
       school_id: currentSchool.id,
       judge_id: judge.id, project_id: scoringPid,
       criteria,
       notes: draftNotes,
       ...(feedback ? { commendation } : {}),
+      ...(fb ? { feedback: fb } : {}),
+      ...(safety !== null ? { safety_concern: safety } : {}),
     };
-    const { error } = await supabase.from("scores").upsert(payload, { onConflict: "judge_id,project_id" });
+    const { error } = await upsertScore(payload);
+    // Saved, or queued just below — either way the score is safe and the draft is spent.
+    writeDraft(`${judge.id}_${scoringPid}`, null);
+    setDraftRestoredAt(null);
     // How many scores wait on this device after this submit — reported with the events below so
     // the admin's Alerts tab can show devices with scores stuck on them (eventHealth).
     let queueAfter = 0;
@@ -5497,7 +5731,14 @@ export default function App() {
     addItLog("INFO","SCORE","SCORE_SUBMITTED","Judge submitted a review for an assigned project",
       { judgeId:judge.id, alias:judge.alias, projectId:scoringPid, projectNum:proj.num,
         mode: feedback ? "feedback" : "scored", queueLength: queueAfter,
-        ...(feedback ? { commendation } : { total, rubric: draftSc }) });
+        ...(feedback ? { commendation } : { total, rubric: draftSc }),
+        // A flag only, never the comment text (rule 69: no free text in it_logs).
+        ...(safety ? { safetyConcern: true } : {}) });
+    if (safetyIsNew) {
+      addLog(`⚠ ${judge.alias} raised a SAFETY / RULE CONCERN on Project #${proj.num}`);
+      addItLog("WARN","SCORE","SAFETY_CONCERN_RAISED","A judge ticked the safety / rule concern on a project",
+        { judgeId: judge.id, alias: judge.alias, projectId: scoringPid, projectNum: proj.num });
+    }
     scoreSavingRef.current = false; setScoreSaving(false);
     setView("judge-home");
   }
@@ -6615,6 +6856,7 @@ export default function App() {
       .sort((a, b) => deptOrd(a.department_id) - deptOrd(b.department_id) || String(a.num).localeCompare(String(b.num)));
     const done   = myProj.filter(p => hasScored(p.id)).length;
     const pct    = Math.round((done / myProj.length) * 100);
+    const drafts = readDrafts();   // unsubmitted work on this device (startScoring/editDraft)
     return (
       <div className="app"><style>{CSS}</style>{backdrop}
         <div className="center"><div className="inner">
@@ -6633,15 +6875,9 @@ export default function App() {
             </div>
           )}
           {locked && <div className="locked-banner">🔒 Judging is currently locked by the administrator.</div>}
-          <div className="card" style={{ padding:"1rem 1.2rem" }}>
-            <div className="lbl">Scoring Guide</div>
-            <div style={{ fontSize:".88rem", color:"var(--text)", lineHeight:1.6 }}>
-              <div>0 = not present</div>
-              <div>1 or 2 = partial</div>
-              <div>2 or 4 = complete</div>
-              <div>3 or 6 = exceptional</div>
-            </div>
-          </div>
+          {/* The scoring guide lives on the scoring screen now, per rubric (rubricSettings().guide).
+              A fixed card here showed the 42-point sheet's "0 = not present · 3 or 6 = exceptional"
+              to judges on every rubric, including the 1–5 forms that have no zero. */}
           <div className="card" style={{ padding:"1.1rem 1.4rem" }}>
             <div style={{ display:"flex", justifyContent:"space-between", marginBottom:".45rem" }}>
               <span style={{ fontSize:".83rem" }}>Your Progress</span>
@@ -6675,7 +6911,9 @@ export default function App() {
                     <div className="proj-title">{proj.title}</div>
                     <div className="proj-meta">{proj.cat} · Grade {proj.grade}</div>
                   </div>
-                  {scored ? <span className="proj-st st-done">{isFeedbackProject(proj) ? "✓ Reviewed" : `✓ ${getTotal(ex, proj)}pts`}</span>
+                  {drafts[`${judge.id}_${proj.id}`]
+                    ? <span className="proj-st st-draft" title="Started on this device but not submitted yet">✎ Draft — not submitted</span>
+                    : scored ? <span className="proj-st st-done">{isFeedbackProject(proj) ? "✓ Reviewed" : `✓ ${getTotal(ex, proj)}pts`}</span>
                           : <span className="proj-st st-pend">Pending →</span>}
                 </div>
                 </div>
@@ -6892,6 +7130,8 @@ export default function App() {
   /* JUDGE SCORING */
   if (view === "judge-scoring" && scoringPid) {
     const proj = projects.find(p => p.id === scoringPid);
+    const rs = isFeedbackProject(proj) ? {} : rubricSettings(projRubric(proj));
+    const factor = Number(rs.factor) || 0;   // the elementary form: ratings × 2.5
     return (
       <div className="app"><style>{CSS}</style>{backdrop}
         <div className="center" style={{ justifyContent:"flex-start", paddingTop:"2rem" }}>
@@ -6908,7 +7148,9 @@ export default function App() {
               </div>
             )}
             <div className="sc-header">
-              <div style={{ fontFamily:"var(--ff-m)", fontSize:".78rem", color:"var(--navy)", marginBottom:".2rem" }}>PROJECT {projectCode(proj)}</div>
+              {/* The code is what the judge matches against the booth sign and their schedule,
+                  so it is the most prominent thing on the card (2026-10-21). */}
+              <div className="sc-code">{projectCode(proj)}</div>
               <h2>{proj.title}</h2>
               <div style={{ fontSize:".78rem", color:"var(--dim)", marginTop:".35rem" }}>
                 {proj.cat}{proj.grade ? ` · Grade ${proj.grade}` : ""}{departments.find(d => d.id === proj.department_id) ? ` · ${departments.find(d => d.id === proj.department_id).name}` : ""}{proj.room ? ` · Room ${proj.room}` : ""}
@@ -6917,6 +7159,13 @@ export default function App() {
                 <div style={{ fontSize:".8rem", color:"var(--text)", marginTop:".5rem", lineHeight:1.45 }}>{proj.description}</div>
               )}
             </div>
+            {draftRestoredAt && (
+              <div className="sc-draft-note" data-testid="draft-restored">
+                <span>✎ Your unsubmitted answers from {fmt(draftRestoredAt)} were kept on this device. Check them, then submit.</span>
+                <button type="button" className="btn sec sm" style={{ width:"auto" }} onClick={discardDraft}>Discard draft</button>
+              </div>
+            )}
+            {rs.guide && <div className="sc-guide" data-testid="sc-guide">{rs.guide}</div>}
             {/* Comment-only department (PreK / K-2): no rubric, no total, no ranking.
                 The judge gives a commendation — from the list or in their own words. */}
             {isFeedbackProject(proj) ? (
@@ -6931,13 +7180,13 @@ export default function App() {
                     {COMMENDATIONS.map(c => (
                       <button key={c} type="button"
                         className={"fb-chip" + (draftCommend === c ? " selected" : "")}
-                        onClick={() => setDraftCommend(c)}>{c}</button>
+                        onClick={() => editDraft({ commendation: c })}>{c}</button>
                     ))}
                   </div>
                   <div className="lbl" style={{ margin:".9rem 0 .35rem" }}>…or write your own</div>
                   <input type="text" maxLength={60} placeholder="e.g. Best Volcano in the Whole School"
                     value={draftCommend}
-                    onChange={e => setDraftCommend(e.target.value)} />
+                    onChange={e => editDraft({ commendation: e.target.value })} />
                 </div>
               </>
             ) : projRubric(proj).map((r, ri, all) => {
@@ -6950,7 +7199,9 @@ export default function App() {
                 <div className="rub-item">
                   <div className="rub-top">
                     <span className="rub-lbl">{r.label}</span>
-                    <span className="rub-val">{draftSc[r.id] !== undefined ? draftSc[r.id] : "—"} / {r.max}</span>
+                    {/* On the ×2.5 form show the RATING the judge gave ("3 / 5"); the points are
+                        under each button and in the total's working. */}
+                    <span className="rub-val">{draftSc[r.id] !== undefined ? (factor ? ratingOf(rs, draftSc[r.id]) : draftSc[r.id]) : "—"} / {factor ? ratingOf(rs, r.max) : r.max}</span>
                   </div>
                   {r.desc && <div className="rub-desc">{r.desc}</div>}
                   <div className="rub-steps">
@@ -6958,9 +7209,9 @@ export default function App() {
                       const lab = stepLabel(r, v, i);
                       return (
                         <button key={v} type="button"
-                          className={"rub-step-btn" + (draftSc[r.id] === v ? " selected" : "") + (lab ? " labelled" : "")}
-                          onClick={() => setDraftSc(p => ({ ...p, [r.id]: v }))}>
-                          {lab ? <><span className="rub-step-lab">{lab}</span><span className="rub-step-pts">{v}</span></> : v}
+                          className={"rub-step-btn" + (draftSc[r.id] === v ? " selected" : "") + (lab ? " labelled" : "") + (lab && factor ? " rated" : "")}
+                          onClick={() => editDraft({ criteria: { ...draftSc, [r.id]: v } })}>
+                          {lab ? <><span className="rub-step-lab">{lab}</span><span className="rub-step-pts">{factor ? `${v} pts` : v}</span></> : v}
                         </button>
                       );
                     })}
@@ -6974,16 +7225,44 @@ export default function App() {
                 ⚠️ <strong>Grades 5 and up must have no zeroes.</strong> Please review your scores — at least one criterion is scored 0.
               </div>
             )}
-            <div className="card">
-              <div className="lbl">{isFeedbackProject(proj) ? "Comment for the students (optional)" : "Judge Notes (Optional)"}</div>
-              <textarea placeholder={isFeedbackProject(proj)
-                ? "Something encouraging they can read later…"
-                : "Add observations about this project…"}
-                value={draftNotes} onChange={e => setDraftNotes(e.target.value)} />
-            </div>
+            {rs.feedback === "strength_next" ? (
+              // The elementary form's comment boxes: one strength + one helpful next step.
+              <div className="card" data-testid="sc-feedback">
+                <div className="lbl">Strength / What the student did well</div>
+                <textarea rows={3} value={draftFb.strength} placeholder="Positive feedback…"
+                  onChange={e => editDraft({ feedback: { ...draftFb, strength: e.target.value } })} />
+                <div className="lbl" style={{ marginTop:".8rem" }}>Next step / Suggestion for improvement</div>
+                <textarea rows={3} value={draftFb.next_step} placeholder="One helpful next step…"
+                  onChange={e => editDraft({ feedback: { ...draftFb, next_step: e.target.value } })} />
+              </div>
+            ) : (
+              <div className="card">
+                <div className="lbl">{isFeedbackProject(proj) ? "Comment for the students (optional)" : (rs.commentsLabel || "Judge Notes (Optional)")}</div>
+                <textarea placeholder={isFeedbackProject(proj)
+                  ? "Something encouraging they can read later…"
+                  : (rs.commentsHint || "Add observations about this project…")}
+                  value={draftNotes} onChange={e => editDraft({ notes: e.target.value })} />
+              </div>
+            )}
+            {rs.safety && (
+              <div className="card" data-testid="sc-safety">
+                <div className="lbl">Safety / rule concern?</div>
+                <div className="sc-safety">
+                  <button type="button" className={draftSafety ? "" : "on-no"} onClick={() => editDraft({ safety: false })}>No</button>
+                  <button type="button" className={draftSafety ? "on-yes" : ""} onClick={() => editDraft({ safety: true })}>⚠ Yes — notify the Science Fair Committee</button>
+                </div>
+                {draftSafety && <div className="hb-note" style={{ marginTop:".45rem" }}>The organiser sees this on their Alerts screen as soon as you submit. Please also tell a committee member.</div>}
+              </div>
+            )}
             {!isFeedbackProject(proj) && (
               <div className="sc-total">
-                <div><div className="lbl">Total Score</div><div style={{ fontSize:".76rem", color:"var(--dim)" }}>Out of {maxDraftScore()} points</div></div>
+                <div><div className="lbl">Total Score</div>
+                  <div style={{ fontSize:".76rem", color:"var(--dim)" }}>Out of {maxDraftScore()} points</div>
+                  {/* The paper form's own arithmetic, so the /100 is never a mystery. */}
+                  {factor > 0 && <div className="sc-working" data-testid="sc-working">
+                    Ratings {+(draftTotal() / factor).toFixed(2)} / {+(maxDraftScore() / factor).toFixed(2)} × {factor} = {draftTotal()} / {maxDraftScore()}
+                  </div>}
+                </div>
                 <div className="sc-total-num">{draftTotal()}</div>
               </div>
             )}
@@ -9502,6 +9781,20 @@ export default function App() {
                 </div>
               </div>
 
+              {h.safety.length > 0 && (
+                <div className="card hb-card" style={{ borderColor:"var(--red)" }} data-testid="hb-safety">
+                  <div className="sec-title" style={{ color:"var(--red)" }}>⚠ Safety / rule concerns — notify the Science Fair Committee</div>
+                  <ul className="hb-list">
+                    {h.safety.map(x => <li key={`${x.alias}_${x.p.id}`}>
+                      <strong>{projectCode(x.p)}</strong> — {x.p.title} <span style={{ color:"var(--dim)" }}>· raised by {x.alias}{x.time ? ` at ${fmt(x.time)}` : ""}</span>
+                      {(x.fb.strength || x.fb.next_step) &&
+                        <div className="hb-note">{x.alias}'s comments: {[x.fb.strength, x.fb.next_step].filter(Boolean).join(" · ")}</div>}
+                    </li>)}
+                  </ul>
+                  <div className="hb-note">It clears when that judge re-submits the project with "No".</div>
+                </div>
+              )}
+
               <div className="card hb-card">
                 <div className="sec-title">Scores stuck on a device</div>
                 {h.stuck.length === 0
@@ -9731,11 +10024,14 @@ export default function App() {
                                         </div>
                                         <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",fontWeight:600,width:"52px",textAlign:"right",color:"var(--navy)"}}>{total}/{projectMax(p)}</span>
                                       </div>
-                                      {sc.notes && sc.notes.trim() && (
-                                        <div style={{marginLeft:"68px",fontSize:".78rem",color:"var(--dim)",fontStyle:"italic",lineHeight:1.5,borderLeft:"2px solid var(--bd)",paddingLeft:".5rem"}}>
-                                          "{sc.notes.trim()}"
+                                      {[sc.safety ? "⚠ Safety / rule concern raised" : "",
+                                        sc.feedback?.strength ? `Strength: ${sc.feedback.strength}` : "",
+                                        sc.feedback?.next_step ? `Next step: ${sc.feedback.next_step}` : "",
+                                        sc.notes?.trim() ? `"${sc.notes.trim()}"` : ""].filter(Boolean).map((line, li) => (
+                                        <div key={li} style={{marginLeft:"68px",fontSize:".78rem",color: line.startsWith("⚠") ? "var(--red)" : "var(--dim)",fontStyle: line.startsWith("⚠") ? "normal" : "italic",lineHeight:1.5,borderLeft:"2px solid var(--bd)",paddingLeft:".5rem"}}>
+                                          {line}
                                         </div>
-                                      )}
+                                      ))}
                                     </div>
                                   );
                                 })}
@@ -10215,9 +10511,10 @@ export default function App() {
                           <div className="lbl" style={{ marginBottom:".35rem" }}>Max Points</div>
                           {/* Cap is 100, not 20: a weighted section can legitimately be worth
                               25 (Cibecue "Scientific Inquiry"). The old cap silently blocked it. */}
-                          <input type="number" min="1" max="100" value={c.max}
+                          <input type="number" min="0.5" max="100" step="0.5" value={c.max}
                             onChange={e => {
-                              const max = parseInt(e.target.value) || 1;
+                              // Halves allowed (12.5 on the elementary × 2.5 form); parseInt cut them.
+                              const max = Math.round((parseFloat(e.target.value) || 1) * 100) / 100;
                               // Keep the steps that still fit and make sure the new max is one of
                               // them. Do NOT force a 0 — a no-zero rubric (ratings 1–5) is valid,
                               // and injecting 0 would let judges score below the intended floor.
