@@ -94,7 +94,8 @@ submitted** and opening it brings your answers back. A draft does **not** count 
 Each criterion shows **discrete buttons** (never a slider). Tap the one you want. You cannot
 submit until every criterion has been given a score.
 
-**Some departments are not scored at all.** If yours is one (usually the youngest grades), you will
+**Some departments are not scored at all.** (At the 2026-27 fair every department is scored — PreK and
+SPED use the PreK & SPED form below.) If yours is one, you will
 see a purple note saying *"This group is not scored — every project here is a winner."* Instead of a
 rubric you choose a **commendation** that fits what you saw — Great Scientific Thinking, Creative
 Idea, Excellent Teamwork, Wonderful Presentation, Careful Observer, Asked Great Questions, Terrific
@@ -126,6 +127,15 @@ the paper form, done for you. Then:
 - **Safety / rule concern?** — leave it on **No**, or tap **Yes — notify the Science Fair
   Committee**. *Yes* alerts the organizer's screen as soon as you submit; please also tell a
   committee member in person.
+
+**PreK & SPED form** — 4 criteria: **Curiosity · Hands-On Exploration · Sharing What They Learned ·
+Effort and Teamwork**. Tap **1 to 5** for each (whole numbers); under each criterion the form says what
+5, 3–4 and 1–2 look like. The total is out of 20. Help from an adult or a communication device
+**never lowers a score** — score the child's effort and participation, not the materials. Tips from
+the rubric sheet: a visit is 7 minutes (about 1 minute hello, 4 minutes exploring and talking,
+2 minutes celebrating and scoring); get down to eye level, smile and give plenty of time to answer;
+enter scores right after the visit; never compare projects — the totals set the places and every
+child gets a ribbon. A comment is optional.
 
 **If the form has headings** (Project Title, Scientific Inquiry, Data and Conclusion, Presentation,
 Further Research) **and about 20 rows**, you are on an earlier version of the 20-item form: rate every
@@ -230,8 +240,8 @@ internet connection and press the button again. The same applies to deliberation
 
 Your organizer can set a **minimum score to place**: a project has to reach a certain share of the
 points available to it before it can take 1st, 2nd or 3rd. If your school uses one, projects under
-it are marked (for example *below 60%*) in the list you are asked to validate. The 2026-27 fair uses
-60%, which on the 100-point rubrics is 60 points — a straight *Good* across the board.
+it are marked (for example *below 60%*) in the list you are asked to validate. The 2026-27 fair does
+not use one (0%), so you should not see this mark.
 
 Nothing about your scoring changes, and the project is not removed — it keeps its position and its
 real score. It simply will not be given a medal. **This is not a fault**, so there is no need to flag

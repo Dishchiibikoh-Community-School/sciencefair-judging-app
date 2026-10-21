@@ -141,7 +141,9 @@ Each department row has a **how it is judged** dropdown with three groups:
 | **A rubric** (e.g. *Upper grades 100-point*) | That rubric — each department can use a different one | Totals, averages, ranking, ties, 1st/2nd/3rd, out of that rubric's points |
 | **Comments only** | A commendation to pick (or type) plus an optional comment | Nothing is scored or ranked. Every project is listed as a winner |
 
-Use **Comments only** for the grades you don't want to rank — PreK and K-2 at the 2026-27 fair.
+Use **Comments only** for grades you don't want to rank. (The 2026-27 fair first planned this for PreK and
+K-2; since 2026-10-21 **PreK and SPED are scored on the PreK & SPED form** instead — see *The 2026-27
+evaluation forms*.)
 Those departments never appear in a leaderboard, never trigger a tie or an outlier alert, and on
 the public results page they appear under *"Everyone is a winner"* with the commendations they were
 given, with no rank, no score and no medal.
@@ -657,21 +659,23 @@ each project belongs to.
 
 ### The 2026-27 evaluation forms
 
-These two match the paper forms exactly. **Setup → each department's dropdown → Add from a preset**:
-**K-5 → Elementary form**, **6-8 and 9-12 → Middle & High School form**. Do it before the first judge
-scores — a department's rubric locks once it has scores.
+These three match the paper forms exactly. **Setup → each department's dropdown → Add from a preset**:
+**PreK and SPED → PreK & SPED Recognition**, **K-5 → Elementary form**, **6-8 and 9-12 → Middle & High
+School form**. Do it before the first judge scores — a department's rubric locks once it has scores.
+Switching a **Comments only** department to a form is allowed until it has scores.
 
 | Form | What the judge does | Out of |
 |---|---|---|
 | **Middle & High School form (2026-27)** | Rates 20 items **1–5** under five headings: Project Overview & Purpose (3 items = 15), Scientific Inquiry & Method (5 = 25), Data & Conclusion (4 = 20), Presentation & Defense (4 = 20), Research, Collaboration & Compliance (4 = 20). One comment box: *Judge Comments & Constructive Feedback*. | 100 (lowest possible 20) |
 | **Elementary form (2026-27)** | Rates 8 items **1–5** (= 40), then writes a **Strength**, a **Next step**, and answers **Safety / rule concern? No / Yes**. | 40 × 2.5 = **100** |
+| **PreK & SPED Recognition (2026-27)** | Rates 4 criteria **1–5**: Curiosity · Hands-On Exploration · Sharing What They Learned · Effort and Teamwork. Each criterion says what 5, 3–4 and 1–2 look like. Optional comment. | **20** (lowest possible 4) |
 
 **How the elementary form gets to 100.** The paper form says *"Committee use: total × 2.5 = score out
 of 100"*. The app does that multiplication for you and shows it, so the 100 is never a mystery:
 
 - each button shows the **rating** (1–5) with its **points** underneath — a 3 is worth 7.5 points
 - the total shows the working, e.g. **Ratings 32 / 40 × 2.5 = 80 / 100**
-- results, rankings, the minimum to place (60% = 60 of 100 = an average "3") all work out of 100,
+- results, rankings and the minimum to place (if you set one) all work out of 100,
   exactly like middle and high school
 - the judge-scores CSV has both columns: **Total** (out of 100) and **Ratings** (out of 40)
 
@@ -683,6 +687,19 @@ that judge re-submits the project with **No**.
 > These forms need the database update **2026-10o** for the comments and the safety question to be
 > stored in their own fields. Without it nothing is lost — they are saved inside the judge's notes —
 > but the Alerts card cannot appear, and IT Logs shows `SCORE_FEEDBACK_COLS_MISSING`.
+
+**PreK & SPED: ribbons and shared places.** These follow the PreK & SPED rubric sheet, and apply to
+that form only:
+
+- **Every child gets a ribbon** from the total: **17–20 Gold Star Scientist · 13–16 Silver Star
+  Scientist · 4–12 Bright Star Scientist**. It shows on the Overview leaderboard, the public results
+  and the results CSV (*Ribbon* column). With more than one judge the *average* decides (16.5 = Silver).
+- **1st, 2nd and 3rd go to the three highest totals in each department** — PreK and SPED place
+  separately. With two PreK projects, PreK has a 1st and a 2nd only.
+- **Ties share the place.** Places go to the highest, second-highest and third-highest *different*
+  totals, so **18, 18, 15 → 1st, 1st, 2nd**. A tie on this form does **not** open deliberation. If you
+  would rather break one yourself, read that judge's comments (Validation → Open Manually) and give the
+  award there. A tie on any other form still raises the amber *Tie detected* alert as before.
 
 ### Other built-in presets
 
@@ -822,6 +839,8 @@ results page directly. If you **Revoke** it, or it expires, the link shows "Link
 - Results are split by department — each of your departments has its own section
 - Each scored department shows a Podium (top 3) and full ranked table
 - A **Comments only** department is listed under *"Everyone is a winner"* with its commendations — no rank, no score
+- A department on the **PreK & SPED** form is ranked, says *"Every child earns a ribbon"*, shows each child's
+  ribbon, and puts tied children on the same podium step
 - Award badges if assigned
 - Optional rubric breakdown if enabled
 - Judge names are never shown
@@ -1077,8 +1096,8 @@ The card shows you what it comes to in points for the rubrics you actually use �
 
 | | What happens |
 |---|---|
-| **0 (default)** | No rule. Any score can place. |
-| **60** | A project must average at least 60% of its own maximum to take 1st, 2nd or 3rd. **This is what the 2026-27 fair uses.** |
+| **0 (default)** | No rule. Any score can place. **This is what the 2026-27 fair uses** (decided 2026-10-21). |
+| **60** | A project must average at least 60% of its own maximum to take 1st, 2nd or 3rd. |
 
 **A project below the minimum is not hidden.** It keeps its position in the results with its real
 average and review count — it just gets no medal and no place on the podium. The medals pass to the
@@ -1086,7 +1105,8 @@ next projects down that *do* qualify, so you never end up with an empty podium s
 
 A project **exactly on the line places** — 60% means "60% or more".
 
-**Why 60 for this fair.** On both 100-point rubrics 60% is 60 points, which is a straight *Good*
+**If you do use one, 60 is a good number.** (The 2026-27 fair chose 60 first, then decided on 0 on
+2026-10-21 — the top three always place.) On both 100-point rubrics 60% is 60 points, which is a straight *Good*
 (3 out of 5) on every section or item. Neither rubric has a zero, so the lowest total a project can
 possibly get is 20 — which puts 60 exactly halfway between the floor (20) and full marks (100).
 That is an easy bar to explain to a parent: *a project has to average "Good" to place.*

@@ -26,7 +26,9 @@ async function newPage(vp = { width: 1280, height: 950 }) {
 }
 const deptNames = () => store.departments.filter(d => d.school_id === SID).sort((a, b) => a.ord - b.ord).map(d => d.name);
 const catNames  = () => store.categories.filter(c => c.school_id === SID).sort((a, b) => a.ord - b.ord).map(c => c.name);
-const row = (page, name) => page.locator(".setup-row", { hasText: name }).first();
+// Match on the row's NAME, not anywhere in the row: each department row also holds a rubric dropdown,
+// and since 2026-10-21 one option is "PreK & SPED Recognition" — hasText "SPED" picked Elementary.
+const row = (page, name) => page.locator(".setup-row").filter({ has: page.locator(".setup-name", { hasText: name }) }).first();
 
 console.log("\n── Admin: open the Setup tab");
 const A = await newPage();

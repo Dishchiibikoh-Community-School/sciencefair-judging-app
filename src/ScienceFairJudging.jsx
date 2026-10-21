@@ -225,6 +225,36 @@ const RUBRIC_PRESETS = [
     ].map(([id, label, desc]) =>
       ({ id, label, desc, max: 12.5, steps: [2.5, 5, 7.5, 10, 12.5], stepLabels: ["1", "2", "3", "4", "5"] })),
   },
+  {
+    // 2026-27 PreK & SPED Recognition Rubric (from the organiser, 2026-10-21): 4 criteria
+    // rated 1–5 = 20. Replaces "Comments only" for those two departments. Two rules come
+    // from the sheet and live in `settings`, so only this form behaves this way:
+    //   ties: "share"  — tied totals share the place; places go to the three highest
+    //                    DIFFERENT totals ("highest / second / third highest total score"),
+    //                    so two 1sts are followed by a 2nd. No deliberation alert.
+    //   ribbons        — every child gets one, from the total: 17–20 Gold, 13–16 Silver,
+    //                    4–12 Bright Star. Derived on display, never stored.
+    id: "prek-sped-2627",
+    label: "PreK & SPED Recognition (2026-27) — 4 criteria, 20 points",
+    desc: "4 criteria rated 1–5 (20 points): Curiosity · Hands-On Exploration · Sharing What They Learned · Effort and Teamwork. Every child gets a ribbon; ties share the place.",
+    settings: {
+      guide: "Rate each criterion 1–5 (5 = on their own · 3–4 = with a little help · 1–2 = with a lot of help). Help from an adult or a communication device never lowers a score. Score the child's effort and participation, not the materials — and never compare projects; the totals set the places.",
+      commentsLabel: "Comments (optional)",
+      commentsHint: "What the child noticed, tried or shared…",
+      ties: "share",
+      ribbons: [
+        { min: 17, label: "Gold Star Scientist" },
+        { min: 13, label: "Silver Star Scientist" },
+        { min: 0,  label: "Bright Star Scientist" },
+      ],
+    },
+    criteria: () => [
+      ["ps_curiosity", "Curiosity",                  "5: Asks questions or points out what they noticed · 3–4: Notices something when asked · 1–2: Needs a lot of help to notice"],
+      ["ps_hands_on",  "Hands-On Exploration",       "5: Tries, tests, or shows the project on their own · 3–4: Tries or shows it with a little help · 1–2: Joins in with a lot of help"],
+      ["ps_sharing",   "Sharing What They Learned",  "5: Tells or shows what happened in their own way — words, gestures, pictures, or a device · 3–4: Shares one idea with some prompting · 1–2: Shares with a lot of help from an adult"],
+      ["ps_effort",    "Effort and Teamwork",        "5: Works hard, takes turns, and is proud of the project · 3–4: Takes part and tries most of the time · 1–2: Takes part for a short time"],
+    ].map(([id, label, desc]) => ({ id, label, desc, max: 5, steps: [1, 2, 3, 4, 5] })),
+  },
 ];
 
 // Rubric-level behaviour (scale guide, ×2.5 display, Strength/Next-step comments, the safety
@@ -239,6 +269,12 @@ function rubricSettings(criteria) {
 function ratingOf(settings, v) {
   const f = Number(settings?.factor) || 1;
   return Math.round((Number(v) / f) * 100) / 100;
+}
+// The ribbon a project's average earns on a rubric with `settings.ribbons` (PreK & SPED form),
+// else null. Bands are minimums, highest first, so an average of 16.5 is Silver (17 is Gold).
+function ribbonFor(settings, avg) {
+  if (!settings?.ribbons || avg === null || avg === undefined || avg === "") return null;
+  return settings.ribbons.find(b => Number(avg) >= b.min)?.label || null;
 }
 
 // ── Unsubmitted scoring drafts (2026-10-21) ──
@@ -447,7 +483,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-21d";
+const ADMIN_HELP_UPDATED = "2026-10-21e";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -469,7 +505,7 @@ const ADMIN_HELP = [
     "Setup tab → School year: check it shows the right year (e.g. SY 2026-2027).",
     "Setup tab → Judges → Suggested setup: type how many judges are coming, press Apply, check the grid, Save judges. Watch the About column — nobody should be far above the others. (Skip this if you use a judging schedule — the schedule sets the grid.)",
     "Using a timed judging schedule? Setup → 📅 Judging schedule → ⬆ Import schedule (CSV) → check the review → Save schedule. Then import the booth numbers, print the judge sheets and the booth visit times, and do the dry run with it.",
-    "Setup tab → Minimum score to place: decide whether a weak project may still take 1st/2nd/3rd. The 2026-27 fair uses 60 (= 60 points on a 100-point rubric). Leave it at 0 for no rule. Set it BEFORE judging and tell the judges.",
+    "Setup tab → Minimum score to place: decide whether a weak project may still take 1st/2nd/3rd. Leave it at 0 for no rule — the 2026-27 fair uses 0 (decided 2026-10-21: the top three always place). Set it BEFORE judging and tell the judges.",
     "Setup tab → School branding: upload your school logo (and, if you like, your fair poster). Without a logo your pages show your school's initials.",
     "Setup tab: set any department that should NOT be scored (PreK, K-2) to 'Comments only'. This cannot be changed once that department has scores.",
     "Rubric tab + Setup: build your rubrics and pick one for each department (or Comments only) BEFORE the first judge signs in — a department's rubric locks once it has scores. The ready-made presets (Northeast AZ 42-point, Cibecue/ISEF-style 100-point, Detailed form — 20 items) are a starting point you can edit.",
@@ -499,7 +535,7 @@ const ADMIN_HELP = [
     ["What is a department?", "One judging pool. The judges whose numbers cover it score its projects (all of them, or an even share with 'N judges per project'). Results, ties and awards are worked out inside each department — projects in different departments never compete. Use whatever fits your fair: school levels, grade bands (PreK, K-2, 3-5, 6-8, 9-12), a SPED division, or a single pool."],
     ["How do I change my departments?", "Setup tab → Departments. Add one, ✏️ rename it, ↑↓ reorder, or 🗑 delete it. Or press a preset to add a whole set at once — a preset only ADDS what you don't have, it never deletes."],
     ["Why won't it let me delete a department?", "Because projects or judges are still in it. Deleting it would leave them unassigned, and an unassigned project is scored by nobody. Move them to another department first (Projects tab → edit → Department), then delete."],
-    ["Can a department be judged without scores?", "Yes. Setup tab → set that department to 'Comments only'. Judges there give a commendation (from a list, or in their own words) and an optional comment instead of the rubric. Nothing is scored, ranked or compared, and on the results page every project in it is shown as a winner. Made for PreK and K-2."],
+    ["Can a department be judged without scores?", "Yes. Setup tab → set that department to 'Comments only'. Judges there give a commendation (from a list, or in their own words) and an optional comment instead of the rubric. Nothing is scored, ranked or compared, and on the results page every project in it is shown as a winner. Since 2026-10-21 PreK and SPED are scored on the PreK & SPED form instead (see The rubric), so this is now an option, not the plan."],
     ["Can I change a department to Comments only after judging has started?", "No — the app blocks it. The scores already given would stop counting but stay in the database. Decide before the first judge signs in."],
     ["Is it safe to rename a department?", "Yes. Projects, judges and scores stay attached — only the label changes."],
     ["Can I use my own project categories?", "Yes. Setup tab → Project Categories. They belong to your school only; no other school sees your list. Add, rename, reorder or delete freely — a robotics fair can replace all six."],
@@ -526,12 +562,12 @@ const ADMIN_HELP = [
   ]},
   { title: "The rubric", icon: "📐", faq: [
     ["Can departments use different rubrics?", "Yes. Each department picks its own in Setup → Departments (the dropdown on each row): one of 'Your rubrics', a built-in preset under 'Add from a preset' (picking it adds it to your rubrics and assigns it in one step), or 'Comments only'. Judges automatically get the rubric of the department each project is in — e.g. 3-5 on the 42-point sheet and 6-8 on the 100-point sheet."],
-    ["Where are the 2026-27 evaluation forms?", "In each department's dropdown in Setup, under 'Add from a preset': 'Middle & High School form (2026-27)' (20 items, 100 points) and 'Elementary form (2026-27)' (8 items, 40 × 2.5 = 100 points). Picking one adds it to your rubrics and assigns it in one step; choose the same middle/high form for 6-8 and 9-12. Set them BEFORE the first judge scores — a department's rubric locks once it has scores."],
+    ["Where are the 2026-27 evaluation forms?", "In each department's dropdown in Setup, under 'Add from a preset': 'Middle & High School form (2026-27)' (20 items, 100 points), 'Elementary form (2026-27)' (8 items, 40 × 2.5 = 100 points) and 'PreK & SPED Recognition (2026-27)' (4 criteria, 20 points). Picking one adds it to your rubrics and assigns it in one step; choose the same middle/high form for 6-8 and 9-12, and the PreK & SPED form for both PreK and SPED (switching a 'Comments only' department to it is allowed until it has scores). Set them BEFORE the first judge scores — a department's rubric locks once it has scores."],
     ["How does the elementary form get to 100?", "Exactly like the paper form: judges rate 8 items 1–5 (40 points) and the committee multiplies by 2.5. The app does the × 2.5 for you — each button shows the rating (1–5) with its points underneath (3 = 7.5 pts), and the total shows the working, e.g. 'Ratings 32 / 40 × 2.5 = 80 / 100'. Results, rankings and the minimum to place are all out of 100, like middle and high school. The judge-scores CSV has both the 'Total' (out of 100) and the 'Ratings' (out of 40)."],
     ["What are the elementary comment boxes and the safety question?", "The elementary form asks each judge for a Strength (what the student did well), a Next step (one helpful suggestion) and 'Safety / rule concern? No / Yes'. When a judge picks Yes, a red card appears at the top of Alerts straight away — project code, title, which judge and their comments — and the activity log records it. It clears when that judge re-submits the project with No. Comments are never shown to the public."],
     ["Where are the older 100-point rubrics?", "Still in the same dropdown: 'Cibecue / ISEF-style' (5 sections) and 'Detailed form — 20 items'. Once added they move to 'Your rubrics' and can be edited in the Rubric tab."],
     ["How do I add a rubric or write my own?", "Rubric tab → ＋ New rubric. Give it a name and start blank (write your own criteria), from a preset, or as a copy of the one on screen. Then choose it for a department in Setup."],
-    ["Which rubrics are built in?", "Five presets: the two 2026-27 forms — 'Middle & High School form' (20 items rated 1–5 in five sections: Project Overview 15 · Scientific Inquiry 25 · Data & Conclusion 20 · Presentation & Defense 20 · Research & Compliance 20) and 'Elementary form' (8 items rated 1–5, × 2.5 = 100) — plus 'Northeast AZ Regional' (10 criteria, 42 points), 'Cibecue / ISEF-style' (5 sections, 100 points) and 'Detailed form — 20 items' (100 points)."],
+    ["Which rubrics are built in?", "Six presets: the three 2026-27 forms — 'PreK & SPED Recognition' (4 criteria rated 1–5 = 20), 'Middle & High School form' (20 items rated 1–5 in five sections: Project Overview 15 · Scientific Inquiry 25 · Data & Conclusion 20 · Presentation & Defense 20 · Research & Compliance 20) and 'Elementary form' (8 items rated 1–5, × 2.5 = 100) — plus 'Northeast AZ Regional' (10 criteria, 42 points), 'Cibecue / ISEF-style' (5 sections, 100 points) and 'Detailed form — 20 items' (100 points)."],
     ["What is the default rubric?", "The one every scored department uses until you pick another for it. Rubric tab → choose a rubric → ★ Make default. It is refused while a department that follows the default already has scores — pick that department's rubric explicitly first."],
     ["Can I change a department's rubric after judging started?", "No — once a department has scores its rubric (and comment-only setting) is locked, because those scores would suddenly count against a different rubric. Remove the scores first (Reset All Data, or remove the judges who gave them)."],
     ["Can I delete a rubric?", "Yes, if no department uses it and it is not the default. The Rubric tab shows 'Used by: …' for each one."],
@@ -548,6 +584,12 @@ const ADMIN_HELP = [
     ["Where do I see how long judging will take?", "The grid's Projects and About columns show each judge's load and a rough time, and the blue summary line gives the range and the busiest judge. It assumes about 6 minutes a project — a planning guide, not a limit. Comment-only reviews are quicker; a 20-item rubric is slower."],
     ["Can I ignore the suggestion?", "Yes, completely. Tick the grid however you like — it is only a starting point. Apply never saves on its own."],
   ]},
+  { title: "PreK & SPED: ribbons and shared places", icon: "🎀", faq: [
+    ["How is PreK & SPED judged?", "On the 'PreK & SPED Recognition (2026-27)' form: Curiosity, Hands-On Exploration, Sharing What They Learned, and Effort and Teamwork, each 1–5, total out of 20. Each criterion's description on the scoring screen says what 5, 3–4 and 1–2 look like. Help from an adult or a communication device never lowers a score."],
+    ["What are the ribbons?", "Every child gets one, worked out from the total: 17–20 Gold Star Scientist · 13–16 Silver Star Scientist · 4–12 Bright Star Scientist. They show on the leaderboard (Overview), the public results and the results CSV ('Ribbon' column). With more than one judge the AVERAGE decides — 16.5 is Silver, Gold starts at 17."],
+    ["Who gets 1st, 2nd and 3rd?", "The three highest totals in each department — PreK and SPED place separately. With only two PreK projects PreK has a 1st and a 2nd and no 3rd."],
+    ["What happens with a tie?", "On this form tied children SHARE the place, as the rubric sheet says: places go to the highest, second-highest and third-highest DIFFERENT totals, so 18, 18, 15 is 1st, 1st, 2nd. A tie here does not open deliberation. Other forms are unchanged — a tie there still raises the amber alert. If you would rather break a PreK/SPED tie yourself, the judge's comments are in the Validation tab and you can give the award there."],
+  ]},
   { title: "Minimum score to place", icon: "🥉", faq: [
     ["What is it?", "Setup → Minimum score to place. A project must average at least this much of ITS OWN maximum to take 1st, 2nd or 3rd. Below it the project still appears in the results with its real score — it simply gets no medal and no spot on the podium. Set 0 to turn the rule off; that is how the app behaves if you never touch it."],
     ["Why a percentage and not points?", "Because \"60 points\" does not mean the same thing twice. Your departments can use different rubrics (42 points, 100 points), and a project below grade 5 skips the Abstract criterion, so its maximum is 36 and not 42. A percentage means the same everywhere. The Setup card shows you what it works out to in points for each rubric you actually use."],
@@ -555,7 +597,7 @@ const ADMIN_HELP = [
     ["Who gets the medal instead?", "The next project down that DOES clear the minimum. The medals always go to the top three qualifying projects in that department — they are not left empty."],
     ["What if a project is exactly on the line?", "It places. 60% means \"60% or more\", so on a 100-point rubric a project averaging exactly 60.0 still takes its medal."],
     ["Does it stop me awarding a project anyway?", "No. The Validation tab still lets you give any award to any project — if you pick 1st, 2nd or 3rd for a project below the minimum it shows a warning with the numbers, and saves if you go ahead. Honorable Mention and Best in Category are never affected by this rule."],
-    ["What number should we use?", "Whatever your committee decides — the 2026-27 Dishchii'bikoh fair uses 60%. On both 100-point rubrics that is 60 points, which is a straight \"Good\" (3 out of 5) across every section or item. It is also the exact middle of what a project can actually score: neither 100-point rubric has a zero, so the lowest possible total is 20, and 60 sits halfway between 20 and 100."],
+    ["What number should we use?", "Whatever your committee decides — the 2026-27 Dishchii'bikoh fair uses 0% (off: the top three always place; decided 2026-10-21 after first choosing 60%). If you do use one: on both 100-point rubrics that is 60 points, which is a straight \"Good\" (3 out of 5) across every section or item. It is also the exact middle of what a project can actually score: neither 100-point rubric has a zero, so the lowest possible total is 20, and 60 sits halfway between 20 and 100."],
     ["Where do I see which projects cannot place?", "Overview → the department leaderboard marks them \"no place\", and judges see \"below N%\" in their validation list so nobody reports it as a bug."],
     ["When should I set it?", "Before judging starts, and tell the judges. Changing it later does not alter a single score — it only changes who gets a medal — but changing it after you have announced winners is confusing."],
   ]},
@@ -4772,10 +4814,25 @@ export default function App() {
     const avg = proj?.avg !== undefined ? proj.avg : projAvg(proj?.id);
     return avg !== null && avg !== undefined && Number(avg) >= minPlacePts(proj);
   }
-  // The projects that actually take the medals in one ranked, same-department list:
-  // the top three that QUALIFY, in ranking order. Everyone else keeps their position number.
-  function placeWinners(rankedList) {
-    return rankedList.filter(p => p.avg !== null && placesEligible(p)).slice(0, 3);
+  // project id → place index (0 = 1st) for one ranked, same-department list — the ONLY place
+  // medals are decided (it replaced placeWinners(), 2026-10-21). Normally the top three that
+  // QUALIFY, one each; everyone else keeps their position number. On a rubric whose
+  // settings say `ties: "share"` (PreK & SPED form) tied averages share a place and the places
+  // go to the three highest DIFFERENT averages — 20, 20, 18 → 1st, 1st, 2nd.
+  function placesOf(rankedList) {
+    const eligible = rankedList.filter(p => p.avg !== null && p.avg !== undefined && placesEligible(p));
+    const shared = eligible.length > 0 && tiesShare(eligible[0]);
+    const levels = shared ? [...new Set(eligible.map(p => Number(p.avg)))] : null;
+    return new Map(eligible
+      .map((p, i) => [p.id, shared ? levels.indexOf(Number(p.avg)) : i])
+      .filter(([, place]) => place < 3));
+  }
+  function tiesShare(proj) {
+    return !isFeedbackProject(proj) && rubricSettings(projRubric(proj)).ties === "share";
+  }
+  function ribbonOf(proj) {
+    if (isFeedbackProject(proj)) return null;
+    return ribbonFor(rubricSettings(projRubric(proj)), proj?.avg !== undefined ? proj.avg : projAvg(proj?.id));
   }
   function minPlaceText() {
     const maxima = [...new Set(scoredProjects().map(p => projectMax(p)))].sort((a, b) => b - a);
@@ -5149,13 +5206,14 @@ export default function App() {
   function exportResultsCSV() {
     // Rank within each department — projects are only comparable inside their own dept.
     const rows = [
-      ["Department","Rank","Code","Project #","Title","Category","Grade","Avg Score","Out of","Reviews","Award"].map(csvCell),
+      ["Department","Rank","Code","Project #","Title","Category","Grade","Avg Score","Out of","Reviews","Place","Ribbon","Award"].map(csvCell),
     ];
     const deptGroups = [
       ...departments.filter(d => d.id).map(d => ({ name: d.name, projs: rankedProjectsIn(d.id) })),
       { name: "Unassigned", projs: rankedProjectsIn(null) },
     ];
     deptGroups.forEach(g => {
+      const places = placesOf(g.projs);
       g.projs.forEach((p, i) => {
         const decision = finalDecisions[p.id];
         rows.push([
@@ -5166,6 +5224,8 @@ export default function App() {
           p.avg ?? "",
           projectMax(p),
           p.revs,
+          places.has(p.id) ? PLACE_AWARDS[places.get(p.id)] : "",
+          ribbonOf(p) || "",
           decision?.finalized ? decision.award : "Pending"
         ].map(csvCell));
       });
@@ -5693,6 +5753,8 @@ export default function App() {
       // below the minimum to place cannot take 1st/2nd/3rd from each other (rule 72), and
       // before this the amber alert would never switch off for them.
       const scored = rankedProjectsIn(deptId).filter(p => p.avg !== null && placesEligible(p));
+      // A form whose ties SHARE the place (PreK & SPED) has nothing to deliberate.
+      if (scored.length && tiesShare(scored[0])) return false;
       for (let i = 0; i < scored.length - 1; i++) {
         if (scored[i].avg === scored[i + 1].avg) return true;
       }
@@ -8760,6 +8822,7 @@ export default function App() {
                 const all = rankedProjects().filter(p => p.department_id === dept.id);
                 const scored   = all.filter(p => p.avg !== null);
                 const unscored = all.filter(p => p.avg === null);
+                const places   = placesOf(scored);
                 return (
                   <div className="card" key={dept.id}>
                     <div className="sec-title">{dept.name} — Project Leaderboard</div>
@@ -8775,7 +8838,11 @@ export default function App() {
                                   <span className="badge br" style={{marginLeft:".35rem",fontSize:".6rem"}}
                                     title={`Below the ${minPlacePct}% minimum to place`}>no place</span>}
                               </td>
-                              <td style={{maxWidth:"200px"}}>{p.title}</td>
+                              <td style={{maxWidth:"200px"}}>
+                                {places.has(p.id) && <span data-testid="lb-place" style={{marginRight:".3rem"}}>{MEDALS[places.get(p.id)]}</span>}
+                                {p.title}
+                                {ribbonOf(p) && <span className="badge ba" data-testid="lb-ribbon" style={{marginLeft:".35rem",fontSize:".6rem"}}>🎀 {ribbonOf(p)}</span>}
+                              </td>
                               <td><span className="badge bb">{p.cat}</span></td>
                               <td style={{fontFamily:"var(--ff-m)",color:"var(--navy)"}}>{p.avg}</td>
                               <td>{p.revs}</td>
@@ -11484,17 +11551,19 @@ export default function App() {
       const unscored = deptProjects.filter(p => !p.avg);
       // The medals go to the top three that CLEAR the minimum (rule 72). Everything else
       // keeps its position in the list with its real score — it competed, it just did not place.
-      const top3     = placeWinners(scored);
-      const medalOf  = new Map(top3.map((p, i) => [p.id, i]));
+      // On the PreK & SPED form tied children SHARE a place, so a place can hold several cards.
+      const medalOf  = placesOf(scored);
+      const top3     = scored.filter(p => medalOf.has(p.id));
       return (
         <>
           {top3.length > 0 && (
             <div className="podium-wrap">
-              {[top3[1], top3[0], top3[2]].filter(Boolean).map((p, vi) => {
-                const ri = p===top3[0]?0:p===top3[1]?1:2;
+              {top3.map(p => {
+                const ri = medalOf.get(p.id);
+                const ribbon = ribbonOf(p);
                 return (
                   <div key={p.id} className={`podium-card p${ri+1}`}
-                    style={{ width:ri===0?"200px":"168px", order:[1,0,2][vi] }}>
+                    style={{ width:ri===0?"200px":"168px", order:[1,0,2][ri] }}>
                     <div className="p-medal">{MEDALS[ri]}</div>
                     <div className="p-score" style={{color:podCols[ri]}}>{p.avg}</div>
                     <div style={{fontSize:".65rem",color:"var(--dim)",marginTop:".1rem"}}>/{projectMax(p)} pts</div>
@@ -11506,6 +11575,7 @@ export default function App() {
                         </span>
                       </div>
                     )}
+                    {ribbon && <div style={{marginTop:".35rem"}}><span className="badge ba" data-testid="pub-ribbon">🎀 {ribbon}</span></div>}
                     <div className="p-cat"><span className="badge bb">{p.cat}</span></div>
                     <div className="p-revs">{p.revs} review{p.revs!==1?"s":""}</div>
                   </div>
@@ -11531,6 +11601,7 @@ export default function App() {
                     )}
                   </div>
                   <div className="res-meta">{p.cat} · Grade {p.grade} · {p.revs} review{p.revs!==1?"s":""}</div>
+                  {ribbonOf(p) && <div style={{marginTop:".25rem"}}><span className="badge ba" data-testid="res-ribbon">🎀 {ribbonOf(p)}</span></div>}
                   {shareShowRubric && (
                     <div className="rub-chips">
                       {projRubric(p).map(r => {
@@ -11620,6 +11691,8 @@ export default function App() {
                 <div key={dept.id}>
                   <div style={{fontFamily:"var(--ff-d)",fontSize:"1.4rem",color:"var(--navy)",margin:"2rem 0 1rem",borderBottom:"2px solid var(--bd)",paddingBottom:".5rem"}}>
                     {dept.name}
+                    {rubricSettings(rubricFor(dept.id)).ribbons &&
+                      <span className="badge bp" style={{fontSize:".7rem",verticalAlign:"middle",marginLeft:".5rem"}}>Every child earns a ribbon</span>}
                   </div>
                   <DeptResults deptProjects={deptProjects} deptName={dept.name} />
                 </div>

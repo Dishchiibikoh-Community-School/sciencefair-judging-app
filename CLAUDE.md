@@ -3,7 +3,7 @@
 > Single source of truth for AI-assisted development. Read it before changing anything.
 > Do not delete it. When code and this file disagree, the code wins — then fix this file.
 >
-> Last reviewed: 2026-10-21 (Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
+> Last reviewed: 2026-10-21 (the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
 
 ---
 
@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (271 checks). Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`), the 2026-27 forms + drafts + safety (`rubrics-2627.e2e.mjs`), the judging schedule (`schedule.e2e.mjs`). Start the dev server first (see the file header). 481 checks across 22 files |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`), the 2026-27 forms + drafts + safety (`rubrics-2627.e2e.mjs`), the judging schedule (`schedule.e2e.mjs`), the PreK & SPED form (`prek-sped.e2e.mjs`). Start the dev server first (see the file header). 497 checks across 23 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -96,7 +96,7 @@ The v1 Vercel project was deleted 2026-09-30. **Do not resurrect v1.**
 │   ├── scan-form.test.mjs       ← mocked tests for api/scan-form.js (free, offline)
 │   ├── db-migrations.test.mjs   ← schema + all migrations on real Postgres (PGlite): RLS, RPCs
 │   ├── e2e/                     ← browser tests (playwright-core + mocked backend); screenshots in e2e/out/ (gitignored)
-│   │                              scan · judge-reg · signup · setup (departments/categories) · alerts (event health + IT-log diagnostics) · judging (2 judges, ties, deliberation, awards, transfer, reset) · rubrics-2627 (the 2026-27 forms, drafts, safety) · schedule (judging schedule) · lifecycle
+│   │                              scan · judge-reg · signup · setup (departments/categories) · alerts (event health + IT-log diagnostics) · judging (2 judges, ties, deliberation, awards, transfer, reset) · rubrics-2627 (the 2026-27 forms, drafts, safety) · schedule (judging schedule) · prek-sped (ribbons, shared places) · lifecycle
 │   ├── registration-email.test.mjs ← mocked tests for the email: only the school's OWN branding, HTML escaping
 │   └── scan-form-smoke.mjs      ← real-Gemini smoke test for form scanning (needs GEMINI_API_KEY)
 ├── supabase/
@@ -403,6 +403,7 @@ Scoring UI is discrete tap buttons (`.rub-step-btn`), never sliders.
 | `cibecue-100` | 5 weighted sections rated 1–5, **100 pts**: Project Title 15 · Scientific Inquiry 25 · Data and Conclusion 20 · Presentation 20 · Further Research 20. **No zero step — the floor is 20/100.** No `abstract` criterion |
 | `isef-ms-hs-2627` | **THE 2026-27 middle/high form** (final, from the organiser 2026-10-21): **20 items rated 1–5**, ids `hs_*`, five `section`s — Project Overview & Purpose 3 · Scientific Inquiry & Method 5 · Data & Conclusion 4 · Presentation & Defense 4 · Research, Collaboration & Compliance 4 = **15/25/20/20/20 = 100**, floor 20. **Numbers only** (no `stepLabels`; the scale is in `settings.guide`). "Abstract & Background" is `hs_abstract_bg`, NOT `abstract` (that id carries the grade-<5 exemption) |
 | `elementary-2627` | **THE 2026-27 elementary form**: **8 items rated 1–5** (= 40), ids `el_*`. The paper's "committee use: total × 2.5" is **built into the steps** — `steps [2.5, 5, 7.5, 10, 12.5]`, `max 12.5`, `stepLabels ["1".."5"]` — so every total, average, ranking, the 60% minimum and the outlier check are out of **100** with no downstream code knowing. `settings`: `factor 2.5` (display: "Ratings 32 / 40 × 2.5 = 80 / 100"), `feedback: "strength_next"`, `safety: true` |
+| `prek-sped-2627` | **THE 2026-27 PreK & SPED Recognition Rubric** (from the organiser 2026-10-21; replaces *Comments only* for PreK + SPED): **4 criteria rated 1–5** (whole numbers) = **20**, ids `ps_*`, floor 4. `settings`: `guide`, `commentsLabel`, **`ties: "share"`** (rule 78) and **`ribbons`** `[{min:17,Gold Star Scientist},{min:13,Silver Star},{min:0,Bright Star}]` — every child gets one, derived from the average, never stored |
 
 Applying a preset goes through `requestSaveRubric()`, so the impact warning + backup offer
 still fire when scores exist. Presets are starting points; every criterion stays editable.
@@ -669,10 +670,13 @@ scoredProjects()             // projects that carry a score — every leaderboar
 participantsIn(deptId)       // a feedback department's projects + their commendations, by number
 deptMode(id) / isFeedbackDept(id) / isFeedbackProject(proj)
 updateDeptScoringMode(deptId, 'scored'|'feedback')   // refuses once that department has scores
-minPlacePts(proj), placesEligible(proj), placeWinners(rankedList), minPlaceText()
+minPlacePts(proj), placesEligible(proj), placesOf(rankedList), minPlaceText()
                              // "minimum score to place" (rule 72). placesEligible() is the ONLY
-                             // test for "may this project take a medal"; placeWinners() returns the
-                             // top three that qualify, in ranking order. Off (0) → everything qualifies.
+                             // test for "may this project take a medal"; placesOf() → Map(id → place
+                             // index 0–2) is the ONLY place medals are decided (replaced placeWinners()
+                             // 2026-10-21). Off (0) → everything qualifies.
+tiesShare(proj), ribbonOf(proj)   // PreK & SPED form (rule 78): tied averages share a place; the ribbon
+ribbonFor(settings, avg)     // module: the ribbon band for an average, or null when the rubric has none
 saveMinPlacePct()            // app_settings.min_place_pct, upsert + error check (rule 55)
 judgeComp(judge)             // { done, total, pct } — pct 0 when total 0
 hasScored(pid), totalScored(), possible(), draftTotal(), allMoved()
@@ -939,7 +943,7 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 72. **"Minimum score to place" is a PERCENT of `projectMax(proj)`, never a point value.** Departments
     can be on different rubrics (42 and 100 points) and a project below grade 5 skips `abstract` (36, not
     42), so a stored "50 points" would mean "unreachable" on one rubric and "half" on another. Every
-    medal decision goes through **`placesEligible(proj)`** and the medal list through **`placeWinners()`** —
+    medal decision goes through **`placesEligible(proj)`** and the medal list through **`placesOf()`** —
     do not re-derive "top three" with `slice(0, 3)` anywhere else, or the podium and the ranked table
     will disagree about who won. The rule withholds a MEDAL only: it never hides a project, changes a
     score, or renumbers the ranking. It also gates `hasTie()` (a tie below the line cannot decide a medal,
@@ -992,6 +996,16 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
     — the same code the judge and the printouts show — never by number alone. A re-import that drops a
     visit already scored is refused by the server (same promise as panels: scored work never moves).
     A project not in the schedule is scored by nobody — `eventHealth().notScheduled` puts it on Alerts.
+
+**Places & ribbons (2026-10-21)**
+78. **Tied places are shared ONLY on a rubric whose preset says `ties: "share"`** (the PreK & SPED form).
+    There `placesOf()` gives the places to the three highest DIFFERENT averages — the sheet's "highest /
+    second highest / third highest total score" — so 18, 18, 15 is 1st, 1st, 2nd, and `hasTie()` skips the
+    department (nothing to deliberate). Every other rubric keeps one project per place and the tie alert.
+    Places are per DEPARTMENT, as everywhere (PreK with two projects has no 3rd). Ribbons come from
+    `settings.ribbons` through `ribbonOf()` — derived from the average on display (leaderboard, public
+    results, results CSV), never stored, and bands are minimums (16.5 is Silver; Gold starts at 17). Like
+    rule 74, both are PRESET settings: editing the form's ids or maxima turns them off.
 
 **SQL that must survive its own rejection**
 66. **A `RAISE` throws away everything the function wrote, including the rate-limit counter.**
@@ -1062,6 +1076,26 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-21 — The PreK & SPED Recognition Rubric; ribbons; shared places** (no migration; rule 78).
+The organiser sent the final PreK & SPED sheet: 4 criteria 1–5 = 20, every child a ribbon (17–20 Gold Star ·
+13–16 Silver Star · 4–12 Bright Star Scientist), 1st/2nd/3rd to the three highest totals, **ties share the
+place**. Decisions: places per department (PreK, 2 projects, gets a 1st and a 2nd), PreK + SPED are now
+ranked publicly, and the minimum to place goes back to **0% for everyone**.
+- New preset `prek-sped-2627` (Data Model → Rubric presets). Each criterion's `desc` carries the sheet's
+  5 / 3–4 / 1–2 descriptors; `settings.guide` the "adult help never lowers a score" line and the tips.
+- `placesOf()` replaces `placeWinners()`: one Map of medals used by the public podium + ranked table, the
+  Overview leaderboard (which now shows 🥇🥈🥉 for every scored department) and the results CSV. On a
+  `ties: "share"` rubric places go by distinct averages; `hasTie()` skips it.
+- Ribbons on the leaderboard, the public results ("Every child earns a ribbon" badge per department) and
+  the results CSV, which gained **Place** and **Ribbon** columns.
+- Help: new section "PreK & SPED: ribbons and shared places"; the 2026-27 forms / presets / min-place
+  answers updated for 0%. Guides updated.
+Tests: new `scripts/e2e/prek-sped.e2e.mjs` (16: comment-only → the form in Setup, 4 × 1–5 = 20, the
+judge's guidance and descriptors, stored ratings, a PreK tie opening NO deliberation, 18/18/16.5/15/12 →
+🥇🥇🥈🥉— on the leaderboard / podium / ranked table, ribbons incl. 16.5 = Silver, a default-rubric tie
+still one 🥇 + one 🥈 with the alert, public page, CSV Place/Ribbon). **Mutation-tested**: shared ties off
+→ 5 fail; ribbons off → 3 fail. Browser 481 → 497 across 23 files; lint 28/5; build clean.
 
 **2026-10-21 — The judge grid under a schedule says so** (no migration). The organiser asked why the grid still read
 "Every judge scores all" and could not be edited. The lock is rule 77 (by design); the greyed select showed the
@@ -1222,6 +1256,8 @@ The suite gained 5 checks that raise the setting 50 → 60 and prove the LINE MO
 loses the silver it held at 50%) — 2 of them fail if the threshold is hardcoded to 50. 409 → 414.
 ⚠️ It is a per-school SETTING, not a constant: `min_place_pct` was still unset on the live project as of
 2026-10-21, so the rule was OFF there until an admin typed 60 into Setup.
+**Later on 2026-10-21 the organiser went back to 0% for everyone** ("the top three always place") when the
+PreK & SPED form arrived; Help and both guides now say 0. The feature and its tests are unchanged.
 
 **2026-10-08 — Guides + Help refreshed; event-day backup plan; live project corrections** (no migration).
 1. **AdminInstructions.md / JudgeInstructions.md / `ADMIN_HELP`** were checked against the code and
@@ -1793,8 +1829,11 @@ only) is on the work PC Desktop — booth numbers TBD (no map yet).
 **Done on the live project 2026-10-21 (verified with anonymous reads):** 2026-10o and **2026-10p** run (judge_schedule
 readable, anon writes refused by RLS, both schedule RPCs answer "Not authorised" to anon); K-5 = Elementary form,
 6-8 + 9-12 = Middle & High School form, PreK + SPED comments only; minimum to place = 60.
+**Superseded later the same day:** PreK + SPED move to the **PreK & SPED Recognition** form and the minimum to
+place goes back to **0** — both are the organiser's Setup changes (see Still to do).
 
-**Still to do before the dry run:** import the organiser's `Judges Schedule.csv` (Setup → 📅 Judging schedule) and
+**Still to do before the dry run:** Setup → PreK and SPED → *Add from a preset* → **PreK & SPED Recognition (2026-27)**
+(allowed: no scores yet); Setup → Minimum score to place → **0**; import the organiser's `Judges Schedule.csv` (Setup → 📅 Judging schedule) and
 the booth numbers when the map exists; print the judge sheets; Maximum judges **15** (still 90);
 **#053 → Edit → Save** (a 2026-10-08 SQL fix left its grade blank — the app stores the derived grade
 at save time, so the database really holds ''); #062 has no students (noted, organiser's call); judges

@@ -4,6 +4,31 @@ Honest, specific notes on work done, for later portfolio/interview use.
 
 ---
 
+### 2026-10-21 — PreK & SPED rubric: ribbons for every child, shared places on ties
+
+- **Project:** Qritiko — multi-tenant science-fair judging SaaS (React + Vite + Supabase, ~11k-line single component)
+- **What I built/fixed:** A third 2026-27 form (4 criteria × 1–5 = 20) for the youngest and special-education
+  divisions, which until then were "comments only". Every child gets a ribbon worked out from the total
+  (Gold / Silver / Bright Star Scientist), and tied children share a place, as the organiser's rubric
+  sheet says — on that form only.
+- **Why I built it:** The organiser decided PreK and SPED should be recognised with places and ribbons
+  rather than unranked commendations, and sent the final sheet.
+- **Problem(s) encountered:**
+  - **"Ties share the same place" is ambiguous** — after two 1sts, is the next child 2nd or 3rd? The
+    sheet's own table answered it ("Awarded to: highest / second highest / third highest total score"),
+    so places go to the three highest *different* totals: 18, 18, 15 → 1st, 1st, 2nd.
+  - **The app had one "top three" function shaped as a list of three projects.** Shared places need
+    several projects per place, so I replaced it with a single `placesOf()` Map (project → place) used
+    by the podium, the ranked table, the leaderboard and the CSV — keeping one source of truth for medals.
+  - **The tie-deliberation alert** would have fired on every shared place; it now skips only rubrics
+    whose ties are shared, and a test proves a tie on any other rubric still raises it.
+  - **Conflict with the 60% minimum to place** (12 of 20 would have cost a child their 3rd place) —
+    raised it with the organiser, who set the minimum back to 0% for every division.
+- **Result:** New browser suite (16 checks), mutation-tested: switching shared ties off fails 5 checks,
+  switching ribbons off fails 3. No database migration — the rules live in the rubric preset.
+
+---
+
 ### 2026-10-20 — "Minimum score to place" (a weak project can be kept off the podium)
 
 - **Project:** Qritiko — multi-tenant science-fair judging SaaS (React + Vite + Supabase, ~10k-line single component)
