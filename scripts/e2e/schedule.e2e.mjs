@@ -122,6 +122,14 @@ await check("saved: 11 visits, the slots stored, and the grid follows the schedu
 });
 await check("the card says it is in use: 3 judges · 4 rounds · 11 visits · 4 of 4 projects", async () =>
   assert.match(await A.page.locator("[data-testid=sched-active]").innerText(), /3 judges · 4 rounds .*11 visits · 4 of 4 projects/s));
+// Found live 2026-10-21: the grid counted "every project of every ticked department" — Judge 1 (12
+// visits across 4 departments) showed 60 projects / 6 h. Here Judge 1 has 3 visits across two
+// departments holding 4 projects, so the old count reads 4.
+await check("the grid's Projects / About show each judge's VISITS (Judge 1: 3, 18 min), not every project of their departments", async () => {
+  const row = A.page.locator("tr", { has: A.page.getByLabel("Name for judge 1", { exact: true }) });
+  assert.equal((await row.locator(".roster-load").innerText()).trim(), "3");
+  assert.equal((await row.locator(".roster-time").innerText()).trim(), "18 min");
+});
 await check("the judge grid is locked and the Suggested setup is hidden while the schedule rules", async () => {
   await A.page.locator("[data-testid=grid-locked]").waitFor();
   assert.equal(await A.page.getByLabel("Judge 1 judges Elementary").isDisabled(), true);

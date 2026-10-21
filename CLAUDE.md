@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (271 checks). Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`), the 2026-27 forms + drafts + safety (`rubrics-2627.e2e.mjs`), the judging schedule (`schedule.e2e.mjs`). Start the dev server first (see the file header). 479 checks across 22 files |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`), the 2026-27 forms + drafts + safety (`rubrics-2627.e2e.mjs`), the judging schedule (`schedule.e2e.mjs`). Start the dev server first (see the file header). 480 checks across 22 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -1062,6 +1062,16 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-21 — Fix: the judge grid showed 6 hours per judge under the schedule** (no migration).
+Reported by the organiser right after importing the real schedule: every judge read ~58–61 projects /
+~6 h in Setup → Judges, while each really has 12 visits (Judge 15: 11) — verified live: 179 visits, 12
+per judge. Display only: `rosterLoad()` still counted "every project of every ticked department", and
+the schedule ticks each judge into every department they visit at least once (Judge 1: PreK + K-5 +
+6-8 + 9-12 = 60). The judges' real lists always came from the schedule. Now `rosterLoad()` returns
+`scheduleFor(n).length` while a schedule exists (rule 77). schedule.e2e +1 check (Judge 1: 3 visits
+across two departments holding 4 projects → "3" / "18 min"), **mutation-tested** (fix removed → it reads
+4). My Phase 2 tests had checked the lists and the lock, not these two columns.
 
 **2026-10-21 — Phase 2: the judging schedule** (migration `2026-10p`, **not** coupled; rule 77).
 The organiser's timed schedule (15 judges × 12 rounds of 7 min, 8:30–10:15, two breaks, a wrap-up;

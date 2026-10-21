@@ -3991,6 +3991,10 @@ export default function App() {
 
   // About how many projects judge number n would score with the roster on screen.
   function rosterLoad(n, map) {
+    // With a judging schedule (2026-10p) a judge's load IS their visits. The grid's ticks then only
+    // say which departments those visits touch — counting "every project of every ticked department"
+    // showed Judge 1 at 60 projects / 6 h for a 12-visit morning (found live, 2026-10-21).
+    if (scheduleActive()) return { total: scheduleFor(n).length, approx: false };
     let total = 0, approx = false;
     for (const deptId of map[n] || []) {
       const d = departments.find(x => x.id === deptId);

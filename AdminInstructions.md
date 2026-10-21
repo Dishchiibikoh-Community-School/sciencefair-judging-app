@@ -984,6 +984,8 @@ three scored departments at 3 scores each need at least 9 judges.
 The grid has a **Projects** column and an **About** column — each judge's workload and a rough time.
 It assumes about **6 minutes a project**. That is a planning guide, not a limit: a comment-only review
 is quicker, and a 20-item rubric is slower. The figure turns amber above 20 projects.
+**With a judging schedule** the Projects column is each judge's number of **visits** in the schedule
+(e.g. 12), not every project of the departments ticked for them.
 
 > **Worked example (the 2026-27 fair).** 63 projects — PreK 2 · K-5 8 · 6-8 31 · 9-12 19 · SPED 3 —
 > with 15 judges at 3 scores each. The suggestion is **K-5 3 judges · 6-8 7 · 9-12 5**, with PreK and
