@@ -211,6 +211,17 @@ function stepLabel(r, v, i) {
 const MEDALS = ["🥇","🥈","🥉"];
 
 const RECOMMENDATIONS = ["Recommend for Award","Strong Contender","Good Work","Needs Improvement"];
+// Rough minutes a judge spends on one project, used only for the "about N hours" hints in
+// Setup → Judges. It comes from the 2026-27 estimate that 31 projects is roughly a 3-hour
+// session. It is a planning aid, never a limit, and nothing in the scoring maths reads it.
+const MIN_PER_PROJECT = 6;
+function judgeTimeText(nProjects) {
+  const m = Math.round((Number(nProjects) || 0) * MIN_PER_PROJECT);
+  if (m <= 0) return "—";
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60), r = m % 60;
+  return r ? `${h} h ${r} min` : `${h} h`;
+}
 const AWARD_OPTIONS   = ["1st Place","2nd Place","3rd Place","Honorable Mention","Best in Category","No Award","Pending"];
 // The three the "minimum score to place" rule governs (rule 72). Honorable Mention and Best in
 // Category are deliberately NOT here — they are the admin's to give at any score.
@@ -350,6 +361,7 @@ const ADMIN_HELP = [
     "Big department? Under its column choose '3 judges per project' — each project is then scored by 3 judges and the app shares the projects out evenly, instead of every judge scoring every project.",
     "Setup tab: check your project categories. They are yours alone — rename them, delete the ones you don't use, or add your own (a robotics fair can replace all six).",
     "Setup tab → School year: check it shows the right year (e.g. SY 2026-2027).",
+    "Setup tab → Judges → Suggested setup: type how many judges are coming, press Apply, check the grid, Save judges. Watch the About column — nobody should be far above the others.",
     "Setup tab → Minimum score to place: decide whether a weak project may still take 1st/2nd/3rd. The 2026-27 fair uses 60 (= 60 points on a 100-point rubric). Leave it at 0 for no rule. Set it BEFORE judging and tell the judges.",
     "Setup tab → School branding: upload your school logo (and, if you like, your fair poster). Without a logo your pages show your school's initials.",
     "Setup tab: set any department that should NOT be scored (PreK, K-2) to 'Comments only'. This cannot be changed once that department has scores.",
@@ -416,6 +428,14 @@ const ADMIN_HELP = [
     ["What do judges see on the 100-point rubrics?", "Buttons labelled Needs improvement, Fair, Good, Very Good and Excellent with the points underneath — a judge picks the rating and never does the arithmetic. The 20-item form shows section headings (Project Title, Scientific Inquiry, …)."],
     ["Why is the lowest score 20 and not 0?", "The paper form's scale starts at 1 (Needs improvement), so there is no zero to give. On both 100-point rubrics the lowest possible total is 20. That is expected, not a bug."],
     ["What happens to scores already given if I edit a rubric?", "Totals are recalculated with the edited rubric for every department that uses it, so rankings change. The app shows exactly what changes and offers a backup before saving. Finish your rubrics before judging starts."],
+  ]},
+  { title: "Suggested judge setup", icon: "💡", faq: [
+    ["What is the Suggested setup box?", "Setup → Judges, under the grid. Type how many judges are coming and how many scores you want on each project, and it works out how to split them: how many judges per department, how many projects each one reviews, and roughly how long that takes. Press 'Apply to the grid' to tick the boxes, check it, then press Save judges. Nothing is saved until you do."],
+    ["Why does it give each judge only ONE scored department?", "Because 'N judges per project' shares the work inside a department but is blind across them. A judge ticked into three departments collects three separate shares — that is how one judge ends up with four times another's load. One department each also means nobody has to switch between two different rubrics halfway through."],
+    ["How does it decide the numbers?", "Every scored department first gets the minimum it needs (one judge per score you asked for), then each spare judge goes to whichever department is busiest per judge. Comment-only departments are too small to split, so they ride along with the lightest group. It is plain arithmetic — projects x scores / judges — not a guess."],
+    ["It says I need more judges.", "You asked for more scores per project than you have judges to give. Three scored departments at 3 scores each need at least 9 judges. Either lower the scores per project or bring more judges."],
+    ["Where do I see how long judging will take?", "The grid's Projects and About columns show each judge's load and a rough time, and the blue summary line gives the range and the busiest judge. It assumes about 6 minutes a project — a planning guide, not a limit. Comment-only reviews are quicker; a 20-item rubric is slower."],
+    ["Can I ignore the suggestion?", "Yes, completely. Tick the grid however you like — it is only a starting point. Apply never saves on its own."],
   ]},
   { title: "Minimum score to place", icon: "🥉", faq: [
     ["What is it?", "Setup → Minimum score to place. A project must average at least this much of ITS OWN maximum to take 1st, 2nd or 3rd. Below it the project still appears in the results with its real score — it simply gets no medal and no spot on the podium. Set 0 to turn the rule off; that is how the app behaves if you never touch it."],
@@ -1045,6 +1065,16 @@ const CSS = `
   .setup-jlink{text-decoration:none;color:var(--dim);}
   .setup-jlink:hover{color:var(--navy);text-decoration:underline;}
   .setup-jshare{font-size:.72rem;color:var(--dim);}
+  /* Setup → Judges "Suggested setup" card (rule 73) */
+  .sug-card{margin-top:.8rem;padding:.85rem;border:1px solid var(--bd);border-radius:var(--r);background:var(--s1);}
+  .sug-head{display:flex;align-items:center;gap:.9rem;flex-wrap:wrap;margin-bottom:.6rem;}
+  .sug-head input[type=text],.sug-head select{display:inline-block;width:auto;margin-right:.3rem;}
+  .sug-lab{font-size:.74rem;color:var(--dim);}
+  .sug-tbl{width:100%;border-collapse:collapse;font-size:.82rem;}
+  .sug-tbl th,.sug-tbl td{text-align:left;padding:.35rem .5rem;border-bottom:1px solid var(--bd);}
+  .sug-tbl th{font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:var(--dim);font-weight:600;}
+  .sug-sum{margin-top:.55rem;padding:.5rem .65rem;border-radius:8px;background:var(--blue-l);color:var(--navy);font-size:.82rem;line-height:1.6;}
+  .sug-note{font-size:.76rem;color:var(--dim);margin-top:.55rem;line-height:1.65;}
   .roster-tbl th, .roster-tbl td{text-align:center;padding:.3rem .4rem;font-size:.8rem;}
   .roster-tbl th:first-child, .roster-tbl td:first-child{text-align:left;white-space:nowrap;font-family:var(--ff-m);color:var(--navy);}
   .roster-tbl td input[type=checkbox]{width:18px;height:18px;cursor:pointer;}
@@ -1878,6 +1908,10 @@ export default function App() {
   const [rosterDraft,      setRosterDraft]      = useState(null);  // { [number]: [deptId…] } while editing
   const [judgeLabels,      setJudgeLabels]      = useState({});    // { [number]: "Ms. Rabah" } — admins only
   const [labelDrafts,      setLabelDrafts]      = useState({});    // { [number]: "…" } unsaved edits
+  // Setup → Judges "Suggested setup": how many judges are coming, and the target scores per
+  // project. Planning inputs only — nothing is written until the admin presses Apply then Save.
+  const [sugJudges,        setSugJudges]        = useState("");     // "" = use the numbers in use
+  const [sugPanel,         setSugPanel]         = useState(3);
   const [projectJudges,    setProjectJudges]    = useState([]);    // panels: [{ project_id, judge_number }]
   const [panelBusy,        setPanelBusy]        = useState("");    // deptId while a panel action runs
   const [panelMsg,         setPanelMsg]         = useState("");
@@ -3629,6 +3663,82 @@ export default function App() {
     const list = base[n] || [];
     setRosterDraft({ ...base, [n]: list.includes(deptId) ? list.filter(x => x !== deptId) : [...list, deptId] });
   }
+  // ── Suggested judge setup (Setup → Judges) ──────────────────────────────
+  // Pure arithmetic on purpose — no AI call. "projects × scores ÷ judges" is exact, so a
+  // computed suggestion is instant, free, works offline and can never invent a number the
+  // organiser would then act on. See rule 73.
+  //
+  // Why the roster and not just judges_per_project: that setting balances WITHIN a department
+  // and is blind ACROSS them, so a judge ticked into three departments collects three separate
+  // shares. Giving each judge ONE scored department is what actually levels the load — and it
+  // also stops anyone having to switch between two different rubrics mid-session.
+  function suggestRoster(nJudges, panel) {
+    const nProj = (d) => projects.filter(p => p.department_id === d.id).length;
+    const withWork = departments.filter(d => d.id && nProj(d) > 0);
+    const scored = withWork.filter(d => d.scoring_mode !== "feedback");
+    const feedback = withWork.filter(d => d.scoring_mode === "feedback");
+    if (!scored.length || nJudges < 1) return null;
+
+    // Each scored department needs at least `panel` judges or it cannot reach `panel` scores.
+    const floor = Math.min(panel, nJudges);
+    if (floor * scored.length > nJudges) {
+      return { short: floor * scored.length, nJudges, panel, scored: scored.length };
+    }
+    // Everyone starts at the floor, then every spare judge goes to whichever department is
+    // currently the BUSIEST per judge. Splitting the spare in proportion to project count
+    // instead looks fairer but is measurably worse: on 8 / 31 / 19 projects with 15 judges it
+    // gives 4 / 6 / 5 (loads 6 … 15.5) where this gives 3 / 7 / 5 (loads 8 … 13.3).
+    // A plain for-loop on a local array, never mutation inside a callback (rule 37).
+    const perJudge = (d, n) => (n <= panel ? nProj(d) : nProj(d) * panel / n);
+    const alloc = scored.map(d => ({ d, n: floor }));
+    for (let left = nJudges - floor * scored.length; left > 0; left--) {
+      let worst = 0;
+      for (let i = 1; i < alloc.length; i++)
+        if (perJudge(alloc[i].d, alloc[i].n) > perJudge(alloc[worst].d, alloc[worst].n)) worst = i;
+      alloc[worst] = { ...alloc[worst], n: alloc[worst].n + 1 };
+    }
+
+    // Hand out seat numbers 1..nJudges in department order.
+    const starts = alloc.reduce((acc, x) => [...acc, acc[acc.length - 1] + x.n], [1]);
+    const blocks = alloc.map((x, i) => {
+      const seats = Array.from({ length: x.n }, (_, k) => starts[i] + k);
+      // seats === panel means "everyone scores all" already gives exactly `panel` scores —
+      // same outcome, one less thing to manage (and nothing to Rebalance).
+      const mode = x.n <= panel ? "all" : "panel";
+      const each = mode === "all" ? nProj(x.d) : Math.round(nProj(x.d) * panel / x.n * 10) / 10;
+      return { dept: x.d, projects: nProj(x.d), seats, mode, each, scores: mode === "all" ? x.n : panel };
+    });
+    // Comment-only departments are tiny — give them to the lightest block rather than
+    // spending judges on them.
+    const lightest = blocks.reduce((a, b) => (b.each < a.each ? b : a), blocks[0]);
+    const extras = feedback.map(d => ({ dept: d, projects: nProj(d), seats: lightest.seats, each: nProj(d), scores: lightest.seats.length }));
+
+    const perSeat = {};
+    for (const b of [...blocks, ...extras])
+      for (const s of b.seats) perSeat[s] = { n: (perSeat[s]?.n || 0) + b.each, depts: [...(perSeat[s]?.depts || []), b.dept.name] };
+    const loads = Object.values(perSeat).map(x => x.n);
+    return {
+      nJudges, panel, blocks, extras, perSeat,
+      min: Math.min(...loads), max: Math.max(...loads),
+      total: Math.round([...blocks, ...extras].reduce((s, b) => s + b.each * b.seats.length, 0)),
+    };
+  }
+  // Put a suggestion into the grid WITHOUT saving, so the admin reviews it first. A judge who
+  // has already signed in may gain a department but never lose one (set_judge_roster refuses),
+  // so their current departments are kept as a floor.
+  function applySuggestion(sug) {
+    if (!sug?.blocks) return;
+    const next = {};
+    for (const b of [...sug.blocks, ...sug.extras])
+      for (const s of b.seats) next[s] = [...new Set([...(next[s] || []), b.dept.id])];
+    for (const j of judges) {
+      const n = judgeNumOf(j.alias);
+      if (n) next[n] = [...new Set([...(next[n] || []), ...judgeDeptIds(j)])];
+    }
+    setSetupErr("");
+    setRosterDraft(next);
+  }
+
   // About how many projects judge number n would score with the roster on screen.
   function rosterLoad(n, map) {
     let total = 0, approx = false;
@@ -8290,6 +8400,7 @@ export default function App() {
                                 </th>
                               ))}
                               <th>Projects</th>
+                              <th>About</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -8309,8 +8420,13 @@ export default function App() {
                                         checked={(map[n] || []).includes(d.id)} onChange={() => toggleRosterCell(n, d.id)} />
                                     </td>
                                   ))}
-                                  <td style={{color: load.total > 20 ? "var(--amber)" : "var(--dim)"}}>
+                                  {/* Stable classes: adding the time column broke two tests that
+                                      read this row by position. Never depend on column order. */}
+                                  <td className="roster-load" style={{color: load.total > 20 ? "var(--amber)" : "var(--dim)"}}>
                                     {(map[n] || []).length ? `${load.approx ? "≈" : ""}${load.total}` : "—"}
+                                  </td>
+                                  <td className="roster-time" style={{color: load.total > 20 ? "var(--amber)" : "var(--dim)", fontSize:".78rem", whiteSpace:"nowrap"}}>
+                                    {(map[n] || []).length ? judgeTimeText(load.total) : "—"}
                                   </td>
                                 </tr>
                               );
@@ -8320,6 +8436,94 @@ export default function App() {
                       </div>
                       {noJudges.map(d => <div key={d.id} className="judge-num-miss" style={{textAlign:"left"}}>⚠ Nobody judges {d.name} — it has projects but no judge is ticked.</div>)}
                       {tooFew.map(d => <div key={d.id} className="judge-num-miss" style={{textAlign:"left"}}>⚠ {d.name} needs {d.judges_per_project} judges per project but only {seatsOf(d.id).length} {seatsOf(d.id).length === 1 ? "is" : "are"} ticked.</div>)}
+
+                      {/* ── Suggested setup (rule 73) — plain arithmetic, no AI, nothing saved ── */}
+                      {(() => {
+                        const inUse = nums.filter(n => (map[n] || []).length).length;
+                        const want  = /^\d{1,2}$/.test(sugJudges) ? Math.min(90, Math.max(1, parseInt(sugJudges, 10))) : (inUse || 0);
+                        const sug   = want > 0 ? suggestRoster(want, sugPanel) : null;
+                        return (
+                          <div className="sug-card">
+                            <div className="sug-head">
+                              <span className="lbl" style={{margin:0}}>💡 Suggested setup</span>
+                              <span>
+                                <input type="text" aria-label="How many judges are coming" maxLength={2}
+                                  style={{width:"3.6rem"}} placeholder={String(inUse || 15)}
+                                  value={sugJudges}
+                                  onChange={e => setSugJudges(e.target.value.replace(/\D/g, "").slice(0, 2))} />
+                                <span className="sug-lab">judges coming</span>
+                              </span>
+                              <span>
+                                <select aria-label="Target scores per project" value={sugPanel}
+                                  onChange={e => setSugPanel(parseInt(e.target.value, 10))}>
+                                  {[1,2,3,4,5].map(k => <option key={k} value={k}>{k}</option>)}
+                                </select>
+                                <span className="sug-lab">scores per project</span>
+                              </span>
+                            </div>
+
+                            {!sug ? (
+                              <p className="sug-note">Add projects and departments first, then this will suggest how to split the judging.</p>
+                            ) : sug.short ? (
+                              <p className="sug-note">⚠ {sug.scored} scored department{sug.scored !== 1 ? "s" : ""} at {sug.panel} scores
+                                per project need at least <b>{sug.short} judges</b>; you have entered {sug.nJudges}.
+                                Lower the scores per project, or bring more judges.</p>
+                            ) : (
+                              <>
+                                <div className="tbl-wrap">
+                                  <table className="sug-tbl">
+                                    <thead><tr><th>Department</th><th>Judges</th><th>Setting</th><th>Each judge</th><th>About</th></tr></thead>
+                                    <tbody>
+                                      {sug.blocks.map(b => (
+                                        <tr key={b.dept.id}>
+                                          <td>{b.dept.name} <span className="sug-lab">({b.projects} projects)</span></td>
+                                          <td style={{fontFamily:"var(--ff-m)"}}>{b.seats.length} — Judge {b.seats[0]}–{b.seats[b.seats.length-1]}</td>
+                                          <td>{b.mode === "all" ? "every judge scores all" : `${sug.panel} judges per project`}</td>
+                                          <td style={{fontFamily:"var(--ff-m)"}}>{b.each}</td>
+                                          <td className="sug-lab">{judgeTimeText(b.each)}</td>
+                                        </tr>
+                                      ))}
+                                      {sug.extras.map(x => (
+                                        <tr key={x.dept.id}>
+                                          <td>{x.dept.name} <span className="sug-lab">({x.projects} projects · comments only)</span></td>
+                                          <td style={{fontFamily:"var(--ff-m)"}}>shares Judge {x.seats[0]}–{x.seats[x.seats.length-1]}</td>
+                                          <td>every judge scores all</td>
+                                          <td style={{fontFamily:"var(--ff-m)"}}>+{x.each}</td>
+                                          <td className="sug-lab">+{judgeTimeText(x.each)}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                                <div className="sug-sum">
+                                  Every project gets <b>{sug.panel} score{sug.panel !== 1 ? "s" : ""}</b> ·
+                                  each judge reviews <b>{Math.round(sug.min)}–{Math.round(sug.max)} projects</b> ·
+                                  about <b>{judgeTimeText(Math.round(sug.max))}</b> for the busiest ·
+                                  <b> {sug.total}</b> reviews in total
+                                </div>
+                                <div style={{display:"flex",gap:".5rem",alignItems:"center",flexWrap:"wrap",marginTop:".5rem"}}>
+                                  <button className="btn sec sm" style={{width:"auto"}} onClick={() => applySuggestion(sug)}>
+                                    Apply to the grid
+                                  </button>
+                                  <span className="sug-lab">ticks the boxes above — review it, then press Save judges</span>
+                                </div>
+                                <p className="sug-note">
+                                  <b>Why this split.</b> Each judge gets <b>one scored department</b>, sized to its project count.
+                                  “{sug.panel} judges per project” shares the work <i>inside</i> a department but is blind{" "}
+                                  <i>across</i> them — a judge ticked into three departments collects three separate shares, which
+                                  is how one judge ends up with four times another's load. One department each also means nobody
+                                  switches between two different rubrics halfway through.
+                                  {sug.extras.length > 0 && <> The comment-only department{sug.extras.length !== 1 ? "s" : ""} are
+                                  too small to split, so they ride along with the lightest group.</>}
+                                  {" "}Times assume about {MIN_PER_PROJECT} minutes a project — a planning guide, not a limit.
+                                  {judges.length > 0 && <> <b>Note:</b> {judges.length} judge{judges.length !== 1 ? "s have" : " has"} already
+                                  signed in and cannot lose a department, so Apply keeps what they already have.</>}
+                                </p>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <div style={{display:"flex",gap:".5rem",alignItems:"center",flexWrap:"wrap",marginTop:".6rem"}}>
                         <button className="btn sm" style={{width:"auto"}} disabled={!dirty} onClick={saveRoster}>Save judges</button>
                         {dirty && <button className="btn sec sm" style={{width:"auto"}} onClick={() => { setSetupErr(""); setRosterDraft(null); setLabelDrafts({}); }}>Cancel</button>}

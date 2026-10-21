@@ -906,6 +906,50 @@ A: Only via judges. Admin provides oversight and final award decisions, but scor
 
 ---
 
+## Suggested judge setup
+
+**Setup → Judges**, in the box under the grid. Tell it **how many judges are coming** and **how many
+scores you want on each project**, and it works out the split for you:
+
+- how many judges each department needs
+- how many projects each judge reviews
+- roughly how long that will take them
+
+**Apply to the grid** ticks the boxes. Nothing is written until you press **Save judges**, so you can
+look it over or change it first. You can ignore it entirely — it is a starting point, not a rule.
+
+### Why it gives each judge one scored department
+
+"N judges per project" shares work **inside** a department and is **blind across** them. A judge
+ticked into three departments collects three separate shares — which is how one judge ends up with
+four times another's load. One scored department each levels it out, and it also means nobody has to
+switch between two different rubrics halfway through their session.
+
+Comment-only departments (PreK, SPED) are too small to split, so they ride along with the lightest group.
+
+### How it picks the numbers
+
+Each scored department first gets the minimum it needs — one judge per score you asked for — and then
+every spare judge goes to whichever department is **busiest per judge**. It is plain arithmetic
+(projects × scores ÷ judges), not a guess, so it is instant and always adds up.
+
+If you ask for more scores than you have judges for, it says so rather than quietly fudging it:
+three scored departments at 3 scores each need at least 9 judges.
+
+### Reading the load
+
+The grid has a **Projects** column and an **About** column — each judge's workload and a rough time.
+It assumes about **6 minutes a project**. That is a planning guide, not a limit: a comment-only review
+is quicker, and a 20-item rubric is slower. The figure turns amber above 20 projects.
+
+> **Worked example (the 2026-27 fair).** 63 projects — PreK 2 · K-5 8 · 6-8 31 · 9-12 19 · SPED 3 —
+> with 15 judges at 3 scores each. The suggestion is **K-5 3 judges · 6-8 7 · 9-12 5**, with PreK and
+> SPED riding along with K-5's three. Everyone reviews **11–13 projects, about 1¼ hours**, and every
+> project gets 3 scores. Left on "every judge scores all" the same roster puts one judge on **58
+> projects — nearly 6 hours.**
+
+---
+
 ## Minimum score to place
 
 **Setup → Minimum score to place.** By default the top three averages in each department take 1st,

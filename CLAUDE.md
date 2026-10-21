@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (247 checks). Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`). Start the dev server first (see the file header). 414 checks across 18 files |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`). Start the dev server first (see the file header). 429 checks across 19 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -188,7 +188,7 @@ files, no Tailwind, no CSS modules.
 | `adminTab` | Content |
 |---|---|
 | `overview` | Stats, per-department leaderboards, "Get started" card (checklist only until the first judge registers; school URL + invite code **always** — it becomes "Judge sign-in details"), Change PIN card, Lock Judging, a summary card linking to Setup |
-| `setup` | **Departments** (add / rename / reorder / delete / max judges / presets), the **judge grid**, **project categories** (add / rename / reorder / delete / restore defaults), project codes, **Minimum score to place** (rule 72), **School year** and **School branding** (logo + poster, see 🎨). Departments and categories are per-school data — see rule 14 |
+| `setup` | **Departments** (add / rename / reorder / delete / max judges / presets), the **judge grid** (+ **Suggested setup**, rule 73), **project categories** (add / rename / reorder / delete / restore defaults), project codes, **Minimum score to place** (rule 72), **School year** and **School branding** (logo + poster, see 🎨). Departments and categories are per-school data — see rule 14 |
 | `judges` | Per-judge progress grouped by department; Allow Transfer (PIN) |
 | `projects` | Add/edit/remove/lock projects, **📷 Scan forms** (AI form reader), rubric breakdown, project-list PDF |
 | `registration` | Student registration links + submissions, registration CSV |
@@ -682,6 +682,12 @@ rosterInUse(), deptNumbers(d), sharedWith(d), topJudgeNumber(), compressNums(num
 rosterView(), toggleRosterCell(n, deptId), rosterLoad(n, map), saveRoster()   // Setup → Judges grid
 setDeptJudgesPerProject(deptId, n), runPanels(deptId, "rebuild"|"rebalance"), panelInfo(d)
 // NOTE: never name a helper use*() — React treats it as a hook (useRoster() broke rules-of-hooks)
+suggestRoster(nJudges, panel), applySuggestion(sug)   // Setup → Judges "Suggested setup" (rule 73)
+                             // Pure arithmetic, NO AI. One scored department per judge, sized by
+                             // project count: every department gets its floor (= panel), then each
+                             // spare judge goes to the department that is BUSIEST per judge.
+                             // applySuggestion() fills rosterDraft only — never saves (rule 73).
+MIN_PER_PROJECT, judgeTimeText(n)   // module: 6 min/project, the "About" hints only. Never scoring.
 judgeMax(), saveJudgeMax()   // maximum judge number (2026-10i); judgeMax() falls back like the backfill
 judgeDeptIds(j)              // module helper — EVERY department a judge covers; never use j.department_id alone
 setJudgeNumberingMode(mode)  // app_settings.judge_numbering
@@ -912,6 +918,19 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
     only — Honorable Mention and Best in Category stay the admin's to give — and in the Validation tab it
     **warns, never blocks**: a refusal with no override on event day is worse than a clear note.
 
+73. **The judge-setup suggestion is arithmetic, not AI, and it never saves by itself.**
+    `projects × scores ÷ judges` is exact, so `suggestRoster()` is instant, free, works offline and
+    cannot invent a number the organiser would act on. Do not route it through Gemini. Two rules it
+    encodes, both learned the hard way: (a) **one scored department per judge** — `judges_per_project`
+    balances WITHIN a department and is blind ACROSS them, so a judge in three departments collects
+    three shares (the live 2026-27 roster had one judge on 58 projects and another on 19); it also
+    stops anyone switching between two rubrics mid-session. (b) Spare judges go to the department
+    that is **busiest per judge**, not in proportion to project count — on 8/31/19 projects with 15
+    judges, proportional gives 4/6/5 (loads 6…15.5) where busiest-first gives 3/7/5 (loads 8…13.3).
+    `applySuggestion()` writes `rosterDraft` and stops; the admin presses **Save judges**. It also
+    unions in each signed-in judge's current departments, because `set_judge_roster()` refuses to take
+    one away. `MIN_PER_PROJECT` (6) drives the "About" time hints only — nothing in scoring reads it.
+
 **SQL that must survive its own rejection**
 66. **A `RAISE` throws away everything the function wrote, including the rate-limit counter.**
     PostgREST runs each RPC in one transaction, so `note_auth_failure()` followed by `RAISE` records
@@ -981,6 +1000,31 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-21 — Suggested judge setup + per-judge time in the grid** (no migration, rule 73).
+Reading the live roster showed why this was needed: with every department on "every judge scores
+all", Judge12 was carrying **58 projects (~5.8 h)** and Judge10 **19** — and turning on panels alone
+only narrowed it to 21 vs 8, because `judges_per_project` balances inside a department and is blind
+across them. Six judges were also ticked into both the 20-item and the 5-section rubric.
+- **Setup → Judges → 💡 Suggested setup**: enter judges coming + scores per project; it prints the
+  split per department, projects per judge, time per judge and the totals, with an explanation of
+  why. **Apply to the grid** ticks the boxes and saves nothing — the admin reviews, then Save judges.
+  Refuses rather than fudges when there are fewer judges than `panel × scored departments`.
+- **Grid gained an "About" column** — each judge's rough hours beside their project count.
+- On the real fixture (15 judges, 3 scores) it reproduces the hand-made plan exactly: K-5 3 · 6-8 7 ·
+  9-12 5, everyone on 11–13 projects (~1¼ h), 189 reviews instead of 524.
+- **No Gemini call** — see rule 73 for why, and for the two allocation rules it encodes.
+**Caught while doing it:** adding the About column broke `judge-panels` and `shared-judges`, which
+read that row with `td.last()`. The cells now carry `.roster-load` / `.roster-time` and all three
+suites read them by class — never by column position again.
+Tests: new `scripts/e2e/judge-suggest.e2e.mjs` (15 checks: the split for 15 judges, K-5 needing no
+panel, the summary's range and time, comment-only departments riding along, the explanation naming
+the reason, the shortfall refusal, Apply not saving, Save storing exactly the suggestion, every
+scored department reaching the panel size, all numbers used, the grid's load+time). **Mutation-tested:**
+disabling the busiest-first levelling fails 6 of the 15. Honest gap: the "Apply writes nothing" check
+is a real assertion but no mutation makes it fail — calling `saveRoster()` inside `applySuggestion()`
+reads `rosterView()` before React flushes, so it saves the old roster; the "grid is dirty" check is
+what catches a premature save. Browser 414 → 429 across 19 files; DB 247; lint 26/5; build clean.
 
 **2026-10-20 — Minimum score to place** (no migration — `app_settings` is key/value).
 The organiser asked whether a project scoring below 50 could be kept off 3rd place. It could not:

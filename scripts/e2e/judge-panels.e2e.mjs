@@ -73,7 +73,7 @@ await check("every Middle School project gets 3 different judges, spread evenly 
 await check("the department row says '3 per project'", () =>
   A.locator(".setup-rows").first().getByText(/3 per project/).waitFor({ timeout: 4000 }));
 await check("the grid's Projects column shows each judge's real load", async () => {
-  const load = async (n) => (await A.locator(".roster-tbl tbody tr").nth(n - 1).locator("td").last().innerText()).trim();
+  const load = async (n) => (await A.locator(".roster-tbl tbody tr").nth(n - 1).locator("td.roster-load").innerText()).trim();
   const expected1 = midRows().filter(r => r.judge_number === 1).length;   // + Elementary has 0 projects
   for (let i = 0; i < 30 && (await load(1)) !== String(expected1); i++) await A.waitForTimeout(100);
   assert.equal(await load(1), String(expected1));

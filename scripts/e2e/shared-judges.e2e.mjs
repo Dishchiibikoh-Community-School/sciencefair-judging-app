@@ -84,7 +84,7 @@ await check("department rows say who shares judges", async () => {
 await check("the grid shows the shared judges ticked in both departments, with their workload", async () => {
   assert.equal(await cell(1, "Elementary").isChecked(), true); assert.equal(await cell(1, "Middle School").isChecked(), true);
   assert.equal(await cell(3, "High School").isChecked(), true); assert.equal(await cell(3, "Elementary").isChecked(), false);
-  const load = async (n) => (await A.locator(".roster-tbl tbody tr").nth(n - 1).locator("td").last().innerText()).trim();
+  const load = async (n) => (await A.locator(".roster-tbl tbody tr").nth(n - 1).locator("td.roster-load").innerText()).trim();
   assert.equal(await load(1), "2", "Judge 1: Elementary + Middle School = 2 projects");
   assert.equal(await load(3), "1", "Judge 3: High School = 1 project");
 });

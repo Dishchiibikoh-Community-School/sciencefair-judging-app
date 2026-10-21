@@ -49,3 +49,52 @@ Honest, specific notes on work done, for later portfolio/interview use.
   correctly across three rubrics and a grade-based exemption, routed every ranking surface through one
   eligibility helper so the podium and results table could not disagree, and mutation-tested the new
   browser suite to prove it actually caught the regression."
+
+### 2026-10-21 — Suggested judge setup: turning "who ticks what" into arithmetic
+- **Project:** Qritiko (science-fair judging platform)
+- **What I built/fixed:** A "Suggested setup" panel in the admin's judge grid. The organiser types how
+  many judges are coming and how many scores they want on each project; it prints how many judges each
+  department needs, how many projects each judge reviews, roughly how long that takes, and why — plus an
+  "Apply to the grid" button that fills the checkboxes without saving. The grid itself gained an
+  **About** (estimated time) column beside each judge's project count.
+- **Why I built it:** The organiser asked for "an AI recommendation on what to tick". Reading the live
+  roster showed the real problem it needed to solve: with every department left on "every judge scores
+  all", one judge was carrying **58 projects (~5.8 h)** while another had 19 — 524 reviews in total for
+  a 63-project fair. Turning on panels alone did *not* fix it, because `judges_per_project` balances
+  **inside** a department and is blind **across** them, so a judge ticked into three departments
+  collects three separate shares.
+- **Problem(s) encountered:**
+  - **The request was for AI; the right answer was not.** `projects × scores ÷ judges` is exact. A model
+    call would be slower, cost money, need network on event day, and could hallucinate a number the
+    organiser would act on. I built it as arithmetic and wrote down *why* (rule 73) so nobody "upgrades"
+    it later.
+  - **My first allocation was fairer-looking and measurably worse.** Splitting spare judges in
+    proportion to project count gave 4/6/5 judges on 8/31/19 projects — loads of 6 … 15.5. Allocating
+    each spare judge to whichever department is currently *busiest per judge* gives 3/7/5 — loads 8 …
+    13.3, and reproduces the plan I had derived by hand.
+  - **A displayed total that contradicted itself:** the summary said "11–13 projects" and "1 h 20 min",
+    because the real maximum is 13.3 projects. Fixed in the product, not the test — the time is now
+    computed from the same rounded count the user is shown.
+  - **My new column broke two unrelated test suites.** `judge-panels` and `shared-judges` read that row
+    with `td.last()`, so inserting a column silently moved what they asserted on. Fixed the *cause*:
+    the cells now carry `.roster-load` / `.roster-time` and all three suites select by class.
+  - **An honest test gap I chose to document rather than hide:** I could not build a mutation that fails
+    the "Apply writes nothing" check — calling `saveRoster()` inside `applySuggestion()` reads state
+    React has not flushed yet, so it saves the *old* roster and writes nothing either way. The
+    "grid is now dirty" check is what actually catches a premature save. Both the test and CLAUDE.md say so.
+- **How I solved it:** A pure function `suggestRoster(nJudges, panel)`: every scored department gets a
+  floor of `panel` judges, each spare judge goes to the busiest department, comment-only departments ride
+  along with the lightest block (they are too small to split), and a shortfall is *refused* with the
+  number needed rather than fudged. `applySuggestion()` writes the draft only — and unions in each
+  signed-in judge's existing departments, because the server refuses to take one away.
+- **Skills/tools demonstrated:** Greedy load-levelling (minimise the maximum, not the average) and
+  justifying it with measured numbers; Playwright E2E against a hand-written Supabase mock, with a
+  fixture deliberately shaped like the real event so the expected output is hand-checkable;
+  **mutation testing** (disabling the levelling fails 6 of 15 new checks); diagnosing a test regression
+  as a brittle-selector problem and fixing the selector contract instead of the assertions; writing the
+  design rationale into a project rule set so the decision survives me.
+- **Portfolio angle:** "Asked for an AI feature, I shipped exact arithmetic instead — a planner that cut
+  a live science fair's judging workload from 524 reviews (one judge at 5.8 hours) to 189 evenly split
+  (~1¼ hours each), explained its own reasoning on screen, never wrote to the database without the
+  organiser pressing Save, and came with a mutation-tested browser suite plus a written rule for why it
+  must not become a model call."
