@@ -3,7 +3,7 @@
 > Single source of truth for AI-assisted development. Read it before changing anything.
 > Do not delete it. When code and this file disagree, the code wins — then fix this file.
 >
-> Last reviewed: 2026-10-21 (the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
+> Last reviewed: 2026-10-21 (Phase 3: award groups + the Awards tab; the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
 
 ---
 
@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (271 checks). Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`), the 2026-27 forms + drafts + safety (`rubrics-2627.e2e.mjs`), the judging schedule (`schedule.e2e.mjs`), the PreK & SPED form (`prek-sped.e2e.mjs`). Start the dev server first (see the file header). 497 checks across 23 files |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`), the 2026-27 forms + drafts + safety (`rubrics-2627.e2e.mjs`), the judging schedule (`schedule.e2e.mjs`), the PreK & SPED form (`prek-sped.e2e.mjs`), awards (`awards.e2e.mjs`). Start the dev server first (see the file header). 525 checks across 24 files |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -96,7 +96,7 @@ The v1 Vercel project was deleted 2026-09-30. **Do not resurrect v1.**
 │   ├── scan-form.test.mjs       ← mocked tests for api/scan-form.js (free, offline)
 │   ├── db-migrations.test.mjs   ← schema + all migrations on real Postgres (PGlite): RLS, RPCs
 │   ├── e2e/                     ← browser tests (playwright-core + mocked backend); screenshots in e2e/out/ (gitignored)
-│   │                              scan · judge-reg · signup · setup (departments/categories) · alerts (event health + IT-log diagnostics) · judging (2 judges, ties, deliberation, awards, transfer, reset) · rubrics-2627 (the 2026-27 forms, drafts, safety) · schedule (judging schedule) · prek-sped (ribbons, shared places) · lifecycle
+│   │                              scan · judge-reg · signup · setup (departments/categories) · alerts (event health + IT-log diagnostics) · judging (2 judges, ties, deliberation, awards, transfer, reset) · rubrics-2627 (the 2026-27 forms, drafts, safety) · schedule (judging schedule) · prek-sped (ribbons, shared places) · awards (award groups, Awards tab) · lifecycle
 │   ├── registration-email.test.mjs ← mocked tests for the email: only the school's OWN branding, HTML escaping
 │   └── scan-form-smoke.mjs      ← real-Gemini smoke test for form scanning (needs GEMINI_API_KEY)
 ├── supabase/
@@ -196,7 +196,8 @@ files, no Tailwind, no CSS modules.
 | `registration` | Student registration links + submissions, registration CSV |
 | `activity` | Human-readable activity log with keyword filter |
 | `alerts` | **Event health** (2026-10-07): this screen's real connection state, errors in the last hour, scores stuck on devices, coverage (no department / no judge / short panels), progress per department, idle judges, outliers grouped per project with every judge's total; a red **safety-concern** card (2026-10o) and projects **not in the judging schedule** (2026-10p). `eventHealth()` + `getOutlierGroups()` |
-| `deliberation` | Validation & deliberation workflow, final awards, finalize |
+| `deliberation` | Validation & deliberation workflow, final awards (listed per award group), finalize |
+| `awards` | **Awards** (Phase 3, 2026-10-21): one card per award group with the computed 1st–3rd, Confirm / Confirm all ready groups (one batched `final_decisions` upsert), Clear, status chips (tie, unscored, changed since confirmed, decided by hand), attention groups first + count in the nav; 🖨 awards list + Awards CSV (with names — admin only). Read-only once finalized |
 | `share` | Public results link — **locked until results are finalized**; results CSV |
 | `export` | Per-judge CSV + score backups |
 | `rubric` | Edit criteria / max / steps / order; save to `rubrics`; reset to default |
@@ -308,7 +309,7 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `schools` | id, name, slug, invite_code, admin_pin (bcrypt) |
 | `school_admins` | Links a Supabase Auth user to a school |
 | `rubrics` | Per-school rubric **library** (2026-10j) — name, `criteria` JSONB array, `is_active` = **the school default** (exactly one). Departments point at one via `departments.rubric_id` |
-| `departments` | name, `code`, `max_judges`, `ord`, **`scoring_mode`**, **`rubric_id`** (2026-10j; NULL = default rubric), **`judge_from` / `judge_to`** (2026-10g — this department's judge numbers; a trigger numbers new rows after the school's last number) — seeded from `DEPT_PRESETS[0]`, fully admin-editable. `code` (2026-10e) is reserved for registration numbers; `locked` / `finalized_at` / `award_grouping` (2026-10f) are reserved for Phase 3. Nothing reads those four yet |
+| `departments` | name, `code`, `max_judges`, `ord`, **`scoring_mode`**, **`award_grouping`** (`department` \| `category`, read since Phase 3 — who competes for places), **`rubric_id`** (2026-10j; NULL = default rubric), **`judge_from` / `judge_to`** (2026-10g — this department's judge numbers; a trigger numbers new rows after the school's last number) — seeded from `DEPT_PRESETS[0]`, fully admin-editable. `code` (2026-10e) is reserved for registration numbers; `locked` / `finalized_at` / `award_grouping` (2026-10f) were reserved for Phase 3: `award_grouping` is read since 2026-10-21; `code`, `locked`, `finalized_at` are still unread |
 | `categories` | Per-school project categories: name, `code`, `ord` (2026-10e). UNIQUE(school_id, name). **No FK from `projects`** — `projects.cat` is a free-text snapshot, so deleting a category never alters a project |
 | `projects` | num, title, cat, grade, locked, department_id, room, description, motivation — **public, no names**. `num` UNIQUE per school (2026-10n; exact text, so "7" ≠ "007") |
 | `project_private` | PK `(project_id, school_id)`, FK → projects **ON DELETE CASCADE**: advisor_name, group_members (JSONB), updated_at — **admin-only** |
@@ -675,6 +676,12 @@ minPlacePts(proj), placesEligible(proj), placesOf(rankedList), minPlaceText()
                              // test for "may this project take a medal"; placesOf() → Map(id → place
                              // index 0–2) is the ONLY place medals are decided (replaced placeWinners()
                              // 2026-10-21). Off (0) → everything qualifies.
+awardGroups()                // Phase 3 (rule 79): [{key, deptId, deptName, cat|null, label, projects(ranked)}] —
+                             // one per department, or per category where award_grouping = "category"
+confirmedPlaces(projs), groupPlaces(projs), deptPlaces(deptId)   // confirmed awards win over computed places
+groupTie(g), tieGroups(), hasTie(), groupStatus(g)   // medal-deciding ties per group; Awards-tab state
+confirmAwardGroups(groups, "confirm"|"clear"), updateDeptAwardGrouping(id, v)
+awardsListRows(), printAwardsList(), exportAwardsCSV()   // ceremony list — names, admin only
 tiesShare(proj), ribbonOf(proj)   // PreK & SPED form (rule 78): tied averages share a place; the ribbon
 ribbonFor(settings, avg)     // module: the ribbon band for an average, or null when the rubric has none
 saveMinPlacePct()            // app_settings.min_place_pct, upsert + error check (rule 55)
@@ -1007,6 +1014,16 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
     results, results CSV), never stored, and bands are minimums (16.5 is Silver; Gold starts at 17). Like
     rule 74, both are PRESET settings: editing the form's ids or maxima turns them off.
 
+79. **Places come from AWARD GROUPS, and confirmed awards win** (Phase 3). `awardGroups()` is the only
+    definition of who competes for 1st–3rd: a department, or each category in it (`award_grouping`). The
+    podium, ranked table, leaderboard, results CSV, awards list and `hasTie()` all go through it — never
+    rank a department as a whole when it awards per category. A group shows the places the admin CONFIRMED
+    (`final_decisions` 1st/2nd/3rd, `groupPlaces()`) once it has any, else `placesOf()`; that is how a tie
+    decided in deliberation reaches the podium. Confirming writes ONE batched upsert and never touches
+    Honorable Mention / Best in Category; a project that lost its place goes back to Pending. A tie counts
+    only where it decides a place (1st–3rd, or 3rd/4th) and only until the group is decided. The awards
+    list carries names (project_private) and is admin-only, never published.
+
 **SQL that must survive its own rejection**
 66. **A `RAISE` throws away everything the function wrote, including the rate-limit counter.**
     PostgREST runs each RPC in one transaction, so `note_auth_failure()` followed by `RAISE` records
@@ -1076,6 +1093,32 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-10-21 — Phase 3: award groups + the Awards tab** (no migration — `departments.award_grouping`
+came with 2026-10f; rule 79).
+- **Setup → Places: per department / per category** for each scored department.
+- **`awardGroups()`** feeds every medal: public results (a per-category department is shown split into its
+  categories), Overview leaderboard ("places per category" badge), results CSV (new **Award group**
+  column, Rank restarts per group), the deliberation list (labelled + ranked per group — it used to rank
+  across departments, "Rank 4" meant nothing) and the tie alert, which now names the group and the place.
+- **Ties**: only medal-deciding ones (1st–3rd, or 3rd/4th) raise the alert — before, a tie in 9th place
+  kept deliberation "recommended" all day — and a decided group never does.
+- **🏅 Awards tab**: computed top 3 per group, **Confirm all ready groups** in one batched upsert (~70
+  awards one by one was the roadmap's event-day worry), Re-confirm when scores changed, Clear, attention
+  groups first + count in the nav, read-only after Finalize. Confirmed places override the computed order
+  on the public page.
+- **Awards list** (print + CSV) with student and teacher names, groups not confirmed marked — admin only.
+- Caught by lint: `groupTie()` first used a `for` loop whose `filter` callback closed over `i` → the React
+  Compiler bailed out of App and purity/immutability fell 28/5 → 0/0 (rule 37). Bisected by cutting each
+  new function and re-linting; rewritten with `findIndex`. A `Date.now()` in the printout → `nowTick`.
+Tests: new `scripts/e2e/awards.e2e.mjs` (28: the Setup choice, per-category medals on the leaderboard,
+Elementary still one group, the tie alert naming group + place, one card per group with empty departments
+skipped, attention first, nav count, failed save changes nothing, Confirm all = ONE write of six places and
+nothing for 4th, changed-since-confirmed + Re-confirm, Clear → Pending, a tie decided in deliberation turns
+the alert off and shows "Decided by hand", print + CSV with names, public page split per category and
+following the decided tie, no names in public, results CSV groups, read-only after finalize).
+**Mutation-tested**: grouping ignored → 7 fail (then the run times out); confirmed awards ignored → 2 fail.
+Browser 497 → 525 across 24 files; lint 28/5; build clean.
 
 **2026-10-21 — The PreK & SPED Recognition Rubric; ribbons; shared places** (no migration; rule 78).
 The organiser sent the final PreK & SPED sheet: 4 criteria 1–5 = 20, every child a ribbon (17–20 Gold Star ·
@@ -1814,7 +1857,8 @@ Read this first when resuming on another machine.
 **THE FAIR IS 2026-12-11.** Plan agreed 2026-10-21: Phase 1 (forms, drafts, safety — done), Phase 2
 (**judging schedule** — done, see Change History; run **2026-10p** on the live project, then import the
 organiser's `Judges Schedule.csv` + the booth numbers), Phase 3 = **awards by department (default) +
-an optional per-department "award by category"** (`departments.award_grouping` already exists, unused),
+an optional per-department "award by category"** — **DONE 2026-10-21** (Awards tab, see Change History; still open from the
+roadmap: per-department lock/finalize),
 optional printed comment sheets for students (setting, off by default; no scores, no judge names).
 Dry run late November; code freeze **2026-12-01**.
 

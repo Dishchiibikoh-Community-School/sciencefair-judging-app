@@ -483,12 +483,12 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-21e";
+const ADMIN_HELP_UPDATED = "2026-10-21f";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
     "Everything is saved to a secure online database the moment you press Save or a judge presses Submit. App updates never erase your data.",
-    "The flow: set up → add projects → judges sign in → judges score → judges validate → (deliberation if there is a tie) → you finalize → you share the results link.",
+    "The flow: set up → add projects → judges sign in → judges score → judges validate → (deliberation if there is a tie) → you confirm the places on the Awards tab → you finalize → you share the results link and print the awards list.",
     "Each judge number covers one or more departments (Setup → Judges). A judge scores the projects of those departments only — all of them, or an even share when a department is set to 'N judges per project'.",
     "A department can be set to 'Comments only' (Setup tab) — judges there give a commendation instead of scores, nothing is ranked, and everyone is shown as a winner. Everything below about scores, ties and leaderboards applies only to scored departments.",
     "Totals are always calculated with the CURRENT rubric. On the 42-point rubric, grades below 5 skip the Abstract criterion and grades 5 and up cannot be given a 0; the 100-point rubric has neither rule (its lowest possible total is 20).",
@@ -583,6 +583,15 @@ const ADMIN_HELP = [
     ["It says I need more judges.", "You asked for more scores per project than you have judges to give. Three scored departments at 3 scores each need at least 9 judges. Either lower the scores per project or bring more judges."],
     ["Where do I see how long judging will take?", "The grid's Projects and About columns show each judge's load and a rough time, and the blue summary line gives the range and the busiest judge. It assumes about 6 minutes a project — a planning guide, not a limit. Comment-only reviews are quicker; a 20-item rubric is slower."],
     ["Can I ignore the suggestion?", "Yes, completely. Tick the grid however you like — it is only a starting point. Apply never saves on its own."],
+  ]},
+  { title: "Awards (1st, 2nd, 3rd)", icon: "🏅", faq: [
+    ["Who competes with whom?", "By default everyone in a DEPARTMENT competes for its 1st, 2nd and 3rd. In Setup → Departments each scored department has a second dropdown, 'Places: per department / per category'. Per category gives every category inside that department its own 1st–3rd (e.g. 6-8 Life Science, 6-8 Chemistry …). Use it only where categories have enough projects — a category with one project would get an uncontested 1st."],
+    ["Do I have to type every award?", "No. The Awards tab shows every group with its top three already worked out from the scores. Check it and press '✓ Confirm these places', or '✓ Confirm all ready groups' to confirm every group that is fully scored and has no tie, in one go. Honorable Mention and Best in Category you still give in Validation → Deliberation."],
+    ["What do the coloured labels mean?", "Not confirmed — nothing saved yet. ✓ Confirmed — saved and still what the scores say. Tie for 1st/2nd/3rd — two projects are level where it decides a place; decide it in Validation → Deliberation. ✓ Decided by hand — you gave the places yourself (e.g. after a tie). Scores changed since you confirmed — a judge re-scored after you confirmed; press Re-confirm, or decide by hand. 'N not scored yet' — some projects in the group have no score. Groups that need you are listed first, and the Awards menu item shows how many."],
+    ["What do the public results show — my awards or the scores?", "Your confirmed awards, once a group has any; until then the places worked out from the scores. That is how a tie you broke in deliberation reaches the podium. If you clear a group ('Clear confirmed places') it goes back to the computed places."],
+    ["Which ties raise the amber alert now?", "Only ties that decide a place: two projects level for 1st, 2nd or 3rd, or level across 3rd and 4th, in the same award group. A tie lower down decides nothing and no longer raises it. A tie you have already decided, and ties on the PreK & SPED form (they share the place), never do."],
+    ["How do I get the list for the ceremony?", "Awards tab → '🖨 Print awards list' (or '⬇ Awards CSV'): every group with its places, any special award, every ribbon, the student names and the teacher. It includes names, so it is for you only — never post it. Groups you have not confirmed yet are marked 'computed, not confirmed yet'."],
+    ["Can I change awards after I finalize?", "Not while results are finalized — the Awards tab becomes read-only. Reopen the results in the Validation tab, change them, and finalize again."],
   ]},
   { title: "PreK & SPED: ribbons and shared places", icon: "🎀", faq: [
     ["How is PreK & SPED judged?", "On the 'PreK & SPED Recognition (2026-27)' form: Curiosity, Hands-On Exploration, Sharing What They Learned, and Effort and Teamwork, each 1–5, total out of 20. Each criterion's description on the scoring screen says what 5, 3–4 and 1–2 look like. Help from an adult or a communication device never lowers a score."],
@@ -1959,7 +1968,10 @@ function dbToDept(r) {
            judge_to:   Number.isInteger(r.judge_to)   ? r.judge_to   : null,
            rubric_id:  r.rubric_id || null,     // 2026-10j; null = the school's default rubric
            // 2026-10k: null = every judge scores every project; N = each project gets N judges
-           judges_per_project: Number.isInteger(r.judges_per_project) ? r.judges_per_project : null };
+           judges_per_project: Number.isInteger(r.judges_per_project) ? r.judges_per_project : null,
+           // 2026-10f column, read since Phase 3 (2026-10-21): who competes for 1st/2nd/3rd —
+           // the whole department (default) or each category inside it.
+           award_grouping: r.award_grouping === "category" ? "category" : "department" };
 }
 // "8", "judge 8", "JUDGE08", "Judge8" → "Judge8". Anything else is returned trimmed,
 // so the server can reject it with its own message.
@@ -2300,6 +2312,8 @@ export default function App() {
   const [lockErr,            setLockErr]             = useState("");
   const [valErr,             setValErr]              = useState("");  // judge/admin validation save failed
   const [delibErr,           setDelibErr]            = useState("");  // admin Deliberation tab save failed
+  const [awardsMsg,          setAwardsMsg]           = useState(null); // Awards tab: { ok, text }
+  const [awardsBusy,         setAwardsBusy]          = useState(false);
   const [delibNoteErr,       setDelibNoteErr]        = useState("");  // judge deliberation note save failed
   const [judgeSignOutAsk,    setJudgeSignOutAsk]     = useState(false);  // inline "sign out anyway?" step
   const [transferAllowances, setTransferAllowances]  = useState({}); // { [alias]: expiryTs }
@@ -4834,6 +4848,131 @@ export default function App() {
     if (isFeedbackProject(proj)) return null;
     return ribbonFor(rubricSettings(projRubric(proj)), proj?.avg !== undefined ? proj.avg : projAvg(proj?.id));
   }
+
+  // ── Award groups (Phase 3, 2026-10-21) ──
+  // Who competes with whom for 1st / 2nd / 3rd. A department awards as ONE group (default) or,
+  // with departments.award_grouping = "category", one group per category inside it. Every medal
+  // shown anywhere (podium, ranked table, leaderboard, CSV, awards list) and every tie check comes
+  // from these groups (rule 79). Comment-only departments have no places, so no groups.
+  function awardGroups() {
+    const out = [];
+    const list = [...departments.filter(d => d.id && d.scoring_mode !== "feedback"), { id: null, name: "Unassigned" }];
+    for (const d of list) {
+      const ranked = rankedProjectsIn(d.id);
+      if (!ranked.length) continue;   // a department with no projects has nothing to award
+      if (d.id && d.award_grouping === "category") {
+        const order = catNames();
+        const cats = [...new Set(ranked.map(p => p.cat || ""))].sort((a, b) =>
+          (order.indexOf(a) < 0 ? 999 : order.indexOf(a)) - (order.indexOf(b) < 0 ? 999 : order.indexOf(b)) || a.localeCompare(b));
+        cats.forEach(c => out.push({ key: `${d.id}|${c}`, deptId: d.id, deptName: d.name, cat: c,
+          label: `${d.name} · ${c || "No category"}`, projects: ranked.filter(p => (p.cat || "") === c) }));
+      } else {
+        out.push({ key: `${d.id || "none"}|`, deptId: d.id, deptName: d.name, cat: null, label: d.name, projects: ranked });
+      }
+    }
+    return out;
+  }
+  // Places the admin CONFIRMED (final_decisions with 1st/2nd/3rd Place) for one group's projects.
+  function confirmedPlaces(projs) {
+    const m = new Map();
+    projs.forEach(p => {
+      const d = finalDecisions[p.id];
+      const i = d?.finalized ? PLACE_AWARDS.indexOf(d.award) : -1;
+      if (i >= 0) m.set(p.id, i);
+    });
+    return m;
+  }
+  // The places to SHOW for one group: what the admin confirmed, once they have confirmed any —
+  // that is how a tie broken in deliberation reaches the podium — otherwise the computed ones.
+  function groupPlaces(projs) {
+    const c = confirmedPlaces(projs);
+    return c.size ? c : placesOf(projs);
+  }
+  // Where one group stands on the Awards tab.
+  //   open      — nothing confirmed yet         confirmed — confirmed and still what the scores say
+  //   tie       — a medal-deciding tie, undecided   decided — a tie the admin decided (any place awards)
+  //   changed   — confirmed, but the scores now say something else (re-confirm or decide by hand)
+  function groupStatus(g) {
+    const computed = placesOf(g.projects), confirmed = confirmedPlaces(g.projects);
+    const tie = groupTie(g);
+    const same = confirmed.size === computed.size && [...computed].every(([k, v]) => confirmed.get(k) === v);
+    const unscored = g.projects.filter(p => p.avg === null).length;
+    const state = confirmed.size ? (tie ? "decided" : same ? "confirmed" : "changed") : (tie ? "tie" : "open");
+    return { state, computed, confirmed, tie, unscored,
+      attention: state === "tie" || state === "changed" || (unscored > 0 && state === "open"),
+      clean: state === "open" && !unscored && computed.size > 0 };
+  }
+  // Confirm the computed places of one or more groups in ONE batched write (Phase 3: ~70 awards
+  // one by one is not usable on event day). A project that held a 1st/2nd/3rd it no longer earns
+  // goes back to Pending; Honorable Mention / Best in Category are never touched.
+  async function confirmAwardGroups(groups, mode = "confirm") {
+    const sid = currentSchool?.id;
+    if (!sid || !groups.length || awardsBusy) return;
+    if (resultsFinalized) { setAwardsMsg({ ok: false, text: "Results are finalized — reopen them in the Validation tab to change awards." }); return; }
+    const now = new Date().toISOString();
+    const rows = [];
+    groups.forEach(g => {
+      const computed = mode === "confirm" ? placesOf(g.projects) : new Map();
+      g.projects.forEach(p => {
+        const cur = finalDecisions[p.id];
+        if (computed.has(p.id)) {
+          rows.push({ school_id: sid, project_id: p.id, award: PLACE_AWARDS[computed.get(p.id)],
+            admin_notes: cur?.adminNotes || "", finalized: true, finalized_at: now });
+        } else if (PLACE_AWARDS.includes(cur?.award)) {
+          rows.push({ school_id: sid, project_id: p.id, award: "Pending",
+            admin_notes: cur?.adminNotes || "", finalized: false, finalized_at: null });
+        }
+      });
+    });
+    if (!rows.length) { setAwardsMsg({ ok: true, text: "Nothing to change." }); return; }
+    setAwardsBusy(true); setAwardsMsg(null);
+    const { error } = await supabase.from("final_decisions").upsert(rows, { onConflict: "school_id,project_id" });
+    setAwardsBusy(false);
+    if (error) {
+      setAwardsMsg({ ok: false, text: `The awards were NOT saved — ${error.message}. Nothing changed; check your connection and try again.` });
+      addItLog("ERROR","ADMIN","AWARDS_CONFIRM_FAILED","Could not save confirmed awards",{ groups: groups.length, rows: rows.length, mode, error: errInfo(error) });
+      return;
+    }
+    setFinalDecisions(prev => {
+      const next = { ...prev };
+      rows.forEach(r => { next[r.project_id] = { award: r.award, adminNotes: r.admin_notes, finalized: r.finalized, finalizedAt: r.finalized ? Date.now() : null }; });
+      return next;
+    });
+    const placed = rows.filter(r => r.finalized).length;
+    const names = groups.map(g => g.label).join(", ");
+    setAwardsMsg({ ok: true, text: mode === "confirm"
+      ? `Confirmed ${placed} place award${placed !== 1 ? "s" : ""} in ${groups.length} group${groups.length !== 1 ? "s" : ""}.`
+      : `Cleared the place awards of ${names}.` });
+    addLog(mode === "confirm" ? `Admin confirmed the places for ${names}` : `Admin cleared the confirmed places for ${names}`);
+    addItLog("INFO","ADMIN", mode === "confirm" ? "AWARDS_CONFIRMED" : "AWARDS_CLEARED",
+      mode === "confirm" ? "Admin confirmed computed places" : "Admin cleared confirmed places",
+      { groups: groups.length, awards: placed, cleared: rows.length - placed });
+  }
+  async function updateDeptAwardGrouping(deptId, value) {
+    const dept = departments.find(d => d.id === deptId);
+    if (!dept || (value !== "category" && value !== "department") || dept.award_grouping === value) return;
+    setSetupErr("");
+    const { data, error } = await supabase.from("departments").update({ award_grouping: value })
+      .eq("school_id", currentSchool.id).eq("id", deptId).select("id");
+    if (error || !data?.length) {
+      const missing = MISSING_COL(error);
+      setSetupErr(missing
+        ? "Awarding by category needs database update 2026-10f, which has not been run. Nothing was changed."
+        : `Could not change how "${dept.name}" awards places: ${error?.message || "nothing was saved"}`);
+      addItLog(missing ? "WARN" : "ERROR","DB", missing ? "AWARD_GROUPING_COL_MISSING" : "AWARD_GROUPING_FAILED",
+        "A department's award grouping could not be written", { dept: dept.name, value, error: error?.message || "0 rows" });
+      return;
+    }
+    setDepartments(prev => prev.map(d => d.id === deptId ? { ...d, award_grouping: value } : d));
+    addLog(`Admin set ${dept.name} to award places ${value === "category" ? "per category" : "per department"}`);
+    addItLog("INFO","ADMIN","AWARD_GROUPING_SET","Admin changed how a department awards places",{ dept: dept.name, value });
+  }
+  // Every place in one department, across its groups (leaderboard).
+  function deptPlaces(deptId) {
+    const m = new Map();
+    awardGroups().filter(g => g.deptId === (deptId || null)).forEach(g => groupPlaces(g.projects).forEach((v, k) => m.set(k, v)));
+    return m;
+  }
   function minPlaceText() {
     const maxima = [...new Set(scoredProjects().map(p => projectMax(p)))].sort((a, b) => b - a);
     if (!maxima.length) return `${minPlacePct}%`;
@@ -5203,21 +5342,68 @@ export default function App() {
     URL.revokeObjectURL(url);
   }
 
+  // ── Awards list (Phase 3) — for the ceremony. ADMIN ONLY: it carries student and teacher names
+  // (from project_private), so it is built in the admin's browser and never published.
+  // One block per award group: everyone with a place, a special award or a ribbon, place order first.
+  function awardsListRows() {
+    return awardGroups().map(g => {
+      const places = groupPlaces(g.projects);
+      const confirmed = confirmedPlaces(g.projects).size > 0;
+      const rows = g.projects
+        .filter(p => p.avg !== null && (places.has(p.id) || ribbonOf(p) ||
+          (finalDecisions[p.id]?.finalized && !["No Award", "Pending"].includes(finalDecisions[p.id].award))))
+        .map(p => {
+          const d = finalDecisions[p.id];
+          const other = d?.finalized && !PLACE_AWARDS.includes(d.award) && !["No Award", "Pending"].includes(d.award) ? d.award : "";
+          return { p, place: places.has(p.id) ? places.get(p.id) : null, ribbon: ribbonOf(p) || "", other };
+        })
+        .sort((a, b) => (a.place ?? 9) - (b.place ?? 9));
+      return { g, confirmed, rows };
+    }).filter(x => x.rows.length);
+  }
+  function printAwardsList() {
+    const school = escHtml(currentSchool?.name || "");
+    const body = awardsListRows().map(({ g, confirmed, rows }) => `
+      <h2 style="font-size:1.05rem;color:#1e3a5f;margin:1.2rem 0 .3rem">${escHtml(g.label)}${confirmed ? "" : ' <span style="color:#b45309;font-size:.75rem">— computed, not confirmed yet</span>'}</h2>
+      <table><tr><th>Place</th><th>Code</th><th>Project</th><th>Students</th><th>Teacher</th><th>Score</th><th>Ribbon / award</th></tr>
+      ${rows.map(r => `<tr><td style="white-space:nowrap"><b>${r.place !== null ? `${MEDALS[r.place]} ${PLACE_AWARDS[r.place]}` : ""}</b></td>
+        <td class="code">${escHtml(projectCode(r.p))}</td><td>${escHtml(r.p.title)}</td>
+        <td>${escHtml(membersText(r.p.group_members))}</td><td>${escHtml(r.p.advisor_name || "")}</td>
+        <td style="white-space:nowrap">${escHtml(r.p.avg)} / ${projectMax(r.p)}</td>
+        <td>${escHtml([r.ribbon, r.other].filter(Boolean).join(" · "))}</td></tr>`).join("")}
+      </table>`).join("");
+    schedPrintWindow(`Awards — ${currentSchool?.name || ""}`,
+      `<h1>${school} — Awards</h1><div class="sub">SY ${escHtml(syText)} · ${escHtml(fmtFull(nowTick))}</div>${body || "<p>No scored projects yet.</p>"}`);
+    addItLog("INFO","ADMIN","AWARDS_LIST_PRINTED","Admin opened the awards list printout",{ groups: awardGroups().length });
+  }
+  function exportAwardsCSV() {
+    const rows = [["Department","Award group","Place","Code","Project #","Title","Category","Students","Teacher","Avg Score","Out of","Ribbon","Other award","Confirmed"].map(csvCell)];
+    awardsListRows().forEach(({ g, confirmed, rows: list }) => list.forEach(r => rows.push([
+      g.deptName, g.cat === null ? "Whole department" : (g.cat || "No category"),
+      r.place !== null ? PLACE_AWARDS[r.place] : "", projectCode(r.p), r.p.num, r.p.title, r.p.cat,
+      membersText(r.p.group_members), r.p.advisor_name || "", r.p.avg, projectMax(r.p), r.ribbon, r.other,
+      confirmed ? "Yes" : "No — computed",
+    ].map(csvCell))));
+    const blob = new Blob([rows.map(r => r.join(",")).join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "awards-list.csv"; a.click();
+    URL.revokeObjectURL(url);
+    addItLog("INFO","ADMIN","AWARDS_CSV_EXPORTED","Admin downloaded the awards list CSV",{ rows: rows.length - 1 });
+  }
+
   function exportResultsCSV() {
     // Rank within each department — projects are only comparable inside their own dept.
     const rows = [
-      ["Department","Rank","Code","Project #","Title","Category","Grade","Avg Score","Out of","Reviews","Place","Ribbon","Award"].map(csvCell),
+      ["Department","Award group","Rank","Code","Project #","Title","Category","Grade","Avg Score","Out of","Reviews","Place","Ribbon","Award"].map(csvCell),
     ];
-    const deptGroups = [
-      ...departments.filter(d => d.id).map(d => ({ name: d.name, projs: rankedProjectsIn(d.id) })),
-      { name: "Unassigned", projs: rankedProjectsIn(null) },
-    ];
-    deptGroups.forEach(g => {
-      const places = placesOf(g.projs);
-      g.projs.forEach((p, i) => {
+    // One block per award group (Phase 3): Rank is the position inside the group, Place the medal.
+    awardGroups().forEach(g => {
+      const places = groupPlaces(g.projects);
+      g.projects.forEach((p, i) => {
         const decision = finalDecisions[p.id];
         rows.push([
-          g.name,
+          g.deptName, g.cat === null ? "Whole department" : (g.cat || "No category"),
           i + 1, projectCode(p), p.num,
           p.title || "",
           p.cat, p.grade,
@@ -5741,26 +5927,28 @@ export default function App() {
   }
   // Ties only matter inside a department — two projects in different departments
   // sharing an average are not competing with each other.
-  function hasTie() {
-    const groups = [
-      // A comment-only department has no scores, so every project in it would
-      // "tie" at 0 and the deliberation alert would never switch off.
-      ...departments.filter(d => d.id && d.scoring_mode !== "feedback").map(d => d.id),
-      null, // unassigned projects form their own group
-    ];
-    return groups.some(deptId => {
-      // Only a tie that decides a MEDAL is worth stopping the event for. Two projects level
-      // below the minimum to place cannot take 1st/2nd/3rd from each other (rule 72), and
-      // before this the amber alert would never switch off for them.
-      const scored = rankedProjectsIn(deptId).filter(p => p.avg !== null && placesEligible(p));
-      // A form whose ties SHARE the place (PreK & SPED) has nothing to deliberate.
-      if (scored.length && tiesShare(scored[0])) return false;
-      for (let i = 0; i < scored.length - 1; i++) {
-        if (scored[i].avg === scored[i + 1].avg) return true;
-      }
-      return false;
-    });
+  // Ties that can decide a medal, one entry per award group (Phase 3, 2026-10-21): a tie among
+  // the projects at places 1–3 or across the 3rd/4th boundary. A tie further down decides nothing,
+  // and before this it kept the amber deliberation alert on for no reason. Groups whose ties SHARE
+  // the place (PreK & SPED form, rule 78) and groups the admin has already decided are skipped.
+  function tieGroups() {
+    return awardGroups().filter(g => !confirmedPlaces(g.projects).size)
+      .map(g => ({ ...g, tie: groupTie(g) })).filter(g => g.tie);
   }
+  // The first medal-deciding tie in one group, ignoring any decision → { place, tied } | null.
+  function groupTie(g) {
+    // Only a tie that decides a MEDAL is worth stopping the event for. Two projects level
+    // below the minimum to place cannot take 1st/2nd/3rd from each other (rule 72).
+    const el = g.projects.filter(p => p.avg !== null && placesEligible(p));
+    if (!el.length || tiesShare(el[0])) return null;
+    // findIndex, not a for-loop: a callback that closes over a loop counter the loop then
+    // reassigns (i++) makes the React Compiler bail out of App (rule 37) — it did, here.
+    const at = el.slice(0, 4).findIndex((p, i, arr) => i < arr.length - 1 && p.avg === arr[i + 1].avg);
+    if (at < 0) return null;
+    const level = el[at].avg;
+    return { place: at, tied: el.filter(p => p.avg === level) };
+  }
+  function hasTie() { return tieGroups().length > 0; }
   function consensusReached() {
     const done = completedJudges();
     if (!done.length || !adminValidation?.approved) return false;
@@ -8357,6 +8545,7 @@ export default function App() {
     const anomalies  = getAnomalies();
     const completion = Math.round((totalScored() / possible()) * 100) || 0;
 
+    const awardsAttention = awardGroups().filter(g => groupStatus(g).attention && g.projects.some(p => p.avg !== null)).length;
     const navItems = [
       { id:"overview", ico:"📊", label:"Overview"     },
       { id:"setup",    ico:"⚙️", label:"Setup"        },
@@ -8365,6 +8554,7 @@ export default function App() {
       { id:"activity", ico:"📋", label:"Activity Log" },
       { id:"alerts",   ico:"⚠️", label:`Alerts${anomalies.length?` (${anomalies.length})`:""}`},
       { id:"deliberation", ico:"🤝", label:`Validation${resultsFinalized ? " ✓" : consensusReached() ? " 🟢" : ""}` },
+      { id:"awards",   ico:"🏅", label:`Awards${awardsAttention ? ` (${awardsAttention})` : ""}` },
       { id:"share",    ico:"🔗", label:`Share${resultsFinalized ? " 🔗" : ""}` },
       { id:"export",   ico:"📦", label:"Score Export"  },
       { id:"registration", ico:"📝", label:"Registration" },
@@ -8822,10 +9012,14 @@ export default function App() {
                 const all = rankedProjects().filter(p => p.department_id === dept.id);
                 const scored   = all.filter(p => p.avg !== null);
                 const unscored = all.filter(p => p.avg === null);
-                const places   = placesOf(scored);
+                const places   = deptPlaces(dept.id);
                 return (
                   <div className="card" key={dept.id}>
-                    <div className="sec-title">{dept.name} — Project Leaderboard</div>
+                    <div className="sec-title">
+                      {dept.name} — Project Leaderboard
+                      {dept.award_grouping === "category" &&
+                        <span className="badge bp" style={{marginLeft:".5rem",fontSize:".65rem"}} data-testid="lb-per-category">places per category</span>}
+                    </div>
                     <div className="tbl-wrap">
                       <table>
                         <thead><tr><th>#</th><th>Project</th><th>Category</th><th>Avg</th><th>Reviews</th></tr></thead>
@@ -9002,6 +9196,15 @@ export default function App() {
                                 <option value="feedback">Comments only (not scored)</option>
                               </optgroup>
                             </select>
+                            {dept.scoring_mode !== "feedback" && (
+                              <select className="setup-mode" value={dept.award_grouping || "department"}
+                                title="Who competes for 1st, 2nd and 3rd — the whole department, or each category inside it"
+                                aria-label={`Places for ${dept.name}`}
+                                onChange={e => updateDeptAwardGrouping(dept.id, e.target.value)}>
+                                <option value="department">Places: per department</option>
+                                <option value="category">Places: per category</option>
+                              </select>
+                            )}
                             <button className="proj-act-btn" title="Rename"
                               onClick={() => { setSetupErr(""); setDeptEdits(p => ({...p, [dept.id]: { name: dept.name, code: dept.code || "" }})); }}>✏️</button>
                             <button className="proj-act-btn del" title={inUse ? "In use — move its projects and judges first" : "Delete"}
@@ -10435,7 +10638,12 @@ export default function App() {
                     <span style={{fontSize:"1.2rem"}}>⚠️</span>
                     <div style={{flex:1}}>
                       <div style={{fontWeight:600,fontSize:".88rem"}}>Tie detected in rankings</div>
-                      <div style={{fontSize:".76rem",opacity:.85}}>Two or more projects share the same average score. Deliberation is recommended.</div>
+                      <div style={{fontSize:".76rem",opacity:.85}}>Two or more projects share the same average score where it decides a place. Deliberation is recommended.</div>
+                      {tieGroups().map(g => (
+                        <div key={g.key} data-testid="tie-group" style={{fontSize:".76rem",marginTop:".25rem"}}>
+                          <b>Tie for {PLACE_AWARDS[g.tie.place]}</b> in {g.label}: {g.tie.tied.map(p => `${projectCode(p)} (${p.avg})`).join(" · ")}
+                        </div>
+                      ))}
                     </div>
                     {!deliberationOpen && <button className="btn amber sm" style={{width:"auto"}} onClick={() => openDeliberation("tie")}>Open Deliberation</button>}
                   </div>
@@ -10535,7 +10743,8 @@ export default function App() {
                         : <button className="btn sec sm" style={{width:"auto"}} onClick={() => openDeliberation("manual")}>Open Manually</button>
                       }
                     </div>
-                    {deliberationOpen && rankedProjects().map((p, i) => {
+                    {/* Ranked inside each AWARD GROUP (Phase 3) — "Rank 4" across departments meant nothing. */}
+                    {deliberationOpen && awardGroups().flatMap(g => g.projects.map((p, i) => ({ p, i, g }))).map(({ p, i, g }) => {
                       const notes = getDelibNotesForProject(p.id);
                       const flags = getFlagCount(p.id);
                       const decision = finalDecisions[p.id];
@@ -10543,7 +10752,7 @@ export default function App() {
                         <div key={p.id} style={{borderTop:"1px solid var(--bd)",paddingTop:".85rem",marginTop:".85rem"}}>
                           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:"1rem",flexWrap:"wrap",marginBottom:".5rem"}}>
                             <div>
-                              <div style={{fontFamily:"var(--ff-m)",fontSize:".73rem",color:"var(--navy)"}}>{projectCode(p)} · Rank {i+1}</div>
+                              <div style={{fontFamily:"var(--ff-m)",fontSize:".73rem",color:"var(--navy)"}}>{projectCode(p)} · {g.label} · Rank {i+1}</div>
                               <div style={{fontWeight:600,fontSize:".92rem",lineHeight:1.3}}>{p.title}</div>
                             </div>
                             <div style={{textAlign:"right",flexShrink:0}}>
@@ -10643,6 +10852,117 @@ export default function App() {
                     {delibReportCopied ? "✓ Copied!" : "📋 Copy Summary Report"}
                   </button>
                 </div>
+              </>;
+            })()}
+
+            {/* AWARDS (Phase 3) — confirm the computed places group by group, print the list */}
+            {adminTab==="awards" && (() => {
+              const groups = awardGroups().map(g => ({ ...g, st: groupStatus(g), scoredN: g.projects.filter(p => p.avg !== null).length }));
+              // Groups that need a decision float to the top; the rest keep department order.
+              const shown = [...groups.filter(g => g.st.attention), ...groups.filter(g => !g.st.attention)];
+              const clean = groups.filter(g => g.st.clean);
+              const done = groups.filter(g => g.st.state === "confirmed" || g.st.state === "decided").length;
+              const chip = (cls, text, tid) => <span className={`badge ${cls}`} data-testid={tid} style={{marginRight:".35rem"}}>{text}</span>;
+              return <>
+                <div className="adm-h1">Awards</div>
+                <div className="adm-sub">1st, 2nd and 3rd come from the scores. Check each group, confirm it, then print the awards list.</div>
+                {resultsFinalized && (
+                  <div className="val-tie-alert" style={{marginBottom:"1rem"}}>
+                    <span style={{fontSize:"1.2rem"}}>🔒</span>
+                    <div style={{flex:1,fontSize:".85rem"}}>Results are finalized — the awards are read-only. Reopen them in the Validation tab to change anything.</div>
+                  </div>
+                )}
+                {awardsMsg && (
+                  <div className={awardsMsg.ok ? "brand-ok" : "err"} data-testid="awards-msg" style={{marginBottom:"1rem"}}>
+                    {awardsMsg.ok ? "✓ " : "⚠ "}{awardsMsg.text}
+                  </div>
+                )}
+                <div className="card" style={{marginBottom:"1rem"}}>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:".6rem",alignItems:"center",justifyContent:"space-between"}}>
+                    <div style={{fontSize:".88rem"}} data-testid="awards-summary">
+                      <b>{groups.length}</b> award group{groups.length !== 1 ? "s" : ""} · <b>{done}</b> confirmed
+                      {groups.some(g => g.st.attention) && <> · <b style={{color:"var(--amber)"}}>{groups.filter(g => g.st.attention).length}</b> need attention</>}
+                    </div>
+                    <div style={{display:"flex",gap:".5rem",flexWrap:"wrap"}}>
+                      <button className="btn sm" style={{width:"auto"}} data-testid="awards-confirm-all"
+                        disabled={!clean.length || awardsBusy || resultsFinalized}
+                        onClick={() => confirmAwardGroups(clean)}>
+                        {awardsBusy ? "Saving…" : `✓ Confirm all ready groups (${clean.length})`}
+                      </button>
+                      <button className="btn sec sm" style={{width:"auto"}} onClick={printAwardsList}>🖨 Print awards list</button>
+                      <button className="btn sec sm" style={{width:"auto"}} onClick={exportAwardsCSV}>⬇ Awards CSV</button>
+                    </div>
+                  </div>
+                  <div style={{fontSize:".78rem",color:"var(--dim)",marginTop:".6rem",lineHeight:1.5}}>
+                    Each department competes as one group, or per category if you chose <i>Places: per category</i> in Setup.
+                    A <b>ready</b> group is fully scored with no tie. The awards list and CSV include student and teacher names — keep them private.
+                  </div>
+                </div>
+                {!groups.length && <div className="card" style={{color:"var(--dim)"}}>No scored departments yet.</div>}
+                {shown.map(g => {
+                  const { st } = g;
+                  return (
+                    <div className="card" key={g.key} data-testid="award-group" data-group={g.label} style={{marginBottom:".9rem"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",gap:".5rem",flexWrap:"wrap",alignItems:"center",marginBottom:".5rem"}}>
+                        <div className="sec-title" style={{marginBottom:0}}>{g.label}</div>
+                        <div>
+                          {st.state === "open" && chip("bb", "Not confirmed", "st-open")}
+                          {st.state === "confirmed" && chip("bg", "✓ Confirmed", "st-confirmed")}
+                          {st.state === "decided" && chip("bg", "✓ Decided by hand", "st-decided")}
+                          {st.state === "tie" && chip("ba", `Tie for ${PLACE_AWARDS[st.tie.place]}`, "st-tie")}
+                          {st.state === "changed" && chip("br", "Scores changed since you confirmed", "st-changed")}
+                          {st.unscored > 0 && chip("ba", `${st.unscored} not scored yet`, "st-unscored")}
+                          {g.projects[0] && tiesShare(g.projects[0]) && chip("bp", "Ties share the place", "st-share")}
+                        </div>
+                      </div>
+                      {st.state === "tie" && (
+                        <div style={{fontSize:".8rem",color:"var(--amber)",marginBottom:".5rem",lineHeight:1.5}}>
+                          {st.tie.tied.map(p => projectCode(p)).join(" and ")} are level on {st.tie.tied[0].avg} for {PLACE_AWARDS[st.tie.place]}.
+                          Decide it in <b>Validation → Deliberation</b> (read the judges&apos; notes, give the awards there) — this group then shows as decided.
+                        </div>
+                      )}
+                      <div className="tbl-wrap">
+                        <table>
+                          <thead><tr><th>Place</th><th>Project</th><th>Avg</th><th>Reviews</th><th>Confirmed award</th></tr></thead>
+                          <tbody>
+                            {g.projects.filter(p => p.avg !== null).map(p => {
+                              const d = finalDecisions[p.id];
+                              return (
+                                <tr key={p.id} data-testid="award-row" data-code={projectCode(p)}>
+                                  <td style={{whiteSpace:"nowrap"}}>{st.computed.has(p.id) ? `${MEDALS[st.computed.get(p.id)]} ${PLACE_AWARDS[st.computed.get(p.id)]}` : ""}</td>
+                                  <td>
+                                    <span style={{fontFamily:"var(--ff-m)",fontSize:".75rem",color:"var(--navy)",marginRight:".4rem"}}>{projectCode(p)}</span>
+                                    {p.title}
+                                    {ribbonOf(p) && <span className="badge ba" style={{marginLeft:".35rem",fontSize:".6rem"}}>🎀 {ribbonOf(p)}</span>}
+                                    {minPlacePct > 0 && !placesEligible(p) && <span className="badge br" style={{marginLeft:".35rem",fontSize:".6rem"}}>below {minPlacePct}%</span>}
+                                  </td>
+                                  <td style={{fontFamily:"var(--ff-m)"}}>{p.avg} / {projectMax(p)}</td>
+                                  <td>{p.revs}</td>
+                                  <td data-testid="award-confirmed">{d?.finalized && d.award !== "Pending" ? d.award : <span style={{color:"var(--dim)"}}>—</span>}</td>
+                                </tr>
+                              );
+                            })}
+                            {!g.scoredN && <tr><td colSpan={5} style={{color:"var(--dim)",fontSize:".8rem"}}>Nothing scored yet.</td></tr>}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div style={{display:"flex",gap:".5rem",flexWrap:"wrap",marginTop:".6rem"}}>
+                        {(st.state === "open" || st.state === "changed") && (
+                          <button className="btn sm" style={{width:"auto"}} data-testid="award-confirm"
+                            disabled={awardsBusy || resultsFinalized || !st.computed.size}
+                            onClick={() => confirmAwardGroups([g])}>
+                            {st.state === "changed" ? "↻ Re-confirm from the scores" : "✓ Confirm these places"}
+                          </button>
+                        )}
+                        {st.confirmed.size > 0 && (
+                          <button className="btn sec sm" style={{width:"auto"}} data-testid="award-clear"
+                            disabled={awardsBusy || resultsFinalized}
+                            onClick={() => confirmAwardGroups([g], "clear")}>Clear confirmed places</button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </>;
             })()}
 
@@ -11552,7 +11872,8 @@ export default function App() {
       // The medals go to the top three that CLEAR the minimum (rule 72). Everything else
       // keeps its position in the list with its real score — it competed, it just did not place.
       // On the PreK & SPED form tied children SHARE a place, so a place can hold several cards.
-      const medalOf  = placesOf(scored);
+      // Confirmed awards (Awards tab / deliberation) win over the computed order (rule 79).
+      const medalOf  = groupPlaces(scored);
       const top3     = scored.filter(p => medalOf.has(p.id));
       return (
         <>
@@ -11694,7 +12015,15 @@ export default function App() {
                     {rubricSettings(rubricFor(dept.id)).ribbons &&
                       <span className="badge bp" style={{fontSize:".7rem",verticalAlign:"middle",marginLeft:".5rem"}}>Every child earns a ribbon</span>}
                   </div>
-                  <DeptResults deptProjects={deptProjects} deptName={dept.name} />
+                  {dept.award_grouping === "category"
+                    ? awardGroups().filter(g => g.deptId === dept.id).map(g => (
+                        <div key={g.key} data-testid="pub-cat-group">
+                          <div style={{fontFamily:"var(--ff-d)",fontSize:"1.1rem",color:"var(--navy-l)",margin:"1.25rem 0 .75rem"}}>
+                            {g.cat || "No category"}
+                          </div>
+                          <DeptResults deptProjects={g.projects} deptName={g.label} />
+                        </div>))
+                    : <DeptResults deptProjects={deptProjects} deptName={dept.name} />}
                 </div>
               );
             })}

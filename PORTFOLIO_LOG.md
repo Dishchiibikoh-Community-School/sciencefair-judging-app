@@ -4,6 +4,30 @@ Honest, specific notes on work done, for later portfolio/interview use.
 
 ---
 
+### 2026-10-21 — Phase 3: award groups and an Awards screen that confirms instead of typing
+
+- **Project:** Qritiko — multi-tenant science-fair judging SaaS (React + Vite + Supabase, ~11k-line single component)
+- **What I built/fixed:** A per-department choice to award places per department or per category, one
+  `awardGroups()` definition that every medal on every screen now comes from, and an Awards tab that
+  shows each group's computed top three for the organiser to confirm (all clean groups in one batched
+  write), with ties, unscored projects and stale confirmations floated to the top, plus a printable
+  awards list for the ceremony.
+- **Why I built it:** The old flow asked the admin to pick ~70 awards one dropdown at a time, in a list
+  ranked across departments ("Rank 4" of everything), and the tie alert fired for ties nowhere near a medal.
+- **Problem(s) encountered:**
+  - **Confirmed vs computed places can disagree** — after a tie is broken by hand, or when a judge re-scores
+    after confirming. Decided that a group's confirmed awards win on the public page, and that the Awards
+    tab flags "scores changed since you confirmed" rather than silently overwriting a decision.
+  - **A React Compiler bailout from one innocent loop.** A `filter` callback inside a `for` loop closed over
+    the loop counter; the compiler gave up on the whole 11k-line component and two lint rules silently went
+    from 33 findings to zero — the report looked *better*. Caught because the project tracks those counts per
+    commit; bisected by cutting each new function and re-linting.
+  - **Empty departments** produced empty award groups — caught by the first run of the new test.
+- **Result:** 28-check browser suite, mutation-tested (grouping off → 7 fail; confirmed awards ignored → 2
+  fail). No database migration needed — the column had been added in advance in an earlier migration.
+
+---
+
 ### 2026-10-21 — PreK & SPED rubric: ribbons for every child, shared places on ties
 
 - **Project:** Qritiko — multi-tenant science-fair judging SaaS (React + Vite + Supabase, ~11k-line single component)

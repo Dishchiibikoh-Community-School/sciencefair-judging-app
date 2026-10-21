@@ -55,6 +55,7 @@ judge device transfers. **You choose it when you register the school** — 4 to 
 | **Activity Log** | Human-readable timeline of all system events |
 | **Alerts** | Event health: connection, errors, scores stuck on devices, coverage, progress per department, idle judges, score outliers |
 | **Validation** | Judges' and your own validation, deliberation, award decisions, Finalize |
+| **Awards** | 1st / 2nd / 3rd per award group, worked out from the scores — confirm them, see ties, print the awards list |
 | **Share** | Generate live results link (after results finalized) |
 | **Score Export** | Per-judge CSV export and score backups |
 | **Registration** | Student registration link and submissions (not used in 2026-27) |
@@ -83,6 +84,7 @@ Run through this a few days before, not on the morning of.
 - [ ] **Print the project list** (Projects tab) and check advisers/members appear.
 - [ ] **Download Projects CSV** (Projects tab) — your own backup copy of every team. **⬆ Import projects** reads it back in if you ever need to restore.
 - [ ] **Finish the rubrics** (Rubric tab) and **pick one for each department** (Setup) before the first judge signs in.
+- [ ] **Decide how places are awarded** (Setup → each department → *Places: per department / per category*).
 - [ ] **Do a dry run:** sign in as judge number 1 on a spare tablet, score one project, confirm it shows in Overview, then **Remove** that judge on the Judges tab.
 - [ ] **Write down** the school link, invite code, and which judge number each judge gets (Overview → "Judge sign-in details" lists the numbers per department).
 - [ ] **Plan your backups** — see [Event-day backup plan](#event-day-backup-plan). The day before: download the Projects CSV and print the project list.
@@ -125,12 +127,26 @@ A new school starts with **Elementary / Middle School / High School**, but that 
 
 > **⚠️ You cannot delete a department that still has projects or judges in it.** The app blocks it and tells you how many there are. This is deliberate: deleting it would leave those projects unassigned, and an unassigned project is scored by nobody. Move them first (Projects tab → edit a project → Department), then delete.
 
+#### Places: per department or per category
+
+Each scored department has a second dropdown, **Places: per department** (default) or **Places: per
+category**. It decides who competes for 1st, 2nd and 3rd:
+
+- **Per department** — every project in the department competes together: one 1st, 2nd, 3rd.
+- **Per category** — each category inside that department has its own 1st, 2nd, 3rd (e.g. *6-8 · Life
+  Science*, *6-8 · Chemistry & Material Science*). The public results show the department split into its
+  categories.
+
+Choose per category only where each category has several projects — a category with a single project
+would get an uncontested 1st. You can change it at any time; groups you already confirmed on the Awards
+tab will then say *Scores changed since you confirmed* so you can re-confirm.
+
 #### Which rubric — or comments only?
 
 Each department row has a **how it is judged** dropdown with three groups:
 
 - **Your rubrics** — every rubric in your library (the default is marked).
-- **Add from a preset** — the built-in rubrics you have not added yet, including the two **2026-27
+- **Add from a preset** — the built-in rubrics you have not added yet, including the three **2026-27
   evaluation forms** (see *The 2026-27 evaluation forms* below) and e.g. *Cibecue / ISEF-style — 100
   points*, *Detailed form — 20 items*). Picking one **adds it to your rubrics and assigns it** in one step;
   after that it is listed under *Your rubrics* and can be edited in the Rubric tab.
@@ -379,9 +395,9 @@ Each department shows its own section with:
 | Leaderboard Column | What It Shows |
 |---|---|
 | **#** | Rank within department (by current average) |
-| **Project** | Title |
+| **Project** | Title — with 🥇🥈🥉 beside the projects currently holding 1st/2nd/3rd, and on the PreK & SPED form the child's ribbon (🎀 Gold / Silver / Bright Star Scientist) |
 | **Category** | Subject area |
-| **Avg** | Current average score, out of that department's rubric total (e.g. 100) |
+| **Avg** | Current average score, out of that department's rubric total (e.g. 100, or 20 on the PreK & SPED form) |
 | **Reviews** | How many judges have scored it |
 
 Unscored projects (no reviews yet) appear below a divider at reduced opacity. A **Comments only**
@@ -613,6 +629,8 @@ Green banner appears when all completed judges have approved AND admin has appro
 ### Step 4: Deliberation (Conditional)
 
 Opens automatically on a tie, or admin can open manually. Admin assigns final awards per project.
+A tie on the **PreK & SPED form** does not open it — tied children share the place (see *PreK & SPED:
+ribbons and shared places*); open it manually if you want to break such a tie using the judge's comments.
 
 ### Step 5: Finalize Results
 
@@ -624,6 +642,49 @@ never stop the results). The box above the button says what is still missing.
 2. Resolve any concerns (see Step 2) and close deliberation if it was opened
 3. Click **"Finalize Results"**
 4. Share tab becomes enabled
+
+---
+
+## Awards (1st, 2nd, 3rd)
+
+The **🏅 Awards** tab turns the scores into places without typing a single award.
+
+1. Each **award group** — a department, or a category inside it (see *Places: per department or per
+   category*) — is a card with its projects in order and the computed **🥇 1st / 🥈 2nd / 🥉 3rd**.
+2. A group that is fully scored and has no tie is **ready**. Press **✓ Confirm all ready groups** to
+   confirm every ready group in one go, or **✓ Confirm these places** on one card. It is saved in a
+   single step; a red *NOT saved* message means nothing changed — check the connection and press again.
+3. Cards that need you are listed **first**, and the menu shows how many (e.g. *Awards (2)*):
+
+| Label | Meaning | What to do |
+|---|---|---|
+| **Not confirmed** | Nothing saved for this group yet | Check it, then Confirm |
+| **N not scored yet** | Some projects in the group have no score | Wait for the judges (or confirm anyway if a project withdrew) |
+| **Tie for 1st / 2nd / 3rd** | Two projects are level where it decides a place | Validation → Open Manually → read the judges' notes → give the awards there |
+| **✓ Decided by hand** | You gave the places yourself (e.g. after a tie) | Nothing |
+| **Scores changed since you confirmed** | A judge re-scored after you confirmed | **↻ Re-confirm from the scores**, or decide by hand |
+| **✓ Confirmed** | Saved, and still what the scores say | Nothing |
+| **Ties share the place** | PreK & SPED form — tied children share the place | Nothing (see *PreK & SPED: ribbons and shared places*) |
+
+**What the public sees.** Once a group has confirmed places, the public podium and ranked table show
+**your** places — that is how a tie you broke reaches the podium. Until then they show the places worked
+out from the scores. **Clear confirmed places** puts a group back to the computed places.
+
+**Which ties raise the amber "Tie detected" alert.** Only ties that decide a place: level for 1st, 2nd or
+3rd, or across 3rd and 4th, inside one award group. A tie lower down decides nothing and no longer raises
+it; a tie you have decided, and ties on the PreK & SPED form, never do.
+
+**Honorable Mention and Best in Category** are still given in Validation → Deliberation, project by
+project. Confirming places never touches them.
+
+**The awards list.** **🖨 Print awards list** and **⬇ Awards CSV** give every group with its places, any
+special award, every ribbon, the **student names and the teacher** — for the ceremony and the
+certificates. Because of the names it is for you only: never post it or send it to families. Groups not
+confirmed yet are marked *computed, not confirmed yet*.
+
+**After Finalize** the Awards tab is read-only. Reopen the results in the Validation tab to change anything.
+
+The **results CSV** (Share tab) now has an **Award group** column, and its **Rank** restarts in each group.
 
 ---
 
