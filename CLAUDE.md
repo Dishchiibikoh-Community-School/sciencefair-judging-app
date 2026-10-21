@@ -1832,8 +1832,11 @@ readable, anon writes refused by RLS, both schedule RPCs answer "Not authorised"
 **Superseded later the same day:** PreK + SPED move to the **PreK & SPED Recognition** form and the minimum to
 place goes back to **0** — both are the organiser's Setup changes (see Still to do).
 
-**Still to do before the dry run:** Setup → PreK and SPED → *Add from a preset* → **PreK & SPED Recognition (2026-27)**
-(allowed: no scores yet); Setup → Minimum score to place → **0**; import the organiser's `Judges Schedule.csv` (Setup → 📅 Judging schedule) and
+**Done 2026-10-21, verified with anonymous reads:** PreK + SPED → **PreK & SPED Recognition (2026-27)** (scoring_mode
+`scored`, 4 × 1–5 = 20, ids/order/maxima identical to the preset, so ribbons + shared places apply); minimum to
+place = **0**; `judge_max` = 15. No judges, no scores yet.
+
+**Still to do before the dry run:** import the organiser's `Judges Schedule.csv` (Setup → 📅 Judging schedule) and
 the booth numbers when the map exists; print the judge sheets; ~~Maximum judges 15~~ (done — `judge_max` = 15 verified 2026-10-21);
 **#053 → Edit → Save** (a 2026-10-08 SQL fix left its grade blank — the app stores the derived grade
 at save time, so the database really holds ''); #062 has no students (noted, organiser's call); judges
