@@ -61,6 +61,13 @@ const midRows = () => store.project_judges.filter(x => inMid(x.project_id));
 console.log("\n── Admin: 3 judges per project for Middle School");
 const A = await newPage();
 await admin(A);
+// Judge 1 is ticked into two departments: still ONE judge. The card used to add up every
+// department's max_judges (5 + 5 + 5 = "0/15") — on the live school 15 judges read "0/47".
+await check("Overview counts judge NUMBERS, not department ticks: 0/5 judges signed in", async () => {
+  const card = A.locator(".stat-card", { hasText: "Judges signed in" });
+  await card.waitFor({ timeout: 5000 });
+  assert.equal((await card.locator(".stat-v").innerText()).trim(), "0/5");
+});
 await A.locator(".nav-it", { hasText: "Setup" }).click();
 await A.getByLabel("Judges per project for Middle School").selectOption("3");
 await check("every Middle School project gets 3 different judges, spread evenly over judges 1–4", async () => {

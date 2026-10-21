@@ -483,7 +483,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-21f";
+const ADMIN_HELP_UPDATED = "2026-10-21g";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -643,6 +643,8 @@ const ADMIN_HELP = [
     ["How do I stop using the schedule?", "Setup → 📅 Judging schedule → Remove schedule. Lists go back to the judge grid (every judge scores every project of their departments, or 'judges per project'). No score is lost."],
   ]},
   { title: "Judges", icon: "🧑‍⚖️", faq: [
+    ["What does 'Judges signed in 0/15' on the Overview mean?", "Judges who have signed in so far / judge numbers in use (the numbers ticked in Setup → Judges). A judge ticked into several departments counts once. It goes up as judges sign in at the briefing."],
+    ["Where do I choose places per department or per category?", "Setup → Departments: each scored department's row has a dropdown 'Places: per department' — beside the rubric dropdown. If you cannot see it, reload the page (an open tab keeps the previous version until it is reloaded). See Help → Awards."],
     ["A judge's tablet died.", "Judges tab → Allow Transfer on that judge (Admin PIN). Within 10 minutes the judge signs in on the new device with the same judge number and invite code. Their scores are kept. If the box says \"The transfer was NOT approved\", nothing was saved — check the internet and press Approve transfer again."],
     ["Finalize is greyed out and says a judge raised a concern.", "A judge's concern blocks Finalize until it is resolved. Talk to that judge: they press Revise my validation and approve. If they have left, press Clear concern next to their name on the Validation tab — they go back to Pending (it is logged). A judge who simply has not validated yet does not block Finalize."],
     ["A judge lost internet.", "Scores are kept on the device and sync automatically when it reconnects (or with Sync Now). The app will not let a judge sign out while scores are still only on the device. A score waiting to sync stays ticked as scored even if the page is refreshed — the judge should NOT score it again."],
@@ -3900,6 +3902,14 @@ export default function App() {
   // TABLE merely existing is not enough: a school with no numbers yet keeps the department
   // picker at sign-in instead of a number box nobody can use.
   function rosterInUse() { return hasRoster && roster.length > 0; }
+  // How many judges the fair expects — the Overview "Judges 3/15" card. One per judge NUMBER in
+  // school mode: a judge ticked into three departments is still one person. It used to add up every
+  // department's max_judges (one per tick), so 15 judges read "0/47" (fixed 2026-10-21). Legacy
+  // per-department numbering repeats numbers, so there the sum is right.
+  function judgeSeats() {
+    if (!schoolNumbering()) return departments.reduce((s, d) => s + (Number(d.max_judges) || 0), 0);
+    return new Set(rosterInUse() ? roster.map(r => r.number) : departments.flatMap(d => deptNumbers(d))).size;
+  }
   function schoolNumbering() {
     return judgeNumbering === "school" && (rosterInUse() || departments.some(d => d.judge_from != null));
   }
@@ -8950,7 +8960,7 @@ export default function App() {
                 <div className="sync-meta">Last successful sync: {lastSyncAt ? fmtFull(lastSyncAt) : "Not yet"}</div>
               </div>
               <div className="stat-grid">
-                <div className="stat-card"><div className="stat-v" style={{color:"var(--navy)"}}>{judges.length}/{departments.reduce((s,d)=>s+d.max_judges,0)}</div><div className="stat-l">Judges</div></div>
+                <div className="stat-card"><div className="stat-v" style={{color:"var(--navy)"}}>{judges.length}/{judgeSeats()}</div><div className="stat-l" title="Judges signed in / judge numbers in use">Judges signed in</div></div>
                 <div className="stat-card"><div className="stat-v" style={{color:"var(--blue)"}}>{projects.length}</div><div className="stat-l">Projects</div></div>
                 <div className="stat-card"><div className="stat-v" style={{color:"var(--green)"}}>{totalScored()}</div><div className="stat-l">Scores In</div></div>
                 <div className="stat-card">

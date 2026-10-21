@@ -385,6 +385,9 @@ add projects with **+ Add Project** instead.
 
 ### Overview Tab — Live Scorecard
 
+**Top cards:** **Judges signed in** (e.g. *3/15* — judges who have signed in / judge numbers in use;
+a judge covering several departments counts once), Projects, Scores In, Completion.
+
 **Per-department stats:**
 
 Each department shows its own section with:
