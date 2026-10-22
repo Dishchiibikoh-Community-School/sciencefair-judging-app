@@ -1871,8 +1871,9 @@ optional printed comment sheets for students (setting, off by default; no scores
 Dry run late November; code freeze **2026-12-01**.
 
 **Decisions 2026-10-21:** elementary results out of 100 (× 2.5, shown); numbers only on both forms;
-category stays **"Life Science"** (the MS/HS form's "Life, Health & Behavior" is the same category —
-renaming would leave the 16 existing projects on the old text, see Known gaps); one form per judge,
+the Life Science category was **renamed to "Life, Health & Behavior"** to match the MS/HS form
+(**reversed later the same day** — it had been left alone because a rename strands the existing projects;
+see "Category renamed" below for how it was actually done); one form per judge,
 averaged. The organiser's schedule PDF was checked cell by cell against the live data: all 179 visits
 are real codes, 3 per scored project / 1 per PreK & SPED, no judge twice on a project, no two judges at
 one booth in a round, no student in two projects. A booth template (`booth-template-2026-27.csv`, titles
@@ -1883,6 +1884,14 @@ readable, anon writes refused by RLS, both schedule RPCs answer "Not authorised"
 6-8 + 9-12 = Middle & High School form, PreK + SPED comments only; minimum to place = 60.
 **Superseded later the same day:** PreK + SPED move to the **PreK & SPED Recognition** form and the minimum to
 place goes back to **0** — both are the organiser's Setup changes (see Still to do).
+
+**Category renamed 2026-10-21, verified with anonymous reads:** `Life Science` → **`Life, Health & Behavior`**
+(Setup rename, **code kept as `LS`**) **plus a one-off SQL `UPDATE` of the 16 projects that held the old text**
+(007 009 012 013 035 041 042 043 044 045 046 049 052 054 055 057 — K-5 4 · 6-8 5 · 9-12 7). Verified after:
+63 projects, **0 on stale category text, 0 blank**, all six categories match, and every project still renders
+the **same `CAT` code** as before, so the schedule and booth printouts did not need reprinting. The rename
+alone is NOT enough — the app does not cascade it (Known gaps); an admin-only `UPDATE` is required, and the
+anon key cannot do it (it answers `200` with 0 rows — rule 54).
 
 **Done 2026-10-21, verified with anonymous reads:** PreK + SPED → **PreK & SPED Recognition (2026-27)** (scoring_mode
 `scored`, 4 × 1–5 = 20, ids/order/maxima identical to the preset, so ribbons + shared places apply); minimum to
@@ -2036,6 +2045,13 @@ text — keep rule 56.
   so after a rename the old projects keep the old name, show "(old category)" when edited, and would form
   a separate group once awards go per category. Their code survives only by luck (`autoCode` of the old
   name). Fix with the per-category awards: rename = update the category AND its projects in one RPC.
+  ⚠️ **Hit for real on 2026-10-21** (Life Science → Life, Health & Behavior) and cleared with a one-off
+  SQL `UPDATE` of the 16 rows — the live data is clean, the code gap is not fixed. Two consequences a
+  rename leaves behind even after the UPDATE: an **exported Projects CSV still holds the old text** and the
+  importer keeps unknown categories *as written*, so restoring an old backup reintroduces it; and the
+  **form scanner blanks** anything that is not an exact match to a live category, so a paper form printed
+  with the old name scans with no category. Also: the delete warning counts `p.cat === cat.name`, so
+  between the rename and the UPDATE it reports "0 projects use it" while projects still reference it.
 - **The judge's tablet shows the running total while scoring.** The 2026-27 MS/HS form says scores are
   not shared with students during booth visits; a student at the booth can read the screen. A "hide the
   total until submitted" option was offered, not requested.
