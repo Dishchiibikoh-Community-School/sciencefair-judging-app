@@ -75,6 +75,8 @@ Run through this a few days before, not on the morning of.
 - [ ] **Change the admin PIN** (Overview tab → Admin PIN card) if it has not been changed since the school was created.
 - [ ] **Set up your departments** (Setup tab). A new school starts with Elementary / Middle School / High School — change them to whatever your fair uses, or press a preset. If the list is empty, sign out and back in; they re-seed on admin sign-in.
 - [ ] **Check your project categories** (Setup tab) — rename, remove or add so they match your entry form.
+      ⚠️ Do this **before** you add projects. Renaming a category later does **not** move the projects
+      already saved under the old name — see "Renaming a category" below.
 - [ ] **Set up the judges** (Setup tab → Judges grid): tick the departments each judge number covers.
       **Or**, with a timed schedule: Setup → **📅 Judging schedule** → import it (the grid fills itself),
       import the booth numbers, and print the judge sheets and booth visit times.
@@ -1145,6 +1147,48 @@ Neither has student names or scores.
 - **Remove schedule** puts lists back on the judge grid. No score is lost.
 
 > Needs the database update **2026-10p**. Without it the box says so and nothing else changes.
+
+---
+
+## Renaming a category (after projects exist)
+
+**Renaming a category does not move the projects already saved under the old name.** The category is
+stored on each project as plain text, taken at the moment it was saved — so a rename changes every
+dropdown from then on, while the existing projects keep the old label and show as *"(old category)"*
+when you edit them.
+
+If you stop there you have **one category under two names**. The consequences:
+
+| | |
+|---|---|
+| **Awards by category** | The old and new names become **two separate award groups**, each giving out its own 1st, 2nd and 3rd. This is the one that bites. |
+| **Public results & printouts** | Both labels appear, as if they were different categories. |
+| **Project codes** | **Unaffected** — as long as you leave the **Code** box alone (see below). |
+| **Category list** | The count next to the renamed category looks too low. That is the easiest way to spot the problem. |
+
+### Do this instead
+
+1. **Setup → Project Categories** → rename it, and **leave the Code box exactly as it was**.
+2. **Move the existing projects over** — Projects tab → **Edit** each one → pick the new category → Save.
+   For more than a handful, ask your technical contact to update them in one go; it is a single
+   database statement and takes seconds.
+3. **Check Setup → Project Categories.** The count beside the renamed category should match what you
+   expect. If it reads lower, some projects are still on the old text.
+4. **Download a fresh ⬇ Projects CSV.** An older export still holds the old category text, and the
+   importer keeps an unrecognised category exactly as written — so restoring it would undo the rename.
+
+> **The Code box matters more than the name.** Project codes are built from the *code*, not the name.
+> Rename `Life Science` to `Life, Health & Behavior` and keep the code `LS`, and every project code
+> stays identical — printed judge sheets and booth lists remain valid. Blank the Code box and the app
+> derives a new one from the new name (`LHB`), changing every project code in that category.
+
+> **Scanned forms.** 📷 Scan forms accepts only an exact match to your current list. If your paper
+> entry forms still print the old category name, those scans arrive with the category blank.
+
+**Done at this fair (2026-10-21):** `Life Science` → `Life, Health & Behavior` to match the 2026-27
+middle/high form. The code stayed `LS`, 16 projects were moved over in one database statement, and all
+63 projects were then verified to carry a live category and the same code as before — nothing needed
+reprinting.
 
 ---
 

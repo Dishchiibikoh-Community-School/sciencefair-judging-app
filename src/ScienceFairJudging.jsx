@@ -483,7 +483,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-21g";
+const ADMIN_HELP_UPDATED = "2026-10-21h";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -539,9 +539,12 @@ const ADMIN_HELP = [
     ["Can I change a department to Comments only after judging has started?", "No — the app blocks it. The scores already given would stop counting but stay in the database. Decide before the first judge signs in."],
     ["Is it safe to rename a department?", "Yes. Projects, judges and scores stay attached — only the label changes."],
     ["Can I use my own project categories?", "Yes. Setup tab → Project Categories. They belong to your school only; no other school sees your list. Add, rename, reorder or delete freely — a robotics fair can replace all six."],
-    ["What happens to projects if I delete or rename a category?", "Nothing. A project keeps the category text it was saved with; only the choice disappears from the dropdowns. A project on a category you removed shows it as \"(old category)\" when you edit it, and you can pick a new one."],
+    ["What happens to projects if I DELETE a category?", "Nothing is lost. A project keeps the category text it was saved with; only the choice disappears from the dropdowns. It shows as \"(old category)\" when you edit it, and you can pick a new one."],
+    ["What happens to projects if I RENAME a category?", "⚠️ The projects already saved DO NOT follow it. The new name appears in every dropdown from then on, but existing projects keep the OLD text and show as \"(old category)\" when you edit them. If you only rename, you end up with one category under two names — and if that department awards by category, the old and new names become TWO award groups, each handing out its own 1st, 2nd and 3rd. After renaming, move the existing projects over: open each one (Projects tab → Edit) and pick the new category, or ask your technical contact to update them all in one go. Check Setup → Project Categories afterwards; a category whose count looks too low is the giveaway."],
+    ["Does renaming a category change my project codes?", "Only if you also change the Code box. The code — not the name — builds each project code (G68-LS-014), so renaming \"Life Science\" to \"Life, Health & Behavior\" while leaving the code as LS keeps every code exactly the same, and printed judge sheets and booth lists stay valid. If you blank the Code box the app makes a new one from the new name (LHB), and every project code in that category changes — reprint everything."],
     ["What is the little Code for?", "It builds each project's code, like G68-LS-014 (department code · category code · number) — see Project codes. A category's code is also used in student registration numbers (JHS-LS-001). Leave it blank and the app makes one from the name."],
-    ["I changed a category — do I need to tell the form scanner?", "No. 📷 Scan forms asks the AI to pick from your current list automatically."],
+    ["I changed a category — do I need to tell the form scanner?", "No list to sync — 📷 Scan forms reads your current categories every time. But it only accepts an EXACT match: if your paper forms still print the old name, those scans come back with the category blank for you to choose. Either reprint the forms or expect to pick that category by hand."],
+    ["I renamed a category — is my downloaded Projects CSV still good?", "Not as a restore. The file still holds the OLD category text, and ⬆ Import keeps a category it does not recognise exactly as written — so restoring that backup would put the old name back on those projects. Download a fresh ⬇ Projects CSV after any category rename, especially if you keep one as your event-day fallback."],
   ]},
   { title: "Project codes", icon: "🏷️", faq: [
     ["What is a project code?", "A label for each project built from its department code, category code and number — e.g. PK-LS-001 for PreK · Life Science · project 001. Judges, results, printouts and every CSV show it."],
