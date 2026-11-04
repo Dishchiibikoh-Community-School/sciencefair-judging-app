@@ -45,6 +45,8 @@ async function judgePage(judgeId, alias) {
     localStorage.setItem("sf_judge_data", JSON.stringify(j));
   }, [judgeId, { id: judgeId, alias, projects: store.judges.find(j => j.id === judgeId).projects, department_id: DEPTS.D_MID }]);
   await page.reload();
+  await page.locator(".proj-item, [data-testid=no-projects]").first().waitFor({ timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(1500);   // let the server load land (the cached screen comes first)
   return page;
 }
 

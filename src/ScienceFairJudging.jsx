@@ -3609,7 +3609,9 @@ export default function App() {
       if (found) {
         setJudge(found);
         localStorage.setItem("sf_judge_data", JSON.stringify(found));
-        setView("judge-home");
+        // A judge who already opened a project while the first load was still running is NOT
+        // sent back to the list (2026-11: it happened to anyone fast enough after opening the app).
+        setView(v => (v === "judge-scoring" ? v : "judge-home"));
       } else {
         endRemovedJudgeSession(savedId, currentSchool?.id);
       }
