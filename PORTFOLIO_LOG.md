@@ -264,3 +264,45 @@ Honest, specific notes on work done, for later portfolio/interview use.
   couldn't read, proved the blast radius empty before writing, shipped it as a guarded all-or-nothing
   transaction tested on a real Postgres instance first, and fixed a flaky test found along the way —
   with the fix mutation-tested so it couldn't hide a genuine failure."
+
+
+### 2026-11-04 — Two independent audits reconciled, then 17 fixes shipped test-first (incl. a critical score-forgery hole)
+- **Project:** Qritiko — Science Fair Judging App (live fair 2026-12-11)
+- **What I built/fixed:** Merged two independent pre-event audits (Codex + Claude) into one verified
+  list, then fixed the confirmed problems on a branch — each as its own revertable commit with a new
+  test: a critical server-side hole that let anyone with the public API key overwrite any judge's
+  scores, offline-sync data loss, a false "School Not Found" offline, the wrong scoring form after a
+  failed read, stale screens after reconnect, several award/tie bugs that could publish a wrong
+  podium, finalize/lock gaps, a school-wide sign-in lockout, admin actions reporting false success,
+  and judge-tablet usability.
+- **Why I built it:** 10–15 volunteer judges score on mixed tablets over venue Wi-Fi; a lost or forged
+  score, or a wrong medal on the public page, is not recoverable on the day.
+- **Problem(s) encountered:** Verifying ~110 audit claims across a 12k-line component and 19 SQL
+  migrations — none were pure false positives, ~10 were overstated, and a fresh-eyes pass found 12
+  issues both audits missed (e.g. an award dropdown that changed the screen before saving, so the
+  database could hold two 1st places while the admin saw one). Several first attempts failed their own
+  tests: a reconnect refresh throttle that *dropped* the refresh it should have delayed; a tie rule
+  ("every tied project decided") that an existing scenario proved too strict; a late-sync flag read from
+  state that is not loaded yet on a tablet that reopens offline. One commit went in with a broken build
+  because a shell chain used `;` instead of `&&` — caught on the next build, amended, and every later
+  commit gated on lint + build. Tooling friction: an IDE linter dumping kilobytes of pre-existing
+  warnings on every Markdown edit (worked around with a small checked find-and-replace script), and
+  shell quoting repeatedly eating regex backslashes.
+- **How I solved it:** Per fix: a new Playwright test written first and run against the unfixed code
+  (mutation check — every new check had to fail before the fix), then the fix, lint per-rule baseline
+  (React Compiler purity/immutability 28/5 must hold — a drop to 0/0 means a silent bailout), build,
+  the related suites, and a full-suite checkpoint per group. The critical hole: a per-judge secret
+  issued at sign-in (stored only as a SHA-256 hash in a table nobody can read) and SECURITY DEFINER
+  functions that check the secret, the judge's assignment, every rating against the project's own
+  rubric steps, and the Finalize/validated state — with the app falling back to the old path only when
+  the function is missing, so it can deploy before the SQL. 40 new DB checks on real Postgres (PGlite),
+  a fake realtime server via `page.routeWebSocket` to test reconnect behaviour the mock never could.
+- **Skills/tools demonstrated:** Postgres RLS + SECURITY DEFINER design, threat modelling an
+  anonymous-client architecture, offline-first queue design (per-revision acknowledgement, retry,
+  no silent deletion), React 19 + React Compiler lint constraints, Playwright E2E with network
+  interception and WebSocket fakes, mutation testing, coupled app/migration rollout planning,
+  writing operator-facing runbooks.
+- **Portfolio angle:** "Before a live event, reconciled two independent security/reliability audits into
+  one verified list and shipped 17 fixes test-first — including closing a critical hole that let anyone
+  with a public API key rewrite any judge's score — each fix proven by a test that failed before it and
+  passed after, with a zero-downtime rollout plan the organiser can run."

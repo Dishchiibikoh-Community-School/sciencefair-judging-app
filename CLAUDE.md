@@ -3,7 +3,7 @@
 > Single source of truth for AI-assisted development. Read it before changing anything.
 > Do not delete it. When code and this file disagree, the code wins — then fix this file.
 >
-> Last reviewed: 2026-10-21 (Phase 3: award groups + the Awards tab; the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
+> Last reviewed: 2026-11-04 (pre-event audit fixes F1–F17 on branch `fix/pre-event-audit-2026-11` — every fix, test and revert hash in [FIXES_2026-11.md](FIXES_2026-11.md); migrations 2026-11a/11b; earlier: 2026-10-21 Phase 3: award groups + the Awards tab; the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
 
 ---
 
@@ -30,8 +30,8 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Vercel | `sciencefair-v2` — the **only** Vercel project |
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
-| Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (271 checks). Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`), the 2026-27 forms + drafts + safety (`rubrics-2627.e2e.mjs`), the judging schedule (`schedule.e2e.mjs`), the PreK & SPED form (`prek-sped.e2e.mjs`), awards (`awards.e2e.mjs`). Start the dev server first (see the file header). 526 checks across 24 files |
+| Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (311 checks). Run after any `supabase/*.sql` or `api/` change |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`), the 2026-27 forms + drafts + safety (`rubrics-2627.e2e.mjs`), the judging schedule (`schedule.e2e.mjs`), the PreK & SPED form (`prek-sped.e2e.mjs`), awards (`awards.e2e.mjs`). Start the dev server first (see the file header). 2026-11 added save-robust, offline-start, realtime-reconnect (a fake realtime server via `page.routeWebSocket`), awards-integrity, finalize-gates, signin-guard, share-links, admin-actions, judge-ux, judge-identity. **625 checks across 34 files** (2026-11-04) |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -45,10 +45,16 @@ signs in on one hostname and opens another looks signed out, and anything in
 second domain to "Production" in Vercel; make it a redirect. `sciencefair-v2.vercel.app`
 always serves and cannot be redirected — never share it.
 
-### Migrations (run in this order on the v2 project)
+### Migrations
+
+⚠️ **The rows below are NOT in run order** (SF-41: run top-to-bottom, 10p would fail before 10k). Run the files in
+**filename order** — exactly what `scripts/db-migrations.test.mjs` does — and re-run a newer file after re-running an
+older one that it redefines (notes in each row).
 
 | File | Adds | Coupled to app code? |
 |---|---|---|
+| `migration-2026-11a-judge-write-integrity.sql` | **Per-judge secret + checked judge writes** (F1, Critical): `judge_secrets` (sha256, unreadable, FK cascade); `register_judge_secure()` (returns the judge row + `judge_secret`; a transfer issues a new one); `submit_score` / `submit_validation` / `revise_validation` / `submit_delib_note` (secret, project in school AND on the judge's list, criteria ids + values vs the project's rubric steps, text limits, Finalize / validated / deliberation gates, server `submitted_at`); direct INSERT/UPDATE on scores + deliberation_notes closed, validations admin row only; plain `register_judge`, `note_auth_failure`, `assert_not_locked` revoked from anon/authenticated | **Yes — deploy the app FIRST** (it falls back when the functions are missing), then run it. Judges signed in before it ran must sign in again (Allow Transfer). Re-run after any re-run of 09b |
+| `migration-2026-11b-invite-lockout-per-device.sql` | **Invite lockout per device** (F6): `register_judge_secure()` checks the code itself — 5 wrong codes lock that device, 30 per school lock everyone, an expired lock starts a fresh count; `_note_auth_failure_n()` | No (the app already sends `p_device`). Run after 11a; re-run after any re-run of 11a |
 | `migration-2026-09-project-adviser.sql` | `projects.advisor_name`, `projects.group_members` + backfill | No — app retries without the columns if missing |
 | `migration-2026-09-security-hardening.sql` | RLS lockdown, `registration_count()` | **Yes** |
 | `migration-2026-09b-pin-and-judge-auth.sql` | bcrypt PIN, `security_attempts`, `register_judge()`, PIN/invite RPCs, judge-scoped write policies | **Yes — deploy together with the app build** |
@@ -272,9 +278,9 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 
 ### Open risks — next security work
 
-- **Judges are anonymous.** Anyone holding the invite code can register and then write
-  *another* judge's scores: policies prove *a* valid judge exists, not *which* judge is
-  calling. Fix: per-judge identity (Supabase anonymous auth, `user_id` on the judges row).
+- ~~**Judges are anonymous**~~ — **fixed by migration 2026-11a (F1) once it is run**: every judge write now needs the
+  per-judge secret issued at sign-in, and values / assignment / Finalize are checked on the server. Until the SQL
+  runs on the live project the hole is still open (anyone with the anon key could write any judge's scores).
 - **`scores`, `final_decisions` and `validations` are anon-SELECTable** (`USING (true)`, base schema),
   so the Share tab's "locked until finalized" gate is cosmetic against the API: anyone with the anon
   key can read live standings mid-event. Confirmed 2026-10-06. Fix belongs with per-judge identity —
@@ -492,6 +498,10 @@ with their real average, and the medals pass to the next projects that do qualif
 | `sf_last_sync_at` | Last successful sync timestamp |
 | `sf_score_drafts` | Unsubmitted scoring taps per `${judgeId}_${projectId}` (2026-10-21, rule 75). Deleted on submit / queue; never synced, never counted |
 | `sf_it_outbox` | IT-log entries this device could not write (offline / failed request), ≤ 50; sent by `flushItOutbox()` with their original time (`ctx.delayed`) |
+| `sf_judge_secrets` | `{ judgeId: secret }` from `register_judge_secure()` (F1) — sent with every judge write; dropped on sign-out / removal |
+| `sf_device_id` | Random id for this device, sent with sign-in (per-device invite lockout, 11b) |
+| `sf_unsent_scores` | Queued scores of a judge who was removed / reset while they were still on the device (F3) — never deleted silently; their numbers are in IT log `UNSENT_SCORES_KEPT` |
+| `sf_cache_*` | Last good copy of the school row (`sf_cache_school_<slug>`) and of departments, categories, settings, schedule, projects (public columns only), rubrics (`sf_cache_<sid>_<table>`) — used only when a read fails (F4, `cachedRead`) |
 
 ---
 
@@ -1023,6 +1033,27 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
     Honorable Mention / Best in Category; a project that lost its place goes back to Pending. A tie counts
     only where it decides a place (1st–3rd, or 3rd/4th) and only until the group is decided. The awards
     list carries names (project_private) and is admin-only, never published.
+    **Since 2026-11 (F7):** a tie is DECIDED only when all but one of the tied projects have an award saved
+    AFTER the group's last score change (`tieDecided`) — one saved place no longer decides a whole group; places
+    nobody confirmed are filled from the scores (`groupPlaces`); a project with a saved Honorable Mention /
+    Best in Category / No Award is out of 1st–3rd (`heldOutOfPlaces`); "ready" needs every expected review
+    (`expectedReviews`); Finalize is refused while a medal tie is undecided; confirmed places cannot be
+    regrouped or moved.
+
+**Pre-event fixes (2026-11-04, see FIXES_2026-11.md)**
+80. **Judge writes go through `judgeWrite()` only** (scores via `upsertScore`, validation, revise, deliberation
+    note): the checked RPC when the device holds the judge's secret, the old direct write ONLY on
+    `MISSING_FN` (rule 68). Never re-open direct INSERT/UPDATE on scores / validations / deliberation_notes.
+81. **`cachedRead()` caches anon-readable data only** — never `project_private`, judges, scores or admin-only
+    tables, and project rows through `publicProjectRow()`. A failed rubric read with no copy BLOCKS scoring
+    (`rubricsReady`); never fall back to `DEFAULT_RUBRIC` on a failed read.
+82. **The offline queue is per revision** (`rev`, `queueRev`): remove only acknowledged revisions, never by
+    judge+project; never delete queued scores silently (`keepUnsentScores`). Every score save has a deadline
+    (`withTimeout`, `SAVE_TIMEOUT_MS`), the draft is deleted only after the score is saved or queued, and
+    queue reads/writes go through `readQueue` / `writeQueue` (never throw).
+83. **Finalize also locks judging; `submitScore()` refuses after Finalize**; a score that syncs afterwards is
+    flagged `SCORE_SYNCED_AFTER_FINALIZE` (asked of the server, not state). The public page shows "Results are
+    being updated" while results are reopened; Regenerate / Revoke act on EVERY live link.
 
 **SQL that must survive its own rejection**
 66. **A `RAISE` throws away everything the function wrote, including the rate-limit counter.**
@@ -1093,6 +1124,18 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-11-04 — Pre-event audit: two audits reconciled, 17 fixes** (migrations `2026-11a` **coupled**, `2026-11b`).
+Branch `fix/pre-event-audit-2026-11`, NOT pushed. Every fix has its own commit, a new test that fails on the old
+code, and a section in **[FIXES_2026-11.md](FIXES_2026-11.md)** (problem, change, tests, what to check if it goes
+wrong, revert hash) — read that, not this summary, when debugging. Critical: F1 (anyone with the anon key could
+overwrite any judge's score → per-judge secret + checked SQL writes). High: F2 save timeout / never lose a draft;
+F3 per-revision offline queue, auto-retry, no silent wipe; F4 offline start + never the wrong rubric; F5 catch-up
+after reconnect; F6 sign-in double-tap + per-device invite lockout; F7a–d awards (No Award, tie rules, readiness,
+no Finalize over a tie); F8 Finalize locks, validation/concern gates. Medium: F10 share links, F11 admin false
+success, F13 judge UX, F15 IT-log privacy, F17 error boundary. Plus a start-up race (a judge opening a project in
+the first second was bounced back). Tests: DB 271 → 311; browser 526 / 24 files → **625 / 34 files, 0 failures**. Lint 28/5 throughout.
+**The organiser must deploy the app, THEN run 11a and 11b** — see FIXES_2026-11.md → Your steps.
 
 **2026-11-03 — Second revised entry sheet applied; a flaky import check fixed** (no migration).
 The organiser sent a new "Approved Entry Forms" sheet. **14 of 63 projects changed** — far more than
