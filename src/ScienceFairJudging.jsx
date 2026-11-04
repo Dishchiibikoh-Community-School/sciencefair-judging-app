@@ -337,6 +337,13 @@ function nextDirectSaveSeq() { directSaveSeq += 1; return directSaveSeq; }
 function lastDirectSaveSeq() { return directSaveSeq; }
 // Time stamp for a score write, made at module level so no Date runs inside App (rule 37).
 function isoNow() { return new Date().toISOString(); }
+// Is this share_links row a live results link right now? (not revoked is checked by the query)
+function shareRowLive(row) {
+  if (!row) return false;
+  const expiryMs = { "1h": 3600000, "24h": 86400000, "7d": 604800000, never: Infinity }[row.expiry] ?? 0;
+  const createdMs = row.created_at ? new Date(row.created_at).getTime() : 0;
+  return row.expiry === "never" || (Date.now() - createdMs) < expiryMs;
+}
 function queueRev(item) { return item?.rev || `${item?.data?.judge_id}_${item?.data?.project_id}@${item?.ts || 0}`; }
 // While anything is queued, try again this often (and whenever the screen comes back). Before
 // 2026-11 the only automatic retry was the browser's "online" event — a score queued because the
@@ -549,7 +556,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-04j";
+const ADMIN_HELP_UPDATED = "2026-11-04k";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -660,7 +667,7 @@ const ADMIN_HELP = [
     ["What do the public results show — my awards or the scores?", "Your confirmed awards, once a group has any; until then the places worked out from the scores. That is how a tie you broke in deliberation reaches the podium. If you clear a group ('Clear confirmed places') it goes back to the computed places."],
     ["Which ties raise the amber alert now?", "Only ties that decide a place: two projects level for 1st, 2nd or 3rd, or level across 3rd and 4th, in the same award group. A tie lower down decides nothing and no longer raises it. A tie you have already decided (all but one of the tied projects have an award saved after the last score change), and ties on the PreK & SPED form (they share the place), never do. Saving only some places does NOT decide a tie further down. Finalize stays unavailable while a tie still decides a place."],
     ["How do I get the list for the ceremony?", "Awards tab → '🖨 Print awards list' (or '⬇ Awards CSV'): every group with its places, any special award, every ribbon, the student names and the teacher. It includes names, so it is for you only — never post it. Groups you have not confirmed yet are marked 'computed, not confirmed yet'."],
-    ["Can I change awards after I finalize?", "Not while results are finalized — the Awards tab becomes read-only. Reopen the results in the Validation tab, change them, and finalize again. To take a saved award back, choose Pending in its dropdown and press Save (remove award) — a dropdown change does nothing until it is saved."],
+    ["Can I change awards after I finalize?", "Not while results are finalized — the Awards tab becomes read-only. Reopen the results in the Validation tab, change them, and finalize again. While results are reopened, the public link shows \"Results are being updated\" (the same link works again once you finalize). To take a saved award back, choose Pending in its dropdown and press Save (remove award) — a dropdown change does nothing until it is saved."],
   ]},
   { title: "PreK & SPED: ribbons and shared places", icon: "🎀", faq: [
     ["How is PreK & SPED judged?", "On the 'PreK & SPED Recognition (2026-27)' form: Curiosity, Hands-On Exploration, Sharing What They Learned, and Effort and Teamwork, each 1–5, total out of 20. Each criterion's description on the scoring screen says what 5, 3–4 and 1–2 look like. Help from an adult or a communication device never lowers a score."],
@@ -2370,6 +2377,7 @@ export default function App() {
   const [pinFormMsg,   setPinFormMsg]   = useState(null); // { ok:boolean, text:string }
   const [pinSaving,    setPinSaving]    = useState(false);
   const [shareTokenValid,   setShareTokenValid]   = useState(false);
+  const [shareErr,          setShareErr]          = useState("");   // a share-link change that did NOT save (F10)
   const [shareTokenChecked, setShareTokenChecked] = useState(!urlShareToken);
   const [projListToken,   setProjListToken]   = useState("");
   const [projListCopied,  setProjListCopied]  = useState(false);
@@ -2636,6 +2644,15 @@ export default function App() {
       .order("created_at", { ascending: false }).limit(IT_LOG_LOAD_MAX);
     noteLoadError("it_logs", error, schoolId);
     if (data) setItLogs(data.map(dbToItLog));
+  }
+  // F10 (SF-42): an OPEN public results page re-checks its own link when links change (realtime,
+  // or a reconnect) — it used to keep showing results after the link was revoked or expired.
+  async function revalidateShareToken(sid) {
+    if (!urlShareToken || !sid) return;
+    const { data, error } = await supabase.from("share_links").select("*")
+      .eq("school_id", sid).eq("token", urlShareToken).is("revoked_at", null);
+    if (error) return;   // a failed check is not a revocation
+    setShareTokenValid(shareRowLive(data?.[0]));
   }
   async function loadShare(sid) {
     const schoolId = sid || currentSchool?.id;
@@ -3345,7 +3362,7 @@ export default function App() {
         loadSettings(sid), loadProjects(sid), loadJudges(sid), loadScores(sid), loadValidations(sid),
         loadDelibNotes(sid), loadFinalDecisions(sid), loadDepartments(sid), loadCategories(sid),
         loadRubrics(sid), loadRoster(sid), loadProjectJudges(sid), loadSchedule(sid), loadShare(sid),
-        loadLog(sid), loadItLogs(sid),
+        revalidateShareToken(sid), loadLog(sid), loadItLogs(sid),
       ]).catch(() => { /* each loader reports its own failure (noteLoadError) */ });
     };
     const onVisibility = () => {
@@ -3413,7 +3430,7 @@ export default function App() {
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "it_logs", filter: f("it_logs") }, ({ new: row }) => {
           setItLogs(prev => prev.some(x => x.id === row.id) ? prev : [dbToItLog(row), ...prev]);
         })
-        .on("postgres_changes", { event: "*", schema: "public", table: "share_links",   filter: f("share_links")   }, () => loadShare(sid))
+        .on("postgres_changes", { event: "*", schema: "public", table: "share_links",   filter: f("share_links")   }, () => { loadShare(sid); revalidateShareToken(sid); })
         .on("postgres_changes", { event: "*", schema: "public", table: "app_settings",  filter: f("app_settings")  }, () => loadSettings(sid))
         .on("postgres_changes", { event: "*", schema: "public", table: "deliberation_notes", filter: f("deliberation_notes") }, ({ eventType, new: row }) => {
           if (eventType === "INSERT" || eventType === "UPDATE") {
@@ -3854,6 +3871,17 @@ export default function App() {
   }
 
   async function generateLink() {
+    setShareErr("");
+    // F10 (N4): Regenerate used to only INSERT a new link — the old one stayed valid forever, though
+    // the screen said "Regenerating invalidates the current link immediately". Revoke every live
+    // link first; if that fails, create nothing.
+    const { error: revErr } = await supabase.from("share_links").update({ revoked_at: isoNow() })
+      .eq("school_id", currentSchool.id).is("revoked_at", null);
+    if (revErr) {
+      setShareErr("The old link could NOT be switched off, so no new link was made. Check your connection and try again.");
+      addItLog("ERROR","SHARE","LINK_REVOKE_FAILED","Could not revoke the previous results link",{ error: errInfo(revErr) });
+      return;
+    }
     const t = genToken();
     const { error } = await supabase.from("share_links").insert({
       school_id: currentSchool.id, token: t, expiry: shareExpiry, show_rubric: shareShowRubric, title: shareTitle.trim() || defaultResultsTitle,
@@ -3862,12 +3890,26 @@ export default function App() {
       setShareToken(t); setShareEnabled(true); setShareCreated(Date.now());
       addLog(`Admin generated public results link — token: ${t}`);
       addItLog("INFO","SHARE","LINK_GENERATED","Admin generated public results link",{ token:t, expiry:shareExpiry, showRubric:shareShowRubric });
+    } else {
+      setShareErr("The new link was NOT created. Check your connection and try again.");
+      setShareEnabled(false); setShareToken("");
+      addItLog("ERROR","SHARE","LINK_GENERATE_FAILED","Could not create a results link",{ error: errInfo(error) });
     }
   }
 
   async function revokeLink() {
-    await supabase.from("share_links").update({ revoked_at: new Date().toISOString() }).eq("school_id", currentSchool.id).eq("token", shareToken);
-    addItLog("WARN","SHARE","LINK_REVOKED","Admin revoked public results link",{ token:shareToken, wasExpiry:shareExpiry });
+    setShareErr("");
+    // F10 (N4): revoke EVERY live link of the school. Revoking only the newest let an older,
+    // still-valid link come back as "LIVE" (loadShare picks the newest unrevoked one), and the
+    // result of the update was never checked (rules 54/55).
+    const { data, error } = await supabase.from("share_links").update({ revoked_at: isoNow() })
+      .eq("school_id", currentSchool.id).is("revoked_at", null).select("id");
+    if (error || !data?.length) {
+      setShareErr("The link was NOT revoked. Check your connection and try again.");
+      addItLog("ERROR","SHARE","LINK_REVOKE_FAILED","Could not revoke the results link",{ error: error ? errInfo(error) : "0 rows" });
+      return;
+    }
+    addItLog("WARN","SHARE","LINK_REVOKED","Admin revoked public results link",{ token:shareToken, wasExpiry:shareExpiry, links: data.length });
     setShareEnabled(false); setShareToken(""); setShareCreated(null);
     addLog("Admin revoked public results link");
   }
@@ -11535,6 +11577,7 @@ export default function App() {
                 <button className="btn" onClick={generateLink} disabled={!resultsFinalized}>
                   {isLinkLive() ? "🔄 Regenerate New Link" : "🔗 Generate Live Results Link"}
                 </button>
+                {shareErr && <div className="err" role="alert" data-testid="share-err" style={{marginTop:".6rem"}}>⚠ {shareErr}</div>}
                 {!resultsFinalized && <p style={{fontSize:".72rem",color:"var(--dim)",marginTop:".5rem",textAlign:"center"}}>Finalize results first to enable sharing.</p>}
                 {isLinkLive() && (
                   <p style={{fontSize:".72rem",color:"var(--amber)",marginTop:".5rem",textAlign:"center"}}>
@@ -12330,6 +12373,17 @@ export default function App() {
         <div style={{textAlign:"center",color:"var(--dim)"}}>
           <div style={{fontSize:"2rem",marginBottom:".75rem"}}>🏆</div>
           <div style={{fontFamily:"var(--ff-b)"}}>Loading results…</div>
+        </div>
+      </div>
+    );
+    // F10 (N4): results REOPENED for revision — the link stays, but the half-edited awards are
+    // not shown until they are finalized again.
+    if (urlShareToken && shareTokenValid && !resultsFinalized) return (
+      <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}}>
+        <div className="card" data-testid="results-updating" style={{maxWidth:"400px",width:"100%",textAlign:"center",padding:"2rem"}}>
+          <div style={{fontSize:"2.5rem",marginBottom:".75rem"}}>🏆</div>
+          <div style={{fontWeight:700,fontSize:"1.1rem",marginBottom:".5rem"}}>Results are being updated</div>
+          <div style={{color:"var(--dim)",fontSize:".88rem"}}>The organisers are making a correction. Please check back in a few minutes.</div>
         </div>
       </div>
     );

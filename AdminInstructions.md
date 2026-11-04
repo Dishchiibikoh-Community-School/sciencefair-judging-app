@@ -929,7 +929,10 @@ results page directly. If you **Revoke** it, or it expires, the link shows "Link
 
 ### Revoke Link
 
-Click **"Revoke Link"** to expire the URL immediately.
+Click **"Revoke Link"** to expire the URL immediately. It switches off **every** results link of your school,
+and **🔄 Regenerate New Link** switches the old link off before making the new one. While results are
+**reopened** for a correction, the link shows *"Results are being updated"*; finalize again and the same
+link shows the results.
 
 ---
 
