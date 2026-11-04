@@ -337,6 +337,11 @@ function nextDirectSaveSeq() { directSaveSeq += 1; return directSaveSeq; }
 function lastDirectSaveSeq() { return directSaveSeq; }
 // Time stamp for a score write, made at module level so no Date runs inside App (rule 37).
 function isoNow() { return new Date().toISOString(); }
+// A history entry for the scoring screen, so Android Back / an iOS swipe closes the form instead
+// of leaving the app (F13 / U4). Module level: try/catch is not allowed inside App (rule 37).
+function pushScoringState() {
+  try { window.history.pushState({ sfScoring: true }, ""); } catch { /* older browsers: Back just leaves */ }
+}
 // Is this share_links row a live results link right now? (not revoked is checked by the query)
 function shareRowLive(row) {
   if (!row) return false;
@@ -556,7 +561,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-04l";
+const ADMIN_HELP_UPDATED = "2026-11-04m";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -1344,7 +1349,7 @@ const CSS = `
 
   /* SHARED */
   .back{background:none;border:none;color:var(--dim);cursor:pointer;font-family:var(--ff-b);
-    font-size:.95rem;margin-bottom:1.5rem;padding:0;display:flex;align-items:center;gap:.3rem;}
+    font-size:.95rem;margin-bottom:1.5rem;padding:.55rem .25rem .55rem 0;min-height:44px;display:flex;align-items:center;gap:.3rem;}
   .back:hover{color:var(--text);}
   .card{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:1.5rem;
     margin-bottom:.85rem;box-shadow:var(--shadow);}
@@ -1435,7 +1440,7 @@ const CSS = `
   .btn.purple:hover{background:#6d28d9;}
   .btn.danger{background:var(--red);color:#fff;}
   .btn.danger:hover{background:#b91c1c;}
-  .btn.sm{width:auto;padding:.5rem 1rem;font-size:.9rem;}
+  .btn.sm{width:auto;padding:.5rem 1rem;font-size:.9rem;min-height:44px;}
   .btn-row{display:flex;gap:.6rem;flex-wrap:wrap;}
   .pbar{background:var(--bd);border-radius:100px;overflow:hidden;}
   .pfill{background:linear-gradient(90deg,var(--green),#34d399);border-radius:100px;transition:width .5s ease;}
@@ -1471,9 +1476,12 @@ const CSS = `
   .proj-title{font-size:1rem;font-weight:600;margin-bottom:.2rem;line-height:1.35;color:var(--text);}
   .proj-meta{font-size:.85rem;color:var(--dim);}
   .proj-st{font-size:.8rem;font-family:var(--ff-m);padding:.25rem .65rem;border-radius:100px;white-space:nowrap;}
-  .st-done{background:var(--green-l);color:var(--green);}
-  .st-pend{background:var(--s2);color:var(--dim);}
-  .st-draft{background:var(--amber-l);color:var(--amber);font-weight:600;}
+  .st-done{background:var(--green-l);color:#065f46;}
+  .st-pend{background:var(--s2);color:#475569;}
+  .st-draft{background:var(--amber-l);color:#92400e;font-weight:600;}
+  .st-queued{background:var(--amber-l);color:#92400e;font-weight:600;}
+  .items-left{display:block;width:100%;margin-top:.6rem;padding:.65rem .8rem;min-height:44px;background:var(--amber-l);
+    color:#92400e;border:1px solid #d9770640;border-radius:10px;font-family:var(--ff-b);font-size:.86rem;font-weight:600;cursor:pointer;}
   /* Judging schedule (2026-10p): the judge's rounds in order, the Next card, admin review. */
   .js-next{background:var(--navy);color:#fff;border-radius:var(--r);padding:.9rem 1.1rem;margin-bottom:.85rem;cursor:pointer;
     display:grid;grid-template-columns:1fr auto;gap:.15rem .8rem;align-items:center;box-shadow:0 4px 14px rgba(30,58,95,.25);}
@@ -1507,7 +1515,7 @@ const CSS = `
   .locked-banner{background:var(--red-l);border:1px solid #dc262630;border-radius:10px;padding:.8rem 1.1rem;
     text-align:center;font-size:.95rem;color:var(--red);margin-bottom:1rem;font-weight:500;}
   .offline-banner{background:var(--amber-l);border:1px solid #d9770630;border-radius:10px;padding:.7rem 1.1rem;
-    display:flex;align-items:center;gap:.5rem;font-size:.88rem;color:var(--amber);margin-bottom:.85rem;font-weight:500;flex-wrap:wrap;}
+    display:flex;align-items:center;gap:.5rem;font-size:.88rem;color:#92400e;margin-bottom:.85rem;font-weight:500;flex-wrap:wrap;}
   .offline-banner .sync-ct{font-family:var(--ff-m);font-size:.75rem;margin-left:.25rem;opacity:.8;}
   .sync-banner{background:#fff7ed;border:1px solid #fb923c55;border-radius:10px;padding:.7rem 1.1rem;
     display:flex;align-items:center;justify-content:space-between;gap:.7rem;font-size:.86rem;color:#9a3412;margin-bottom:.85rem;flex-wrap:wrap;}
@@ -3691,6 +3699,21 @@ export default function App() {
     document.addEventListener("visibilitychange", retry);
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", retry); };
   }, [queuedCount]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // F13 (U1): a judge's screen change starts at the top — the scoring form used to open part-way
+  // down (booth code off screen) and the NEXT card could be off screen after Submit.
+  useEffect(() => {
+    if (view === "judge-scoring" || view === "judge-home") window.scrollTo(0, 0);
+  }, [view, scoringPid]);
+  // F13 (U4): system Back on the scoring screen goes back to the list (startScoring pushes a
+  // history entry). viewRef is kept in an effect, never written during render (rule 37).
+  const viewRef = useRef(view);
+  useEffect(() => { viewRef.current = view; }, [view]);
+  useEffect(() => {
+    const onPop = () => { if (viewRef.current === "judge-scoring") setView("judge-home"); };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   // F4: the school could not be looked up and this device has no copy of it — try again on our
   // own. A reload is safe here: nothing is on screen, and queued scores live in localStorage.
@@ -6106,6 +6129,12 @@ export default function App() {
       return s + r.max;
     }, 0);
   }
+  // The criteria of the open project that have no rating yet (F13 / U2), in form order.
+  function missingItems() {
+    const proj = projects.find(p => p.id === scoringPid);
+    if (!proj || isFeedbackProject(proj)) return [];
+    return projRubric(proj).filter(r => !(r.id === "abstract" && !requiresAbstract(proj)) && draftSc[r.id] === undefined);
+  }
   function allMoved() {
     const proj = projects.find(p => p.id === scoringPid);
     // Comment-only: there are no criteria to move. A commendation is what makes
@@ -6530,6 +6559,7 @@ export default function App() {
   function startScoring(pid) {
     setScoringPid(pid);
     setScoreErr("");
+    pushScoringState();   // F13 (U4): system Back returns to the list instead of leaving the app
     const key = `${judge.id}_${pid}`;
     // An unsubmitted draft wins over the saved score: it holds the judge's LATEST taps (it is
     // deleted the moment a submit succeeds or is queued, so it can never be older).
@@ -7919,6 +7949,8 @@ export default function App() {
     const item = (proj, roundLabel) => {
       const scored = hasScored(proj.id);
       const ex = scores[`${judge.id}_${proj.id}`];
+      // F13 (U3): a score still waiting on this tablet looks different from one the server has.
+      const queued = offlineQueue.some(i => i?.data?.judge_id === judge.id && i?.data?.project_id === proj.id);
       return (
         <div className={"proj-item" + (roundLabel ? " js-item" : "")}
           onClick={() => canScore && startScoring(proj.id)}
@@ -7931,6 +7963,7 @@ export default function App() {
           </div>
           {drafts[`${judge.id}_${proj.id}`]
             ? <span className="proj-st st-draft" title="Started on this device but not submitted yet">✎ Draft — not submitted</span>
+            : scored && queued ? <span className="proj-st st-queued" data-testid="st-queued" title="Saved on this tablet — it is sent as soon as the connection allows">{isFeedbackProject(proj) ? "⏳ Reviewed" : `⏳ ${getTotal(ex, proj)}pts`} — not sent yet</span>
             : scored ? <span className="proj-st st-done">{isFeedbackProject(proj) ? "✓ Reviewed" : `✓ ${getTotal(ex, proj)}pts`}</span>
                   : <span className="proj-st st-pend">Pending →</span>}
         </div>
@@ -8329,7 +8362,7 @@ export default function App() {
               return (
                 <div key={r.id}>
                 {head && <div className="rub-section-head">{head}</div>}
-                <div className="rub-item">
+                <div className="rub-item" id={`rub-${r.id}`}>
                   <div className="rub-top">
                     <span className="rub-lbl">{r.label}</span>
                     {/* On the ×2.5 form show the RATING the judge gave ("3 / 5"); the points are
@@ -8403,6 +8436,13 @@ export default function App() {
               {scoreSaving ? "Saving…" : isFeedbackProject(proj) ? "Submit Review →" : "Submit Score →"}
             </button>
             {scoreErr && <div className="err" role="alert" style={{ marginTop:".6rem" }}>⚠ {scoreErr}</div>}
+            {/* F13 (U2): a greyed Submit used to give no hint — say how many are left and jump there. */}
+            {!isFeedbackProject(proj) && missingItems().length > 0 && (
+              <button type="button" className="items-left" data-testid="items-left"
+                onClick={() => document.getElementById(`rub-${missingItems()[0].id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}>
+                {missingItems().length} item{missingItems().length !== 1 ? "s" : ""} still to rate — show me the first one
+              </button>
+            )}
             {isFeedbackProject(proj) && !allMoved() && (
               <p style={{ textAlign:"center", fontSize:".72rem", color:"var(--dim)", marginTop:".4rem" }}>Choose or write a commendation to finish.</p>
             )}

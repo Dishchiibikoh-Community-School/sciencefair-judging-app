@@ -177,6 +177,9 @@ await check("60 is saved and confirmed", async () => {
 });
 await check("Setup recomputes the points for 60% (25.2 of 42, not 21)", () =>
   A.locator("#min-place").getByText(/25\.2 of 42/).waitFor({ timeout: 4000 }));
+// Finalized again before the public page is checked: while results are REOPENED the public link
+// says "Results are being updated" (2026-11, F10).
+setSetting("results_finalized", "true");
 P = await newPage({ width: 820, height: 1180 });
 await P.goto(`${BASE}/s/test?token=PUBTOKEN`);
 await P.getByText("Top Tomatoes").first().waitFor({ timeout: 8000 });

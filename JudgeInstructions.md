@@ -83,11 +83,14 @@ When you open a project to score, you'll see:
 3. **The scoring criteria** — each with buttons to tap
 4. **Comments** — the comment box(es) on your form
 5. **Total score** — Automatically calculated at the bottom
-6. **Submit Score button** — Save and go back to your project list
+6. **Submit Score button** — Save and go back to your project list. While it is greyed out, an amber
+   button underneath says how many items are still to rate — tap it to jump to the first one
+7. **Back** — "← Back to my projects" or your tablet's own Back button both return to the list
 
 **Nothing you tap is lost before you submit.** Your answers are kept on the tablet as you go — if you
 go back to the list, the page refreshes or the tablet restarts, the project shows **✎ Draft — not
-submitted** and opening it brings your answers back. A draft does **not** count until you press
+submitted** and opening it brings your answers back. A score that is saved on the tablet but **not sent
+yet** shows **⏳ … — not sent yet** in the list; it changes to **✓** once it reaches the server. A draft does **not** count until you press
 **Submit Score**. Use **Discard draft** if you want to start that project over.
 
 ### How Scoring Works

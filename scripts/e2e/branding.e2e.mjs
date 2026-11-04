@@ -29,6 +29,9 @@ const errs = [];
 const store = freshStore();
 const now = new Date().toISOString();
 store.share_links.push({ id: "sl1", school_id: SID, token: "PUB-TOKEN", expiry: "never", created_at: now, revoked_at: null, title: "Final Results" });
+// A results link exists only once results are FINALIZED — reopened results show "being updated" (F10).
+// Finalized only around the public-results visits: judges cannot score after Finalize (F8).
+const fin = (v) => { store.app_settings.find(r => r.key === "results_finalized").value = v; };
 store.app_settings.push({ school_id: SID, key: "project_list_token", value: "PL-TOKEN" });
 // Rows that must NEVER reach this school's pages.
 store.school_branding.push({ school_id: OTHER, logo_path: `${OTHER}/logo-otherschool1234.webp`, poster_path: null, poster_alt: "" });
@@ -263,12 +266,14 @@ console.log("\n── Public pages carry this school's branding");
     assert.equal(await page.locator(".reg-hero .school-name").innerText(), "Dishchii'bikoh Test");
     await page.locator(".brand-poster img[alt^='Poster: rocket']").waitFor({ timeout: 6000 });
   });
+  fin("true");
   await page.goto(`${BASE}/s/test?token=PUB-TOKEN`);
   await check("public results: logo + school name in the header, poster under it", async () => {
     await page.locator(".pub-hero img.school-logo").waitFor({ timeout: 6000 });
     await page.locator(".pub-hero .school-name", { hasText: "Dishchii'bikoh Test" }).waitFor();
     await page.locator(".brand-poster img").waitFor({ timeout: 6000 });
   });
+  fin("false");
   await page.goto(`${BASE}/s/test?projects=PL-TOKEN`);
   await check("public project list: logo, school name, 'Powered by Qritiko'", async () => {
     await page.locator(".pub-hero img.school-logo").waitFor({ timeout: 6000 });
@@ -362,6 +367,7 @@ for (const [name, w, h] of VIEWPORTS) {
     assert.ok(await page.locator('input[placeholder="e.g. Maria Santos"]').isVisible());
   });
   await page.screenshot({ path: `${OUT}/branding-register-${name}.png`, fullPage: false });
+  fin("true");
   await page.goto(`${BASE}/s/test?token=PUB-TOKEN`);
   await page.locator(".pub-hero img.school-logo").waitFor({ timeout: 6000 });
   await page.locator(".brand-poster img").evaluate(i => i.decode?.().catch(() => {}));
