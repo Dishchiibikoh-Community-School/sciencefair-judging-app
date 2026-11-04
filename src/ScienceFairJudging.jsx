@@ -556,7 +556,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-04k";
+const ADMIN_HELP_UPDATED = "2026-11-04l";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -752,7 +752,7 @@ const ADMIN_HELP = [
     ["PIN entry is locked.", "5 wrong PINs lock PIN entry for 5 minutes. Wait, then try again."],
     ["The lock button says \"Lock failed — retry\".", "The change did not reach the database (often an expired sign-in). Sign out and in, then try again — judges are NOT locked until it succeeds."],
     ["\"Rubric NOT saved\".", "Nothing was changed. Your edits are still on screen — sign in again if needed and press Save Rubric again."],
-    ["A red message says something was \"NOT saved\" / \"NOT finalized\".", "The change did not reach the database, so nothing changed — the screen shows the real state. Check the internet (or sign out and in), then press the same button again. Applies to validations, awards, deliberation, Finalize, Reopen, device transfers and Clear concern."],
+    ["A red message says something was \"NOT saved\" / \"NOT finalized\".", "The change did not reach the database, so nothing changed — the screen shows the real state. Check the internet (or sign out and in), then press the same button again. Applies to validations, awards, deliberation, Finalize, Reopen, device transfers, Clear concern, share links, and removing or locking a project (shown at the top of the tab)."],
     ["Live updates seem frozen (judges' scores are not appearing).", "Alerts → Connection shows Live / Connecting… / Disconnected for this screen. If it is not Live, refresh the page. IT Logs records REALTIME_DOWN only when the connection stayed down for over 30 seconds while the screen was in use (a phone locking its screen is no longer logged), and REALTIME_RECONNECTED with how long it was down. When the connection comes back — or a tablet wakes after a minute or more asleep — the screen reloads its data on its own, so changes made meanwhile (scores, the lock, awards) show up without a refresh."],
     ["Alerts shows a judge under \"Scores stuck on a device\".", "That tablet has scores it has not managed to send. Ask the judge to connect to Wi-Fi and press Sync Now. If it says \"server refusing\", the scores reach the server but are rejected — tell the judge NOT to sign out or clear the browser, and send the IT Logs report to your technical contact. A tablet that is offline cannot report at all; it appears here once it is back online but still cannot sync."],
     ["Alerts lists a judge as idle.", "They are signed in, still have projects to score, and have not scored anything for 20 minutes. Check on them — a dead tablet, a wrong room, or simply a long conversation with a student."],
@@ -2378,6 +2378,7 @@ export default function App() {
   const [pinSaving,    setPinSaving]    = useState(false);
   const [shareTokenValid,   setShareTokenValid]   = useState(false);
   const [shareErr,          setShareErr]          = useState("");   // a share-link change that did NOT save (F10)
+  const [adminMsg,          setAdminMsg]          = useState(null); // { ok, text } — an admin action's outcome, top of every tab (F11)
   const [shareTokenChecked, setShareTokenChecked] = useState(!urlShareToken);
   const [projListToken,   setProjListToken]   = useState("");
   const [projListCopied,  setProjListCopied]  = useState(false);
@@ -7507,29 +7508,38 @@ export default function App() {
   async function removeProject(pid) {
     const proj = projects.find(p => p.id === pid);
     if (!proj || proj.locked) return;
-    // Clean up all related data
+    setAdminMsg(null);
     const relatedScoreKeys = Object.keys(scores).filter(k => k.endsWith(`_${pid}`));
     const relatedDelibKeys = Object.keys(deliberationNotes).filter(k => k.endsWith(`_${pid}`));
-    // Remove from local state
+    const sid = currentSchool.id;
+    // F11 (SF-14): the DATABASE first — related rows, then the project row LAST (a failure leaves
+    // the project in place, never a half-deleted ghost) — and the screen only after it worked.
+    // Until 2026-11 the screen changed first, every error was ignored and PROJECT_REMOVED was
+    // logged even when nothing had been deleted.
+    const depErr = firstErr(await Promise.all([
+      supabase.from("scores").delete().eq("school_id", sid).eq("project_id", pid),
+      supabase.from("deliberation_notes").delete().eq("school_id", sid).eq("project_id", pid),
+      supabase.from("final_decisions").delete().eq("school_id", sid).eq("project_id", pid),
+    ]));
+    const del = depErr ? { data: null, error: depErr }
+      : await supabase.from("projects").delete().eq("school_id", sid).eq("id", pid).select("id");
+    if (del.error || !del.data?.length) {
+      setAdminMsg({ ok: false, text: `Project #${proj.num} was NOT removed — ${del.error?.message || "nothing was deleted"}. Check your connection and try again.` });
+      addItLog("ERROR","ADMIN","PROJECT_REMOVE_FAILED","Could not remove a project",
+        { projectId: pid, num: proj.num, step: depErr ? "related rows" : "project row", error: del.error ? errInfo(del.error) : "0 rows" });
+      loadScores(sid); loadDelibNotes(sid); loadFinalDecisions(sid); loadProjects(sid);   // show the real state
+      return;
+    }
     setProjects(p => p.filter(pp => pp.id !== pid));
     if (relatedScoreKeys.length) setScores(p => { const n = {...p}; relatedScoreKeys.forEach(k => delete n[k]); return n; });
     if (relatedDelibKeys.length) setDeliberationNotes(p => { const n = {...p}; relatedDelibKeys.forEach(k => delete n[k]); return n; });
     setFinalDecisions(p => { const n = {...p}; delete n[pid]; return n; });
-    // Remove from Supabase
-    const sid = currentSchool.id;
-    await Promise.all([
-      supabase.from("scores").delete().eq("school_id", sid).eq("project_id", pid),
-      supabase.from("deliberation_notes").delete().eq("school_id", sid).eq("project_id", pid),
-      supabase.from("final_decisions").delete().eq("school_id", sid).eq("project_id", pid),
-      supabase.from("projects").delete().eq("school_id", sid).eq("id", pid),
-    ]);
-    // Remove from judge assignments (clean orphaned refs)
-    for (const j of judges) {
-      if (j.projects.includes(pid)) {
-        const newProjs = j.projects.filter(id => id !== pid);
-        await supabase.from("judges").update({ projects: newProjs }).eq("school_id", sid).eq("id", j.id);
-      }
-    }
+    // Remove from judge assignments (clean orphaned refs) — a failure here is reported, not hidden.
+    const syncErrs = (await Promise.all(judges.filter(j => j.projects.includes(pid)).map(j =>
+      supabase.from("judges").update({ projects: j.projects.filter(id => id !== pid) }).eq("school_id", sid).eq("id", j.id)
+    ))).filter(r => r.error);
+    if (syncErrs.length) addItLog("WARN","ADMIN","JUDGE_ASSIGNMENTS_SYNC_FAILED","A removed project is still on some judges' lists",
+      { projectId: pid, failed: syncErrs.length, error: errInfo(syncErrs[0].error) });
     addLog(`Admin removed project #${proj.num}: ${proj.title}`);
     addItLog("WARN","ADMIN","PROJECT_REMOVED","Admin removed a project and all related data",
       { projectId:pid, num:proj.num, title:proj.title, scoresCleared:relatedScoreKeys.length, delibCleared:relatedDelibKeys.length, timestamp:fmtISO(Date.now()) });
@@ -7539,8 +7549,16 @@ export default function App() {
     const proj = projects.find(p => p.id === pid);
     if (!proj) return;
     const next = !proj.locked;
+    setAdminMsg(null);
+    // F11: save first; the padlock only changes once the database has it (rule 55).
+    const { data, error } = await supabase.from("projects").update({ locked: next })
+      .eq("school_id", currentSchool.id).eq("id", pid).select("id");
+    if (error || !data?.length) {
+      setAdminMsg({ ok: false, text: `Project #${proj.num} was NOT ${next ? "locked" : "unlocked"} — ${error?.message || "nothing was saved"}.` });
+      addItLog("ERROR","ADMIN","PROJECT_LOCK_FAILED","Could not change a project's lock",{ projectId: pid, num: proj.num, error: error ? errInfo(error) : "0 rows" });
+      return;
+    }
     setProjects(p => p.map(pp => pp.id === pid ? { ...pp, locked: next } : pp));
-    await supabase.from("projects").update({ locked: next }).eq("school_id", currentSchool.id).eq("id", pid);
     addLog(`Admin ${next ? "locked" : "unlocked"} project #${proj.num}`);
     addItLog("INFO","ADMIN", next ? "PROJECT_LOCKED" : "PROJECT_UNLOCKED",
       `Admin ${next ? "locked" : "unlocked"} project`,
@@ -7552,9 +7570,20 @@ export default function App() {
   // the client only sends the "JHS-PMA" prefix (see handleRegSubmit).
 
   async function deleteRegSubmission(sub) {
-    await supabase.from("registration_submissions").delete().eq("school_id", currentSchool.id).eq("id", sub.id);
+    setAdminMsg(null);
+    // F11: check the delete (0 rows is not success — rule 54).
+    const { data, error } = await supabase.from("registration_submissions").delete()
+      .eq("school_id", currentSchool.id).eq("id", sub.id).select("id");
+    if (error || !data?.length) {
+      setAdminMsg({ ok: false, text: `Registration ${sub.reg_number} was NOT deleted — ${error?.message || "nothing was deleted"}.` });
+      return;
+    }
     setRegSubmissions(prev => prev.filter(s => s.id !== sub.id));
     addLog(`Admin deleted registration submission: ${sub.reg_number} — ${sub.student_name}`);
+    // N11: the registration also created a PROJECT, which is still judged and listed. It is not
+    // removed automatically (it may have been edited or scored) — say where it is.
+    const proj = projects.find(p => p.id === sub.project_id);
+    if (proj) setAdminMsg({ ok: true, text: `Registration ${sub.reg_number} deleted. Its project #${proj.num} ("${proj.title}") is still on the Projects tab — remove it there if it was a duplicate.` });
   }
 
   async function generateRegLink() {
@@ -9325,6 +9354,12 @@ export default function App() {
           )}
 
           <div className="adm-main">
+            {adminMsg && (
+              <div className={adminMsg.ok ? "scan-msg ok" : "err"} role="alert" data-testid="admin-msg" style={{ marginBottom:"1rem", display:"flex", gap:".75rem", alignItems:"flex-start" }}>
+                <span style={{ flex:1 }}>{adminMsg.ok ? "" : "⚠ "}{adminMsg.text}</span>
+                <button className="btn sec sm" style={{ width:"auto" }} onClick={() => setAdminMsg(null)}>OK</button>
+              </div>
+            )}
 
             {/* OVERVIEW */}
             {adminTab==="overview" && <>

@@ -1282,6 +1282,9 @@ only who gets a medal — but changing it after you have announced winners is co
 - The change did not reach the database, and nothing changed — what you see is the real state
 - Check: internet connection; sign out and back in if your session may have expired
 - Then press the same button again. IT Logs shows the matching `*_FAILED` event with the error code
+- Removing or locking a project, and deleting a registration, report the same way at the top of the
+  tab (*"Project #N was NOT removed"*). Deleting a registration leaves the project it created on the
+  Projects tab — remove it there if it was a duplicate
 
 ### Scenario: A project with a low score still took 3rd place
 - By default there is no minimum — the top three averages in a department place, however low
