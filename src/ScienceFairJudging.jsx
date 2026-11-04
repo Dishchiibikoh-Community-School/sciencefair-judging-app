@@ -547,7 +547,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-04d";
+const ADMIN_HELP_UPDATED = "2026-11-04e";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -653,7 +653,7 @@ const ADMIN_HELP = [
   ]},
   { title: "Awards (1st, 2nd, 3rd)", icon: "🏅", faq: [
     ["Who competes with whom?", "By default everyone in a DEPARTMENT competes for its 1st, 2nd and 3rd. In Setup → Departments each scored department has a second dropdown, 'Places: per department / per category'. Per category gives every category inside that department its own 1st–3rd (e.g. 6-8 Life Science, 6-8 Chemistry …). Use it only where categories have enough projects — a category with one project would get an uncontested 1st."],
-    ["Do I have to type every award?", "No. The Awards tab shows every group with its top three already worked out from the scores. Check it and press '✓ Confirm these places', or '✓ Confirm all ready groups' to confirm every group that is fully scored and has no tie, in one go. Honorable Mention and Best in Category you still give in Validation → Deliberation."],
+    ["Do I have to type every award?", "No. The Awards tab shows every group with its top three already worked out from the scores. Check it and press '✓ Confirm these places', or '✓ Confirm all ready groups' to confirm every group that is fully scored and has no tie, in one go. Honorable Mention and Best in Category you still give in Validation → Deliberation. A project holds one award: once it has a saved Honorable Mention, Best in Category or No Award it is out of the running for 1st–3rd, and the place passes to the next project."],
     ["What do the coloured labels mean?", "Not confirmed — nothing saved yet. ✓ Confirmed — saved and still what the scores say. Tie for 1st/2nd/3rd — two projects are level where it decides a place; decide it in Validation → Deliberation. ✓ Decided by hand — you gave the places yourself (e.g. after a tie). Scores changed since you confirmed — a judge re-scored after you confirmed; press Re-confirm, or decide by hand. 'N not scored yet' — some projects in the group have no score. Groups that need you are listed first, and the Awards menu item shows how many."],
     ["What do the public results show — my awards or the scores?", "Your confirmed awards, once a group has any; until then the places worked out from the scores. That is how a tie you broke in deliberation reaches the podium. If you clear a group ('Clear confirmed places') it goes back to the computed places."],
     ["Which ties raise the amber alert now?", "Only ties that decide a place: two projects level for 1st, 2nd or 3rd, or level across 3rd and 4th, in the same award group. A tie lower down decides nothing and no longer raises it. A tie you have already decided, and ties on the PreK & SPED form (they share the place), never do."],
@@ -5062,7 +5062,7 @@ export default function App() {
   // settings say `ties: "share"` (PreK & SPED form) tied averages share a place and the places
   // go to the three highest DIFFERENT averages — 20, 20, 18 → 1st, 1st, 2nd.
   function placesOf(rankedList) {
-    const eligible = rankedList.filter(p => p.avg !== null && p.avg !== undefined && placesEligible(p));
+    const eligible = rankedList.filter(p => p.avg !== null && p.avg !== undefined && placesEligible(p) && !heldOutOfPlaces(p));
     const shared = eligible.length > 0 && tiesShare(eligible[0]);
     const levels = shared ? [...new Set(eligible.map(p => Number(p.avg)))] : null;
     return new Map(eligible
@@ -5071,6 +5071,14 @@ export default function App() {
   }
   function tiesShare(proj) {
     return !isFeedbackProject(proj) && rubricSettings(projRubric(proj)).ties === "share";
+  }
+  // A project the admin has given a NON-place award (Honorable Mention, Best in Category or No
+  // Award, saved) is out of the running for 1st–3rd: a project holds one award, and the medal
+  // passes to the next project. Until 2026-11 a saved "No Award" winner kept its computed 🥇
+  // on the podium (SF-20), and "Confirm" overwrote these awards with a place (N2). F7a.
+  function heldOutOfPlaces(p) {
+    const d = finalDecisions[p?.id];
+    return !!d?.finalized && !!d.award && d.award !== "Pending" && !PLACE_AWARDS.includes(d.award);
   }
   function ribbonOf(proj) {
     if (isFeedbackProject(proj)) return null;
@@ -6167,7 +6175,7 @@ export default function App() {
   function groupTie(g) {
     // Only a tie that decides a MEDAL is worth stopping the event for. Two projects level
     // below the minimum to place cannot take 1st/2nd/3rd from each other (rule 72).
-    const el = g.projects.filter(p => p.avg !== null && placesEligible(p));
+    const el = g.projects.filter(p => p.avg !== null && placesEligible(p) && !heldOutOfPlaces(p));
     if (!el.length || tiesShare(el[0])) return null;
     // findIndex, not a for-loop: a callback that closes over a loop counter the loop then
     // reassigns (i++) makes the React Compiler bail out of App (rule 37) — it did, here.

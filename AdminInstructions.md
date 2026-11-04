@@ -683,7 +683,9 @@ out from the scores. **Clear confirmed places** puts a group back to the compute
 it; a tie you have decided, and ties on the PreK & SPED form, never do.
 
 **Honorable Mention and Best in Category** are still given in Validation → Deliberation, project by
-project. Confirming places never touches them.
+project. Confirming places never touches them. A project holds **one** award: once it has a saved
+Honorable Mention, Best in Category or **No Award**, it is out of the running for 1st–3rd and the place
+passes to the next project.
 
 **The awards list.** **🖨 Print awards list** and **⬇ Awards CSV** give every group with its places, any
 special award, every ribbon, the **student names and the teacher** — for the ceremony and the
