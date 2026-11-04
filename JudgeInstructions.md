@@ -264,7 +264,8 @@ organizer can still award it.
 If internet drops:
 1. Your scores are stored locally on this device
 2. Continue scoring offline — the form works without internet
-3. Scores will auto-sync when internet returns
+3. Scores sync on their own — when the internet returns, every 20 seconds while any are waiting,
+   and when the tablet wakes up
 4. You'll see an **"Offline" banner** while disconnected
 5. Use **"Sync Now"** when back online if shown
 6. A score that is still waiting to sync stays ticked as scored, even if the page refreshes or the

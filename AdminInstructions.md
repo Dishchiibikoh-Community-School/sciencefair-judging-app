@@ -1021,7 +1021,7 @@ Logs never contain student names or form text.
 A: No (with one list for the whole school, the default). Each number belongs to one person. Only if you switch to "numbers restart in each department" can Judge1 exist in several departments.
 
 **Q: A judge signed in with the wrong number / someone signed in who should not have.**
-A: Judges tab → **Remove** on that judge → enter your Admin PIN. Their number is freed and they can sign in again with the right one. Removing **permanently deletes that judge's scores, notes and validation** — the dialog tells you how many — so fix it before they score. No Reset All Data needed.
+A: Judges tab → **Remove** on that judge → enter your Admin PIN. Their number is freed and they can sign in again with the right one. Removing **permanently deletes that judge's scores, notes and validation** — the dialog tells you how many — so fix it before they score. No Reset All Data needed. If that judge's tablet still had scores it had **not sent**, they can no longer be sent: the tablet keeps them, shows a note on its start page, and IT Logs gets an **UNSENT_SCORES_KEPT** entry listing the project ids and ratings so you can re-enter them.
 
 **Q: Can I add more judges to a department?**
 A: Yes. Setup → Judges → tick more judge numbers under that department → **Save judges**. Nobody else's number changes. If the grid has no free numbers left, raise **Maximum judges** first (up to 90).

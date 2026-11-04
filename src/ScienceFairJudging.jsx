@@ -324,6 +324,41 @@ function withTimeout(promise, ms) {
   return Promise.race([Promise.resolve(promise), deadline]).then(r => { clearTimeout(timer); return r; },
     e => { clearTimeout(timer); return { error: { code: "FETCH_FAILED", message: String(e?.message || e) } }; });
 }
+// Every queued score carries its own revision id (2026-11, F3). The flush used to acknowledge
+// items by judge + project, so a re-score queued WHILE a flush was uploading the older copy was
+// deleted without ever being sent. Items queued by an older build have no `rev`; they get a
+// stable one from their key + time.
+function newRev() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+// Order of DIRECT score saves on this page (a counter, not the clock — no Date.now() in App,
+// rule 37). runOfflineFlush() compares it to tell whether a direct save finished while an older
+// queued copy of the same score was still in flight.
+let directSaveSeq = 0;
+function nextDirectSaveSeq() { directSaveSeq += 1; return directSaveSeq; }
+function lastDirectSaveSeq() { return directSaveSeq; }
+function queueRev(item) { return item?.rev || `${item?.data?.judge_id}_${item?.data?.project_id}@${item?.ts || 0}`; }
+// While anything is queued, try again this often (and whenever the screen comes back). Before
+// 2026-11 the only automatic retry was the browser's "online" event — a score queued because the
+// SERVER failed (or a captive portal) waited for someone to press Sync Now.
+const QUEUE_RETRY_MS = 20000;
+// Scores that were still on a device when its judge was removed or the event was reset. They
+// can no longer be sent (the judge row is gone), but they are never silently deleted (rule 57):
+// they are kept here and their numbers are written to the IT log (UNSENT_SCORES_KEPT).
+const UNSENT_KEY = "sf_unsent_scores";
+function keepUnsentScores(items) {
+  try {
+    const prev = JSON.parse(localStorage.getItem(UNSENT_KEY) || "[]");
+    localStorage.setItem(UNSENT_KEY, JSON.stringify([...(Array.isArray(prev) ? prev : []), ...items]));
+    return true;
+  } catch { return false; }
+}
+// Drafts of ONE judge (keys `${judgeId}_${projectId}`); other judges' drafts on the device stay.
+function dropDraftsOf(judgeId) {
+  try {
+    const all = readDrafts();
+    Object.keys(all).forEach(k => { if (k.startsWith(`${judgeId}_`)) delete all[k]; });
+    localStorage.setItem(DRAFTS_KEY, JSON.stringify(all));
+  } catch { /* drafts are a convenience, never the score */ }
+}
 
 // A rubric row is usable only if every criterion has an id and at least one step.
 // rubrics.criteria defaults to '[]' — an empty or malformed rubric would give judges a
@@ -512,7 +547,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-04a";
+const ADMIN_HELP_UPDATED = "2026-11-04b";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -679,12 +714,12 @@ const ADMIN_HELP = [
     ["Where do I choose places per department or per category?", "Setup → Departments: each scored department's row has a dropdown 'Places: per department' — beside the rubric dropdown. If you cannot see it, reload the page (an open tab keeps the previous version until it is reloaded). See Help → Awards."],
     ["A judge's tablet died.", "Judges tab → Allow Transfer on that judge (Admin PIN). Within 10 minutes the judge signs in on the new device with the same judge number and invite code. Their scores are kept. If the box says \"The transfer was NOT approved\", nothing was saved — check the internet and press Approve transfer again."],
     ["Finalize is greyed out and says a judge raised a concern.", "A judge's concern blocks Finalize until it is resolved. Talk to that judge: they press Revise my validation and approve. If they have left, press Clear concern next to their name on the Validation tab — they go back to Pending (it is logged). A judge who simply has not validated yet does not block Finalize."],
-    ["A judge lost internet.", "Scores are kept on the device and sync automatically when it reconnects (or with Sync Now). The app will not let a judge sign out while scores are still only on the device. A score waiting to sync stays ticked as scored even if the page is refreshed — the judge should NOT score it again."],
+    ["A judge lost internet.", "Scores are kept on the device and sync automatically: when it reconnects, every 20 seconds while anything is waiting, and when the tablet wakes up (Sync Now still works too). The app will not let a judge sign out while scores are still only on the device. A score waiting to sync stays ticked as scored even if the page is refreshed — the judge should NOT score it again."],
     ["A judge says Submit is slow, or the screen says \"Your score was NOT saved\".", "On weak Wi-Fi Submit waits at most about 15 seconds; then the score is kept on the tablet and sent later, and the judge goes back to their list as normal. \"NOT saved\" appears only when neither the server nor the tablet could keep it (for example the tablet's storage is full). The answers are still on that screen — the judge should stay there, check the Wi-Fi and press Submit again. The IT log records it as SCORE_NOT_SAVED."],
     ["Can a judge change a score?", "Yes — open the project again and resubmit, until they validate their results or you lock judging."],
     ["A judge validated too early.", "They can press Revise my validation until you finalize the results."],
     ["A judge cannot see a project you just added.", "Make sure the project has their department. It appears automatically; if not, ask them to refresh the page."],
-    ["A judge registered in the wrong department.", "With one judge list for the whole school (the default) this cannot happen — the number decides the department. If someone used the wrong NUMBER: Judges tab → Remove on that judge (Admin PIN), then they sign in with the right number. Removing deletes that judge's scores, so do it before they score."],
+    ["A judge registered in the wrong department.", "With one judge list for the whole school (the default) this cannot happen — the number decides the department. If someone used the wrong NUMBER: Judges tab → Remove on that judge (Admin PIN), then they sign in with the right number. Removing deletes that judge's scores, so do it before they score. If that tablet still had scores it had not sent, they cannot be sent any more: the tablet keeps them, says so on its start page, and the IT log gets an UNSENT_SCORES_KEPT entry with the project ids and ratings."],
     ["Someone signed in who is not a judge / a test sign-in is in the list.", "Judges tab → Remove (Admin PIN). Their number is freed. No Reset needed."],
     ["How many judge numbers can we have?", "Setup → Judges → Maximum judges: 15 by default, up to 90. The grid only shows numbers up to it. To lower it, first untick the higher numbers."],
     ["I signed in as a new judge number but still see the old judge's projects.", "That device is still signed in as the earlier judge — the app remembers each device so judges never lose their place. The top of the project list shows who it is (e.g. 'Judge15 · PreK'). Press Sign Out, then sign in with the new number. Use one device per judge on event day."],
@@ -2161,6 +2196,9 @@ export default function App() {
   const [isOnline,   setIsOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
   const [offlineQueue, setOfflineQueue] = useState(() => readQueue());
   const flushingRef = useRef(false); // guards against concurrent offline-queue flushes
+  // The last score each judge+project saved DIRECTLY ({ payload, seq }) — so a flush whose older
+  // queued copy was still in flight can put the newer one back on top (F3).
+  const directSavesRef = useRef({});
   // Diagnostics. The mount effect and window error listeners close over the FIRST render,
   // where currentSchool is still null — they pass the school id to addItLog explicitly.
   // Live-updates connection of THIS device: "connecting" | "live" | "down" (Alerts → Event health).
@@ -2382,6 +2420,7 @@ export default function App() {
   const projFormRef = useRef(null);
   const [scoreSaving,        setScoreSaving]         = useState(false); // a score submit is in flight
   const [scoreErr,           setScoreErr]            = useState("");    // why the last Submit did NOT save (F2)
+  const [unsentNote,         setUnsentNote]          = useState("");    // landing note: this device kept unsent scores (F3)
   const scoreSavingRef = useRef(false);
   const judgesLoadedRef = useRef(false); // the judges list was READ from the server (empty ≠ unreachable)
   const [projForm,           setProjForm]            = useState(blankProjForm("", catNames()[0] || ""));
@@ -3415,6 +3454,36 @@ export default function App() {
     projFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [showAddProject, editingProject]);
 
+  // The judge this device is signed in as is not in the judges list (Reset All Data, or Remove
+  // judge) — end the session. Two changes in 2026-11 (F3):
+  //  1. The list in state can be a stale EMPTY list (the 8 s load timeout racing the response),
+  //     so the row is looked up again, directly; the session ends only when that lookup
+  //     SUCCEEDS and finds nothing. A failed lookup keeps the session.
+  //  2. Unsent scores are never deleted silently (rule 57). Until 2026-11 the whole queue went —
+  //     every judge's and every school's entries on the device. Now this judge's entries move to
+  //     UNSENT_KEY, their numbers go to the IT log (UNSENT_SCORES_KEPT, no comment text — rule
+  //     69), the landing page says so, and everything else stays queued.
+  async function endRemovedJudgeSession(judgeId, sid) {
+    if (!sid) return;
+    const { data, error } = await supabase.from("judges").select("id").eq("school_id", sid).eq("id", judgeId);
+    if (error || !Array.isArray(data) || data.length) return;   // unreachable, or the judge does exist
+    const q = readQueue();
+    const mine = q.filter(i => i?.data?.judge_id === judgeId);
+    if (mine.length) {
+      keepUnsentScores(mine);
+      writeQueue(q.filter(i => i?.data?.judge_id !== judgeId));
+      setOfflineQueue(readQueue());
+      addItLog("WARN","SCORE","UNSENT_SCORES_KEPT",
+        `${mine.length} score(s) had not been sent when this device's judge was removed — kept on the device`,
+        { judgeId, count: mine.length,
+          scores: mine.slice(0, 40).map(i => ({ projectId: i.data.project_id, criteria: i.data.criteria, ts: i.ts || null })) }, sid);
+      setUnsentNote(`This tablet was signed out because the organiser removed this judge number or reset the event. ${mine.length} score${mine.length !== 1 ? "s" : ""} that had not been sent ${mine.length !== 1 ? "are" : "is"} kept on this tablet — please tell the coordinator.`);
+    }
+    dropDraftsOf(judgeId);
+    ["sf_judge_id", "sf_judge_data", "sf_scores_cache", "sf_judge_slug"].forEach(k => localStorage.removeItem(k));
+    setJudge(null); setView("landing");
+  }
+
   // ── SESSION SYNC (after Supabase loads) ───────────────────
   // Refresh judge from DB, or clear if admin has reset all data.
   useEffect(() => {
@@ -3437,14 +3506,7 @@ export default function App() {
         localStorage.setItem("sf_judge_data", JSON.stringify(found));
         setView("judge-home");
       } else {
-        // Judge was reset by admin — wipe local cache
-        localStorage.removeItem("sf_judge_id");
-        localStorage.removeItem("sf_judge_data");
-        localStorage.removeItem("sf_scores_cache");
-        localStorage.removeItem("sf_offline_queue");
-        localStorage.removeItem("sf_judge_slug");
-        localStorage.removeItem(DRAFTS_KEY);   // drafts of a judge that no longer exists
-        setJudge(null); setView("landing");
+        endRemovedJudgeSession(savedId, currentSchool?.id);
       }
     }
     // Otherwise the judges read failed (offline / timeout) — keep the cached session
@@ -3493,6 +3555,18 @@ export default function App() {
     if (isOnline) flushOfflineQueue();
   }, [isOnline]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // While scores wait on this device, keep trying on our own (F3): every QUEUE_RETRY_MS, and as
+  // soon as the screen is visible again (a tablet waking up). The browser's "online" event alone
+  // never fires for a server error or a captive portal — those scores waited for Sync Now.
+  const queuedCount = offlineQueue.length;
+  useEffect(() => {
+    if (!queuedCount) return undefined;
+    const retry = () => { if (navigator.onLine && document.visibilityState === "visible") flushOfflineQueue(); };
+    const t = setInterval(retry, QUEUE_RETRY_MS);
+    document.addEventListener("visibilitychange", retry);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", retry); };
+  }, [queuedCount]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── REGISTRATION TAB LAZY LOAD ───────────────────────────
   useEffect(() => {
     if (adminTab === "registration") {
@@ -3520,38 +3594,46 @@ export default function App() {
   }
 
   async function runOfflineFlush(queue) {
-    const flushedKeys = new Set();
-    const failedKeys  = new Set();
-    const failErrors  = [];
+    const done   = new Set();   // revisions the server accepted
+    const failed = new Map();   // revision → error code
     for (const item of queue) {
       const key = `${item.data.judge_id}_${item.data.project_id}`;
-      flushedKeys.add(key);
+      const rev = queueRev(item);
+      // Superseded while this flush ran (a newer submit replaced or retired this copy) — sending
+      // it now could put an OLDER score over a newer one (F3).
+      if (!readQueue().some(i => queueRev(i) === rev)) continue;
+      const seqAtStart = lastDirectSaveSeq();
       // Same deadline as a direct submit (F2): one request that never answers used to hold
       // flushingRef forever, so no later flush — automatic or Sync Now — ever ran again.
       const { error } = await withTimeout(upsertScore(item.data), SAVE_TIMEOUT_MS);
-      if (error) { failedKeys.add(key); failErrors.push(error.code || error.message || "unknown"); }
+      if (error) { failed.set(rev, error.code || error.message || "unknown"); continue; }
+      done.add(rev);
+      // A direct submit of the same score that finished WHILE this older copy was in flight may
+      // have landed first — write the newer one again so it is what the server keeps (F3).
+      const newer = directSavesRef.current[key];
+      if (newer && newer.seq > seqAtStart) await withTimeout(upsertScore(newer.payload), SAVE_TIMEOUT_MS);
     }
-    // Re-read localStorage after the async loop — submitScore may have added new items
-    // while we were awaiting upserts. Keep items that either failed (need retry) or
-    // were added after this flush started (not in the original batch).
-    const current = readQueue();
-    const next = current.filter(i => {
-      const key = `${i.data.judge_id}_${i.data.project_id}`;
-      return failedKeys.has(key) || !flushedKeys.has(key);
-    });
+    // Remove exactly the revisions the server accepted. A re-score queued during this flush is a
+    // new revision and stays queued — it was deleted unsent until 2026-11 (F3).
+    const next = readQueue().filter(i => !done.has(queueRev(i)))
+      .map(i => failed.has(queueRev(i)) ? { ...i, attempts: (i.attempts || 0) + 1, lastError: failed.get(queueRev(i)) } : i);
     writeQueue(next);
     setOfflineQueue(next);
     const queueJudgeId = judge?.id || queue[0]?.data?.judge_id || null;
     // Before this, a score the server kept REJECTING (e.g. the judge row was removed by a
     // reset) retried forever with nothing in the log — only successes were recorded.
-    if (failedKeys.size > 0) {
+    // Automatic retries run every QUEUE_RETRY_MS, so log the FIRST failure of an item and then
+    // about every 5 minutes, not every attempt (rule 70).
+    const failedNow = next.filter(i => failed.has(queueRev(i)));
+    if (failedNow.some(i => i.attempts === 1 || i.attempts % 15 === 0)) {
       const oldest = Math.min(...queue.map(i => i.ts || Date.now()));
-      addItLog("WARN","DB","OFFLINE_SYNC_FAILED",`${failedKeys.size} queued score(s) could not be synced — still on the device`,
-        { failed: failedKeys.size, attempted: queue.length, errors: [...new Set(failErrors)].slice(0, 5),
+      addItLog("WARN","DB","OFFLINE_SYNC_FAILED",`${failed.size} queued score(s) could not be synced — still on the device`,
+        { failed: failed.size, attempted: queue.length, errors: [...new Set(failed.values())].slice(0, 5),
+          attempts: Math.max(...failedNow.map(i => i.attempts)),
           oldestWaitMin: Math.round((Date.now() - oldest) / 60000), online: navigator.onLine,
           judgeId: queueJudgeId, alias: judge?.alias || null, queueLength: next.length });
     }
-    const syncedCount = queue.length - failedKeys.size;
+    const syncedCount = done.size;
     if (syncedCount > 0) {
       const syncedAt = Date.now();
       setLastSyncAt(syncedAt);
@@ -6313,7 +6395,7 @@ export default function App() {
     let queueAfter = 0;
     if (error || !navigator.onLine) {
       const filtered = readQueue().filter(x => !(x.data.judge_id === judge.id && x.data.project_id === scoringPid));
-      filtered.push({ data: payload, ts: Date.now() });
+      filtered.push({ data: payload, ts: Date.now(), rev: newRev() });
       if (!writeQueue(filtered)) {
         // Neither the server nor this device has the score. The draft and the screen keep every
         // answer, so nothing is lost as long as the judge stays here — say exactly that (F2).
@@ -6333,6 +6415,7 @@ export default function App() {
       const syncedAt = Date.now();
       setLastSyncAt(syncedAt);
       localStorage.setItem("sf_last_sync_at", String(syncedAt));
+      directSavesRef.current[key] = { payload, seq: nextDirectSaveSeq() };   // see runOfflineFlush (F3)
       // An OLDER queued copy of this score (from a submit that failed earlier) is now stale.
       // Left in the queue it would be shown over this newer score after a refresh
       // (queuedScoresFor) and could be uploaded over it by the next flush.
@@ -7350,6 +7433,7 @@ export default function App() {
         <div className="land-badge">🔬 Digital Judging Platform</div>
         <h1 className="land-h1">Judging <span>Portal</span></h1>
         <p className="land-p">A secure, anonymous, and digital evaluation platform for fair and accurate scoring of student science projects.</p>
+        {unsentNote && <div className="locked-banner" role="alert" data-testid="unsent-note" style={{ marginBottom:"1rem" }}>⚠ {unsentNote}</div>}
         <div className="role-grid">
           <div className="role-card" onClick={() => setView("judge-register")}>
             <div className="ico"><RolePortrait /></div><h3>I'm a Judge</h3><p>You'll need your assigned judge name (e.g. Judge1) and the invite code from your coordinator</p>
@@ -7747,7 +7831,11 @@ export default function App() {
           {offlineQueue.length > 0 && (
             <div className="sync-banner" style={{ marginTop:".85rem" }}>
               <div>
-                ⚠ {offlineQueue.length} score{offlineQueue.length!==1?"s":""} currently saved only on this device (not yet in Supabase).
+                ⚠ {offlineQueue.length} score{offlineQueue.length!==1?"s":""} saved only on this device — not sent yet. The app keeps trying on its own.
+                {/* F3: an item the server keeps refusing (e.g. this judge was removed) says so. */}
+                {offlineQueue.some(i => (i.attempts || 0) >= 2) && (
+                  <div style={{ marginTop:".3rem", fontWeight:600 }}>The server has not accepted {offlineQueue.filter(i => (i.attempts || 0) >= 2).length === 1 ? "one of them" : "some of them"} after several tries. Do not sign out — tell the coordinator.</div>
+                )}
               </div>
               {isOnline && <button className="btn sec sm" style={{width:"auto"}} onClick={flushOfflineQueue}>Sync Now</button>}
             </div>

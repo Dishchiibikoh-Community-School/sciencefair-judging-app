@@ -496,10 +496,11 @@ export function installMock(page, store, log) {
       await new Promise(res => { (store._hangers = store._hangers || []).push(res); });
       return route.abort().catch(() => {});
     }
-    // Simulated slow server (2026-11, F3): answer after store.delayWrites[table] ms.
-    if (isWrite && store.delayWrites?.[table]) await new Promise(r => setTimeout(r, store.delayWrites[table]));
-    if (failNow)
+    if (failNow)   // an outage answers at once
       return json(route, 503, { code: "PGRST000", message: "simulated database outage" });
+    // Simulated slow server (2026-11, F3): a write that will SUCCEED answers after
+    // store.delayWrites[table] ms — long enough to act while it is in flight.
+    if (isWrite && store.delayWrites?.[table]) await new Promise(r => setTimeout(r, store.delayWrites[table]));
 
     // Simulated failed READ of a listed table (tests the LOAD_FAILED log, 2026-10-07).
     if ((method === "GET" || method === "HEAD") && (store.failReads || []).includes(table))
