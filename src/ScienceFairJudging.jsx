@@ -547,7 +547,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-04c";
+const ADMIN_HELP_UPDATED = "2026-11-04d";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -742,7 +742,7 @@ const ADMIN_HELP = [
     ["The lock button says \"Lock failed — retry\".", "The change did not reach the database (often an expired sign-in). Sign out and in, then try again — judges are NOT locked until it succeeds."],
     ["\"Rubric NOT saved\".", "Nothing was changed. Your edits are still on screen — sign in again if needed and press Save Rubric again."],
     ["A red message says something was \"NOT saved\" / \"NOT finalized\".", "The change did not reach the database, so nothing changed — the screen shows the real state. Check the internet (or sign out and in), then press the same button again. Applies to validations, awards, deliberation, Finalize, Reopen, device transfers and Clear concern."],
-    ["Live updates seem frozen (judges' scores are not appearing).", "Alerts → Connection shows Live / Connecting… / Disconnected for this screen. If it is not Live, refresh the page. IT Logs records REALTIME_DOWN only when the connection stayed down for over 30 seconds while the screen was in use (a phone locking its screen is no longer logged), and REALTIME_RECONNECTED with how long it was down."],
+    ["Live updates seem frozen (judges' scores are not appearing).", "Alerts → Connection shows Live / Connecting… / Disconnected for this screen. If it is not Live, refresh the page. IT Logs records REALTIME_DOWN only when the connection stayed down for over 30 seconds while the screen was in use (a phone locking its screen is no longer logged), and REALTIME_RECONNECTED with how long it was down. When the connection comes back — or a tablet wakes after a minute or more asleep — the screen reloads its data on its own, so changes made meanwhile (scores, the lock, awards) show up without a refresh."],
     ["Alerts shows a judge under \"Scores stuck on a device\".", "That tablet has scores it has not managed to send. Ask the judge to connect to Wi-Fi and press Sync Now. If it says \"server refusing\", the scores reach the server but are rejected — tell the judge NOT to sign out or clear the browser, and send the IT Logs report to your technical contact. A tablet that is offline cannot report at all; it appears here once it is back online but still cannot sync."],
     ["Alerts lists a judge as idle.", "They are signed in, still have projects to score, and have not scored anything for 20 minutes. Check on them — a dead tablet, a wrong room, or simply a long conversation with a student."],
     ["IT Logs shows LOAD_FAILED.", "One kind of data (named in the entry) could not be loaded on that device, so its screen may be out of date. Usually an expired sign-in or a dropped connection: refresh the page, or sign out and in."],
@@ -3315,11 +3315,39 @@ export default function App() {
         { status: rtDownStatus, error: rtDownErr, downForSec: Math.round((Date.now() - rtDownAt) / 1000) }, sid);
     };
     let rtSid = null;
+    // F5 (2026-11): Postgres Changes are NOT replayed. Anything that changed while this screen's
+    // live connection was down — a sleeping tablet, a Wi-Fi drop — never arrives, so the screen
+    // said "live" again while showing stale scores, locks and assignments until a manual refresh.
+    // Reload what those events would have changed when the channel comes back after a drop, and
+    // when the screen returns after a minute or more hidden. At most once every 10 s.
+    let lastRefresh = 0, hiddenAt = 0, curSid = null, everLive = false, refreshTimer = null;
+    const refreshAfterGap = (sid) => {
+      if (!sid || unmounting) return;
+      // Inside the 10 s window the refresh is DELAYED to the end of it, never dropped — a drop
+      // right after the previous refresh would otherwise leave the screen stale.
+      const wait = lastRefresh + 10000 - Date.now();
+      if (wait > 0) {
+        if (!refreshTimer) refreshTimer = setTimeout(() => { refreshTimer = null; refreshAfterGap(sid); }, wait);
+        return;
+      }
+      lastRefresh = Date.now();
+      Promise.all([
+        loadSettings(sid), loadProjects(sid), loadJudges(sid), loadScores(sid), loadValidations(sid),
+        loadDelibNotes(sid), loadFinalDecisions(sid), loadDepartments(sid), loadCategories(sid),
+        loadRubrics(sid), loadRoster(sid), loadProjectJudges(sid), loadSchedule(sid), loadShare(sid),
+        loadLog(sid), loadItLogs(sid),
+      ]).catch(() => { /* each loader reports its own failure (noteLoadError) */ });
+    };
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
         visibleSince = Date.now();
+        if (hiddenAt && visibleSince - hiddenAt > 60000) refreshAfterGap(curSid);
+        hiddenAt = 0;
         if (rtDownAt && !rtLogged && !rtTimer && rtSid) rtTimer = setTimeout(() => rtCheck(rtSid), RT_GRACE_MS);
-      } else if (rtTimer) { clearTimeout(rtTimer); rtTimer = null; }
+      } else {
+        hiddenAt = Date.now();
+        if (rtTimer) { clearTimeout(rtTimer); rtTimer = null; }
+      }
     };
     document.addEventListener("visibilitychange", onVisibility);
     const setupChannel = (sid) => {
@@ -3327,6 +3355,7 @@ export default function App() {
       // resolveSchool() can resolve AFTER this effect was cleaned up (React Strict Mode mounts twice
       // in development; a fast navigation can too) — a channel opened then would never be closed.
       if (unmounting) return;
+      curSid = sid;   // for refreshAfterGap() on a long-hidden screen (F5)
       visibleSince = document.visibilityState === "visible" ? Date.now() : 0;
       // The grace starts NOW, not at the first error: when the socket can never connect at all
       // (blocked Wi-Fi, a firewall) supabase-js just keeps retrying and the subscribe callback
@@ -3411,8 +3440,13 @@ export default function App() {
               addItLog("INFO","SYSTEM","REALTIME_RECONNECTED","Live updates reconnected",
                 { downForSec: Math.round((Date.now() - rtDownAt) / 1000) }, sid);
             }
+            // A RE-connect after having been live: changes may have been missed (F5). The first
+            // join is not one — init() has just loaded everything (rtDownAt starts at setup).
+            const wasDown = everLive && rtDownAt > 0;
+            everLive = true;
             rtDownAt = 0; rtLogged = false;
             setRealtime({ status: "live", since: Date.now() });
+            if (wasDown) refreshAfterGap(sid);
           } else {
             if (!rtDownAt) rtDownAt = Date.now();
             rtDownStatus = status; rtDownErr = err?.message || null; rtSid = sid;
@@ -3433,6 +3467,7 @@ export default function App() {
       authSub.unsubscribe();
       document.removeEventListener("visibilitychange", onVisibility);
       if (rtTimer) clearTimeout(rtTimer);
+      if (refreshTimer) clearTimeout(refreshTimer);
       if (channel) supabase.removeChannel(channel);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
