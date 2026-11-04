@@ -6532,7 +6532,7 @@ export default function App() {
     if (!error) {
       setAdminLoginAttempts(0);
       setAdminLockoutUntil(null);
-      addItLog("INFO","AUTH","ADMIN_LOGIN_SUCCESS","Admin authenticated via Supabase Auth",{ email: adminEmail.trim() });
+      addItLog("INFO","AUTH","ADMIN_LOGIN_SUCCESS","Admin authenticated via Supabase Auth",{});   // no email address in it_logs (rule 69)
       setView("admin-home"); setAdminPass(""); setAdminEmail(""); setAdminErr("");
     } else {
       const next = adminLoginAttempts + 1;
@@ -6835,7 +6835,8 @@ export default function App() {
     addLog(`${judge.alias} ${approved ? "validated" : "raised a concern about"} the computed results`);
     addItLog(approved?"INFO":"WARN","JUDGE", approved?"RESULTS_VALIDATED":"RESULTS_CONCERN",
       approved ? "Judge validated computed results" : "Judge raised concern about results",
-      { judgeId:judge.id, alias:judge.alias, comment:valComment, timestamp:fmtISO(Date.now()) });
+      // A flag, never the comment text (rule 69 — F15 / SF-22).
+      { judgeId:judge.id, alias:judge.alias, hasComment: !!valComment.trim(), timestamp:fmtISO(Date.now()) });
     setValComment(""); setShowValForm(false);
   }
   async function submitAdminValidation(approved) {
@@ -6853,7 +6854,7 @@ export default function App() {
     addLog(`Admin ${approved ? "validated" : "flagged concerns with"} the computed results`);
     addItLog(approved?"INFO":"WARN","ADMIN", approved?"ADMIN_RESULTS_VALIDATED":"ADMIN_RESULTS_CONCERN",
       approved ? "Admin validated computed results" : "Admin flagged concerns with results",
-      { approved, comment:valComment, timestamp:fmtISO(Date.now()) });
+      { approved, hasComment: !!valComment.trim(), timestamp:fmtISO(Date.now()) });
     setValComment(""); setShowValForm(false);
   }
   async function finalizeResults() {
@@ -7723,7 +7724,7 @@ export default function App() {
         });
       } catch {
         addItLog("WARN", "SYSTEM", "REG_EMAIL_FAILED", "Registration confirmation email could not be sent",
-          { regNumber, email: f.studentEmail.trim() });
+          { regNumber });   // never the student's email address (rule 69 — F15 / S18)
       }
 
       setRegSuccess({ regNumber, projectTitle: f.projectTitle.trim(), category: f.category });

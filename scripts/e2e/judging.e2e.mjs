@@ -359,6 +359,13 @@ await check("after Reset All Data (no judges left) a judge's device also returns
   assert.equal(await ls(J1.page, "sf_judge_id"), null);
 });
 
+// Rule 69 (F15): the IT log holds flags and ids, never comment text or an email address — the
+// concern above was raised WITH a comment, which RESULTS_CONCERN used to copy into it_logs.
+await check("no IT-log entry carries a comment text or an email address", async () => {
+  const bad = store.it_logs.filter(r => r.payload && (typeof r.payload.comment === "string" && r.payload.comment || r.payload.email));
+  assert.deepEqual(bad.map(r => r.event), []);
+});
+
 const real = errs.filter(e => !/WebSocket|realtime|ERR_NAME_NOT_RESOLVED|ERR_INTERNET_DISCONNECTED|Failed to load resource|mock\.supabase\.co|Failed to fetch/i.test(e));
 await check("no React/JS errors in the console", async () => assert.deepEqual(real, []));
 if (real.length) console.log(real.slice(0, 8).join("\n"));
