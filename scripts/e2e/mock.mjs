@@ -247,11 +247,12 @@ export function installMock(page, store, log) {
       if (fn === "school_invite_code") return isAdmin ? json(route, 200, "ABC123") : json(route, 400, { code: "P0001", message: "Not authorised" });
       if (fn === "verify_school_pin") return json(route, 200, body.p_pin === (store.pin || "4821"));
       if (fn === "registration_count") return json(route, 200, store.registration_submissions.length);
-      if (fn === "register_judge") {
+      // register_judge() as a function so register_judge_secure (2026-11a, F1) can reuse it → [status, payload]
+      const registerJudge = (body) => {
         // 2026-10m: a wrong code is a 200 RESULT carrying `error`, not a 400 — raising would
         // roll back the lockout counter written in the same transaction. Everything else
         // still rejects with a P0001 error, so both paths stay covered.
-        if (body.p_invite_code !== "ABC123") return json(route, 200, { error: "Invalid invite code" });
+        if (body.p_invite_code !== "ABC123") return [200, { error: "Invalid invite code" }];
         // Mirrors migrations 2026-10g/10h: school-wide numbering when departments carry judge
         // numbers (unless the school opted back into per-department numbering); a number may
         // fall in several overlapping ranges → the judge covers all of those departments.
@@ -262,7 +263,7 @@ export function installMock(page, store, log) {
           const n = /^Judge\d+$/.test(body.p_alias) ? parseInt(body.p_alias.slice(5)) : null;
           const ds = roster().length ? rosterDepts(n) : [...store.departments].sort((a, b) => a.ord - b.ord)
             .filter(x => x.judge_from != null && n >= x.judge_from && n <= x.judge_to);
-          if (!ds.length) return json(route, 400, { code: "P0001", message: `Judge ${n} is not on this school's judge list. Check your number with the coordinator.` });
+          if (!ds.length) return [400, { code: "P0001", message: `Judge ${n} is not on this school's judge list. Check your number with the coordinator.` }];
           deptIds = ds.map(d => d.id);
         }
         // An alias already signed in (once per school; per department in legacy mode) gets back
@@ -274,10 +275,10 @@ export function installMock(page, store, log) {
           let allow = {}; try { allow = JSON.parse(row?.value || "{}") || {}; } catch { /* treat as none */ }
           const until = Math.max(Number(allow[`${existing.department_id}:${body.p_alias}`]) || 0, Number(allow[body.p_alias]) || 0);
           if (until < Date.now())
-            return json(route, 400, { code: "P0001", message: `${body.p_alias} is already signed in. Ask the admin to approve a device transfer.` });
+            return [400, { code: "P0001", message: `${body.p_alias} is already signed in. Ask the admin to approve a device transfer.` }];
           delete allow[`${existing.department_id}:${body.p_alias}`]; delete allow[body.p_alias];
           if (row) row.value = JSON.stringify(allow);
-          return json(route, 200, existing);
+          return [200, existing];
         }
         const num = /^Judge\d+$/.test(body.p_alias) ? parseInt(body.p_alias.slice(5)) : null;
         const row = { id: "j_" + Math.random().toString(36).slice(2, 8), school_id: SID, alias: body.p_alias,
@@ -285,7 +286,77 @@ export function installMock(page, store, log) {
           projects: school && roster().length ? judgeProjects(num, deptIds)
             : store.projects.filter(p => deptIds.includes(p.department_id)).map(p => p.id) };
         store.judges.push(row);
-        return json(route, 200, row);
+        return [200, row];
+      };
+      if (fn === "register_judge") { const [st, pl] = registerJudge(body); return json(route, st, pl); }
+      // ── 2026-11a (FIXES_2026-11.md F1): per-judge secret + checked judge writes ──
+      // store.noSecureRpc = a database without migration 2026-11a (PGRST202 → the app falls back to
+      // the old direct writes). A database without the 2026-10o columns cannot have 11a either.
+      const SECURE_RPC = ["register_judge_secure", "submit_score", "submit_validation", "revise_validation", "submit_delib_note"];
+      if (SECURE_RPC.includes(fn) && (store.noSecureRpc || store.scoresFeedbackMissing))
+        return json(route, 404, { code: "PGRST202", message: `Could not find the function public.${fn} in the schema cache` });
+      store.judgeSecrets = store.judgeSecrets || {};
+      const secretOk = () => !!body.p_secret && store.judgeSecrets[body.p_judge_id] === body.p_secret
+        && store.judges.some(j => j.id === body.p_judge_id);
+      const denied = () => json(route, 401, { code: "42501", message: "This device is not signed in as that judge. Sign in again (the organiser can press Allow Transfer)." });
+      const settingIs = (k, v) => store.app_settings.some(r => r.key === k && r.value === v);
+      // The same failure switches as a direct write to that table (hang → fail → delay, decided on arrival).
+      const writeGate = async (table) => {
+        if ((store.hangWrites || []).includes(table)) { await new Promise(res => { (store._hangers = store._hangers || []).push(res); }); return "abort"; }
+        if ((store.failWrites || []).includes(table)) return "fail";
+        if (store.delayWrites?.[table]) await new Promise(r => setTimeout(r, store.delayWrites[table]));
+        return null;
+      };
+      const gated = (g) => g === "abort" ? route.abort().catch(() => {}) : json(route, 503, { code: "PGRST000", message: "simulated database outage" });
+      if (fn === "register_judge_secure") {
+        const [status, payload] = registerJudge(body);
+        if (status !== 200 || payload?.error) return json(route, status, payload);
+        const secret = Array.from({ length: 24 }, () => Math.floor(Math.random() * 256).toString(16).padStart(2, "0")).join("");
+        store.judgeSecrets[payload.id] = secret;   // a transfer replaces it: the old device stops working
+        return json(route, 200, { ...payload, judge_secret: secret });
+      }
+      if (fn === "submit_score") {
+        if (!secretOk()) return denied();
+        const g = await writeGate("scores"); if (g) return gated(g);
+        if (settingIs("results_finalized", "true")) return json(route, 400, { code: "P0001", message: "Results are finalized, so scores can no longer change. Ask the organiser to reopen them." });
+        if (store.validations.some(v => v.judge_id === body.p_judge_id)) return json(route, 400, { code: "P0001", message: "You have already validated the results. Press Revise my validation first." });
+        const j = store.judges.find(x => x.id === body.p_judge_id);
+        if (!(j.projects || []).includes(body.p_project_id)) return json(route, 400, { code: "P0001", message: "That project is not on your list." });
+        const v = { criteria: body.p_criteria || {}, notes: body.p_notes || "", submitted_at: new Date().toISOString(),
+          ...(body.p_commendation !== undefined ? { commendation: body.p_commendation } : {}),
+          ...(body.p_feedback !== undefined ? { feedback: body.p_feedback } : {}),
+          ...(body.p_safety_concern !== undefined ? { safety_concern: body.p_safety_concern } : {}) };
+        const row = store.scores.find(s => s.judge_id === body.p_judge_id && s.project_id === body.p_project_id);
+        if (row) Object.assign(row, v);
+        else store.scores.push({ id: "s_" + Math.random().toString(36).slice(2, 10), school_id: body.p_school_id, judge_id: body.p_judge_id, project_id: body.p_project_id, ...v });
+        return json(route, 200, { ok: true });
+      }
+      if (fn === "submit_validation") {
+        if (!secretOk()) return denied();
+        const g = await writeGate("validations"); if (g) return gated(g);
+        if (settingIs("results_finalized", "true")) return json(route, 400, { code: "P0001", message: "Results are finalized." });
+        const v = { school_id: body.p_school_id, judge_id: body.p_judge_id, approved: !!body.p_approved, comment: body.p_comment || "", validated_at: new Date().toISOString() };
+        const row = store.validations.find(x => x.judge_id === body.p_judge_id);
+        if (row) Object.assign(row, v); else store.validations.push(v);
+        return json(route, 200, { ok: true });
+      }
+      if (fn === "revise_validation") {
+        if (!secretOk()) return denied();
+        const g = await writeGate("validations"); if (g) return gated(g);
+        if (settingIs("results_finalized", "true")) return json(route, 400, { code: "P0001", message: "Results are already finalized, so your validation can no longer be changed." });
+        const before = store.validations.length;
+        store.validations = store.validations.filter(x => !(x.judge_id === body.p_judge_id && x.judge_id !== "admin"));
+        return json(route, 200, { deleted: before - store.validations.length });
+      }
+      if (fn === "submit_delib_note") {
+        if (!secretOk()) return denied();
+        const g = await writeGate("deliberation_notes"); if (g) return gated(g);
+        if (!settingIs("deliberation_open", "true")) return json(route, 400, { code: "P0001", message: "Deliberation is not open." });
+        const v = { school_id: body.p_school_id, judge_id: body.p_judge_id, project_id: body.p_project_id, comment: body.p_comment || "",
+          recommendation: body.p_recommendation || "Pending", flagged: !!body.p_flagged, submitted_at: new Date().toISOString() };
+        const row = store.deliberation_notes.find(x => x.judge_id === body.p_judge_id && x.project_id === body.p_project_id);
+        if (row) Object.assign(row, v); else store.deliberation_notes.push({ id: "dn_" + Math.random().toString(36).slice(2, 10), ...v });
+        return json(route, 200, { ok: true });
       }
       if (fn === "set_judge_roster") {
         if (!isAdmin) return json(route, 400, { code: "P0001", message: "Not authorised" });

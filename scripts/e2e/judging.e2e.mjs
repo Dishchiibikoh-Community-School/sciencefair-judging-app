@@ -78,13 +78,16 @@ await signInJudge(J1.page, "Judge1");
 await J1.page.locator(".proj-item").first().waitFor({ timeout: 6000 });
 
 // Double tap: hold the scores request so both taps land while the first is in flight.
-await J1.page.route("https://mock.supabase.co/rest/v1/scores**", async (r) => {
+// Since 2026-11 (F1) scores go through rpc/submit_score; hold either kind of save.
+const holdSave = async (r) => {
   if (r.request().method() === "POST") await new Promise(res => setTimeout(res, 700));
   return r.fallback();
-});
+};
+await J1.page.route("https://mock.supabase.co/rest/v1/scores**", holdSave);
+await J1.page.route("https://mock.supabase.co/rest/v1/rpc/submit_score**", holdSave);
 await J1.page.locator(".proj-item", { hasText: "Existing Volcano Study" }).click();
 { const g = J1.page.locator(".rub-steps"); for (let i = 0; i < await g.count(); i++) await g.nth(i).locator("button").last().click(); }
-const postsBefore = J1.log.filter(l => l.startsWith("POST /rest/v1/scores")).length;
+const postsBefore = J1.log.filter(l => l.startsWith("POST /rest/v1/scores") || l.startsWith("POST /rest/v1/rpc/submit_score")).length;
 await J1.page.evaluate(() => {
   const b = [...document.querySelectorAll("button")].find(x => /Submit Score/.test(x.textContent));
   b.click(); b.click();
@@ -92,9 +95,10 @@ await J1.page.evaluate(() => {
 await check("a second tap while saving shows 'Saving…'", () => J1.page.getByRole("button", { name: "Saving…" }).waitFor({ timeout: 2000 }));
 await J1.page.locator(".proj-item").first().waitFor({ timeout: 6000 });
 await J1.page.unroute("https://mock.supabase.co/rest/v1/scores**");
+await J1.page.unroute("https://mock.supabase.co/rest/v1/rpc/submit_score**");
 await check("double-tapped Submit Score sends ONE save and writes ONE audit entry", async () => {
   await J1.page.waitForTimeout(500);
-  assert.equal(J1.log.filter(l => l.startsWith("POST /rest/v1/scores")).length - postsBefore, 1, "upserts sent");
+  assert.equal(J1.log.filter(l => l.startsWith("POST /rest/v1/scores") || l.startsWith("POST /rest/v1/rpc/submit_score")).length - postsBefore, 1, "upserts sent");
   assert.equal(itEvents("SCORE_SUBMITTED").filter(r => r.payload?.projectId === "p_seed").length, 1, "SCORE_SUBMITTED rows");
   assert.equal(store.scores.filter(s => s.project_id === "p_seed").length, 1);
 });

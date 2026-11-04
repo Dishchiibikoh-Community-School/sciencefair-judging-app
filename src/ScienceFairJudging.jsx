@@ -365,6 +365,35 @@ function keepUnsentScores(items) {
     return true;
   } catch { return false; }
 }
+// ── Per-judge secret (migration 2026-11a — FIXES_2026-11.md F1) ──
+// register_judge_secure() hands the device that signs in a random secret; every judge write
+// (score, validation, revise, deliberation note) sends it, and the server checks it. Without it
+// anyone holding the public anon key could write ANY judge's scores. Kept per judge id, so two
+// judges who share a tablet never mix them up; a device transfer issues a new one and the old
+// device's stops working. Nothing else is stored with it.
+const SECRETS_KEY = "sf_judge_secrets";
+function readSecrets() {
+  try { const v = JSON.parse(localStorage.getItem(SECRETS_KEY) || "{}"); return v && typeof v === "object" ? v : {}; }
+  catch { return {}; }
+}
+function judgeSecret(judgeId) { return judgeId ? readSecrets()[judgeId] || null : null; }
+function setJudgeSecret(judgeId, secret) {
+  try {
+    const all = readSecrets();
+    if (secret) all[judgeId] = secret; else delete all[judgeId];
+    localStorage.setItem(SECRETS_KEY, JSON.stringify(all));
+  } catch { /* storage blocked: the next write falls back and the server refuses it — visible */ }
+}
+// A random id for this device (sent with sign-in; migration 2026-11b counts wrong invite codes
+// per device instead of per school).
+const DEVICE_KEY = "sf_device_id";
+function deviceId() {
+  try {
+    let d = localStorage.getItem(DEVICE_KEY);
+    if (!d) { d = newRev() + newRev(); localStorage.setItem(DEVICE_KEY, d); }
+    return d;
+  } catch { return null; }
+}
 // Drafts of ONE judge (keys `${judgeId}_${projectId}`); other judges' drafts on the device stay.
 function dropDraftsOf(judgeId) {
   try {
@@ -561,7 +590,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-04m";
+const ADMIN_HELP_UPDATED = "2026-11-04n";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -726,7 +755,8 @@ const ADMIN_HELP = [
   { title: "Judges", icon: "🧑‍⚖️", faq: [
     ["What does 'Judges signed in 0/15' on the Overview mean?", "Judges who have signed in so far / judge numbers in use (the numbers ticked in Setup → Judges). A judge ticked into several departments counts once. It goes up as judges sign in at the briefing."],
     ["Where do I choose places per department or per category?", "Setup → Departments: each scored department's row has a dropdown 'Places: per department' — beside the rubric dropdown. If you cannot see it, reload the page (an open tab keeps the previous version until it is reloaded). See Help → Awards."],
-    ["A judge's tablet died.", "Judges tab → Allow Transfer on that judge (Admin PIN). Within 10 minutes the judge signs in on the new device with the same judge number and invite code. Their scores are kept. If the box says \"The transfer was NOT approved\", nothing was saved — check the internet and press Approve transfer again."],
+    ["A judge's tablet says \"This device is not signed in as that judge\".", "Each tablet that signs in gets its own key for that judge; the server only accepts that judge's scores from it. The message means this tablet's key is no longer valid — usually because the judge signed in on another tablet (a transfer), or signed in before the security update was installed. Judges tab → Allow Transfer on that judge (Admin PIN), then they sign in again on the tablet they will use. Scores already saved are kept."],
+    ["A judge's tablet died.", "Judges tab → Allow Transfer on that judge (Admin PIN). Within 10 minutes the judge signs in on the new device with the same judge number and invite code. Their scores are kept. From then on only the NEW tablet can save that judge's scores — the old one is switched off. If the box says \"The transfer was NOT approved\", nothing was saved — check the internet and press Approve transfer again."],
     ["Finalize is greyed out and says a judge raised a concern.", "A judge's concern blocks Finalize until it is resolved. Talk to that judge: they press Revise my validation and approve. If they have left, press Clear concern next to their name on the Validation tab — they go back to Pending (it is logged). A judge who simply has not validated yet does not block Finalize."],
     ["A judge lost internet.", "Scores are kept on the device and sync automatically: when it reconnects, every 20 seconds while anything is waiting, and when the tablet wakes up (Sync Now still works too). The app will not let a judge sign out while scores are still only on the device. A score waiting to sync stays ticked as scored even if the page is refreshed — the judge should NOT score it again."],
     ["A tablet says \"Can't reach the server\" or \"The scoring form could not be loaded\".", "\"Can't reach the server\" means the tablet is offline (or the server is not answering) and has never loaded your school before — it is NOT \"School Not Found\", and it retries on its own. A tablet that has loaded the school once opens normally even with no connection, showing the projects and scoring forms as it last saw them. \"The scoring form could not be loaded\" on a project means that department's rubric could not be fetched: check the Wi-Fi and press Try again. The app never swaps in a different form, because scores entered on the wrong form would be saved under the wrong criteria."],
@@ -3611,6 +3641,7 @@ export default function App() {
       setUnsentNote(`This tablet was signed out because the organiser removed this judge number or reset the event. ${mine.length} score${mine.length !== 1 ? "s" : ""} that had not been sent ${mine.length !== 1 ? "are" : "is"} kept on this tablet — please tell the coordinator.`);
     }
     dropDraftsOf(judgeId);
+    setJudgeSecret(judgeId, null);   // the row is gone; so is its secret on the server (F1)
     ["sf_judge_id", "sf_judge_data", "sf_scores_cache", "sf_judge_slug"].forEach(k => localStorage.removeItem(k));
     setJudge(null); setView("landing");
   }
@@ -6480,12 +6511,20 @@ export default function App() {
     // transfer allowance. The browser can no longer read the invite code, and
     // direct INSERTs into `judges` are blocked by RLS — this RPC is the only
     // way a judge row can be created.
-    const { data, error } = await supabase.rpc("register_judge", {
+    const regArgs = {
       p_school_id:     currentSchool.id,
       p_department_id: dept0.id,
       p_alias:         name,
       p_invite_code:   regCode.trim(),
-    });
+    };
+    // F1: the secure sign-in also hands this device the judge's secret (migration 2026-11a). The
+    // plain register_judge() is used only on a database without it (rule 68: missing function only).
+    let { data, error } = await supabase.rpc("register_judge_secure", { ...regArgs, p_device: deviceId() });
+    if (error && MISSING_FN(error)) ({ data, error } = await supabase.rpc("register_judge", regArgs));
+    if (!error && data?.judge_secret && data.id) {
+      setJudgeSecret(data.id, data.judge_secret);
+      delete data.judge_secret;   // never copied into the judge object / sf_judge_data
+    }
 
     // Two shapes of rejection, one path. Our RAISE messages are already written for the judge
     // to read; a WRONG INVITE CODE instead comes back as a RESULT (`data.error`, migration
@@ -6604,7 +6643,29 @@ export default function App() {
   // score stuck in the offline queue forever. So retry WITHOUT them, folding the comments and
   // the safety flag into `notes` so nothing the judge wrote is lost (rule 68: only on a
   // genuinely missing column, never on any other error).
+  // F1: a judge's write goes through the checked server function when this device holds the
+  // judge's secret. The old direct write runs ONLY when there is no secret yet or the function is
+  // missing (a database before migration 2026-11a) — rule 68: never on any other error.
+  async function judgeWrite(fn, args, direct) {
+    const secret = judgeSecret(args.p_judge_id);
+    if (secret) {
+      const res = await supabase.rpc(fn, { ...args, p_secret: secret });
+      if (!res.error || !MISSING_FN(res.error)) return res;
+    }
+    return direct();
+  }
   async function upsertScore(payload) {
+    // Only the fields this score has — the server fills the rest with its defaults, so a score on
+    // a form without Strength / Next step / safety keeps its old shape (rubrics-2627 checks it).
+    return judgeWrite("submit_score", {
+      p_school_id: payload.school_id, p_judge_id: payload.judge_id, p_project_id: payload.project_id,
+      p_criteria: payload.criteria || {}, p_notes: payload.notes || "",
+      ...(payload.commendation !== undefined ? { p_commendation: payload.commendation } : {}),
+      ...(payload.feedback !== undefined ? { p_feedback: payload.feedback } : {}),
+      ...(payload.safety_concern !== undefined ? { p_safety_concern: payload.safety_concern } : {}),
+    }, () => upsertScoreDirect(payload));
+  }
+  async function upsertScoreDirect(payload) {
     const res = await supabase.from("scores").upsert(payload, { onConflict: "judge_id,project_id" });
     const extra = payload.feedback !== undefined || payload.safety_concern !== undefined;
     if (!res.error || !extra || !MISSING_COL(res.error)) return res;
@@ -6821,10 +6882,11 @@ export default function App() {
   }
   async function submitJudgeValidation(approved) {
     setValErr("");
-    const { error } = await supabase.from("validations").upsert(
-      { school_id: currentSchool.id, judge_id: judge.id, approved, comment: valComment, validated_at: new Date().toISOString() },
-      { onConflict: "school_id,judge_id" }
-    );
+    const { error } = await judgeWrite("submit_validation",
+      { p_school_id: currentSchool.id, p_judge_id: judge.id, p_approved: approved, p_comment: valComment },
+      () => supabase.from("validations").upsert(
+        { school_id: currentSchool.id, judge_id: judge.id, approved, comment: valComment, validated_at: new Date().toISOString() },
+        { onConflict: "school_id,judge_id" }));
     if (error) {
       setValErr("Your validation was NOT saved. Check your connection and try again.");
       addItLog("ERROR","JUDGE","VALIDATION_SAVE_FAILED","Could not save the judge's validation",
@@ -8089,9 +8151,13 @@ export default function App() {
                   // and then (RLS admin-only) silently matched 0 rows — the screen said
                   // "revised" while the DB still had the judge validated and locked out.
                   setValReviseErr("");
-                  const { data, error } = await supabase.from("validations").delete()
-                    .eq("school_id", currentSchool?.id).eq("judge_id", judge.id).select("judge_id");
-                  if (error || !data?.length) {
+                  const { data, error } = await judgeWrite("revise_validation",
+                    { p_school_id: currentSchool?.id, p_judge_id: judge.id },
+                    () => supabase.from("validations").delete()
+                      .eq("school_id", currentSchool?.id).eq("judge_id", judge.id).select("judge_id"));
+                  // revise_validation() answers { deleted: n }; the direct delete answers the rows.
+                  const removed = Array.isArray(data) ? data.length : (data?.deleted || 0);
+                  if (error || !removed) {
                     setValReviseErr(resultsFinalized
                       ? "Results are already finalized — your validation can no longer be changed."
                       : "Could not reopen your validation. Check your connection, or ask the admin.");
@@ -8201,10 +8267,13 @@ export default function App() {
                         const d = delibDrafts[proj.id] || draft;
                         setDelibNoteErr("");
                         // Save first; only show it as submitted once the database has it.
-                        const { error } = await supabase.from("deliberation_notes").upsert({
-                          school_id: currentSchool?.id, judge_id: judge.id, project_id: proj.id,
-                          comment: d.comment, recommendation: d.rec, flagged: d.flagged||false,
-                        }, { onConflict: "judge_id,project_id" });
+                        const { error } = await judgeWrite("submit_delib_note",
+                          { p_school_id: currentSchool?.id, p_judge_id: judge.id, p_project_id: proj.id,
+                            p_comment: d.comment, p_recommendation: d.rec, p_flagged: d.flagged || false },
+                          () => supabase.from("deliberation_notes").upsert({
+                            school_id: currentSchool?.id, judge_id: judge.id, project_id: proj.id,
+                            comment: d.comment, recommendation: d.rec, flagged: d.flagged||false,
+                          }, { onConflict: "judge_id,project_id" }));
                         if (error) {
                           setDelibNoteErr(`Your note for Project #${proj.num} was NOT saved. Check your connection and try again.`);
                           addItLog("ERROR","JUDGE","DELIB_NOTE_FAILED","Could not save a deliberation note",
@@ -8253,6 +8322,7 @@ export default function App() {
               <div style={{ marginBottom:".5rem" }}>You have scored {done} of {myProj.length} projects. Sign out anyway? Your saved scores stay in the system.</div>
               <div style={{ display:"flex", gap:".5rem", flexWrap:"wrap" }}>
                 <button className="btn danger sm" style={{ width:"auto" }} onClick={() => {
+                  if (judge?.id) setJudgeSecret(judge.id, null);   // F1: signing out gives up this device's secret
                   setJudgeSignOutAsk(false); setJudge(null);
                   ["sf_judge_id","sf_judge_data","sf_scores_cache"].forEach(k => localStorage.removeItem(k));
                   setView("landing");

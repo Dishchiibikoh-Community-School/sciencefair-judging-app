@@ -19,7 +19,7 @@ const page = await ctx.newPage();
 await installMock(page, store, []);
 let registerCalls = 0;
 // Count the calls, and slow them down so a second tap lands while the first is in flight.
-await page.route("**/rest/v1/rpc/register_judge", async (route) => {
+await page.route(/\/rest\/v1\/rpc\/register_judge(_secure)?(\?|$)/, async (route) => {   // either sign-in (F1)
   registerCalls++;
   await new Promise(r => setTimeout(r, 1200));
   return route.fallback();

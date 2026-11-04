@@ -318,6 +318,9 @@ A: Another device is already signed in as you (or someone used your number). Ask
 
 **Q: Can I score projects from a different department?**
 A: Only the departments your organizer put your number in. Most judges cover one department; at a small
+
+**Q: My tablet says "This device is not signed in as that judge".**
+A: Your scores can only be saved from the tablet you signed in on last. Ask the admin to press **Allow Transfer**, then sign in again with your number and the invite code. Scores you already saved are kept.
 fair your number may cover two or more, and then your project list has a heading for each one — score
 everything in the list. You cannot add a department yourself: ask your organizer, who sets this up in the
 judge grid.

@@ -1242,4 +1242,129 @@ ok("compat: set_judge_numbers (old range editor) writes the roster");
   ok("10p: removing it puts lists back on the grid (Judge1 → every project of K-5 + 6-8 again)");
 }
 
+// ═══ 2026-11a: judge write integrity (FIXES_2026-11.md F1) ════════════════════
+// Applied LAST, on purpose: every check above writes scores / validations the way the app did
+// before this migration (direct table writes), which 11a closes.
+{
+  for (let i = 0; i < 2; i++) await db.exec(mig("migration-2026-11a-judge-write-integrity.sql"));
+  ok("11a: applied twice (re-runnable)");
+  const S = "51515151-5151-4151-8151-515151515151";
+  const D = "5d000000-0000-4000-8000-000000000011", DF = "5d000000-0000-4000-8000-0000000000ff";
+  const R = "5e000000-0000-4000-8000-000000000011";
+  const OTHER_SCHOOL_PROJECT = "p_old";   // belongs to the first test school
+  const crit = JSON.stringify([
+    { id: "q1", label: "Question", max: 5, steps: [1, 2, 3, 4, 5] },
+    { id: "q2", label: "Method", max: 7.5, steps: [2.5, 5, 7.5] },
+  ]);
+  await db.exec(`
+    INSERT INTO schools (id, name, slug, invite_code, admin_pin) VALUES ('${S}', 'S11', 's11', 'S11CODE', '4821');
+    INSERT INTO school_admins (school_id, user_id) VALUES ('${S}', '${ADMIN}');
+    INSERT INTO rubrics (id, school_id, name, criteria, is_active) VALUES ('${R}', '${S}', 'Two items', '${crit}'::jsonb, true);
+    INSERT INTO departments (id, school_id, name, max_judges, ord, rubric_id) VALUES ('${D}', '${S}', 'Scored', 5, 0, '${R}');
+    INSERT INTO departments (id, school_id, name, max_judges, ord, scoring_mode) VALUES ('${DF}', '${S}', 'Comments', 5, 1, 'feedback');
+    INSERT INTO app_settings (school_id, key, value) VALUES ('${S}', 'judge_numbering', 'department');
+    INSERT INTO projects (id, school_id, num, title, cat, grade, department_id) VALUES
+      ('q_a', '${S}', '101', 'A', 'Life Science', '7', '${D}'),
+      ('q_b', '${S}', '102', 'B', 'Life Science', '3', '${D}'),
+      ('q_f', '${S}', '103', 'F', 'Life Science', '1', '${DF}');
+  `);
+  const RJS = "SELECT register_judge_secure($1, $2, $3, $4) AS j";
+  const SS = "SELECT submit_score($1, $2, $3, $4, $5::jsonb, $6, $7, $8::jsonb, $9) AS r";
+  const good = JSON.stringify({ q1: 4, q2: 7.5 });
+
+  await fails("anon", "", `INSERT INTO scores (school_id, judge_id, project_id, criteria) VALUES ($1, 'x', 'q_a', '{}')`,
+    /row-level security/, "11a: anon can no longer write a score directly", [S]);
+  await fails("anon", "", "SELECT register_judge($1, $2, 'Judge1', 'S11CODE')", /permission denied/,
+    "11a: the plain register_judge() is no longer callable (every judge gets a secret)", [S, D]);
+  await fails("anon", "", "SELECT note_auth_failure($1, 'invite')", /permission denied/,
+    "11a: anon cannot call note_auth_failure() to lock a school out directly (S15)", [S]);
+
+  const bad = (await as("anon", "", RJS, [S, D, "Judge1", "WRONG"])).rows[0].j;
+  assert.equal(bad.error, "Invalid invite code");
+  ok("11a: a wrong invite code is still RETURNED as an error (rule 66)");
+  const j1 = (await as("anon", "", RJS, [S, D, "Judge1", "S11CODE"])).rows[0].j;
+  assert.match(j1.judge_secret, /^[0-9a-f]{48}$/);
+  assert.ok(j1.projects.includes("q_a"));
+  ok("11a: register_judge_secure() returns the judge row AND a 48-hex secret");
+  const j2 = (await as("anon", "", RJS, [S, DF, "Judge1", "S11CODE"])).rows[0].j;
+  await fails("anon", "", "SELECT * FROM judge_secrets", /permission denied/, "11a: nobody can read judge_secrets");
+  const stored = (await db.query("SELECT secret_hash FROM judge_secrets WHERE judge_id=$1", [j1.id])).rows[0].secret_hash;
+  assert.notEqual(stored, j1.judge_secret);
+  ok("11a: only a hash of the secret is stored");
+
+  await fails("anon", "", SS, /not signed in as that judge/, "11a: a score with the WRONG secret is refused (the impersonation hole)",
+    [S, j1.id, "0".repeat(48), "q_a", good, "", "", "{}", false]);
+  await as("anon", "", SS, [S, j1.id, j1.judge_secret, "q_a", good, "nice", "", "{}", false]);
+  const row1 = (await db.query("SELECT criteria, submitted_at FROM scores WHERE judge_id=$1 AND project_id='q_a'", [j1.id])).rows[0];
+  assert.deepEqual(row1.criteria, { q1: 4, q2: 7.5 });
+  ok("11a: the right secret saves the score (7.5-point steps exact)");
+  await fails("anon", "", SS, /not on the form/, "11a: a value that is not a step of the form is refused (9999)",
+    [S, j1.id, j1.judge_secret, "q_a", JSON.stringify({ q1: 9999, q2: 5 }), "", "", "{}", false]);
+  await fails("anon", "", SS, /not on this project's form/, "11a: a criterion the form does not have is refused",
+    [S, j1.id, j1.judge_secret, "q_a", JSON.stringify({ q1: 4, q2: 5, zz: 1 }), "", "", "{}", false]);
+  await fails("anon", "", SS, /must be filled in/, "11a: a partial score is refused",
+    [S, j1.id, j1.judge_secret, "q_a", JSON.stringify({ q1: 4 }), "", "", "{}", false]);
+  await fails("anon", "", SS, /not in this school/, "11a: another school's project is refused",
+    [S, j1.id, j1.judge_secret, OTHER_SCHOOL_PROJECT, good, "", "", "{}", false]);
+  await db.exec(`INSERT INTO projects (id, school_id, num, title, cat, grade, department_id) VALUES ('q_late', '${S}', '104', 'Late', 'Life Science', '7', '${D}')`);
+  await fails("anon", "", SS, /not on your list/, "11a: a project that is not on the judge's list is refused",
+    [S, j1.id, j1.judge_secret, "q_late", good, "", "", "{}", false]);
+  await fails("anon", "", SS, /too long/, "11a: an oversized comment is refused",
+    [S, j1.id, j1.judge_secret, "q_a", good, "x".repeat(5000), "", "{}", false]);
+  await new Promise(r => setTimeout(r, 20));
+  await as("anon", "", SS, [S, j1.id, j1.judge_secret, "q_a", JSON.stringify({ q1: 5, q2: 5 }), "", "", "{}", false]);
+  const row2 = (await db.query("SELECT count(*)::int n, max(submitted_at) t FROM scores WHERE judge_id=$1 AND project_id='q_a'", [j1.id])).rows[0];
+  assert.equal(row2.n, 1); assert.ok(new Date(row2.t) > new Date(row1.submitted_at));
+  ok("11a: a re-score updates the same row and moves submitted_at (I6)");
+  await as("anon", "", SS, [S, j1.id, j1.judge_secret, "q_b", JSON.stringify({ q1: 3, q2: 5 }), "", "", "{}", false]);
+  ok("11a: below grade 5 a form without `abstract` still needs every other item (accepted)");
+
+  await fails("anon", "", SS, /takes no ratings/, "11a: a comment-only project takes no ratings",
+    [S, j2.id, j2.judge_secret, "q_f", good, "", "Great Effort", "{}", false]);
+  await as("anon", "", SS, [S, j2.id, j2.judge_secret, "q_f", "{}", "", "Great Effort", "{}", false]);
+  ok("11a: a comment-only review saves with {} + commendation");
+
+  const SV = "SELECT submit_validation($1, $2, $3, $4, $5) AS r";
+  await fails("anon", "", SV, /not signed in as that judge/, "11a: nobody can plant a concern for another judge (wrong secret)",
+    [S, j1.id, "0".repeat(48), false, "fake concern"]);
+  await fails("anon", "", `INSERT INTO validations (school_id, judge_id, approved) VALUES ($1, $2, false)`, /row-level security/,
+    "11a: …and a direct write of a judge's validation is refused", [S, j1.id]);
+  await as("anon", "", SV, [S, j1.id, j1.judge_secret, true, ""]);
+  await fails("anon", "", SS, /already validated/, "11a: after validating, the judge's scores are locked",
+    [S, j1.id, j1.judge_secret, "q_a", good, "", "", "{}", false]);
+  const rv = (await as("anon", "", "SELECT revise_validation($1, $2, $3) AS r", [S, j1.id, j1.judge_secret])).rows[0].r;
+  assert.equal(rv.deleted, 1);
+  await as("anon", "", SS, [S, j1.id, j1.judge_secret, "q_a", good, "", "", "{}", false]);
+  ok("11a: revise_validation() reopens scoring for that judge");
+  await as("authenticated", ADMIN, `INSERT INTO validations (school_id, judge_id, approved) VALUES ($1, 'admin', true)`, [S]);
+  ok("11a: the admin still writes their own validation row");
+
+  const SD = "SELECT submit_delib_note($1, $2, $3, $4, $5, $6, $7) AS r";
+  await fails("anon", "", SD, /not open/, "11a: deliberation notes are refused while deliberation is closed (rule 19 server-side)",
+    [S, j1.id, j1.judge_secret, "q_a", "c", "Good Work", false]);
+  await db.exec(`INSERT INTO app_settings (school_id, key, value) VALUES ('${S}', 'deliberation_open', 'true')`);
+  await as("anon", "", SD, [S, j1.id, j1.judge_secret, "q_a", "c", "Good Work", false]);
+  ok("11a: …and accepted once it is open");
+
+  // Device transfer: the admin allows it; the new device gets a new secret; the old one stops.
+  const until = Date.now() + 600000;
+  await db.exec(`INSERT INTO app_settings (school_id, key, value) VALUES ('${S}', 'judge_transfer_allowances', '{"${D}:Judge1": ${until}, "Judge1": ${until}}')
+                 ON CONFLICT (school_id, key) DO UPDATE SET value = EXCLUDED.value`);
+  const j1b = (await as("anon", "", RJS, [S, D, "Judge1", "S11CODE"])).rows[0].j;
+  assert.equal(j1b.id, j1.id); assert.notEqual(j1b.judge_secret, j1.judge_secret);
+  await fails("anon", "", SS, /not signed in as that judge/, "11a: after a transfer the OLD device's secret no longer works",
+    [S, j1.id, j1.judge_secret, "q_a", good, "", "", "{}", false]);
+  await as("anon", "", SS, [S, j1.id, j1b.judge_secret, "q_a", good, "", "", "{}", false]);
+  ok("11a: …and the new device's works");
+
+  await db.exec(`INSERT INTO app_settings (school_id, key, value) VALUES ('${S}', 'results_finalized', 'true')`);
+  await fails("anon", "", SS, /finalized/, "11a: after Finalize no score can change", [S, j1.id, j1b.judge_secret, "q_a", good, "", "", "{}", false]);
+  await fails("anon", "", "SELECT revise_validation($1, $2, $3)", /finalized/, "11a: …and no validation can be reopened",
+    [S, j1.id, j1b.judge_secret]);
+
+  await db.exec(`DELETE FROM judges WHERE id = '${j2.id}' AND school_id = '${S}'`);
+  assert.equal((await db.query("SELECT count(*)::int n FROM judge_secrets WHERE judge_id=$1", [j2.id])).rows[0].n, 0);
+  ok("11a: removing a judge removes their secret (FK cascade)");
+}
+
 console.log(`\nALL ${pass} CHECKS PASSED`);
