@@ -659,7 +659,8 @@ The **🏅 Awards** tab turns the scores into places without typing a single awa
 
 1. Each **award group** — a department, or a category inside it (see *Places: per department or per
    category*) — is a card with its projects in order and the computed **🥇 1st / 🥈 2nd / 🥉 3rd**.
-2. A group that is fully scored and has no tie is **ready**. Press **✓ Confirm all ready groups** to
+2. A group is **ready** when every project has **all the reviews it should get** (its scheduled visits, or
+   one per judge whose list holds it) and there is no undecided tie. Press **✓ Confirm all ready groups** to
    confirm every ready group in one go, or **✓ Confirm these places** on one card. It is saved in a
    single step; a red *NOT saved* message means nothing changed — check the connection and press again.
 3. Cards that need you are listed **first**, and the menu shows how many (e.g. *Awards (2)*):
@@ -668,19 +669,22 @@ The **🏅 Awards** tab turns the scores into places without typing a single awa
 |---|---|---|
 | **Not confirmed** | Nothing saved for this group yet | Check it, then Confirm |
 | **N not scored yet** | Some projects in the group have no score | Wait for the judges (or confirm anyway if a project withdrew) |
+| **N still waiting for reviews** | Some projects have fewer reviews than they should get | Wait for the rest of the judges, or confirm that card by hand |
+| **Only some places confirmed** | You saved some places, not all | **✓ Confirm the remaining places** |
 | **Tie for 1st / 2nd / 3rd** | Two projects are level where it decides a place | Validation → Open Manually → read the judges' notes → give the awards there |
-| **✓ Decided by hand** | You gave the places yourself (e.g. after a tie) | Nothing |
+| **✓ Decided by hand** | You gave the places yourself (e.g. after a tie). Counts only when **every** tied project has an award you saved **after** the last score change | Nothing |
 | **Scores changed since you confirmed** | A judge re-scored after you confirmed | **↻ Re-confirm from the scores**, or decide by hand |
 | **✓ Confirmed** | Saved, and still what the scores say | Nothing |
 | **Ties share the place** | PreK & SPED form — tied children share the place | Nothing (see *PreK & SPED: ribbons and shared places*) |
 
 **What the public sees.** Once a group has confirmed places, the public podium and ranked table show
-**your** places — that is how a tie you broke reaches the podium. Until then they show the places worked
-out from the scores. **Clear confirmed places** puts a group back to the computed places.
+**your** places — that is how a tie you broke reaches the podium. A place you have not confirmed still
+shows the next project from the scores. Until then they show the places worked out from the scores. **Clear confirmed places** puts a group back to the computed places.
 
 **Which ties raise the amber "Tie detected" alert.** Only ties that decide a place: level for 1st, 2nd or
 3rd, or across 3rd and 4th, inside one award group. A tie lower down decides nothing and no longer raises
-it; a tie you have decided, and ties on the PreK & SPED form, never do.
+it; a tie you have decided, and ties on the PreK & SPED form, never do. Saving only 1st does **not** decide a
+tie for 2nd, and a tie that appears after you confirmed raises the alert again.
 
 **Honorable Mention and Best in Category** are still given in Validation → Deliberation, project by
 project. Confirming places never touches them. A project holds **one** award: once it has a saved

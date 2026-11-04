@@ -163,6 +163,13 @@ await check("a queued score is sent on its own while online — no Sync Now need
   assert.equal(scoreOf("p_b")[0].criteria.presentation, 4);
 });
 
+// I6 (F7c) — a re-score moves submitted_at (it kept the first save time).
+const firstAt = store.scores.find(s => s.project_id === "p_b")?.submitted_at;
+await page.waitForTimeout(1100);
+await scoreWith("Beta Batteries", 3);
+await check("a re-score updates submitted_at", async () =>
+  assert.notEqual(store.scores.find(s => s.project_id === "p_b")?.submitted_at, firstAt));
+
 // N9 — the judge is removed while a score is still on the device.
 store.failWrites = ["scores"];
 await scoreWith("Existing Volcano Study", 2);        // p_seed queued

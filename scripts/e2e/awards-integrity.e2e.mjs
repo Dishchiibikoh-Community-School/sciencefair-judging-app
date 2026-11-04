@@ -2,6 +2,8 @@
 //   F7a  a project given Honorable Mention / Best in Category / No Award is out of the running for
 //        1st–3rd (the medal passes on), and "Confirm" never overwrites those awards.
 //   F7b  the Validation award dropdown changes nothing until Save; choosing Pending can be saved.
+//   F7c  a tie is decided only by awards saved after the scores last changed; saving some places
+//        keeps the tie visible and the other places on show; "ready" needs every expected review.
 // Run: see scan.e2e.mjs header (dev server on :5199 with mock Supabase env).
 import { chromium } from "playwright-core";
 import assert from "node:assert/strict";
@@ -29,6 +31,10 @@ const P = [
   ["m2", "202", "Bee Counts",     DEPTS.D_MID,  80],
   ["m3", "203", "Cell Shapes",    DEPTS.D_MID,  80],
   ["m4", "204", "Dye Fading",     DEPTS.D_MID,  10],
+  // Review Dept: every project should get TWO reviews (judges j_a and j_b) — used by F7c.
+  ["r1", "401", "Radish Roots",   "d_rev",      40],
+  ["r2", "402", "Salt Crystals",  "d_rev",      30],
+  ["r3", "403", "Tide Model",     "d_rev",      20],
   ["h1", "301", "Hydro Cells",    DEPTS.D_HIGH, 50],
   ["h2", "302", "Ion Traps",      DEPTS.D_HIGH, 40],
   ["h3", "303", "Jet Nozzles",    DEPTS.D_HIGH, 30],
@@ -36,7 +42,9 @@ const P = [
 ];
 for (const [id, num, title, dept] of P)
   store.projects.push({ id, school_id: SID, num, title, cat: LS, grade: "8", locked: false, department_id: dept, room: "", description: "", motivation: "", created_at: now });
-store.judges.push({ id: "j_a", school_id: SID, alias: "Judge1", department_id: DEPTS.D_ELEM, department_ids: [DEPTS.D_ELEM, DEPTS.D_MID, DEPTS.D_HIGH], projects: [], joined_at: now });
+store.departments.push({ id: "d_rev", school_id: SID, name: "Review Dept", code: "RV", max_judges: 5, ord: 3 });
+store.judges.push({ id: "j_a", school_id: SID, alias: "Judge1", department_id: DEPTS.D_ELEM, department_ids: [DEPTS.D_ELEM, DEPTS.D_MID, DEPTS.D_HIGH, "d_rev"], projects: ["r1", "r2", "r3"], joined_at: now });
+store.judges.push({ id: "j_b", school_id: SID, alias: "Judge2", department_id: "d_rev", department_ids: ["d_rev"], projects: ["r1", "r2", "r3"], joined_at: now });
 const setScore = (pid, total, judge = "j_a", at = now) => {
   const s = store.scores.find(x => x.project_id === pid && x.judge_id === judge);
   if (s) { s.criteria = { presentation: total }; s.submitted_at = at; }
@@ -118,6 +126,56 @@ await check("an unsaved dropdown change writes nothing", async () => {
 });
 await delib("Bee Counts").locator("select.delib-rec-select").selectOption("Pending");   // back to the saved value
 await page.getByRole("button", { name: "Close Deliberation" }).click().catch(() => {});
+
+console.log("\n── F7c: ties, partial confirmations and readiness");
+async function reload() {
+  await page.reload();
+  try { await page.locator(".adm-side").waitFor({ timeout: 2500 }); }
+  catch { await page.locator(".role-card.adm").click(); await page.locator(".adm-side").waitFor({ timeout: 8000 }); }
+}
+const chips = async (label) => (await group(label).locator(".badge").allInnerTexts()).join(" | ");
+// (a) SF-13 — only 1st saved while 2nd is tied (90 / 80 / 80).
+decide("m1", "1st Place", new Date().toISOString());
+// (b) N7 — High School was confirmed above (Ion Traps 1st, Jet Nozzles 2nd, Kite Lift 3rd);
+//     a later re-score of Kite Lift makes it level with Jet Nozzles.
+setScore("h4", 30, "j_a", new Date(Date.now() + 1000).toISOString());
+await reload();
+await tab("Awards");
+await check("only 1st saved while 2nd is tied: the group still shows the tie (not decided)", async () =>
+  assert.match(await chips("Middle School"), /Tie for 2nd/));
+await tab("Overview");
+const lbPlace = async (t) => { const l = page.locator(".adm-main tr", { hasText: t }).locator("[data-testid=lb-place]"); return (await l.count()) ? (await l.first().innerText()).trim() : ""; };
+await check("…and the leaderboard still shows medals for 2nd and 3rd (the podium no longer blanks them)", async () => {
+  assert.notEqual(await lbPlace("Bee Counts"), "", "2nd place blank");
+  assert.notEqual(await lbPlace("Cell Shapes"), "", "3rd place blank");
+});
+await tab("Awards");
+await check("a tie that appeared AFTER confirming is not 'Decided by hand'", async () => {
+  const c = await chips("High School");
+  assert.doesNotMatch(c, /Decided by hand/);
+  assert.match(c, /Tie for 2nd/);
+});
+await tab("Validation");
+await check("the tie alert stays on for both groups", async () =>
+  assert.ok(await page.locator("[data-testid=tie-group]").count() >= 2));
+// (c) readiness — every Review Dept project has 1 review of the 2 it should get.
+await tab("Awards");
+await check("a group still waiting for reviews says so", async () =>
+  assert.match(await chips("Review Dept"), /3 still waiting for reviews/));
+await check("…and is NOT among the 'ready' groups (Confirm all has nothing to do)", async () =>
+  assert.equal(await page.locator("[data-testid=awards-confirm-all]").isDisabled(), true));
+await page.locator("[data-testid=awards-confirm-all]").click({ timeout: 1500 }).catch(() => {});
+await page.waitForTimeout(400);
+await check("Confirm all leaves it unconfirmed", async () => assert.equal(award("r1"), undefined));
+for (const [pid, t] of [["r1", 40], ["r2", 30], ["r3", 20]]) setScore(pid, t, "j_b");
+await reload();
+await tab("Awards");
+await check("once every review is in, the group is ready and Confirm all confirms it", async () => {
+  assert.doesNotMatch(await chips("Review Dept"), /waiting for reviews/);
+  await page.locator("[data-testid=awards-confirm-all]").click();
+  await page.waitForTimeout(700);
+  assert.deepEqual(["r1", "r2", "r3"].map(award), ["1st Place", "2nd Place", "3rd Place"]);
+});
 
 await browser.close();
 console.log(`\n${pass} passed, ${failures.length} failed`);

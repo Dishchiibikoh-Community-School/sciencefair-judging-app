@@ -335,6 +335,8 @@ function newRev() { return Date.now().toString(36) + Math.random().toString(36).
 let directSaveSeq = 0;
 function nextDirectSaveSeq() { directSaveSeq += 1; return directSaveSeq; }
 function lastDirectSaveSeq() { return directSaveSeq; }
+// Time stamp for a score write, made at module level so no Date runs inside App (rule 37).
+function isoNow() { return new Date().toISOString(); }
 function queueRev(item) { return item?.rev || `${item?.data?.judge_id}_${item?.data?.project_id}@${item?.ts || 0}`; }
 // While anything is queued, try again this often (and whenever the screen comes back). Before
 // 2026-11 the only automatic retry was the browser's "online" event — a score queued because the
@@ -547,7 +549,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-04f";
+const ADMIN_HELP_UPDATED = "2026-11-04g";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -654,9 +656,9 @@ const ADMIN_HELP = [
   { title: "Awards (1st, 2nd, 3rd)", icon: "🏅", faq: [
     ["Who competes with whom?", "By default everyone in a DEPARTMENT competes for its 1st, 2nd and 3rd. In Setup → Departments each scored department has a second dropdown, 'Places: per department / per category'. Per category gives every category inside that department its own 1st–3rd (e.g. 6-8 Life Science, 6-8 Chemistry …). Use it only where categories have enough projects — a category with one project would get an uncontested 1st."],
     ["Do I have to type every award?", "No. The Awards tab shows every group with its top three already worked out from the scores. Check it and press '✓ Confirm these places', or '✓ Confirm all ready groups' to confirm every group that is fully scored and has no tie, in one go. Honorable Mention and Best in Category you still give in Validation → Deliberation. A project holds one award: once it has a saved Honorable Mention, Best in Category or No Award it is out of the running for 1st–3rd, and the place passes to the next project."],
-    ["What do the coloured labels mean?", "Not confirmed — nothing saved yet. ✓ Confirmed — saved and still what the scores say. Tie for 1st/2nd/3rd — two projects are level where it decides a place; decide it in Validation → Deliberation. ✓ Decided by hand — you gave the places yourself (e.g. after a tie). Scores changed since you confirmed — a judge re-scored after you confirmed; press Re-confirm, or decide by hand. 'N not scored yet' — some projects in the group have no score. Groups that need you are listed first, and the Awards menu item shows how many."],
+    ["What do the coloured labels mean?", "Not confirmed — nothing saved yet. ✓ Confirmed — saved and still what the scores say. Tie for 1st/2nd/3rd — two projects are level where it decides a place; decide it in Validation → Deliberation. ✓ Decided by hand — you gave the places yourself (e.g. after a tie). A tie counts as decided only when EVERY tied project has an award you saved after the last score changed. Only some places confirmed — you saved some places; press Confirm the remaining places. Scores changed since you confirmed — a judge re-scored after you confirmed; press Re-confirm, or decide by hand. 'N not scored yet' — some projects in the group have no score. 'N still waiting for reviews' — some projects have fewer reviews than they should get (their scheduled visits); the group is not ready until they are in. Groups that need you are listed first, and the Awards menu item shows how many."],
     ["What do the public results show — my awards or the scores?", "Your confirmed awards, once a group has any; until then the places worked out from the scores. That is how a tie you broke in deliberation reaches the podium. If you clear a group ('Clear confirmed places') it goes back to the computed places."],
-    ["Which ties raise the amber alert now?", "Only ties that decide a place: two projects level for 1st, 2nd or 3rd, or level across 3rd and 4th, in the same award group. A tie lower down decides nothing and no longer raises it. A tie you have already decided, and ties on the PreK & SPED form (they share the place), never do."],
+    ["Which ties raise the amber alert now?", "Only ties that decide a place: two projects level for 1st, 2nd or 3rd, or level across 3rd and 4th, in the same award group. A tie lower down decides nothing and no longer raises it. A tie you have already decided (every tied project has an award saved after the last score change), and ties on the PreK & SPED form (they share the place), never do. Saving only some places does NOT decide a tie further down."],
     ["How do I get the list for the ceremony?", "Awards tab → '🖨 Print awards list' (or '⬇ Awards CSV'): every group with its places, any special award, every ribbon, the student names and the teacher. It includes names, so it is for you only — never post it. Groups you have not confirmed yet are marked 'computed, not confirmed yet'."],
     ["Can I change awards after I finalize?", "Not while results are finalized — the Awards tab becomes read-only. Reopen the results in the Validation tab, change them, and finalize again. To take a saved award back, choose Pending in its dropdown and press Save (remove award) — a dropdown change does nothing until it is saved."],
   ]},
@@ -5126,21 +5128,53 @@ export default function App() {
   // that is how a tie broken in deliberation reaches the podium — otherwise the computed ones.
   function groupPlaces(projs) {
     const c = confirmedPlaces(projs);
-    return c.size ? c : placesOf(projs);
+    if (!c.size) return placesOf(projs);
+    // F7c (SF-13): confirmed places win, but a place nobody has confirmed still goes to the next
+    // project that has no saved award, in ranking order — saving only 1st used to blank 2nd and
+    // 3rd on the podium. (Leave a place empty on purpose by saving "No Award" for that project.)
+    const undecided = projs.filter(p => !finalDecisions[p.id]?.finalized);
+    if (projs.length && tiesShare(projs[0])) {
+      const computed = placesOf(projs);
+      return new Map([...c, ...undecided.filter(p => computed.has(p.id)).map(p => [p.id, computed.get(p.id)])]);
+    }
+    const taken = new Set(c.values());
+    const free = [0, 1, 2].filter(pl => !taken.has(pl));
+    const rest = undecided.filter(p => p.avg !== null && p.avg !== undefined && placesEligible(p) && !heldOutOfPlaces(p));
+    return new Map([...c, ...free.slice(0, rest.length).map((pl, i) => [rest[i].id, pl])]);
+  }
+  // How many reviews a project SHOULD get: its visits in the judging schedule while one is active,
+  // otherwise the judges whose project list holds it. A group is "ready" only when every project
+  // has them all — one review out of three is not (F7c / M27 / SF-05).
+  function expectedReviews(p) {
+    if (scheduleActive()) return schedule.filter(r => r.project_id === p.id).length;
+    return judges.filter(j => (j.projects || []).includes(p.id)).length;
   }
   // Where one group stands on the Awards tab.
   //   open      — nothing confirmed yet         confirmed — confirmed and still what the scores say
   //   tie       — a medal-deciding tie, undecided   decided — a tie the admin decided (any place awards)
   //   changed   — confirmed, but the scores now say something else (re-confirm or decide by hand)
+  //   partial   — some places confirmed (in line with the scores), the rest not yet   (F7c)
   function groupStatus(g) {
     const computed = placesOf(g.projects), confirmed = confirmedPlaces(g.projects);
-    const tie = groupTie(g);
+    const ties = groupTies(g);
+    const tie = ties.find(t => !tieDecided(t, g.projects)) || null;   // a medal tie NOT decided yet
     const same = confirmed.size === computed.size && [...computed].every(([k, v]) => confirmed.get(k) === v);
     const unscored = g.projects.filter(p => p.avg === null).length;
-    const state = confirmed.size ? (tie ? "decided" : same ? "confirmed" : "changed") : (tie ? "tie" : "open");
-    return { state, computed, confirmed, tie, unscored,
-      attention: state === "tie" || state === "changed" || (unscored > 0 && state === "open"),
-      clean: state === "open" && !unscored && computed.size > 0 };
+    // F7c: projects with SOME reviews but fewer than they should get (see expectedReviews).
+    const missing = g.projects.filter(p => p.avg !== null && (p.revs || 0) < expectedReviews(p)).length;
+    const partial = confirmed.size > 0 && confirmed.size < computed.size
+      && [...confirmed].every(([k, v]) => computed.get(k) === v);
+    // Until 2026-11 ANY confirmed place made a tied group "decided": saving only 1st hid a tie for
+    // 2nd (SF-13), and a tie that appeared after confirming read "Decided by hand" (N7).
+    const state = tie ? "tie"
+      : !confirmed.size ? "open"
+      : ties.length ? "decided"
+      : same ? "confirmed"
+      : partial ? "partial"
+      : "changed";
+    return { state, computed, confirmed, tie, unscored, missing,
+      attention: state === "tie" || state === "changed" || state === "partial" || ((unscored > 0 || missing > 0) && state === "open"),
+      clean: state === "open" && !unscored && !missing && computed.size > 0 };
   }
   // Confirm the computed places of one or more groups in ONE batched write (Phase 3: ~70 awards
   // one by one is not usable on event day). A project that held a 1st/2nd/3rd it no longer earns
@@ -6171,22 +6205,40 @@ export default function App() {
   // the projects at places 1–3 or across the 3rd/4th boundary. A tie further down decides nothing,
   // and before this it kept the amber deliberation alert on for no reason. Groups whose ties SHARE
   // the place (PreK & SPED form, rule 78) and groups the admin has already decided are skipped.
+  // F7c: a group counts here while it has a medal tie that is NOT decided — before, any one
+  // confirmed place took the whole group off this list (SF-13).
   function tieGroups() {
-    return awardGroups().filter(g => !confirmedPlaces(g.projects).size)
-      .map(g => ({ ...g, tie: groupTie(g) })).filter(g => g.tie);
+    return awardGroups().map(g => ({ ...g, tie: groupTie(g) })).filter(g => g.tie);
   }
-  // The first medal-deciding tie in one group, ignoring any decision → { place, tied } | null.
-  function groupTie(g) {
+  // EVERY medal-deciding tie in one group (F7c — it used to find only the first) → [{ place, tied }].
+  function groupTies(g) {
     // Only a tie that decides a MEDAL is worth stopping the event for. Two projects level
     // below the minimum to place cannot take 1st/2nd/3rd from each other (rule 72).
     const el = g.projects.filter(p => p.avg !== null && placesEligible(p) && !heldOutOfPlaces(p));
-    if (!el.length || tiesShare(el[0])) return null;
-    // findIndex, not a for-loop: a callback that closes over a loop counter the loop then
-    // reassigns (i++) makes the React Compiler bail out of App (rule 37) — it did, here.
-    const at = el.slice(0, 4).findIndex((p, i, arr) => i < arr.length - 1 && p.avg === arr[i + 1].avg);
-    if (at < 0) return null;
-    const level = el[at].avg;
-    return { place: at, tied: el.filter(p => p.avg === level) };
+    if (!el.length || tiesShare(el[0])) return [];
+    // Callbacks only, no loop counters: a callback closing over a counter the loop reassigns
+    // makes the React Compiler bail out of App (rule 37) — it did, in the first groupTie().
+    const top = el.slice(0, 4);
+    const levels = [...new Set(top.filter((p, i) => top.some((q, j) => j !== i && q.avg === p.avg)).map(p => p.avg))];
+    return levels.map(level => ({ place: el.findIndex(p => p.avg === level), tied: el.filter(p => p.avg === level) }))
+      .filter(t => t.place < 3);
+  }
+  // The latest time any score in these projects was submitted (ms). Score keys end with
+  // `_${projectId}` — never split a key on "_" (rule 60).
+  function lastScoreAt(projs) {
+    return Math.max(0, ...projs.flatMap(p => Object.keys(scores).filter(k => k.endsWith(`_${p.id}`)).map(k => scores[k]?.time || 0)));
+  }
+  // A tie is DECIDED only when every project in it has a saved award made AFTER the group's scores
+  // last changed. Until 2026-11 any confirmed place made the whole group "decided": saving only
+  // 1st hid a tie for 2nd (SF-13), and a tie that appeared after confirming read "Decided by
+  // hand" (N7). Needs scores.submitted_at to move on every re-score (sent since F7c).
+  function tieDecided(t, projs) {
+    const since = lastScoreAt(projs);
+    return t.tied.every(p => { const d = finalDecisions[p.id]; return !!d?.finalized && (d.finalizedAt || 0) >= since; });
+  }
+  // The first medal-deciding tie in a group that is NOT decided yet → { place, tied } | null.
+  function groupTie(g) {
+    return groupTies(g).find(t => !tieDecided(t, g.projects)) || null;
   }
   function hasTie() { return tieGroups().length > 0; }
   function consensusReached() {
@@ -6505,6 +6557,9 @@ export default function App() {
       judge_id: judge.id, project_id: scoringPid,
       criteria,
       notes: draftNotes,
+      // Sent on EVERY write: the column only defaulted on insert, so a re-score kept its first time
+      // (I6) — and "was this tie decided after the scores changed?" (tieDecided) needs it.
+      submitted_at: isoNow(),
       ...(feedback ? { commendation } : {}),
       ...(fb ? { feedback: fb } : {}),
       ...(safety !== null ? { safety_concern: safety } : {}),
@@ -11241,7 +11296,9 @@ export default function App() {
                           {st.state === "decided" && chip("bg", "✓ Decided by hand", "st-decided")}
                           {st.state === "tie" && chip("ba", `Tie for ${PLACE_AWARDS[st.tie.place]}`, "st-tie")}
                           {st.state === "changed" && chip("br", "Scores changed since you confirmed", "st-changed")}
+                          {st.state === "partial" && chip("ba", "Only some places confirmed", "st-partial")}
                           {st.unscored > 0 && chip("ba", `${st.unscored} not scored yet`, "st-unscored")}
+                          {st.missing > 0 && chip("ba", `${st.missing} still waiting for reviews`, "st-missing")}
                           {g.projects[0] && tiesShare(g.projects[0]) && chip("bp", "Ties share the place", "st-share")}
                         </div>
                       </div>
@@ -11277,11 +11334,11 @@ export default function App() {
                         </table>
                       </div>
                       <div style={{display:"flex",gap:".5rem",flexWrap:"wrap",marginTop:".6rem"}}>
-                        {(st.state === "open" || st.state === "changed") && (
+                        {(st.state === "open" || st.state === "changed" || st.state === "partial") && (
                           <button className="btn sm" style={{width:"auto"}} data-testid="award-confirm"
                             disabled={awardsBusy || resultsFinalized || !st.computed.size}
                             onClick={() => confirmAwardGroups([g])}>
-                            {st.state === "changed" ? "↻ Re-confirm from the scores" : "✓ Confirm these places"}
+                            {st.state === "changed" ? "↻ Re-confirm from the scores" : st.state === "partial" ? "✓ Confirm the remaining places" : "✓ Confirm these places"}
                           </button>
                         )}
                         {st.confirmed.size > 0 && (
