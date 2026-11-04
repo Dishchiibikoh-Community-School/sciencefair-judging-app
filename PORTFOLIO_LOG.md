@@ -222,3 +222,45 @@ Honest, specific notes on work done, for later portfolio/interview use.
   judging platform — every judge's tablet follows it round by round, the database refuses any change
   that would orphan already-scored work, and the organiser's actual file was verified end to end against
   the real project list before the event."
+
+### 2026-11-03 — Applying a 14-of-63 data revision to a live event database, safely
+- **Project:** Qritiko (science-fair judging platform)
+- **What I built/fixed:** A tested, all-or-nothing SQL script that applied an organiser's revised
+  entry sheet to a live Postgres database — 14 of 63 projects, across a public table and an
+  admin-only one — plus a fix for a flaky browser test the work uncovered.
+- **Why I built it:** The app's CSV importer only ever *creates* rows, so a corrected sheet cannot be
+  re-imported; doing it by hand meant ~24 separate edits five weeks before the event, with student
+  names involved. The changes were also bigger than they looked: five entries were effectively
+  different projects reusing the same number.
+- **Problem(s) encountered:**
+  - **I could not see half the change.** Student names live in an admin-only table that my read access
+    can't touch. Solved by diffing the NEW sheet against the PREVIOUS one — not against the database —
+    which was the only way to surface ten student-list corrections, including one child moved between
+    two projects.
+  - **A false alarm I caused myself.** My first comparison reported 21 changed projects. Sixteen were
+    an artifact: the sheet still prints a category name we had renamed weeks earlier. I'd also queried
+    that table without scoping it to one school and briefly reported phantom duplicates from a second
+    tenant. Both caught by re-reading my own output before sending it.
+  - **The real trap was spelling.** The sheet carried three variants of one category name and one that
+    no longer existed. Writing them verbatim would have stranded projects on dead category text — the
+    exact bug we'd spent the previous session fixing. The script resolves to live names instead.
+  - **A flaky test that would have cost someone a morning.** The full browser chain failed one check
+    that passed in isolation. Rather than re-run until green, I traced it: a row written *after* the
+    success message, with the neighbouring check already waiting for the same reason.
+- **How I solved it:** Verified the blast radius before writing anything — no project changes
+  department (so the 179-visit judging schedule and a guard trigger are both unaffected), no student
+  ends up in two places, a grade change is inert under the rubric in use, and nothing depends on the
+  projects yet. Then one transaction matched on number AND current title, with five guards that abort
+  the whole thing — including "any score exists", because a bulk edit stops being safe the moment
+  judging starts. **Tested on PGlite** against the real schema and all 18 migrations with a fixture
+  mirroring production: 18 checks, each guard proven to abort, and a second run proven to refuse.
+- **Skills/tools demonstrated:** PostgreSQL transactional data migration with pre-flight assertions;
+  testing a one-off script against a real engine before touching production; three-way data
+  reconciliation under read restrictions; diagnosing a write-ordering race in an E2E suite and
+  **mutation-testing the fix** (disabled the write, confirmed the check still fails) so a `wait` can't
+  silently become a `skip`; keeping PII out of a public repo as a hard constraint.
+- **Portfolio angle:** "Applied a 14-of-63 revision to a live event database five weeks before the
+  event: diffed the source against both the prior revision and production to surface changes my access
+  couldn't read, proved the blast radius empty before writing, shipped it as a guarded all-or-nothing
+  transaction tested on a real Postgres instance first, and fixed a flaky test found along the way —
+  with the fix mutation-tested so it couldn't hide a genuine failure."

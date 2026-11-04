@@ -100,6 +100,12 @@ await check("numbers, departments, rooms and text survive the round trip", async
   assert.equal(q.room, "C4"); assert.equal(q.description, "Line one,\nline two"); assert.equal(q.cat, "Chemistry & Material Science");
 });
 await check("names go to the private table with their grades (accents intact)", async () => {
+  // Each project's private row is written AFTER its public row, so "Imported 3 projects."
+  // can appear before the last name has landed — this check failed that way in a full-chain
+  // run on 2026-11-03 and passed on its own. Same race the scan.e2e project_private check
+  // already waits for. Wait for the row, then assert on it.
+  for (let i = 0; i < 50 && !priv(byTitle('Salt "Water", Ice & Snow'))?.group_members?.length; i++)
+    await PB.waitForTimeout(100);
   const q = priv(byTitle('Salt "Water", Ice & Snow'));
   assert.equal(q.advisor_name, "Mr. Begay");
   assert.deepEqual(q.group_members, [{ name: "José Ñez", grade: "8" }, { name: "Mary Yazzie", grade: "7" }]);

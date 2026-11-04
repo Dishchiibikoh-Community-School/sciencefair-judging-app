@@ -1094,6 +1094,36 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 
 Full detail is in the git log for each commit.
 
+**2026-11-03 — Second revised entry sheet applied; a flaky import check fixed** (no migration).
+The organiser sent a new "Approved Entry Forms" sheet. **14 of 63 projects changed** — far more than
+the 8 of 2026-10-08. Five are effectively DIFFERENT projects at the same number (#049 #052 #054 #056
+#059 — new title, category and purpose; three also a new team), four are edits (#022 title, #031
+TiO₂ → natural pigment, #034 title + category, #046 the description outstanding since 2026-10-21),
+and ten have corrected student lists. #053's blank grade was filled in at the same time.
+- Applied with a tested one-off SQL script, **kept on the Desktop, never in the repo** (student names).
+  All-or-nothing: matched on number AND current title, with five guards that abort the whole
+  transaction — drifted title, locked project, unknown category, missing project, and **any existing
+  score** (a bulk edit stops being safe once judging starts). A second run aborts, so it cannot
+  double-apply.
+- **The script was tested on PGlite first** (real schema + all 18 migrations, fixture mirroring the
+  live rows): 18 checks — every edit lands, untouched projects are identical, no project ends on
+  orphaned category text, the schedule survives, teachers are not overwritten, and each guard aborts.
+- **Six project codes moved** (category drives the code): #034 EES→LS, #049 LS→CMS, #052 LS→EES,
+  #054 LS→PMA, #056 ERT→CMS, #059 ERT→EES. Safe only because nothing was printed and no booths were
+  assigned yet — settle codes BEFORE printing (Known gaps).
+- ⚠️ **The sheet still prints the OLD category name "Life Science"** and two mis-spaced variants of
+  "Earth & Environmental Science". The script writes the LIVE names; writing the sheet's text
+  verbatim is exactly what stranded 16 projects on 2026-10-21.
+- Verified live after: 63 projects, **0 differing from the sheet**, 0 stale category text, 0 blank
+  grades, no duplicate codes, schedule intact (179 visits, 15 judges, 12 rounds, 0 unscheduled).
+**A flaky browser check found and fixed while testing:** `import.e2e`'s "names go to the private
+table" failed in a full-chain run and passed on its own. Each project's `project_private` row is
+written AFTER its public row, so "Imported 3 projects." can appear before the last name lands — the
+neighbouring IT-log check already waits for exactly this, and the same race was fixed in `scan.e2e`
+on 2026-10-07. It now waits for the row. **Mutation-tested:** with `writeProjectPrivate()` disabled
+the check still fails, so the wait delays the assertion rather than hiding anything.
+Tests: DB 271, browser 526 across 24 files, lint 28/5, build clean.
+
 **2026-10-21 — Overview "Judges 0/47" → "Judges signed in 0/15"** (no migration). The organiser asked what
 0/47 meant: the card added up every department's legacy `max_judges` — one per department TICK — so 15
 judges, several covering two to four departments under the schedule, read 47. New `judgeSeats()`: distinct
@@ -1885,6 +1915,17 @@ readable, anon writes refused by RLS, both schedule RPCs answer "Not authorised"
 **Superseded later the same day:** PreK + SPED move to the **PreK & SPED Recognition** form and the minimum to
 place goes back to **0** — both are the organiser's Setup changes (see Still to do).
 
+**Entry sheet revision applied 2026-11-03, verified with anonymous reads:** the organiser's second
+revised sheet — 14 of 63 projects (5 replaced outright, 4 edited, 10 student lists, #053's grade
+filled in). Afterwards: 63 projects, 0 differing from the sheet on every public field, 0 stale
+category text, 0 blank grades, no duplicate project codes, schedule still 179 visits / 15 judges /
+12 rounds / 0 unscheduled. Six codes moved with their categories (see Change History) — **nothing
+had been printed and no booths assigned, which is the only reason that was free.** The SQL is on the
+Desktop as `apply-entry-sheet-2026-11-03.sql`, outside the repo (student names).
+⚠️ **Open question for the organiser: #022.** Its title is now "…Rate of Liquid Movement Through Wick
+Fibers?" but the sheet left the purpose describing "how efficiently a candle transfers heat". The
+sheet contradicts itself; the app holds exactly what the sheet says.
+
 **Category renamed 2026-10-21, verified with anonymous reads:** `Life Science` → **`Life, Health & Behavior`**
 (Setup rename, **code kept as `LS`**) **plus a one-off SQL `UPDATE` of the 16 projects that held the old text**
 (007 009 012 013 035 041 042 043 044 045 046 049 052 054 055 057 — K-5 4 · 6-8 5 · 9-12 7). Verified after:
@@ -1897,8 +1938,9 @@ anon key cannot do it (it answers `200` with 0 rows — rule 54).
 `scored`, 4 × 1–5 = 20, ids/order/maxima identical to the preset, so ribbons + shared places apply); minimum to
 place = **0**; `judge_max` = 15. No judges, no scores yet.
 
-**Still to do before the dry run:** import the organiser's `Judges Schedule.csv` (Setup → 📅 Judging schedule) and
-the booth numbers when the map exists; print the judge sheets; ~~Maximum judges 15~~ (done — `judge_max` = 15 verified 2026-10-21);
+**Still to do before the dry run:** ~~import the organiser's `Judges Schedule.csv`~~ (done — 179 visits
+verified live 2026-11-02); import the booth numbers when the map exists (**0 of 63 projects have a
+booth**); print the judge sheets **after** booths and codes are settled; ~~Maximum judges 15~~ (done — `judge_max` = 15 verified 2026-10-21);
 **#053 → Edit → Save** (a 2026-10-08 SQL fix left its grade blank — the app stores the derived grade
 at save time, so the database really holds ''); #062 has no students (noted, organiser's call); judges
 sign in at the briefing, not at 8:30 (5 wrong invite codes lock the whole school for 5 minutes); the
