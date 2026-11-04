@@ -1367,4 +1367,45 @@ ok("compat: set_judge_numbers (old range editor) writes the roster");
   ok("11a: removing a judge removes their secret (FK cascade)");
 }
 
+// ═══ 2026-11b: invite-code lockout per device (FIXES_2026-11.md F6) ═══════════════
+{
+  for (let i = 0; i < 2; i++) await db.exec(mig("migration-2026-11b-invite-lockout-per-device.sql"));
+  ok("11b: applied twice (re-runnable)");
+  const S = "52525252-5252-4252-8252-525252525252";
+  const D = "5d000000-0000-4000-8000-000000000012";
+  await db.exec(`
+    INSERT INTO schools (id, name, slug, invite_code, admin_pin) VALUES ('${S}', 'S12', 's12', 'S12CODE', '4821');
+    INSERT INTO departments (id, school_id, name, max_judges, ord) VALUES ('${D}', '${S}', 'All', 40, 0);
+    INSERT INTO app_settings (school_id, key, value) VALUES ('${S}', 'judge_numbering', 'department');
+  `);
+  const RJ5 = "SELECT register_judge_secure($1, $2, $3, $4, $5) AS j";
+  for (let i = 0; i < 5; i++) {
+    const r = (await as("anon", "", RJ5, [S, D, "Judge1", "WRONG", "devA"])).rows[0].j;
+    assert.equal(r.error, "Invalid invite code");
+  }
+  ok("11b: wrong codes are still RETURNED (rule 66) — five from one tablet");
+  await fails("anon", "", RJ5, /Too many attempts/, "11b: …then THAT tablet is locked for 5 minutes", [S, D, "Judge1", "S12CODE", "devA"]);
+  const jb = (await as("anon", "", RJ5, [S, D, "Judge2", "S12CODE", "devB"])).rows[0].j;
+  assert.match(jb.judge_secret, /^[0-9a-f]{48}$/);
+  ok("11b: …while another tablet signs in with the right code (before: the WHOLE school was locked)");
+  await db.exec(`UPDATE security_attempts SET locked_until = now() - interval '1 second' WHERE school_id = '${S}' AND kind = 'invite_dev:devA'`);
+  const again = (await as("anon", "", RJ5, [S, D, "Judge1", "WRONG", "devA"])).rows[0].j;
+  assert.equal(again.error, "Invalid invite code");
+  const fa = (await db.query(`SELECT fails, locked_until FROM security_attempts WHERE school_id=$1 AND kind='invite_dev:devA'`, [S])).rows[0];
+  assert.equal(fa.fails, 1); assert.equal(fa.locked_until, null);
+  ok("11b: once a lock has expired the count starts again (it used to re-lock on the next mistake)");
+  // An old school-wide lock (kind 'invite', from register_judge before 11b) never blocks the right code.
+  await db.exec(`INSERT INTO security_attempts (school_id, kind, fails, locked_until) VALUES ('${S}', 'invite', 9, now() + interval '5 minutes')
+                 ON CONFLICT (school_id, kind) DO UPDATE SET fails = 9, locked_until = now() + interval '5 minutes'`);
+  await as("anon", "", RJ5, [S, D, "Judge3", "S12CODE", "devC"]);
+  ok("11b: a lock left on the OLD school-wide counter does not refuse the right code");
+  // Earlier checks above already counted 6 school-wide failures — start the ceiling from zero.
+  await db.exec(`DELETE FROM security_attempts WHERE school_id = '${S}' AND kind = 'invite_all'`);
+  for (let i = 0; i < 30; i++) await as("anon", "", RJ5, [S, D, "Judge9", "WRONG", `dev-${i}`]);
+  await fails("anon", "", RJ5, /Too many attempts/, "11b: 30 wrong codes across tablets (an attack) lock the whole school",
+    [S, D, "Judge4", "S12CODE", "devD"]);
+  await fails("anon", "", "SELECT _note_auth_failure_n($1, 'invite_all', 1)", /permission denied/,
+    "11b: anon cannot call the failure counter directly", [S]);
+}
+
 console.log(`\nALL ${pass} CHECKS PASSED`);
