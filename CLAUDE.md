@@ -53,8 +53,8 @@ older one that it redefines (notes in each row).
 
 | File | Adds | Coupled to app code? |
 |---|---|---|
-| `migration-2026-11a-judge-write-integrity.sql` | **Per-judge secret + checked judge writes** (F1, Critical): `judge_secrets` (sha256, unreadable, FK cascade); `register_judge_secure()` (returns the judge row + `judge_secret`; a transfer issues a new one); `submit_score` / `submit_validation` / `revise_validation` / `submit_delib_note` (secret, project in school AND on the judge's list, criteria ids + values vs the project's rubric steps, text limits, Finalize / validated / deliberation gates, server `submitted_at`); direct INSERT/UPDATE on scores + deliberation_notes closed, validations admin row only; plain `register_judge`, `note_auth_failure`, `assert_not_locked` revoked from anon/authenticated | **Yes — deploy the app FIRST** (it falls back when the functions are missing), then run it. Judges signed in before it ran must sign in again (Allow Transfer). Re-run after any re-run of 09b |
-| `migration-2026-11b-invite-lockout-per-device.sql` | **Invite lockout per device** (F6): `register_judge_secure()` checks the code itself — 5 wrong codes lock that device, 30 per school lock everyone, an expired lock starts a fresh count; `_note_auth_failure_n()` | No (the app already sends `p_device`). Run after 11a; re-run after any re-run of 11a |
+| `migration-2026-11a-judge-write-integrity.sql` | **Per-judge secret + checked judge writes** (F1, Critical): `judge_secrets` (sha256, unreadable, FK cascade); `register_judge_secure()` (returns the judge row + `judge_secret`; a transfer issues a new one); `submit_score` / `submit_validation` / `revise_validation` / `submit_delib_note` (secret, project in school AND on the judge's list, criteria ids + values vs the project's rubric steps, text limits, Finalize / validated / deliberation gates, server `submitted_at`); direct INSERT/UPDATE on scores + deliberation_notes closed, validations admin row only; plain `register_judge`, `note_auth_failure`, `assert_not_locked` revoked from anon/authenticated | **Yes — deploy the app FIRST** (it falls back when the functions are missing), then run it. Judges signed in before it ran must sign in again (Allow Transfer). Re-run after any re-run of 09b. **Run on live 2026-11-04, verified with anonymous probes** (0 judges at the time) |
+| `migration-2026-11b-invite-lockout-per-device.sql` | **Invite lockout per device** (F6): `register_judge_secure()` checks the code itself — 5 wrong codes lock that device, 30 per school lock everyone, an expired lock starts a fresh count; `_note_auth_failure_n()` | No (the app already sends `p_device`). Run after 11a; re-run after any re-run of 11a. **Run on live 2026-11-04, verified** |
 | `migration-2026-09-project-adviser.sql` | `projects.advisor_name`, `projects.group_members` + backfill | No — app retries without the columns if missing |
 | `migration-2026-09-security-hardening.sql` | RLS lockdown, `registration_count()` | **Yes** |
 | `migration-2026-09b-pin-and-judge-auth.sql` | bcrypt PIN, `security_attempts`, `register_judge()`, PIN/invite RPCs, judge-scoped write policies | **Yes — deploy together with the app build** |
@@ -278,9 +278,8 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 
 ### Open risks — next security work
 
-- ~~**Judges are anonymous**~~ — **fixed by migration 2026-11a (F1) once it is run**: every judge write now needs the
-  per-judge secret issued at sign-in, and values / assignment / Finalize are checked on the server. Until the SQL
-  runs on the live project the hole is still open (anyone with the anon key could write any judge's scores).
+- ~~**Judges are anonymous**~~ — **fixed by migration 2026-11a (F1), run on live 2026-11-04**: every judge write now
+  needs the per-judge secret issued at sign-in, and values / assignment / Finalize are checked on the server.
 - **`scores`, `final_decisions` and `validations` are anon-SELECTable** (`USING (true)`, base schema),
   so the Share tab's "locked until finalized" gate is cosmetic against the API: anyone with the anon
   key can read live standings mid-event. Confirmed 2026-10-06. Fix belongs with per-judge identity —
