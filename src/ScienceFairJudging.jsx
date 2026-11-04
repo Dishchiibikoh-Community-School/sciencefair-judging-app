@@ -549,7 +549,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-04g";
+const ADMIN_HELP_UPDATED = "2026-11-04h";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -656,9 +656,9 @@ const ADMIN_HELP = [
   { title: "Awards (1st, 2nd, 3rd)", icon: "🏅", faq: [
     ["Who competes with whom?", "By default everyone in a DEPARTMENT competes for its 1st, 2nd and 3rd. In Setup → Departments each scored department has a second dropdown, 'Places: per department / per category'. Per category gives every category inside that department its own 1st–3rd (e.g. 6-8 Life Science, 6-8 Chemistry …). Use it only where categories have enough projects — a category with one project would get an uncontested 1st."],
     ["Do I have to type every award?", "No. The Awards tab shows every group with its top three already worked out from the scores. Check it and press '✓ Confirm these places', or '✓ Confirm all ready groups' to confirm every group that is fully scored and has no tie, in one go. Honorable Mention and Best in Category you still give in Validation → Deliberation. A project holds one award: once it has a saved Honorable Mention, Best in Category or No Award it is out of the running for 1st–3rd, and the place passes to the next project."],
-    ["What do the coloured labels mean?", "Not confirmed — nothing saved yet. ✓ Confirmed — saved and still what the scores say. Tie for 1st/2nd/3rd — two projects are level where it decides a place; decide it in Validation → Deliberation. ✓ Decided by hand — you gave the places yourself (e.g. after a tie). A tie counts as decided only when EVERY tied project has an award you saved after the last score changed. Only some places confirmed — you saved some places; press Confirm the remaining places. Scores changed since you confirmed — a judge re-scored after you confirmed; press Re-confirm, or decide by hand. 'N not scored yet' — some projects in the group have no score. 'N still waiting for reviews' — some projects have fewer reviews than they should get (their scheduled visits); the group is not ready until they are in. Groups that need you are listed first, and the Awards menu item shows how many."],
+    ["What do the coloured labels mean?", "Not confirmed — nothing saved yet. ✓ Confirmed — saved and still what the scores say. Tie for 1st/2nd/3rd — two projects are level where it decides a place; decide it in Validation → Deliberation. ✓ Decided by hand — you gave the places yourself (e.g. after a tie). A tie counts as decided once all but one of the tied projects have an award you saved after the last score changed (the last one takes the place that is left). Only some places confirmed — you saved some places; press Confirm the remaining places. Scores changed since you confirmed — a judge re-scored after you confirmed; press Re-confirm, or decide by hand. 'N not scored yet' — some projects in the group have no score. 'N still waiting for reviews' — some projects have fewer reviews than they should get (their scheduled visits); the group is not ready until they are in. Groups that need you are listed first, and the Awards menu item shows how many."],
     ["What do the public results show — my awards or the scores?", "Your confirmed awards, once a group has any; until then the places worked out from the scores. That is how a tie you broke in deliberation reaches the podium. If you clear a group ('Clear confirmed places') it goes back to the computed places."],
-    ["Which ties raise the amber alert now?", "Only ties that decide a place: two projects level for 1st, 2nd or 3rd, or level across 3rd and 4th, in the same award group. A tie lower down decides nothing and no longer raises it. A tie you have already decided (every tied project has an award saved after the last score change), and ties on the PreK & SPED form (they share the place), never do. Saving only some places does NOT decide a tie further down."],
+    ["Which ties raise the amber alert now?", "Only ties that decide a place: two projects level for 1st, 2nd or 3rd, or level across 3rd and 4th, in the same award group. A tie lower down decides nothing and no longer raises it. A tie you have already decided (all but one of the tied projects have an award saved after the last score change), and ties on the PreK & SPED form (they share the place), never do. Saving only some places does NOT decide a tie further down. Finalize stays unavailable while a tie still decides a place."],
     ["How do I get the list for the ceremony?", "Awards tab → '🖨 Print awards list' (or '⬇ Awards CSV'): every group with its places, any special award, every ribbon, the student names and the teacher. It includes names, so it is for you only — never post it. Groups you have not confirmed yet are marked 'computed, not confirmed yet'."],
     ["Can I change awards after I finalize?", "Not while results are finalized — the Awards tab becomes read-only. Reopen the results in the Validation tab, change them, and finalize again. To take a saved award back, choose Pending in its dropdown and press Save (remove award) — a dropdown change does nothing until it is saved."],
   ]},
@@ -5226,6 +5226,19 @@ export default function App() {
     const dept = departments.find(d => d.id === deptId);
     if (!dept || (value !== "category" && value !== "department") || dept.award_grouping === value) return;
     setSetupErr("");
+    // F7d (N6): confirmed places belong to projects, not to groups. Regrouping with places saved
+    // carried them into the new groups — per category → per department gave one department six
+    // 1sts on the public podium. Clear them first; never after results are finalized.
+    if (resultsFinalized) {
+      setSetupErr(`Results are finalized — reopen them (Validation tab) before changing how "${dept.name}" awards places.`);
+      return;
+    }
+    const placedHere = projects.filter(p => (p.department_id || null) === deptId
+      && finalDecisions[p.id]?.finalized && PLACE_AWARDS.includes(finalDecisions[p.id].award));
+    if (placedHere.length) {
+      setSetupErr(`"${dept.name}" already has ${placedHere.length} confirmed place${placedHere.length !== 1 ? "s" : ""}. Clear them on the Awards tab first, then change how it awards places — otherwise they would land in the wrong groups.`);
+      return;
+    }
     const { data, error } = await supabase.from("departments").update({ award_grouping: value })
       .eq("school_id", currentSchool.id).eq("id", deptId).select("id");
     if (error || !data?.length) {
@@ -6228,13 +6241,16 @@ export default function App() {
   function lastScoreAt(projs) {
     return Math.max(0, ...projs.flatMap(p => Object.keys(scores).filter(k => k.endsWith(`_${p.id}`)).map(k => scores[k]?.time || 0)));
   }
-  // A tie is DECIDED only when every project in it has a saved award made AFTER the group's scores
-  // last changed. Until 2026-11 any confirmed place made the whole group "decided": saving only
+  // A tie is DECIDED only when its projects (all but one — see below) have a saved award made AFTER
+  // the group's scores last changed. Until 2026-11 any confirmed place made the whole group "decided": saving only
   // 1st hid a tie for 2nd (SF-13), and a tie that appeared after confirming read "Decided by
   // hand" (N7). Needs scores.submitted_at to move on every re-score (sent since F7c).
+  // F7d refinement: ALL BUT ONE of the tied projects is enough — giving Alpha 1st out of an
+  // Alpha/Beta tie for 1st decides it (Beta takes the next place, which groupPlaces() fills).
   function tieDecided(t, projs) {
     const since = lastScoreAt(projs);
-    return t.tied.every(p => { const d = finalDecisions[p.id]; return !!d?.finalized && (d.finalizedAt || 0) >= since; });
+    const fresh = t.tied.filter(p => { const d = finalDecisions[p.id]; return !!d?.finalized && (d.finalizedAt || 0) >= since; });
+    return fresh.length >= t.tied.length - 1;
   }
   // The first medal-deciding tie in a group that is NOT decided yet → { place, tied } | null.
   function groupTie(g) {
@@ -6259,6 +6275,10 @@ export default function App() {
     if (deliberationOpen) return "Close deliberation before finalizing.";
     const c = openConcerns();
     if (c.length) return `${c.map(j => j.alias).join(", ")} raised a concern. Discuss it first — the judge can press Revise my validation and approve, or you can press Clear concern above.`;
+    // F7d (N3): a tie that still decides a place used to be finalizable — the public podium then
+    // ordered the tied projects by creation date, with nothing to show it was a tie.
+    const ties = tieGroups();
+    if (ties.length) return `A tie still decides a place in ${ties.map(g => `${g.label} (${PLACE_AWARDS[g.tie.place]})`).join(", ")}. Decide it first: open Deliberation and save an award for each tied project.`;
     return "";
   }
   // The admin's way out when the judge who raised a concern is no longer there: the
@@ -6959,6 +6979,17 @@ export default function App() {
     if (!existing || existing.locked) return;
     const { title, cat, grade, num, department_id, advisor_name } = projForm;
     if (!title.trim()) return;
+    // F7d (N6): a project holding a confirmed 1st/2nd/3rd may not move to another award group —
+    // the place belongs to the project and would follow it (two 1sts in the new group, none in
+    // the old). Moving it within its group, or editing anything else, is fine.
+    const dec = finalDecisions[pid];
+    const newDeptId = department_id || null;
+    const movesGroup = newDeptId !== (existing.department_id || null)
+      || (cat !== existing.cat && departments.find(x => x.id === newDeptId)?.award_grouping === "category");
+    if (dec?.finalized && PLACE_AWARDS.includes(dec.award) && movesGroup) {
+      setProjSaveErr(`Project #${existing.num} holds a confirmed ${dec.award}. Moving it would carry that place into another award group. Clear its place first (Awards tab → Clear confirmed places, or Pending in Validation), then move it.`);
+      return;
+    }
     if (projSavingRef.current) return;      // same double-click guard as addProject()
     projSavingRef.current = true;
     setProjSaving(true);

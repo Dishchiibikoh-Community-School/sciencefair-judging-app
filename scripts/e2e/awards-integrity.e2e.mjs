@@ -4,6 +4,7 @@
 //   F7b  the Validation award dropdown changes nothing until Save; choosing Pending can be saved.
 //   F7c  a tie is decided only by awards saved after the scores last changed; saving some places
 //        keeps the tie visible and the other places on show; "ready" needs every expected review.
+//   F7d  Finalize is refused over an undecided medal tie; confirmed places cannot be regrouped/moved.
 // Run: see scan.e2e.mjs header (dev server on :5199 with mock Supabase env).
 import { chromium } from "playwright-core";
 import assert from "node:assert/strict";
@@ -175,6 +176,31 @@ await check("once every review is in, the group is ready and Confirm all confirm
   await page.locator("[data-testid=awards-confirm-all]").click();
   await page.waitForTimeout(700);
   assert.deepEqual(["r1", "r2", "r3"].map(award), ["1st Place", "2nd Place", "3rd Place"]);
+});
+
+
+console.log("\n── F7d: no Finalize over an undecided tie; confirmed places cannot be regrouped or moved");
+await tab("Validation");
+await page.getByRole("button", { name: /Approve Results/ }).first().click();
+await page.waitForTimeout(600);
+await check("Finalize is refused while a tie still decides a place — and it says where", async () => {
+  assert.equal(await page.getByRole("button", { name: /Finalize Results/ }).isDisabled(), true);
+  await page.getByText(/A tie still decides a place in .*Middle School/).first().waitFor({ timeout: 3000 });
+});
+await tab("Setup");
+await page.getByLabel("Places for Elementary").selectOption("category").catch(() => {});
+await check("a department with confirmed places cannot switch to per-category (the medals would land in the wrong groups)", async () => {
+  await page.getByText(/already has 3 confirmed places/).first().waitFor({ timeout: 3000 });
+  assert.notEqual(store.departments.find(d => d.id === DEPTS.D_ELEM).award_grouping, "category");
+});
+await tab("Projects");
+const card = page.locator(".proj-mgmt-card", { hasText: "Paper Planes" }).first();
+await card.getByRole("button", { name: /Edit/ }).click();
+await page.locator(".proj-form select.delib-rec-select").first().selectOption({ label: "Middle School" }).catch(() => {});
+await page.getByRole("button", { name: "Save Changes" }).click();
+await check("a project holding a confirmed 1st cannot be moved to another department", async () => {
+  await page.getByText(/holds a confirmed 1st Place/).first().waitFor({ timeout: 3000 });
+  assert.equal(store.projects.find(p => p.id === "e2").department_id, DEPTS.D_ELEM);
 });
 
 await browser.close();

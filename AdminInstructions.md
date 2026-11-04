@@ -672,7 +672,7 @@ The **🏅 Awards** tab turns the scores into places without typing a single awa
 | **N still waiting for reviews** | Some projects have fewer reviews than they should get | Wait for the rest of the judges, or confirm that card by hand |
 | **Only some places confirmed** | You saved some places, not all | **✓ Confirm the remaining places** |
 | **Tie for 1st / 2nd / 3rd** | Two projects are level where it decides a place | Validation → Open Manually → read the judges' notes → give the awards there |
-| **✓ Decided by hand** | You gave the places yourself (e.g. after a tie). Counts only when **every** tied project has an award you saved **after** the last score change | Nothing |
+| **✓ Decided by hand** | You gave the places yourself (e.g. after a tie). Counts once **all but one** of the tied projects have an award you saved **after** the last score change | Nothing |
 | **Scores changed since you confirmed** | A judge re-scored after you confirmed | **↻ Re-confirm from the scores**, or decide by hand |
 | **✓ Confirmed** | Saved, and still what the scores say | Nothing |
 | **Ties share the place** | PreK & SPED form — tied children share the place | Nothing (see *PreK & SPED: ribbons and shared places*) |
@@ -684,7 +684,9 @@ shows the next project from the scores. Until then they show the places worked o
 **Which ties raise the amber "Tie detected" alert.** Only ties that decide a place: level for 1st, 2nd or
 3rd, or across 3rd and 4th, inside one award group. A tie lower down decides nothing and no longer raises
 it; a tie you have decided, and ties on the PreK & SPED form, never do. Saving only 1st does **not** decide a
-tie for 2nd, and a tie that appears after you confirmed raises the alert again.
+tie for 2nd, and a tie that appears after you confirmed raises the alert again. **Finalize is unavailable
+while a tie still decides a place.** Once a department has confirmed places, its *Places: per department /
+per category* setting is locked (clear them first), and a placed project cannot be moved to another group.
 
 **Honorable Mention and Best in Category** are still given in Validation → Deliberation, project by
 project. Confirming places never touches them. A project holds **one** award: once it has a saved
