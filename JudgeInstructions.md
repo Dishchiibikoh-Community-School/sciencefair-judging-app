@@ -33,7 +33,8 @@ If you see an error:
 - **"Judge7 is already signed in"** — your number is in use on another device. Ask the admin to approve a device transfer, then try again
 - **"Invalid invite code"** — Double-check the code with organizers. The code is checked on the
   server, and **5 wrong attempts lock sign-in for 5 minutes** for everyone at your school — so
-  confirm the code with an organizer rather than guessing.
+  confirm the code with an organizer rather than guessing. Press **Enter as Judge** once: the button
+  says *Checking…* while it checks, and extra taps are ignored (they no longer count as extra tries).
 - **"Max judges reached"** / **"is full"** — only on schools that number per department: all slots are taken. Contact organizers.
 
 ---

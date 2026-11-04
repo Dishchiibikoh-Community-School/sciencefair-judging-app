@@ -549,7 +549,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-04i";
+const ADMIN_HELP_UPDATED = "2026-11-04j";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -735,7 +735,7 @@ const ADMIN_HELP = [
     ["A department has too many projects for every judge to score them all.", "Setup → Judges → under that department choose e.g. '3 judges per project'. Each project is then scored by 3 judges and the projects are shared out evenly (the Projects column shows each judge's load). A project added later gets its judges automatically. This cannot be changed once the department has scores."],
     ["A judge did not come — their projects are missing reviews.", "Judges tab → the department's Panels card shows who has not signed in. Press Rebalance: their unscored projects move to the judges who are there. Scored work never moves."],
     ["Is '3 judges per project' fair if different projects get different judges?", "The app spreads the projects evenly so each judge sees a similar mix, and the Alerts tab still flags a judge far from a project's average. Every project in a department is still ranked on the same rubric."],
-    ["Judges keep getting \"Invalid invite code\".", "Check the code on the Overview tab and read it out — it is not case-sensitive. 5 wrong tries in a row lock sign-in for 5 minutes FOR THE WHOLE SCHOOL, so tell judges to confirm the code rather than guess. Wait 5 minutes if it happens."],
+    ["Judges keep getting \"Invalid invite code\".", "Check the code on the Overview tab and read it out — it is not case-sensitive. 5 wrong tries in a row lock sign-in for 5 minutes FOR THE WHOLE SCHOOL, so tell judges to confirm the code rather than guess. Wait 5 minutes if it happens. A double-tap on Enter as Judge no longer counts twice (the button says Checking… and ignores extra taps)."],
     ["Can numbers restart in each department instead?", "Yes: Setup → Judges → 'Numbers restart in each department'. Each department then has its own Judge1, Judge2… and judges pick their department when signing in. Not recommended — the same name then means several people, and 'judges per project' does not apply."],
   ]},
   { title: "Troubleshooting", icon: "🛠️", faq: [
@@ -2336,6 +2336,8 @@ export default function App() {
   const [removeJudgePin,   setRemoveJudgePin]   = useState("");
   const [removeJudgeErr,   setRemoveJudgeErr]   = useState("");
   const [regErr,     setRegErr]      = useState("");
+  const [regBusy,    setRegBusy]     = useState(false);   // a sign-in attempt is in flight (F6)
+  const regBusyRef = useRef(false);
   const [adminPass,         setAdminPass]         = useState("");
   const [adminErr,          setAdminErr]          = useState("");
   const [adminLoginAttempts, setAdminLoginAttempts] = useState(0);
@@ -6375,7 +6377,14 @@ export default function App() {
   }
 
   // Actions
+  // One sign-in attempt at a time (F6 / N8). A double-tap, or Enter pressed twice, used to send two
+  // register_judge calls — with a mistyped code, two failures toward the school-wide lockout of 5.
   async function handleRegister() {
+    if (regBusyRef.current) return;
+    regBusyRef.current = true; setRegBusy(true);
+    await handleRegisterNow().finally(() => { regBusyRef.current = false; setRegBusy(false); });
+  }
+  async function handleRegisterNow() {
     const name = normJudgeAlias(regName);
     // One list for the whole school (default): the NUMBER decides the department —
     // the judge no longer picks one. The server does the same lookup and is the
@@ -7696,7 +7705,7 @@ export default function App() {
         {unsentNote && <div className="locked-banner" role="alert" data-testid="unsent-note" style={{ marginBottom:"1rem" }}>⚠ {unsentNote}</div>}
         <div className="role-grid">
           <div className="role-card" onClick={() => setView("judge-register")}>
-            <div className="ico"><RolePortrait /></div><h3>I'm a Judge</h3><p>You'll need your assigned judge name (e.g. Judge1) and the invite code from your coordinator</p>
+            <div className="ico"><RolePortrait /></div><h3>I'm a Judge</h3><p>You'll need your judge number and the invite code from your coordinator</p>
           </div>
           {/* Already signed in as this school's admin (e.g. arriving from the email-confirmation
               link) → straight to the dashboard instead of asking for the password again. */}
@@ -7796,7 +7805,9 @@ export default function App() {
           </>)}
           <div style={{ marginBottom:"1rem" }}>
             <div className="lbl">Invite Code</div>
+            {/* F6 (U10): no autocorrect / spell-check — a corrected code counts as a wrong try. */}
             <input type="text" placeholder="Event invite code" value={regCode}
+              autoComplete="off" autoCorrect="off" autoCapitalize="characters" spellCheck={false}
               onChange={e => { setRegCode(e.target.value.toUpperCase()); setRegErr(""); }}
               onKeyDown={e => e.key==="Enter" && handleRegister()}
               style={{ textAlign:"center", letterSpacing:".18em", fontFamily:"var(--ff-m)", fontSize:"1.1rem" }} />
@@ -7805,7 +7816,7 @@ export default function App() {
             </p>
             {regErr && <div className="err">⚠ {regErr}</div>}
           </div>
-          <button className="btn" onClick={handleRegister}>Enter as Judge →</button>
+          <button className="btn" onClick={handleRegister} disabled={regBusy}>{regBusy ? "Checking…" : "Enter as Judge →"}</button>
           <p style={{ textAlign:"center", fontSize:".72rem", color:"var(--dim)", marginTop:".9rem", lineHeight:1.5 }}>
             🔒 Your session is saved to this device — you can close and reopen the browser without losing your progress.
           </p>
