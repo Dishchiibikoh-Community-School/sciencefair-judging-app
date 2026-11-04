@@ -296,6 +296,35 @@ function writeDraft(key, draft) {
   } catch { /* storage full / private mode — the draft is a convenience, never the score */ }
 }
 
+// ── The offline score queue (sf_offline_queue) — 2026-11 (FIXES_2026-11.md F2) ──
+// Every read and write goes through these two, so a corrupt value or a full / blocked storage
+// can never THROW in the middle of a save: readQueue() treats anything unreadable as empty,
+// writeQueue() reports failure instead of throwing, and the caller decides what to tell the
+// judge. Before this, a storage error after the draft was deleted lost the score and left
+// Submit stuck on "Saving…" for the rest of the session.
+const QUEUE_KEY = "sf_offline_queue";
+function readQueue() {
+  try { const q = JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]"); return Array.isArray(q) ? q : []; }
+  catch { return []; }
+}
+function writeQueue(q) {
+  try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); return true; }
+  catch { return false; }
+}
+// A score save that has not answered in this long counts as failed and is queued, so a judge is
+// never left on "Saving…" by a request that hangs on weak venue Wi-Fi (supabase-js has no
+// timeout of its own). The request may still land later — harmless: the queued copy upserts the
+// same values. Resolves to the supabase-style { error } shape so callers need no special case.
+const SAVE_TIMEOUT_MS = 15000;
+function withTimeout(promise, ms) {
+  let timer;
+  const deadline = new Promise(resolve => {
+    timer = setTimeout(() => resolve({ error: { code: "TIMEOUT", message: `no answer from the server in ${Math.round(ms / 1000)} s` } }), ms);
+  });
+  return Promise.race([Promise.resolve(promise), deadline]).then(r => { clearTimeout(timer); return r; },
+    e => { clearTimeout(timer); return { error: { code: "FETCH_FAILED", message: String(e?.message || e) } }; });
+}
+
 // A rubric row is usable only if every criterion has an id and at least one step.
 // rubrics.criteria defaults to '[]' — an empty or malformed rubric would give judges a
 // scoring form with nothing on it (or crash the app).
@@ -483,7 +512,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-10-21h";
+const ADMIN_HELP_UPDATED = "2026-11-04a";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -651,6 +680,7 @@ const ADMIN_HELP = [
     ["A judge's tablet died.", "Judges tab → Allow Transfer on that judge (Admin PIN). Within 10 minutes the judge signs in on the new device with the same judge number and invite code. Their scores are kept. If the box says \"The transfer was NOT approved\", nothing was saved — check the internet and press Approve transfer again."],
     ["Finalize is greyed out and says a judge raised a concern.", "A judge's concern blocks Finalize until it is resolved. Talk to that judge: they press Revise my validation and approve. If they have left, press Clear concern next to their name on the Validation tab — they go back to Pending (it is logged). A judge who simply has not validated yet does not block Finalize."],
     ["A judge lost internet.", "Scores are kept on the device and sync automatically when it reconnects (or with Sync Now). The app will not let a judge sign out while scores are still only on the device. A score waiting to sync stays ticked as scored even if the page is refreshed — the judge should NOT score it again."],
+    ["A judge says Submit is slow, or the screen says \"Your score was NOT saved\".", "On weak Wi-Fi Submit waits at most about 15 seconds; then the score is kept on the tablet and sent later, and the judge goes back to their list as normal. \"NOT saved\" appears only when neither the server nor the tablet could keep it (for example the tablet's storage is full). The answers are still on that screen — the judge should stay there, check the Wi-Fi and press Submit again. The IT log records it as SCORE_NOT_SAVED."],
     ["Can a judge change a score?", "Yes — open the project again and resubmit, until they validate their results or you lock judging."],
     ["A judge validated too early.", "They can press Revise my validation until you finalize the results."],
     ["A judge cannot see a project you just added.", "Make sure the project has their department. It appears automatically; if not, ask them to refresh the page."],
@@ -2026,10 +2056,7 @@ function scoresToMap(rows) {
 // was safe on the device — and redid it. The queued value always wins: the next flush
 // upserts exactly that value, so it is what the server is about to hold.
 function queuedScoresFor(schoolId) {
-  let queue = [];
-  try { queue = JSON.parse(localStorage.getItem("sf_offline_queue") || "[]"); } catch { return {}; }
-  if (!Array.isArray(queue)) return {};
-  return queue.reduce((acc, item) => {
+  return readQueue().reduce((acc, item) => {
     const d = item?.data;
     if (!d || d.school_id !== schoolId) return acc;
     acc[`${d.judge_id}_${d.project_id}`] = {
@@ -2132,9 +2159,7 @@ export default function App() {
   const [loading,    setLoading] = useState(true);
   const [judge,      setJudge]   = useState(null);
   const [isOnline,   setIsOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
-  const [offlineQueue, setOfflineQueue] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("sf_offline_queue") || "[]"); } catch { return []; }
-  });
+  const [offlineQueue, setOfflineQueue] = useState(() => readQueue());
   const flushingRef = useRef(false); // guards against concurrent offline-queue flushes
   // Diagnostics. The mount effect and window error listeners close over the FIRST render,
   // where currentSchool is still null — they pass the school id to addItLog explicitly.
@@ -2356,6 +2381,7 @@ export default function App() {
   // and the list below has to stay visible to check numbers against.
   const projFormRef = useRef(null);
   const [scoreSaving,        setScoreSaving]         = useState(false); // a score submit is in flight
+  const [scoreErr,           setScoreErr]            = useState("");    // why the last Submit did NOT save (F2)
   const scoreSavingRef = useRef(false);
   const judgesLoadedRef = useRef(false); // the judges list was READ from the server (empty ≠ unreachable)
   const [projForm,           setProjForm]            = useState(blankProjForm("", catNames()[0] || ""));
@@ -3484,7 +3510,7 @@ export default function App() {
     // would race on the same localStorage key.
     flushItOutbox();   // "Sync Now" also sends log entries written while offline
     if (flushingRef.current) return;
-    const queue = JSON.parse(localStorage.getItem("sf_offline_queue") || "[]");
+    const queue = readQueue();
     if (!queue.length) return;
     flushingRef.current = true;
     // NOTE: .finally() rather than a try/finally block on purpose — a try/finally
@@ -3500,18 +3526,20 @@ export default function App() {
     for (const item of queue) {
       const key = `${item.data.judge_id}_${item.data.project_id}`;
       flushedKeys.add(key);
-      const { error } = await upsertScore(item.data);
+      // Same deadline as a direct submit (F2): one request that never answers used to hold
+      // flushingRef forever, so no later flush — automatic or Sync Now — ever ran again.
+      const { error } = await withTimeout(upsertScore(item.data), SAVE_TIMEOUT_MS);
       if (error) { failedKeys.add(key); failErrors.push(error.code || error.message || "unknown"); }
     }
     // Re-read localStorage after the async loop — submitScore may have added new items
     // while we were awaiting upserts. Keep items that either failed (need retry) or
     // were added after this flush started (not in the original batch).
-    const current = JSON.parse(localStorage.getItem("sf_offline_queue") || "[]");
+    const current = readQueue();
     const next = current.filter(i => {
       const key = `${i.data.judge_id}_${i.data.project_id}`;
       return failedKeys.has(key) || !flushedKeys.has(key);
     });
-    localStorage.setItem("sf_offline_queue", JSON.stringify(next));
+    writeQueue(next);
     setOfflineQueue(next);
     const queueJudgeId = judge?.id || queue[0]?.data?.judge_id || null;
     // Before this, a score the server kept REJECTING (e.g. the judge row was removed by a
@@ -6155,6 +6183,7 @@ export default function App() {
 
   function startScoring(pid) {
     setScoringPid(pid);
+    setScoreErr("");
     const key = `${judge.id}_${pid}`;
     // An unsubmitted draft wins over the saved score: it holds the judge's LATEST taps (it is
     // deleted the moment a submit succeeds or is queued, so it can never be older).
@@ -6235,12 +6264,29 @@ export default function App() {
       setView("judge-home");
       return;
     }
+    scoreSavingRef.current = true; setScoreSaving(true); setScoreErr("");
+    // The guard is released on EVERY path, including an unexpected throw — until 2026-11 a throw
+    // (e.g. storage full) left Submit on "Saving…" for the rest of the session. .finally(), never
+    // a try/finally block in App (rule 37).
+    await saveScoreNow().catch(err => {
+      setScoreErr(`Your score was NOT saved — ${err?.message || "unexpected error"}. Your answers are still on this screen; press Submit again.`);
+      addItLog("ERROR","SCORE","SCORE_SUBMIT_ERROR","Submitting a score failed with an unexpected error",
+        { judgeId: judge?.id, projectId: scoringPid, error: String(err?.message || err).slice(0, 200) });
+    }).finally(() => { scoreSavingRef.current = false; setScoreSaving(false); });
+  }
+  // The body of submitScore(). Every expected outcome (saved, queued, NOT saved) returns normally;
+  // only a bug throws, and submitScore() reports that too.
+  async function saveScoreNow() {
+    const proj = projects.find(p => p.id === scoringPid);
+    if (!proj) {   // the organiser removed this project while the screen was open
+      setScoreErr("This project was removed by the organiser, so this score cannot be saved. Press ← Back to return to your list.");
+      return;
+    }
+    const key = `${judge.id}_${scoringPid}`;
     const total = draftTotal();
-    scoreSavingRef.current = true; setScoreSaving(true);
     // A comment-only department writes no criteria at all — the commendation and
     // the comment ARE the review. getTotal() then sums an empty object to 0, which
     // is why such departments are excluded from every ranking (rule 59).
-    const proj = projects.find(p => p.id === scoringPid);
     const feedback = isFeedbackProject(proj);
     const criteria = feedback ? {} : { ...draftSc };
     const commendation = feedback ? draftCommend.trim() : "";
@@ -6250,9 +6296,7 @@ export default function App() {
     const fb = rs.feedback ? { strength: draftFb.strength.trim(), next_step: draftFb.next_step.trim() } : null;
     const safety = rs.safety ? draftSafety === true : null;
     // Log a concern when it is RAISED, not again on every re-submit of the same review.
-    const safetyIsNew = safety === true && scores[`${judge.id}_${scoringPid}`]?.safety !== true;
-    setScores(p => ({ ...p, [`${judge.id}_${scoringPid}`]:
-      { criteria, notes: draftNotes, commendation, feedback: fb || {}, safety: safety === true, time: Date.now() } }));
+    const safetyIsNew = safety === true && scores[key]?.safety !== true;
     const payload = {
       school_id: currentSchool.id,
       judge_id: judge.id, project_id: scoringPid,
@@ -6262,24 +6306,29 @@ export default function App() {
       ...(fb ? { feedback: fb } : {}),
       ...(safety !== null ? { safety_concern: safety } : {}),
     };
-    const { error } = await upsertScore(payload);
-    // Saved, or queued just below — either way the score is safe and the draft is spent.
-    writeDraft(`${judge.id}_${scoringPid}`, null);
-    setDraftRestoredAt(null);
+    // A save that has not answered in SAVE_TIMEOUT_MS counts as failed and is queued (F2).
+    const { error } = await withTimeout(upsertScore(payload), SAVE_TIMEOUT_MS);
     // How many scores wait on this device after this submit — reported with the events below so
     // the admin's Alerts tab can show devices with scores stuck on them (eventHealth).
     let queueAfter = 0;
     if (error || !navigator.onLine) {
-      const q = JSON.parse(localStorage.getItem("sf_offline_queue") || "[]");
-      const filtered = q.filter(x => !(x.data.judge_id === judge.id && x.data.project_id === scoringPid));
+      const filtered = readQueue().filter(x => !(x.data.judge_id === judge.id && x.data.project_id === scoringPid));
       filtered.push({ data: payload, ts: Date.now() });
-      localStorage.setItem("sf_offline_queue", JSON.stringify(filtered));
+      if (!writeQueue(filtered)) {
+        // Neither the server nor this device has the score. The draft and the screen keep every
+        // answer, so nothing is lost as long as the judge stays here — say exactly that (F2).
+        setScoreErr("Your score was NOT saved — the server did not answer and this device could not store it (storage full or blocked). Do not leave this screen: check the Wi-Fi and press Submit again, or tell the coordinator.");
+        addItLog("ERROR","SCORE","SCORE_NOT_SAVED","Score could not be saved to the server or queued on the device",
+          { judgeId: judge.id, projectId: scoringPid, error: error ? (error.code || error.message) : "offline" });
+        return;
+      }
       setOfflineQueue(filtered);
       queueAfter = filtered.length;
       addItLog("WARN","DB","SCORE_QUEUED","Score saved locally — will sync when online",
         { judgeId:judge.id, projectId:scoringPid, queueLength: queueAfter,
-          // "offline" vs a server rejection need different fixes — record which it was.
-          reason: error ? "server_error" : "offline", error: error ? (error.code || error.message) : null });
+          // "offline" vs a timeout vs a server rejection need different fixes — record which it was.
+          reason: !error ? "offline" : error.code === "TIMEOUT" ? "timeout" : "server_error",
+          error: error ? (error.code || error.message) : null });
     } else {
       const syncedAt = Date.now();
       setLastSyncAt(syncedAt);
@@ -6287,14 +6336,20 @@ export default function App() {
       // An OLDER queued copy of this score (from a submit that failed earlier) is now stale.
       // Left in the queue it would be shown over this newer score after a refresh
       // (queuedScoresFor) and could be uploaded over it by the next flush.
-      const q = JSON.parse(localStorage.getItem("sf_offline_queue") || "[]");
+      const q = readQueue();
       const rest = q.filter(x => !(x.data.judge_id === judge.id && x.data.project_id === scoringPid));
       queueAfter = rest.length;
       if (rest.length !== q.length) {
-        localStorage.setItem("sf_offline_queue", JSON.stringify(rest));
+        writeQueue(rest);   // best effort: the score itself is already on the server
         setOfflineQueue(rest);
       }
     }
+    // Saved, or queued — either way the score is safe now, so the draft is spent (rule 75).
+    // Only now: a draft deleted before the queue write lost the score when that write failed.
+    writeDraft(key, null);
+    setDraftRestoredAt(null);
+    setScores(p => ({ ...p, [key]:
+      { criteria, notes: draftNotes, commendation, feedback: fb || {}, safety: safety === true, time: Date.now() } }));
     addLog(`${judge.alias} submitted ${feedback ? "a review" : "score"} for Project #${proj.num}`);
     addItLog("INFO","SCORE","SCORE_SUBMITTED","Judge submitted a review for an assigned project",
       { judgeId:judge.id, alias:judge.alias, projectId:scoringPid, projectNum:proj.num,
@@ -6307,7 +6362,6 @@ export default function App() {
       addItLog("WARN","SCORE","SAFETY_CONCERN_RAISED","A judge ticked the safety / rule concern on a project",
         { judgeId: judge.id, alias: judge.alias, projectId: scoringPid, projectNum: proj.num });
     }
-    scoreSavingRef.current = false; setScoreSaving(false);
     setView("judge-home");
   }
 
@@ -7877,6 +7931,7 @@ export default function App() {
             <button className="btn" onClick={submitScore} disabled={!allMoved() || hasZeroScore() || scoreSaving}>
               {scoreSaving ? "Saving…" : isFeedbackProject(proj) ? "Submit Review →" : "Submit Score →"}
             </button>
+            {scoreErr && <div className="err" role="alert" style={{ marginTop:".6rem" }}>⚠ {scoreErr}</div>}
             {isFeedbackProject(proj) && !allMoved() && (
               <p style={{ textAlign:"center", fontSize:".72rem", color:"var(--dim)", marginTop:".4rem" }}>Choose or write a commendation to finish.</p>
             )}

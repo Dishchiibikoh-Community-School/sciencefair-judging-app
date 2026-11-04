@@ -526,6 +526,9 @@ banner at the top says how many things need attention.
   **not** to sign out or clear the browser, and send the IT Logs report to your technical contact.
   Otherwise ask them to connect to Wi-Fi and press **Sync Now**. A tablet that is offline cannot
   report — it shows up here once it is back online but still cannot sync.
+  On slow Wi-Fi, Submit waits at most about 15 seconds before keeping the score on the tablet, so a
+  judge is never stuck on "Saving…". If a judge sees **"Your score was NOT saved"**, the tablet could
+  not store it either (e.g. storage full) — they should stay on that screen and press Submit again.
 - **Coverage** — projects with **no department** (nobody will score them), departments with
   projects but **no judge signed in**, and departments where some projects have **fewer judges than
   "N judges per project"**.

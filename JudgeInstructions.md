@@ -269,6 +269,10 @@ If internet drops:
 5. Use **"Sync Now"** when back online if shown
 6. A score that is still waiting to sync stays ticked as scored, even if the page refreshes or the
    tablet restarts — **do not score it again**. It goes up on its own once you are back online
+7. On very slow Wi-Fi, **Submit waits at most about 15 seconds**. After that your score is kept on the
+   tablet and sent later, and you go back to your list as normal
+8. If you ever see **"Your score was NOT saved"**, stay on that screen — every answer is still there.
+   Check the Wi-Fi and press Submit again, or ask the coordinator
 
 **Note:** Ensure your browser doesn't clear data, or scores may be lost.
 

@@ -16,6 +16,8 @@ export const ADMIN_TOKEN = `${b64url({ alg: "HS256", typ: "JWT" })}.${b64url({
 export function freshStore() {
   const now = new Date().toISOString();
   return {
+    // Releases every request held by store.hangWrites (they are then dropped).
+    releaseHangs() { (this._hangers || []).splice(0).forEach(r => r()); },
     schools: [{ id: SID, name: "Dishchii'bikoh Test", slug: "test", created_at: now }],
     school_admins: [{ school_id: SID, user_id: ADMIN_ID }],
     departments: [
@@ -485,7 +487,18 @@ export function installMock(page, store, log) {
       return json(route, 401, { code: "42501", message: `new row violates row-level security policy for table "${table}"` });
 
     // Simulated server failure: every write to a listed table fails (tests the "NOT saved" paths).
-    if (method !== "GET" && method !== "HEAD" && (store.failWrites || []).includes(table))
+    // Decided when the request ARRIVES, so a delayed request keeps the outcome it would have had.
+    const isWrite = method !== "GET" && method !== "HEAD";
+    const failNow = isWrite && (store.failWrites || []).includes(table);
+    // Simulated silent server (2026-11, F2): the request is never answered until
+    // store.releaseHangs() — then it is dropped, like a connection that died.
+    if (isWrite && (store.hangWrites || []).includes(table)) {
+      await new Promise(res => { (store._hangers = store._hangers || []).push(res); });
+      return route.abort().catch(() => {});
+    }
+    // Simulated slow server (2026-11, F3): answer after store.delayWrites[table] ms.
+    if (isWrite && store.delayWrites?.[table]) await new Promise(r => setTimeout(r, store.delayWrites[table]));
+    if (failNow)
       return json(route, 503, { code: "PGRST000", message: "simulated database outage" });
 
     // Simulated failed READ of a listed table (tests the LOAD_FAILED log, 2026-10-07).
