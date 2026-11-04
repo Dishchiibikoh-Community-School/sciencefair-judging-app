@@ -1243,6 +1243,15 @@ only who gets a medal — but changing it after you have announced winners is co
 - Check: Do the projects have that department (Projects tab)?
 - In a "N judges per project" department a judge sees only their share — Judges tab → Panels → Show assignments
 
+### Scenario: A tablet says "Can't reach the server" or "The scoring form could not be loaded"
+- **"Can't reach the server"** — the tablet is offline or the server is not answering, and it has never
+  loaded your school before. It retries on its own; it is *not* "School Not Found". Fix the Wi-Fi.
+- A tablet that HAS loaded the school before opens normally even with no connection, showing the
+  projects and scoring forms as it last saw them, and sends its scores later.
+- **"The scoring form could not be loaded"** on one project — the tablet could not get that
+  department's rubric. Check the Wi-Fi and press **Try again**. (It never falls back to a different
+  form: scores entered on the wrong form would be saved under the wrong criteria.)
+
 ### Scenario: Judges can't sign in
 - *"Judge N is not on this school's judge list"* — that number is not ticked in the judge grid (or is above Maximum judges)
 - *"Invalid invite code"* — check the code on the Overview tab. 5 wrong tries lock sign-in for 5 minutes for the whole school

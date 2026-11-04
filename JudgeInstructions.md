@@ -274,6 +274,10 @@ If internet drops:
    tablet and sent later, and you go back to your list as normal
 8. If you ever see **"Your score was NOT saved"**, stay on that screen — every answer is still there.
    Check the Wi-Fi and press Submit again, or ask the coordinator
+9. If the tablet restarts with no internet, the app still opens with your projects as it last saw
+   them. If it says **"Can't reach the server"**, it opens by itself once the Wi-Fi is back — do not
+   clear the browser
+10. If a project says **"The scoring form could not be loaded"**, check the Wi-Fi and press **Try again**
 
 **Note:** Ensure your browser doesn't clear data, or scores may be lost.
 

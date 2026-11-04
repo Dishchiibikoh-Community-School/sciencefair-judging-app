@@ -547,7 +547,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-04b";
+const ADMIN_HELP_UPDATED = "2026-11-04c";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -715,6 +715,7 @@ const ADMIN_HELP = [
     ["A judge's tablet died.", "Judges tab → Allow Transfer on that judge (Admin PIN). Within 10 minutes the judge signs in on the new device with the same judge number and invite code. Their scores are kept. If the box says \"The transfer was NOT approved\", nothing was saved — check the internet and press Approve transfer again."],
     ["Finalize is greyed out and says a judge raised a concern.", "A judge's concern blocks Finalize until it is resolved. Talk to that judge: they press Revise my validation and approve. If they have left, press Clear concern next to their name on the Validation tab — they go back to Pending (it is logged). A judge who simply has not validated yet does not block Finalize."],
     ["A judge lost internet.", "Scores are kept on the device and sync automatically: when it reconnects, every 20 seconds while anything is waiting, and when the tablet wakes up (Sync Now still works too). The app will not let a judge sign out while scores are still only on the device. A score waiting to sync stays ticked as scored even if the page is refreshed — the judge should NOT score it again."],
+    ["A tablet says \"Can't reach the server\" or \"The scoring form could not be loaded\".", "\"Can't reach the server\" means the tablet is offline (or the server is not answering) and has never loaded your school before — it is NOT \"School Not Found\", and it retries on its own. A tablet that has loaded the school once opens normally even with no connection, showing the projects and scoring forms as it last saw them. \"The scoring form could not be loaded\" on a project means that department's rubric could not be fetched: check the Wi-Fi and press Try again. The app never swaps in a different form, because scores entered on the wrong form would be saved under the wrong criteria."],
     ["A judge says Submit is slow, or the screen says \"Your score was NOT saved\".", "On weak Wi-Fi Submit waits at most about 15 seconds; then the score is kept on the tablet and sent later, and the judge goes back to their list as normal. \"NOT saved\" appears only when neither the server nor the tablet could keep it (for example the tablet's storage is full). The answers are still on that screen — the judge should stay there, check the Wi-Fi and press Submit again. The IT log records it as SCORE_NOT_SAVED."],
     ["Can a judge change a score?", "Yes — open the project again and resubmit, until they validate their results or you lock judging."],
     ["A judge validated too early.", "They can press Revise my validation until you finalize the results."],
@@ -1003,6 +1004,38 @@ const MISSING_TABLE = (err) =>
 function MISSING_FN(err) {
   return !!err && (err.code === "PGRST202" || err.code === "42883" || err.code === "404" ||
     /could not find the function|function .* does not exist/i.test(err.message || ""));
+}
+
+// ── Last good copy of a school's PUBLIC data, per device (2026-11, FIXES_2026-11.md F4) ──
+// A judge's tablet that is restarted with no connection used to show "School Not Found" (the
+// school lookup failed and nothing was kept), and a failed rubric read silently gave judges the
+// 42-point default form. Every successful read of the tables a judge needs is now kept here
+// and stands in when the server cannot be reached. Only anon-readable tables, and project rows
+// without any name columns — nothing that is not already public.
+const CACHE_PREFIX = "sf_cache_";
+function cacheSet(name, value) {
+  try { localStorage.setItem(CACHE_PREFIX + name, JSON.stringify(value)); } catch { /* best effort */ }
+}
+function cacheGet(name) {
+  try { const v = localStorage.getItem(CACHE_PREFIX + name); return v ? JSON.parse(v) : null; } catch { return null; }
+}
+// Wraps one read's { data, error }: a success is saved; a failure that is NOT an unrun migration
+// returns the saved copy (with fromCache: true). An unrun migration passes through untouched, so
+// the "migration needed" paths keep working.
+// A project row as it may be kept on a device: never the pre-2026-10b name columns.
+function publicProjectRow(r) {
+  const out = { ...r };
+  delete out.advisor_name;
+  delete out.group_members;
+  return out;
+}
+function cachedRead(name, res) {
+  if (!res.error && res.data) { cacheSet(name, res.data); return res; }
+  if (res.error && !MISSING_TABLE(res.error) && !MISSING_COL(res.error)) {
+    const c = cacheGet(name);
+    if (c) return { data: c, error: null, fromCache: true };
+  }
+  return res;
 }
 
 // CSV cell escaper. Always quotes, doubles inner quotes, and neutralises
@@ -2153,6 +2186,8 @@ export default function App() {
   // (departments.rubric_id; NULL = the default, rubrics.is_active). Never read a single
   // "the rubric" for scoring — use projRubric(proj) / rubricFor(deptId).
   const [rubrics,       setRubrics]       = useState([]);              // [{ id, name, criteria, is_active }]
+  const [rubricsReady,  setRubricsReady]  = useState(false);           // the school's rubrics (or this device's copy) are in (F4)
+  const [schoolUnreachable, setSchoolUnreachable] = useState(false);   // the school lookup FAILED — not "no such school" (F4)
   const [rubricId,      setRubricId]      = useState(null);            // rubric open in the Rubric tab (null = default)
   const [rubricNew,     setRubricNew]     = useState(null);            // { name, from } while creating one
   const [rubricRename,  setRubricRename]  = useState(null);            // draft name while renaming
@@ -2478,8 +2513,9 @@ export default function App() {
   async function loadDepartments(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
-    const { data, error } = await supabase.from("departments").select("*").eq("school_id", schoolId).order("ord");
-    noteLoadError("departments", error, schoolId);
+    const raw = await supabase.from("departments").select("*").eq("school_id", schoolId).order("ord");
+    noteLoadError("departments", raw.error, schoolId);
+    const { data } = cachedRead(`${schoolId}_departments`, raw);   // F4: last good copy when unreachable
     if (data && data.length > 0) {
       // scoring_mode arrives undefined if migration 2026-10f has not been run —
       // default to 'scored', which is exactly how the app behaved before it existed.
@@ -2490,8 +2526,10 @@ export default function App() {
   async function loadCategories(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
-    const { data, error } = await supabase.from("categories")
+    const raw = await supabase.from("categories")
       .select("*").eq("school_id", schoolId).order("ord");
+    if (raw.error && !MISSING_TABLE(raw.error)) noteLoadError("categories", raw.error, schoolId);
+    const { data, error } = cachedRead(`${schoolId}_categories`, raw);   // F4
     if (error) {
       // 42P01 / PGRST205 = migration 2026-10e has not been run on this project.
       // Keep the built-in list so every dropdown still works.
@@ -2539,9 +2577,13 @@ export default function App() {
     ]);
     noteLoadError("projects", error, schoolId);
     noteLoadError("project_private", privErr, schoolId);
-    if (data) {
+    // F4: this device's last good copy of the PUBLIC rows (name columns stripped) stands in when
+    // the server cannot be reached, so an offline restart still shows the judge their projects.
+    const pub = cachedRead(`${schoolId}_projects`, { data: data ? data.map(publicProjectRow) : null, error });
+    const rows = data || pub.data;
+    if (rows) {
       const privById = new Map((priv || []).map(x => [x.project_id, x]));
-      setProjects(data.map(r => {
+      setProjects(rows.map(r => {
         const pv = privById.get(r.id);
         return {
           id: r.id, num: r.num, title: r.title, cat: r.cat, grade: r.grade,
@@ -2605,8 +2647,9 @@ export default function App() {
   async function loadSettings(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
-    const { data, error } = await supabase.from("app_settings").select("*").eq("school_id", schoolId);
-    noteLoadError("app_settings", error, schoolId);
+    const raw = await supabase.from("app_settings").select("*").eq("school_id", schoolId);
+    noteLoadError("app_settings", raw.error, schoolId);
+    const { data } = cachedRead(`${schoolId}_settings`, raw);   // F4
     if (data) {
       const map = Object.fromEntries(data.map(r => [r.key, r.value]));
       setLocked(map.locked === "true");
@@ -2790,9 +2833,11 @@ export default function App() {
   async function loadSchedule(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
-    const { data, error } = await supabase.from("judge_schedule")
+    const raw = await supabase.from("judge_schedule")
       .select("judge_number, round_no, project_id").eq("school_id", schoolId).order("judge_number").order("round_no");
-    if (error) { noteLoadError("judge_schedule", error, schoolId); if (MISSING_TABLE(error)) setHasSchedule(false); return; }
+    if (raw.error) noteLoadError("judge_schedule", raw.error, schoolId);
+    const { data, error } = cachedRead(`${schoolId}_schedule`, raw);   // F4
+    if (error) { if (MISSING_TABLE(error)) setHasSchedule(false); return; }
     setHasSchedule(true);
     setSchedule(data || []);
   }
@@ -2810,12 +2855,17 @@ export default function App() {
   async function loadRubrics(sid) {
     const schoolId = sid || currentSchool?.id;
     if (!schoolId) return;
-    const { data, error } = await supabase.from("rubrics")
+    const raw = await supabase.from("rubrics")
       .select("id, name, criteria, is_active, created_at").eq("school_id", schoolId).order("created_at");
-    noteLoadError("rubrics", error, schoolId);
+    noteLoadError("rubrics", raw.error, schoolId);
+    const { data, error } = cachedRead(`${schoolId}_rubrics`, raw);   // F4
+    // Not loaded AND no copy on this device: rubricsReady stays false, and judges see "the scoring
+    // form could not be loaded — Try again" instead of the built-in 42-point form (F4 / SF-09).
+    // (An EMPTY rubrics table is a successful read — the DEFAULT_RUBRIC fallback still applies.)
     if (error || !data) return;
     setRubrics(data.map(r => ({ id: r.id, name: r.name || "Rubric", is_active: !!r.is_active,
       criteria: validCriteria(r.criteria) ? r.criteria : DEFAULT_RUBRIC })));
+    setRubricsReady(true);
   }
   // ── Which rubric judges what (2026-10j) ──
   function defaultRubricRow() { return rubrics.find(r => r.is_active) || rubrics[0] || null; }
@@ -3090,12 +3140,22 @@ export default function App() {
     // ── Step 1: Resolve school from URL slug ─────────────────
     async function resolveSchool() {
       if (!urlSchoolSlug) { setSchoolLoading(false); return; }
-      const { data } = await supabase.from("schools")
+      const { data, error } = await supabase.from("schools")
         .select("id, name, slug")
         .eq("slug", urlSchoolSlug).single();
-      if (data) setCurrentSchool(data);
+      // F4: "no such school" (PGRST116 = zero rows) is different from "the server could not be
+      // reached". The latter used the same screen, so a judge whose tablet restarted offline saw
+      // "School Not Found" — now the device's last good copy of the school is used, and with no
+      // copy the page says it cannot reach the server and keeps retrying.
+      let school = data || null;
+      if (school) cacheSet(`school_${urlSchoolSlug}`, school);
+      else if (error && error.code !== "PGRST116") {
+        school = cacheGet(`school_${urlSchoolSlug}`);
+        if (!school) setSchoolUnreachable(true);
+      }
+      if (school) setCurrentSchool(school);
       setSchoolLoading(false);
-      return data;
+      return school;
     }
 
     // ── Step 2: Auth state listener ──────────────────────────
@@ -3566,6 +3626,16 @@ export default function App() {
     document.addEventListener("visibilitychange", retry);
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", retry); };
   }, [queuedCount]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // F4: the school could not be looked up and this device has no copy of it — try again on our
+  // own. A reload is safe here: nothing is on screen, and queued scores live in localStorage.
+  useEffect(() => {
+    if (!schoolUnreachable) return undefined;
+    const retry = () => window.location.reload();
+    window.addEventListener("online", retry);
+    const t = setInterval(() => { if (navigator.onLine) retry(); }, 20000);
+    return () => { window.removeEventListener("online", retry); clearInterval(t); };
+  }, [schoolUnreachable]);
 
   // ── REGISTRATION TAB LAZY LOAD ───────────────────────────
   useEffect(() => {
@@ -6364,6 +6434,10 @@ export default function App() {
       setScoreErr("This project was removed by the organiser, so this score cannot be saved. Press ← Back to return to your list.");
       return;
     }
+    if (!rubricsReady && !isFeedbackProject(proj)) {   // F4: never save against a fallback form
+      setScoreErr("The scoring form is not loaded, so this score cannot be saved. Press ← Back and open the project again.");
+      return;
+    }
     const key = `${judge.id}_${scoringPid}`;
     const total = draftTotal();
     // A comment-only department writes no criteria at all — the commendation and
@@ -7406,6 +7480,25 @@ export default function App() {
     </div>
   );
 
+  /* SCHOOL UNREACHABLE (F4) — the lookup FAILED (offline / server down) and this device has no
+     copy of the school. Not "School Not Found": that told judges whose tablet restarted offline
+     that their school did not exist. Retries on its own (effect above). */
+  if (urlSchoolSlug && !schoolLoading && !currentSchool && schoolUnreachable) return (
+    <div className="app"><style>{CSS}</style>
+      <div className="center"><div className="inner">
+        <div className="card" data-testid="school-unreachable" style={{ textAlign:"center" }}>
+          <div style={{ fontSize:"3rem", marginBottom:".75rem" }}>📡</div>
+          <h2 style={{ fontFamily:"var(--ff-d)", color:"var(--navy)", marginBottom:".4rem" }}>Can't reach the server</h2>
+          <p style={{ color:"var(--dim)", marginBottom:"1.25rem" }}>
+            This device is offline or the server is not answering. Scores saved on this device are safe.
+            The page tries again on its own as soon as the connection is back.
+          </p>
+          <button className="btn" onClick={() => window.location.reload()}>Try again</button>
+        </div>
+      </div></div>
+    </div>
+  );
+
   /* SCHOOL NOT FOUND */
   if (urlSchoolSlug && !schoolLoading && !currentSchool) return (
     <div className="app"><style>{CSS}</style>
@@ -7880,6 +7973,27 @@ export default function App() {
   /* JUDGE SCORING */
   if (view === "judge-scoring" && scoringPid) {
     const proj = projects.find(p => p.id === scoringPid);
+    // F4 / SF-09: the school's rubrics could not be loaded and this device has no copy. Never
+    // fall back to the built-in 42-point form here — the ratings would be saved under criterion
+    // ids the project's real rubric does not have, and count as 0.
+    if (proj && !rubricsReady && !isFeedbackProject(proj)) return (
+      <div className="app"><style>{CSS}</style>
+        <div className="center" style={{ justifyContent:"flex-start", paddingTop:"2rem" }}>
+          <div className="inner">
+            <button className="back" onClick={() => setView("judge-home")}>← Back to my projects</button>
+            <div className="card" data-testid="rubric-unavailable" style={{ textAlign:"center" }}>
+              <div style={{ fontSize:"2.2rem", marginBottom:".5rem" }}>📋</div>
+              <h2 style={{ fontFamily:"var(--ff-d)", color:"var(--navy)", marginBottom:".4rem" }}>The scoring form could not be loaded</h2>
+              <p style={{ color:"var(--dim)", marginBottom:"1.1rem" }}>
+                This tablet could not get your department's scoring form from the server. Check the Wi-Fi and press
+                Try again. Nothing you have already scored is affected.
+              </p>
+              <button className="btn" onClick={() => loadRubrics(currentSchool?.id)}>Try again</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
     const rs = isFeedbackProject(proj) ? {} : rubricSettings(projRubric(proj));
     const factor = Number(rs.factor) || 0;   // the elementary form: ratings × 2.5
     return (
@@ -7894,7 +8008,7 @@ export default function App() {
             )}
             {offlineQueue.length > 0 && (
               <div className="sync-banner">
-                ⚠ {offlineQueue.length} pending local save{offlineQueue.length!==1?"s":""} not yet in backend.
+                ⚠ {offlineQueue.length} score{offlineQueue.length!==1?"s":""} waiting on this device to be sent — the app keeps trying on its own.
               </div>
             )}
             <div className="sc-header">

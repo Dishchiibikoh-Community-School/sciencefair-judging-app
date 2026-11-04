@@ -84,7 +84,10 @@ await check("the custom format is saved for the school", async () => {
 });
 await J.page.reload();
 await check("judges see the new format after it is saved", async () =>
-  assert.equal((await J.page.locator(".proj-num").first().innerText()).trim(), "SF26/PK/002"));
+  // The list and the settings load in parallel, so the first codes can appear a moment before
+  // the saved format does — wait for the saved format instead of reading the first value that
+  // appears (2026-11: F4's device cache shifted the timing and exposed this race).
+  J.page.locator(".proj-num", { hasText: "SF26/PK/002" }).first().waitFor({ timeout: 6000 }));
 
 console.log("\n── Duplicates and exports");
 store.projects.push({ id: "p_dup", school_id: SID, num: "002", title: "Other Beans", cat: "Life Science", grade: "1",
