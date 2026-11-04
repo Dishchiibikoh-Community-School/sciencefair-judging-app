@@ -76,6 +76,20 @@ await check("…and still catches up — the refresh is delayed to the end of th
     throw new Error("the lock banner is still shown — the second change was never loaded");
   })());
 
+console.log("\n── F17: the organiser removes the project this judge has open");
+await page.locator(".proj-item", { hasText: "Existing Volcano Study" }).click();
+await page.locator(".rub-steps").first().waitFor({ timeout: 6000 });
+store.projects = store.projects.filter(p => p.id !== "p_seed");
+const joinsBefore3 = schoolJoins;
+sockets.splice(0).forEach(ws => ws.close().catch(() => {}));
+await waitFor(() => schoolJoins > joinsBefore3, 30000, "a third rejoin").catch(() => {});
+await check("the tablet says the project is no longer on the list — no white screen", async () =>
+  page.getByTestId("project-gone").waitFor({ timeout: 15000 }));
+await check("…and the way back to the list works", async () => {
+  await page.getByRole("button", { name: /Back to my projects/ }).click();
+  assert.equal(await page.getByTestId("crash-screen").count(), 0);
+});
+
 await browser.close();
 console.log(`\n${pass} passed, ${failures.length} failed`);
 if (failures.length) { console.log("FAILED:\n - " + failures.join("\n - ")); process.exit(1); }

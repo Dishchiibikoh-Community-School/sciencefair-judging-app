@@ -285,6 +285,9 @@ If internet drops:
    them. If it says **"Can't reach the server"**, it opens by itself once the Wi-Fi is back — do not
    clear the browser
 10. If a project says **"The scoring form could not be loaded"**, check the Wi-Fi and press **Try again**
+11. If a project you have open says **"This project is no longer on your list"**, the organiser removed or
+    moved it — go back to your list. If a screen ever says **"Something went wrong"**, tap **Reload**: your
+    saved scores and unsent work stay on the tablet
 
 **Note:** Ensure your browser doesn't clear data, or scores may be lost.
 

@@ -8275,6 +8275,23 @@ export default function App() {
   /* JUDGE SCORING */
   if (view === "judge-scoring" && scoringPid) {
     const proj = projects.find(p => p.id === scoringPid);
+    // F17 (B3 / SF-34): the organiser removed (or moved away) the project this judge has open — a
+    // realtime reload dropped it and `proj.title` crashed the whole screen to white. The draft
+    // stays on the device; say what happened and offer the way back.
+    if (!proj) return (
+      <div className="app"><style>{CSS}</style>
+        <div className="center" style={{ justifyContent:"flex-start", paddingTop:"2rem" }}>
+          <div className="inner">
+            <button className="back" onClick={() => setView("judge-home")}>← Back to my projects</button>
+            <div className="card" data-testid="project-gone" style={{ textAlign:"center" }}>
+              <div style={{ fontSize:"2.2rem", marginBottom:".5rem" }}>📭</div>
+              <h2 style={{ fontFamily:"var(--ff-d)", color:"var(--navy)", marginBottom:".4rem" }}>This project is no longer on your list</h2>
+              <p style={{ color:"var(--dim)" }}>The organiser removed or moved it. Nothing you already submitted is affected. Go back to your list to continue.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
     // F4 / SF-09: the school's rubrics could not be loaded and this device has no copy. Never
     // fall back to the built-in 42-point form here — the ratings would be saved under criterion
     // ids the project's real rubric does not have, and count as 0.
