@@ -547,7 +547,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-04e";
+const ADMIN_HELP_UPDATED = "2026-11-04f";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -658,7 +658,7 @@ const ADMIN_HELP = [
     ["What do the public results show — my awards or the scores?", "Your confirmed awards, once a group has any; until then the places worked out from the scores. That is how a tie you broke in deliberation reaches the podium. If you clear a group ('Clear confirmed places') it goes back to the computed places."],
     ["Which ties raise the amber alert now?", "Only ties that decide a place: two projects level for 1st, 2nd or 3rd, or level across 3rd and 4th, in the same award group. A tie lower down decides nothing and no longer raises it. A tie you have already decided, and ties on the PreK & SPED form (they share the place), never do."],
     ["How do I get the list for the ceremony?", "Awards tab → '🖨 Print awards list' (or '⬇ Awards CSV'): every group with its places, any special award, every ribbon, the student names and the teacher. It includes names, so it is for you only — never post it. Groups you have not confirmed yet are marked 'computed, not confirmed yet'."],
-    ["Can I change awards after I finalize?", "Not while results are finalized — the Awards tab becomes read-only. Reopen the results in the Validation tab, change them, and finalize again."],
+    ["Can I change awards after I finalize?", "Not while results are finalized — the Awards tab becomes read-only. Reopen the results in the Validation tab, change them, and finalize again. To take a saved award back, choose Pending in its dropdown and press Save (remove award) — a dropdown change does nothing until it is saved."],
   ]},
   { title: "PreK & SPED: ribbons and shared places", icon: "🎀", faq: [
     ["How is PreK & SPED judged?", "On the 'PreK & SPED Recognition (2026-27)' form: Curiosity, Hands-On Exploration, Sharing What They Learned, and Effort and Teamwork, each 1–5, total out of 20. Each criterion's description on the scoring screen says what 5, 3–4 and 1–2 look like. Help from an adult or a communication device never lowers a score."],
@@ -2392,6 +2392,10 @@ export default function App() {
   // Deliberation state
   const [deliberationNotes,  setDeliberationNotes]  = useState({});
   const [finalDecisions,     setFinalDecisions]     = useState({});
+  // The award a dropdown in Validation → Deliberation is set to but NOT saved yet ({ pid: award }).
+  // Until 2026-11 the dropdown wrote straight into finalDecisions, so the screen (and the
+  // admin's preview) changed before anything was saved, and "Pending" could never be saved (F7b).
+  const [awardDrafts,        setAwardDrafts]        = useState({});
   const [deliberationOpen,   setDeliberationOpen]   = useState(false);
   const [delibDraftComment,  setDelibDraftComment]  = useState("");
   const [delibDraftRec,      setDelibDraftRec]      = useState("Pending");
@@ -6715,13 +6719,14 @@ export default function App() {
       setDelibErr(`The award for Project #${proj?.num} was NOT saved. Check your connection and try again.`);
       addItLog("ERROR","ADMIN","DECISION_SAVE_FAILED","Could not save an award decision",
         { projectId:pid, projectNum:proj?.num, award, error: errInfo(error) });
-      return;
+      return false;
     }
     setFinalDecisions(p => ({ ...p, [pid]: { award, adminNotes, finalized: isFinalize, finalizedAt: isFinalize ? Date.now() : null } }));
     addLog(`Admin ${isFinalize ? "finalized" : "updated"} decision for Project #${proj.num}: ${award}`);
     addItLog("INFO","ADMIN", isFinalize?"DECISION_FINALIZED":"DECISION_UPDATED",
       `Admin ${isFinalize?"finalized":"updated"} award decision for project`,
       { projectId:pid, projectNum:proj.num, award, timestamp:fmtISO(Date.now()) });
+    return true;
   }
 
   async function reviseDecision(pid) {
@@ -11061,6 +11066,11 @@ export default function App() {
                       const notes = getDelibNotesForProject(p.id);
                       const flags = getFlagCount(p.id);
                       const decision = finalDecisions[p.id];
+                      // F7b: what the dropdown shows (an unsaved draft, else the saved award) and
+                      // whether it differs from what is saved.
+                      const savedAward = decision?.award || "Pending";
+                      const awardDraft = awardDrafts[p.id] ?? savedAward;
+                      const awardDirty = awardDraft !== savedAward;
                       return (
                         <div key={p.id} style={{borderTop:"1px solid var(--bd)",paddingTop:".85rem",marginTop:".85rem"}}>
                           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:"1rem",flexWrap:"wrap",marginBottom:".5rem"}}>
@@ -11120,24 +11130,31 @@ export default function App() {
                           ))}
                           <div style={{marginTop:".5rem"}}>
                             <div style={{display:"flex",gap:".5rem",flexWrap:"wrap",marginBottom:".4rem"}}>
+                              {/* F7b: the dropdown edits a DRAFT; nothing changes (screen, podium,
+                                  preview) until Save succeeds — and "Pending" can be saved, which is
+                                  how a saved award is taken back. */}
                               <select className="delib-rec-select" style={{flex:1,minWidth:"140px"}}
-                                value={decision?.award || "Pending"}
-                                onChange={e => setFinalDecisions(prev => ({ ...prev, [p.id]: { ...prev[p.id], award: e.target.value, finalized:false, adminNotes:prev[p.id]?.adminNotes||"" } }))}>
+                                value={awardDraft}
+                                onChange={e => { const v = e.target.value; setAwardDrafts(prev => ({ ...prev, [p.id]: v })); }}>
                                 {AWARD_OPTIONS.map(a => <option key={a} value={a}>{a}</option>)}
                               </select>
                               {/* A warning, never a block: the awards are the admin's call, and on
                                   event day a refusal with no override is worse than a clear note. */}
-                              {minPlacePct > 0 && !placesEligible(p) && PLACE_AWARDS.includes(decision?.award) && (
+                              {minPlacePct > 0 && !placesEligible(p) && PLACE_AWARDS.includes(awardDraft) && (
                                 <div className="err" style={{flexBasis:"100%",marginTop:".3rem"}}>
                                   ⚠ {p.avg} is below the {minPlacePct}% minimum to place ({+minPlacePts(p).toFixed(1)} of {projectMax(p)}).
                                   The public results will not give it a medal — save it only if you mean to award it anyway.
                                 </div>
                               )}
                               <button className="btn sm" style={{width:"auto"}}
-                                disabled={!decision?.award || decision?.award==="Pending"}
-                                onClick={() => saveFinalDecision(p.id, decision?.award||"Pending", decision?.adminNotes||"")}>
-                                {decision?.finalized ? "✓ Saved" : "Save Award"}
+                                disabled={!awardDirty}
+                                onClick={async () => {
+                                  if (await saveFinalDecision(p.id, awardDraft, decision?.adminNotes || ""))
+                                    setAwardDrafts(prev => { const n = { ...prev }; delete n[p.id]; return n; });
+                                }}>
+                                {awardDirty ? (awardDraft === "Pending" ? "Save (remove award)" : "Save Award") : decision?.finalized ? "✓ Saved" : "No award saved"}
                               </button>
+                              {awardDirty && <div style={{flexBasis:"100%",fontSize:".72rem",color:"var(--amber)"}}>Not saved yet — press Save. Until then nothing changes.</div>}
                             </div>
                           </div>
                         </div>

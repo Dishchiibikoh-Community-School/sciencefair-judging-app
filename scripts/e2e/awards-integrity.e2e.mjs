@@ -1,6 +1,7 @@
 // Browser E2E — award integrity fixes (FIXES_2026-11.md F7).
 //   F7a  a project given Honorable Mention / Best in Category / No Award is out of the running for
 //        1st–3rd (the medal passes on), and "Confirm" never overwrites those awards.
+//   F7b  the Validation award dropdown changes nothing until Save; choosing Pending can be saved.
 // Run: see scan.e2e.mjs header (dev server on :5199 with mock Supabase env).
 import { chromium } from "playwright-core";
 import assert from "node:assert/strict";
@@ -23,6 +24,11 @@ const P = [
   ["e2", "102", "Paper Planes",   DEPTS.D_ELEM, 30],
   ["e3", "103", "Rain Gauge",     DEPTS.D_ELEM, 20],
   ["e4", "104", "Shadow Clock",   DEPTS.D_ELEM, 10],
+  // Middle School: a tie for 2nd (80 / 80) — used by F7b and F7c.
+  ["m1", "201", "Algae Lamps",    DEPTS.D_MID,  90],
+  ["m2", "202", "Bee Counts",     DEPTS.D_MID,  80],
+  ["m3", "203", "Cell Shapes",    DEPTS.D_MID,  80],
+  ["m4", "204", "Dye Fading",     DEPTS.D_MID,  10],
   ["h1", "301", "Hydro Cells",    DEPTS.D_HIGH, 50],
   ["h2", "302", "Ion Traps",      DEPTS.D_HIGH, 40],
   ["h3", "303", "Jet Nozzles",    DEPTS.D_HIGH, 30],
@@ -79,6 +85,39 @@ await check("…or a saved Honorable Mention", async () => assert.equal(award("h
 await check("…and confirms the places from the next projects", async () =>
   assert.deepEqual(["e2", "e3", "e4", "h2", "h3", "h4"].map(award),
     ["1st Place", "2nd Place", "3rd Place", "1st Place", "2nd Place", "3rd Place"]));
+
+console.log("\n── F7b: the award dropdown saves before anything changes; Pending can be saved");
+await tab("Validation");
+await page.getByRole("button", { name: "Open Manually" }).click();
+const delib = (title) => page.locator(".card > div", { hasText: title }).filter({ has: page.locator("select.delib-rec-select") }).last();
+await delib("Algae Lamps").locator("select.delib-rec-select").selectOption("1st Place");
+await delib("Algae Lamps").getByRole("button", { name: "Save Award" }).click();
+await page.waitForTimeout(500);
+await check("a place award saves as before", async () => assert.equal(award("m1"), "1st Place"));
+await delib("Algae Lamps").locator("select.delib-rec-select").selectOption("Pending");
+await check("choosing Pending says it is NOT saved yet (nothing has changed)", async () => {
+  await delib("Algae Lamps").getByText(/Not saved yet/).waitFor({ timeout: 3000 });
+  assert.equal(award("m1"), "1st Place");
+});
+await check("…and Pending CAN be saved — it is how a saved award is taken back", async () => {
+  const btn = delib("Algae Lamps").getByRole("button", { name: /Save \(remove award\)/ });
+  assert.equal(await btn.isDisabled(), false);
+  await btn.click();
+  await page.waitForTimeout(500);
+  const row = store.final_decisions.find(d => d.project_id === "m1");
+  assert.equal(row.award, "Pending"); assert.equal(row.finalized, false);
+});
+await check("after saving, the dropdown shows the saved value with no 'not saved' note", async () => {
+  assert.equal(await delib("Algae Lamps").locator("select.delib-rec-select").inputValue(), "Pending");
+  assert.equal(await delib("Algae Lamps").getByText(/Not saved yet/).count(), 0);
+});
+await delib("Bee Counts").locator("select.delib-rec-select").selectOption("2nd Place");
+await check("an unsaved dropdown change writes nothing", async () => {
+  await page.waitForTimeout(400);
+  assert.equal(award("m2"), undefined);
+});
+await delib("Bee Counts").locator("select.delib-rec-select").selectOption("Pending");   // back to the saved value
+await page.getByRole("button", { name: "Close Deliberation" }).click().catch(() => {});
 
 await browser.close();
 console.log(`\n${pass} passed, ${failures.length} failed`);
