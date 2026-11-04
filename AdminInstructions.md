@@ -648,8 +648,12 @@ never stop the results). The box above the button says what is still missing.
 
 1. Approve the results yourself
 2. Resolve any concerns (see Step 2) and close deliberation if it was opened
-3. Click **"Finalize Results"**
+3. Click **"Finalize Results"** — this also **locks judging** (reopening does not unlock it)
 4. Share tab becomes enabled
+
+A score a tablet scored offline still arrives after Finalize; IT Logs then shows
+**SCORE_SYNCED_AFTER_FINALIZE** — re-check that group's awards. Finalize is also unavailable while a
+**tie still decides a place** (see Awards).
 
 ---
 
@@ -1309,7 +1313,8 @@ The text above the Finalize button names what is missing:
 - "You must approve the results" — approve on the Validation tab
 - "Close deliberation before finalizing" — close it first
 - "JudgeN raised a concern" — the judge presses Revise my validation and approves, or you press
-  **Clear concern** next to their name
+  **Clear concern** next to their name (shown for every judge with a concern, finished or not)
+- "A tie still decides a place in …" — open Deliberation and save an award for the tied projects
 Judges who have not validated yet do not block Finalize.
 
 ---

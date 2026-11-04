@@ -549,7 +549,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-04h";
+const ADMIN_HELP_UPDATED = "2026-11-04i";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -720,7 +720,9 @@ const ADMIN_HELP = [
     ["A tablet says \"Can't reach the server\" or \"The scoring form could not be loaded\".", "\"Can't reach the server\" means the tablet is offline (or the server is not answering) and has never loaded your school before — it is NOT \"School Not Found\", and it retries on its own. A tablet that has loaded the school once opens normally even with no connection, showing the projects and scoring forms as it last saw them. \"The scoring form could not be loaded\" on a project means that department's rubric could not be fetched: check the Wi-Fi and press Try again. The app never swaps in a different form, because scores entered on the wrong form would be saved under the wrong criteria."],
     ["A judge says Submit is slow, or the screen says \"Your score was NOT saved\".", "On weak Wi-Fi Submit waits at most about 15 seconds; then the score is kept on the tablet and sent later, and the judge goes back to their list as normal. \"NOT saved\" appears only when neither the server nor the tablet could keep it (for example the tablet's storage is full). The answers are still on that screen — the judge should stay there, check the Wi-Fi and press Submit again. The IT log records it as SCORE_NOT_SAVED."],
     ["Can a judge change a score?", "Yes — open the project again and resubmit, until they validate their results or you lock judging."],
-    ["A judge validated too early.", "They can press Revise my validation until you finalize the results."],
+    ["A judge validated too early.", "They can press Revise my validation until you finalize the results. If a project is added to a judge AFTER they validated, their screen says so and shows Revise my validation, so they can score it and validate again."],
+    ["What does Finalize do to judging?", "Finalize also LOCKS judging, so no score can change after the results are final (reopening the results does not unlock it — unlock by hand if you need to). A score a tablet scored offline still reaches the server afterwards, and the IT log then shows SCORE_SYNCED_AFTER_FINALIZE so you can re-check that group's awards."],
+    ["Clear concern is missing for a judge.", "It now shows for every judge with an open concern, even one who has not finished scoring — so a concern can always be cleared."],
     ["A judge cannot see a project you just added.", "Make sure the project has their department. It appears automatically; if not, ask them to refresh the page."],
     ["A judge registered in the wrong department.", "With one judge list for the whole school (the default) this cannot happen — the number decides the department. If someone used the wrong NUMBER: Judges tab → Remove on that judge (Admin PIN), then they sign in with the right number. Removing deletes that judge's scores, so do it before they score. If that tablet still had scores it had not sent, they cannot be sent any more: the tablet keeps them, says so on its start page, and the IT log gets an UNSENT_SCORES_KEPT entry with the project ids and ratings."],
     ["Someone signed in who is not a judge / a test sign-in is in the list.", "Judges tab → Remove (Admin PIN). Their number is freed. No Reset needed."],
@@ -3745,6 +3747,18 @@ export default function App() {
           judgeId: queueJudgeId, alias: judge?.alias || null, queueLength: next.length });
     }
     const syncedCount = done.size;
+    // F8 (I2): scores scored offline still sync after Lock (rule 30) — but if the results are
+    // already FINALIZED they may change what was published, so the admin must hear about it.
+    // Asked of the SERVER: a tablet reopened after Finalize flushes at start-up, before its own
+    // settings have loaded, so the state alone would say "not finalized".
+    const flushSid = queue[0]?.data?.school_id;
+    const finalizedNow = syncedCount > 0 && flushSid && (resultsFinalized ||
+      (await supabase.from("app_settings").select("value").eq("school_id", flushSid).eq("key", "results_finalized")).data?.[0]?.value === "true");
+    if (finalizedNow) {
+      addItLog("WARN","SCORE","SCORE_SYNCED_AFTER_FINALIZE",
+        `${syncedCount} score(s) scored offline reached the server after results were finalized — check the awards`,
+        { synced: syncedCount, judgeId: queueJudgeId, alias: judge?.alias || null }, flushSid);
+    }
     if (syncedCount > 0) {
       const syncedAt = Date.now();
       setLastSyncAt(syncedAt);
@@ -6269,6 +6283,13 @@ export default function App() {
   function openConcerns() {
     return judges.filter(j => judgeValidations[j.id]?.approved === false);
   }
+  // Judges listed under "judge validations": everyone who finished, PLUS anyone with an open
+  // concern who has not (F8 / N5) — that concern blocks Finalize, and its Clear concern button
+  // used to be shown only for judges at 100%, so it could not be cleared at all.
+  function valListJudges() {
+    const done = completedJudges();
+    return [...done, ...openConcerns().filter(j => !done.some(c => c.id === j.id))];
+  }
   // Why Finalize is unavailable, or "" when it is allowed. Used by the button AND the handler.
   function finalizeBlocker() {
     if (!adminValidation?.approved) return "You must approve the results before finalizing.";
@@ -6529,6 +6550,13 @@ export default function App() {
       setView("judge-home");
       return;
     }
+    // F8 (SF-04): results already finalized — a score changed now would change published results.
+    if (resultsFinalized) {
+      addItLog("WARN","SCORE","SCORE_BLOCKED_FINALIZED","Score submission rejected — results are finalized",
+        { judgeId: judge?.id, alias: judge?.alias, projectId: scoringPid });
+      setView("judge-home");
+      return;
+    }
     if (judgeValidations[judge?.id]) {
       addItLog("WARN","SCORE","SCORE_BLOCKED_VALIDATED","Score submission rejected — judge already validated results",
         { judgeId: judge?.id, alias: judge?.alias, projectId: scoringPid });
@@ -6751,8 +6779,12 @@ export default function App() {
     if (blocker) { setDelibErr(`Results were NOT finalized — ${blocker}`); return; }
     const sid = currentSchool.id;
     const wasOpen = deliberationOpen;
+    const wasLocked = locked;
     const error = firstErr(await Promise.all([
       supabase.from("app_settings").upsert({ school_id: sid, key: "results_finalized", value: "true" }),
+      // F8 (SF-04): finalizing also locks judging — before, judges who had not validated could keep
+      // submitting and change the published results. Reopening does NOT unlock (do that by hand).
+      ...(wasLocked ? [] : [supabase.from("app_settings").upsert({ school_id: sid, key: "locked", value: "true" })]),
       ...(wasOpen ? [
         supabase.from("app_settings").upsert({ school_id: sid, key: "deliberation_open",  value: "false" }),
         supabase.from("app_settings").upsert({ school_id: sid, key: "deliberation_reason", value: "" }),
@@ -6764,6 +6796,7 @@ export default function App() {
       return;
     }
     setResultsFinalized(true);
+    if (!wasLocked) { setLocked(true); addLog("Judging locked (results finalized)"); }
     if (wasOpen) { setDeliberationOpen(false); setDeliberationReason(null); }
     addLog("Admin finalized results — public sharing now available");
     addItLog("INFO","ADMIN","RESULTS_FINALIZED","Admin finalized results for public sharing",{ timestamp:fmtISO(Date.now()) });
@@ -7788,14 +7821,17 @@ export default function App() {
     const myProj = projects.filter(p => judge.projects.includes(p.id))
       .sort((a, b) => deptOrd(a.department_id) - deptOrd(b.department_id) || String(a.num).localeCompare(String(b.num)));
     const done   = myProj.filter(p => hasScored(p.id)).length;
-    const pct    = Math.round((done / myProj.length) * 100);
+    // 0 projects: 0 %, never NaN (B4). allDone needs at least one project — a judge with nothing
+    // assigned used to see "All projects scored!" and the Approve buttons (F8).
+    const pct    = myProj.length ? Math.round((done / myProj.length) * 100) : 0;
+    const allDone = myProj.length > 0 && done === myProj.length;
     const drafts = readDrafts();   // unsubmitted work on this device (startScoring/editDraft)
     // Judging schedule (2026-10p): the judge's visits in round order, with the times.
     const myNum    = judgeNumOf(judge.alias);
     const mySched  = scheduleActive() && myNum ? scheduleFor(myNum).filter(s => projects.some(p => p.id === s.project_id)) : [];
     const useSched = mySched.length > 0;
     const nextVisit = useSched ? mySched.find(s => !hasScored(s.project_id)) : null;
-    const canScore = !locked && !judgeValidations[judge.id];
+    const canScore = !locked && !resultsFinalized && !judgeValidations[judge.id];
     const item = (proj, roundLabel) => {
       const scored = hasScored(proj.id);
       const ex = scores[`${judge.id}_${proj.id}`];
@@ -7893,7 +7929,13 @@ export default function App() {
               );
             })}
           </div>
-          {done === myProj.length && (
+          {myProj.length === 0 && (
+            <div className="scan-msg warn" data-testid="no-projects" style={{ marginTop:".85rem" }}>
+              No projects are assigned to you yet. Tell the coordinator your judge number — your list fills in
+              by itself once they assign you.
+            </div>
+          )}
+          {allDone && (
             <div className="all-done">
               <div style={{ fontSize:"2rem", marginBottom:".4rem" }}>🎉</div>
               <div style={{ fontWeight:600, marginBottom:".2rem" }}>All projects scored!</div>
@@ -7902,7 +7944,10 @@ export default function App() {
               </div>
             </div>
           )}
-          {done === myProj.length && (() => {
+          {/* F8 (SF-12): a judge who validated and THEN got a new project could neither score it
+              (validated) nor reach Revise (it only showed at 100%). The validated block now shows
+              whenever there is a validation. */}
+          {(allDone || judgeValidations[judge.id]) && (() => {
             const myVal = judgeValidations[judge.id];
             if (myVal) return (
               <div className="delib-section">
@@ -7913,6 +7958,12 @@ export default function App() {
                   {myVal.approved ? "✓ You approved the computed results" : "⚠ You flagged a concern"}
                 </div>
                 {myVal.comment && <div style={{fontSize:".82rem",color:"var(--dim)",marginTop:".5rem"}}>Your note: "{myVal.comment}"</div>}
+                {done < myProj.length && !resultsFinalized && (
+                  <div className="scan-msg warn" data-testid="new-after-validation" style={{marginTop:".75rem"}}>
+                    You have {myProj.length - done} project{myProj.length - done !== 1 ? "s" : ""} to score that {myProj.length - done !== 1 ? "were" : "was"} added after you validated.
+                    Press <b>Revise my validation</b> to score {myProj.length - done !== 1 ? "them" : "it"}, then validate again.
+                  </div>
+                )}
                 {valReviseErr && <div className="err" style={{marginTop:".75rem"}}>⚠ {valReviseErr}</div>}
                 <button className="btn sec sm" style={{marginTop:"1rem",width:"auto"}} onClick={async () => {
                   // Delete in the database FIRST and only unlock on screen if a row was really
@@ -11075,9 +11126,9 @@ export default function App() {
                     <div className="val-stat-pill red">{vp.flagged} Concerned</div>
                     <div className="val-stat-pill dim">{vp.pending} Pending</div>
                   </div>
-                  {completedJudges().length === 0
+                  {valListJudges().length === 0
                     ? <div style={{fontSize:".82rem",color:"var(--dim)"}}>No judges have completed scoring yet.</div>
-                    : completedJudges().map(j => {
+                    : valListJudges().map(j => {
                         const v = judgeValidations[j.id];
                         return (
                           <div key={j.id} style={{display:"flex",alignItems:"center",gap:".75rem",padding:".5rem 0",borderBottom:"1px solid var(--bd)"}}>

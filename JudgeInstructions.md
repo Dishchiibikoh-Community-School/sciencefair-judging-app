@@ -254,6 +254,9 @@ organizer can still award it.
 - Admin may open deliberation if ties exist or concerns are raised
 - **A concern holds up the final results** until it is resolved. Once you and the admin have talked
   it through, press **Revise my validation** and approve (the admin can also clear it)
+- If a project is **added to your list after you validated**, your screen says so: press
+  **Revise my validation**, score it, and validate again
+- If your screen says **"No projects are assigned to you yet"**, tell the coordinator your number
 - If the admin resets the event (e.g. after a practice round), your device signs you out the next
   time you open the app — just sign in again with your number and the invite code
 
