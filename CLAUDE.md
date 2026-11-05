@@ -3,7 +3,7 @@
 > Single source of truth for AI-assisted development. Read it before changing anything.
 > Do not delete it. When code and this file disagree, the code wins — then fix this file.
 >
-> Last reviewed: 2026-11-04 (pre-event audit fixes F1–F17, deployed `a88bb98` with migrations 2026-11a/11b run on live — every fix, test and revert hash in [FIXES_2026-11.md](FIXES_2026-11.md); migrations 2026-11a/11b; earlier: 2026-10-21 Phase 3: award groups + the Awards tab; the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
+> Last reviewed: 2026-11-05 (illustrated guides: the judge's "❓ How to judge" screen, the admin Help tab's step-by-step + judge guide + searchable Q&A, screenshots by `npm run help:shots`, help text corrected against the code — rule 84; before that 2026-11-04: pre-event audit fixes F1–F17, deployed `a88bb98` with migrations 2026-11a/11b run on live — every fix, test and revert hash in [FIXES_2026-11.md](FIXES_2026-11.md); migrations 2026-11a/11b; earlier: 2026-10-21 Phase 3: award groups + the Awards tab; the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
 
 ---
 
@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (311 checks). Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`), the 2026-27 forms + drafts + safety (`rubrics-2627.e2e.mjs`), the judging schedule (`schedule.e2e.mjs`), the PreK & SPED form (`prek-sped.e2e.mjs`), awards (`awards.e2e.mjs`). Start the dev server first (see the file header). 2026-11 added save-robust, offline-start, realtime-reconnect (a fake realtime server via `page.routeWebSocket`), awards-integrity, finalize-gates, signin-guard, share-links, admin-actions, judge-ux, judge-identity. **625 checks across 34 files** (2026-11-04) |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`), the 2026-27 forms + drafts + safety (`rubrics-2627.e2e.mjs`), the judging schedule (`schedule.e2e.mjs`), the PreK & SPED form (`prek-sped.e2e.mjs`), awards (`awards.e2e.mjs`). Start the dev server first (see the file header). 2026-11 added save-robust, offline-start, realtime-reconnect (a fake realtime server via `page.routeWebSocket`), awards-integrity, finalize-gates, signin-guard, share-links, admin-actions, judge-ux, judge-identity; 2026-11-05 help-guide (the illustrated guides). **647 checks across 35 files** (2026-11-05). `npm run help:shots` (same dev server) re-takes the guide screenshots — not a test |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -111,7 +111,8 @@ The v1 Vercel project was deleted 2026-09-30. **Do not resurrect v1.**
 │   ├── registration-migration.sql ← historical
 │   └── schema.sql               ← v1 schema — historical, do not apply
 ├── public/                      ← favicon.svg + icons/ (the Qritiko mark: favicon, PWA, apple-touch — never a school's logo),
-│                                  branding/dishchiibikoh-logo.png (one school's bundled logo, see 🎨), icons.svg (unused Vite leftover)
+│                                  branding/dishchiibikoh-logo.png (one school's bundled logo, see 🎨), icons.svg (unused Vite leftover),
+│                                  help/*.webp (the guides' screenshots — made by scripts/e2e/help-shots.mjs, rule 84)
 ├── graphify-out/                ← knowledge graph (GRAPH_REPORT.md, graph.json)
 ├── index.html                   ← PWA meta tags
 ├── vite.config.js               ← Vite + vite-plugin-pwa
@@ -191,6 +192,10 @@ files, no Tailwind, no CSS modules.
 | `public-register` | Student self-registration — via `?register=<token>` (initial view only) |
 | `public-projects` | Public project list — via `?projects=<token>` (initial view only). ⚠️ No UI generates this token |
 
+**Not a view: the judge's "❓ How to judge" screen** (2026-11-05). `judgeHelp` state; `judgeHelpEl` is a fixed
+overlay rendered INSIDE `judge-register` and `judge-home` (never `judge-scoring`), so the view underneath stays
+mounted — a typed judge number survives opening the guide. Content: `JUDGE_GUIDE` + `JUDGE_FAQ`.
+
 ### Admin tabs (`adminTab` state)
 
 | `adminTab` | Content |
@@ -208,7 +213,7 @@ files, no Tailwind, no CSS modules.
 | `export` | Per-judge CSV + score backups |
 | `rubric` | Edit criteria / max / steps / order; save to `rubrics`; reset to default |
 | `itlogs` | IT diagnostic terminal + Reset All Data (PIN-gated). Level + time-window filters (`itRange`), build stamp, report hides the share token. **No clear button** — the log is permanent |
-| `help` | **Help & FAQ** — how the system works, before-event checklist, do's / don'ts, data safety, scanning, judges, troubleshooting. Content = `ADMIN_HELP` constant (top of the JSX) |
+| `help` | **Help & FAQ** — three views (`helpView`): **📘 Admin step-by-step** (`ADMIN_GUIDE`, 11 pictured steps, 🖨 print), **🧑‍⚖️ Judge guide** (`JUDGE_GUIDE` + `JUDGE_FAQ` — what judges see — 🖨 print for the briefing), **❓ Questions & answers** (`ADMIN_HELP` with a word-start search box, `helpQuery`). All constants at the top of the JSX |
 
 ### AnimatedBackdrop
 **Disabled** — the render path is hardcoded to `const backdrop = null;` for tablet input
@@ -477,7 +482,8 @@ with their real average, and the medals pass to the next projects that do qualif
 
 ## 💾 Offline & PWA
 
-- `vite-plugin-pwa` precaches the app shell (JS, CSS, HTML, fonts).
+- `vite-plugin-pwa` precaches the app shell (JS, CSS, HTML, fonts) and `help/judge-*.webp` (the judge guide works offline,
+  ~0.3 MB). The admin guide's pictures (`help/admin-*`) load on demand.
 - On mount the judge session and scores restore instantly from `localStorage`, then are
   verified against Supabase (a judge removed by reset is sent back to landing). "Removed" needs a
   SUCCESSFUL judges read (`judgesLoadedRef`): an empty list from a failed read keeps the session,
@@ -654,6 +660,7 @@ cards), then scan the same form in the app.
 - Projects: `.proj-mgmt-header`, `.proj-mgmt-table`, `.proj-act-btn`, `.proj-form` (the Add/Edit form — inline at the top of the tab, NOT an overlay; `projFormRef` scrolls it into view), `.proj-form-grid`, `.proj-lock-badge`
 - Banners/modals: `.offline-banner`, `.locked-banner`, `.modal-overlay`/`.modal-box`, `.pin-gate`, `.it-term`
 - Onboarding: `.mkt-*` (homepage), `.setup-guide*` / `.setup-check*` / `.setup-share*` (admin "Get started" card)
+- Guides (2026-11-05): `.guide-step`, `.guide-phase`, `.guide-h`/`.guide-no`, `.guide-img`, `.guide-pts` + `.guide-mk` (the red numbers — same #e11d48 as the screenshot markers), `.guide-tip`, `.guide-overlay` / `.guide-bar` (judge screen), `.help-link` (the ❓ button), `.help-tabs`, `.help-tools`, `.help-search`
 - Setup tab: `.setup-rows`, `.setup-row`, `.setup-ord`, `.setup-main`, `.setup-name`, `.setup-meta`, `.setup-acts`, `.setup-maxj`, `.setup-edit`, `.setup-code-in`, `.setup-add`, `.setup-presets`, `.setup-preset-grid`, `.setup-preset`, `.setup-mode`
 - Comment-only departments: `.fb-banner`, `.fb-chips`, `.fb-chip` (`.selected`)
 
@@ -775,6 +782,12 @@ rubricSettings(criteria)     // module: the matching preset's settings (guide, f
 ratingOf(settings, v)        // module: points → the rating the judge tapped (v / factor); display only
 queuedScoresFor(sid)         // module helper: this device's unsynced scores for one school as score-map
                              // entries. loadScores() overlays them — the queued value always wins
+
+// Illustrated guides (2026-11-05, rule 84) — module level
+JUDGE_GUIDE, JUDGE_FAQ, ADMIN_GUIDE   // [{ phase?, img, title, intro?, points[], tip? }] — points[i] ↔ red marker i+1 in public/help/<img>.webp
+<GuideSteps steps idPrefix/>  // renders one guide (module component, never inside App — rule 37)
+guidePrintHtml(title, sub, steps, faq, origin)   // printable page (escHtml everywhere, absolute image URLs)
+printGuide("judge"|"admin")  // App: opens it in a new window (Help tab buttons)
 
 // Admin / security
 verifyAdminPin(pin)          // verify_school_pin RPC → boolean
@@ -909,7 +922,7 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 55. **Only show a saved state after the save succeeded** (judging lock: upsert, check `error`, then `setLocked`).
 
 **Keeping users informed**
-56. **Every user-visible change updates the help in the SAME commit:** the `ADMIN_HELP` constant (bump `ADMIN_HELP_UPDATED`), `AdminInstructions.md`, and `JudgeInstructions.md` if judges are affected. A feature, a new rule, a changed button label, a new limit or a new failure message all count. Admins rely on the in-app Help tab — a stale answer there is a bug.
+56. **Every user-visible change updates the help in the SAME commit:** the `ADMIN_HELP` constant (bump `ADMIN_HELP_UPDATED`), `AdminInstructions.md`, and `JudgeInstructions.md` if judges are affected — and `JUDGE_GUIDE` / `JUDGE_FAQ` / `ADMIN_GUIDE` plus their screenshots when a pictured screen changes (rule 84). A feature, a new rule, a changed button label, a new limit or a new failure message all count. Admins rely on the in-app Help tab — a stale answer there is a bug.
 57. **Never delete data a user can't get back without saying so first.** Judge sign-out must not clear `sf_offline_queue` (it did until 2026-10-05); deleting a scored project, Reset and rubric changes all warn first.
 58. **Rubric changes go through `requestSaveRubric()`** — it validates, and when scores exist and criteria / points change it shows the impact (removed / added / changed) and offers a backup before `saveRubric()`. `saveRubric()` reports failure (`rubricErr`) and keeps the editor open.
 
@@ -1054,6 +1067,15 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
     flagged `SCORE_SYNCED_AFTER_FINALIZE` (asked of the server, not state). The public page shows "Results are
     being updated" while results are reopened; Regenerate / Revoke act on EVERY live link.
 
+**Illustrated guides (2026-11-05)**
+84. **The guide pictures are real screenshots, made by `npm run help:shots`** (`scripts/e2e/help-shots.mjs`: the app on
+    the mocked backend, a made-up "Sample School", no real names) into `public/help/*.webp`. Change a screen that a
+    guide shows → re-run it (dev server on :5199, ~2 min), LOOK at the changed pictures, and check that each red
+    number still matches its line in `JUDGE_GUIDE` / `ADMIN_GUIDE` (the markers are placed by the script; the text lives
+    in the JSX — keep both in step). Never put real student or judge data in a screenshot, never hand-edit a picture.
+    The judge guide must stay reachable offline (precached) and must never appear on the scoring screen. Guide
+    text is plain strings, like `ADMIN_HELP`; the print page escapes everything (`guidePrintHtml`).
+
 **SQL that must survive its own rejection**
 66. **A `RAISE` throws away everything the function wrote, including the rate-limit counter.**
     PostgREST runs each RPC in one transaction, so `note_auth_failure()` followed by `RAISE` records
@@ -1123,6 +1145,39 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-11-05 — Illustrated guides; help checked against the code** (no migration; rule 84).
+The organiser asked for a step-by-step tutorial with pictures for judges and admins: there was none, and judges
+had **no help in the app at all** (Help & FAQ is admin-only; JudgeInstructions.md was linked nowhere).
+- **Judges:** a **❓ How to judge** button on the sign-in screen and above the project list opens a 9-step guide
+  with pictures of the real screens + 15 quick answers ("Too many attempts", "not sent yet", NOT saved,
+  Allow Transfer, Can't reach the server…). It covers the view (which stays mounted — a typed number survives),
+  works offline (judge pictures precached), and is never on the scoring screen.
+- **Admins:** Help & FAQ now opens on an 11-step **event-day walkthrough** (before / on / after judging day),
+  shows the **judge guide** with a 🖨 print button for the briefing (no student names), and the **Q&A** got a
+  search box (every word must start a word: "tie" finds ties/tied, not "properties").
+- **Screenshots:** `scripts/e2e/help-shots.mjs` drives the real app on the mock (a made-up school shaped like the
+  2026-27 fair: 5 departments on the 2026-27 forms, a timed schedule, a fake realtime server so boards say Live)
+  and writes 20 WebP files (~0.8 MB) with numbered red markers. PNG→WebP happens in the browser (canvas), so no
+  image library was added.
+- **Help checked against the code** (a read-only audit of ADMIN_HELP + both guides): the invite lockout was still
+  described as "5 wrong codes lock the whole school" in 5 places (11b made it per tablet, 30 per school); a judge
+  message the help quoted ("This device is not signed in as that judge") never appears on screen; signing in
+  again needs Allow Transfer; deliberation never opens by itself; Reset All Data is in the sidebar, not IT Logs;
+  late projects reach nobody under a schedule; PIN lockout re-locks on every wrong try until the right PIN; plus
+  changelog wording ("now", "no longer", decision dates) and 42-point framing replaced with the 2026-27 forms.
+  JudgeInstructions.md rewritten around the pictures (its FAQ had a paragraph cut in half).
+- **App fixes found on the way:** the five sign-up / Change-PIN boxes stripped the letter **D** instead of
+  non-digits (`/D/g` → `/D/g` — rule 51 again; CLAUDE.md claimed it fixed on 2026-10-06, it was fixed only in the
+  other five PIN boxes); the transfer and IT Logs prompts said "IT PIN" (now "Admin PIN"); the deliberation card
+  said "Triggered automatically on ties" (false); the sign-in subtitle said "judge name" in number mode; the
+  scoring card said "Room" where the list says "Booth"; Score Export described the old 42-point columns.
+Tests: new `scripts/e2e/help-guide.e2e.mjs` (22: every pictured file exists and is served as WebP, precache entry,
+both judge entry points, 9 steps whose pictures load, the typed number survives, no button on the scoring screen,
+Booth, the admin guide's 11 steps in 3 phases, both printouts (no names, absolute image URLs), search narrowing /
+no match / word-start / special characters, the per-tablet lockout answer, the deliberation and Admin PIN texts,
+the digits-only PIN box). **Mutation-tested:** the old `/D/g` filter → the PIN check fails. judge-reg (Room → Booth) and
+lifecycle (Q&A is now a tab) updated. Lint 28/5 unchanged; build clean.
 
 **2026-11-04 — Pre-event audit: two audits reconciled, 17 fixes** (migrations `2026-11a` **coupled**, `2026-11b`).
 Merged to `main` and **deployed 2026-11-04** (`a88bb98`). Every fix has its own commit, a new test that fails on the old
@@ -2116,6 +2171,16 @@ send student names or scores; log counts, not question text. Its answers are onl
 text — keep rule 56.
 
 ### Known gaps (not yet fixed)
+
+- **A judge whose tablet's key is no longer valid is not told so directly** (found 2026-11-05). The SQL refuses
+  with "This device is not signed in as that judge", but a refused score is queued and the judge sees only
+  "⏳ … not sent yet", then "The server has not accepted one of them after several tries … tell the coordinator".
+  The help now describes exactly that. Showing the reason (and an "ask for Allow Transfer" hint) would be clearer.
+- **Pressing Admin right after a reload can open the login form although the admin is still signed in** — the
+  session is restored a moment after the landing page renders. Signing in again works; seen while scripting the
+  screenshots, not reported by a user.
+- **The guide screenshots are a snapshot.** Nothing fails when a pictured screen changes — re-run
+  `npm run help:shots` and look (rule 84). help-guide.e2e only proves the files exist and load.
 
 - **NEXT is the first UNSCORED visit, not the clock** (2026-10p). A judge who skips a round still sees the
   skipped project as NEXT; nothing reads the time of day (rules 37 / 71: no `Date.now()` in render). The
