@@ -3,7 +3,7 @@
 > Single source of truth for AI-assisted development. Read it before changing anything.
 > Do not delete it. When code and this file disagree, the code wins — then fix this file.
 >
-> Last reviewed: 2026-11-04 (pre-event audit fixes F1–F17 on branch `fix/pre-event-audit-2026-11` — every fix, test and revert hash in [FIXES_2026-11.md](FIXES_2026-11.md); migrations 2026-11a/11b; earlier: 2026-10-21 Phase 3: award groups + the Awards tab; the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
+> Last reviewed: 2026-11-04 (pre-event audit fixes F1–F17, deployed `a88bb98` with migrations 2026-11a/11b run on live — every fix, test and revert hash in [FIXES_2026-11.md](FIXES_2026-11.md); migrations 2026-11a/11b; earlier: 2026-10-21 Phase 3: award groups + the Awards tab; the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
 
 ---
 
@@ -1125,7 +1125,7 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 Full detail is in the git log for each commit.
 
 **2026-11-04 — Pre-event audit: two audits reconciled, 17 fixes** (migrations `2026-11a` **coupled**, `2026-11b`).
-Branch `fix/pre-event-audit-2026-11`, NOT pushed. Every fix has its own commit, a new test that fails on the old
+Merged to `main` and **deployed 2026-11-04** (`a88bb98`). Every fix has its own commit, a new test that fails on the old
 code, and a section in **[FIXES_2026-11.md](FIXES_2026-11.md)** (problem, change, tests, what to check if it goes
 wrong, revert hash) — read that, not this summary, when debugging. Critical: F1 (anyone with the anon key could
 overwrite any judge's score → per-judge secret + checked SQL writes). High: F2 save timeout / never lose a draft;
@@ -1134,7 +1134,8 @@ after reconnect; F6 sign-in double-tap + per-device invite lockout; F7a–d awar
 no Finalize over a tie); F8 Finalize locks, validation/concern gates. Medium: F10 share links, F11 admin false
 success, F13 judge UX, F15 IT-log privacy, F17 error boundary. Plus a start-up race (a judge opening a project in
 the first second was bounced back). Tests: DB 271 → 311; browser 526 / 24 files → **625 / 34 files, 0 failures**. Lint 28/5 throughout.
-**The organiser must deploy the app, THEN run 11a and 11b** — see FIXES_2026-11.md → Your steps.
+**SQL 11a and 11b were run on live and verified 2026-11-04** (anonymous probes; 0 judges at the time). The organiser's
+remaining steps (dry-run sign-in, backups, device check) are in FIXES_2026-11.md → Your steps.
 
 **2026-11-03 — Second revised entry sheet applied; a flaky import check fixed** (no migration).
 The organiser sent a new "Approved Entry Forms" sheet. **14 of 63 projects changed** — far more than
