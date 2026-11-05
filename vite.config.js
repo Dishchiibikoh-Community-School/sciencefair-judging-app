@@ -33,7 +33,9 @@ export default defineConfig({
       },
       workbox: {
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MiB — the app bundle; images are small now
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // help/judge-*.webp: the judge's "How to judge" pictures, so the guide works offline on a
+        // tablet. The admin guide's pictures (help/admin-*) load on demand instead (~0.5 MB saved).
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}', 'help/judge-*.webp'],
         runtimeCaching: [
           // Schools' uploaded logos / posters (Supabase Storage). Every upload gets a NEW file name,
           // so a cached copy is never stale — CacheFirst is safe and keeps the landing page

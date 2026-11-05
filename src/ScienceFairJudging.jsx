@@ -590,7 +590,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-04n";
+const ADMIN_HELP_UPDATED = "2026-11-05";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -598,29 +598,30 @@ const ADMIN_HELP = [
     "The flow: set up → add projects → judges sign in → judges score → judges validate → (deliberation if there is a tie) → you confirm the places on the Awards tab → you finalize → you share the results link and print the awards list.",
     "Each judge number covers one or more departments (Setup → Judges). A judge scores the projects of those departments only — all of them, or an even share when a department is set to 'N judges per project'.",
     "A department can be set to 'Comments only' (Setup tab) — judges there give a commendation instead of scores, nothing is ranked, and everyone is shown as a winner. Everything below about scores, ties and leaderboards applies only to scored departments.",
-    "Totals are always calculated with the CURRENT rubric. On the 42-point rubric, grades below 5 skip the Abstract criterion and grades 5 and up cannot be given a 0; the 100-point rubric has neither rule (its lowest possible total is 20).",
+    "Totals are always calculated with the CURRENT form (rubric). The 2026-27 forms are out of 100 (K-5, 6-8, 9-12) and 20 (PreK & SPED); they rate 1–5 with no zero, so the lowest possible total is 20 of 100 (4 of 20). Only the older 42-point rubric has special rules (grades below 5 skip Abstract; grades 5 and up cannot get a 0).",
+    "Step-by-step pictures: Help → 📘 Admin step-by-step for you, and 🧑‍⚖️ Judge guide — the same guide judges open with ❓ How to judge on their tablets (print it for the briefing).",
     "Score outliers in the Alerts tab are judges more than about a fifth of a project's total away from its average — so the alert means the same thing on a 42-point and a 100-point rubric.",
     "Rankings, ties and the public results are per department — projects in different departments never compete.",
     "Student names are visible only to signed-in admins of your school. Judges and the public results page never see them.",
   ]},
   { title: "Before the event — checklist", icon: "✅", items: [
-    "Remember your Admin PIN (4–8 digits). It cannot be recovered, only changed (Overview → Admin PIN). 5 wrong tries lock PIN entry for 5 minutes.",
+    "Remember your Admin PIN (4–8 digits). It cannot be recovered, only changed (Overview → Admin PIN). 5 wrong tries lock PIN entry for 5 minutes, and after that each further wrong try locks it again until the right PIN is entered.",
     "Setup tab: set your departments first — add, rename or reorder them, or start from a preset (school levels, PreK–12 grade bands, grade bands + SPED, or PreK · K-5 · 6-8 · 9-12 · SPED).",
     "Setup tab → Judges: tick the departments each judge number covers (one judge can cover several departments; a department can use any numbers, e.g. 1, 2, 5, 8). Judges type only their number and the invite code. Add a private name per number if you like — only admins see it.",
-    "Big department? Under its column choose '3 judges per project' — each project is then scored by 3 judges and the app shares the projects out evenly, instead of every judge scoring every project.",
+    "Big department and no judging schedule? Under its column choose '3 judges per project' — each project is then scored by 3 judges and the app shares the projects out evenly, instead of every judge scoring every project. (With a schedule, the schedule decides.)",
     "Setup tab: check your project categories. They are yours alone — rename them, delete the ones you don't use, or add your own (a robotics fair can replace all six).",
     "Setup tab → School year: check it shows the right year (e.g. SY 2026-2027).",
     "Setup tab → Judges → Suggested setup: type how many judges are coming, press Apply, check the grid, Save judges. Watch the About column — nobody should be far above the others. (Skip this if you use a judging schedule — the schedule sets the grid.)",
     "Using a timed judging schedule? Setup → 📅 Judging schedule → ⬆ Import schedule (CSV) → check the review → Save schedule. Then import the booth numbers, print the judge sheets and the booth visit times, and do the dry run with it.",
-    "Setup tab → Minimum score to place: decide whether a weak project may still take 1st/2nd/3rd. Leave it at 0 for no rule — the 2026-27 fair uses 0 (decided 2026-10-21: the top three always place). Set it BEFORE judging and tell the judges.",
+    "Setup tab → Minimum score to place: decide whether a weak project may still take 1st/2nd/3rd. Leave it at 0 for no rule (the top three always place). Set it BEFORE judging and tell the judges.",
     "Setup tab → School branding: upload your school logo (and, if you like, your fair poster). Without a logo your pages show your school's initials.",
-    "Setup tab: set any department that should NOT be scored (PreK, K-2) to 'Comments only'. This cannot be changed once that department has scores.",
-    "Rubric tab + Setup: build your rubrics and pick one for each department (or Comments only) BEFORE the first judge signs in — a department's rubric locks once it has scores. The ready-made presets (Northeast AZ 42-point, Cibecue/ISEF-style 100-point, Detailed form — 20 items) are a starting point you can edit.",
-    "Projects tab: add every project (📷 Scan forms or + Add Project) and give each one a department — a project with no department is scored by nobody.",
+    "Setup → Departments: pick each department's form BEFORE the first judge scores — it locks once that department has scores. The 2026-27 forms are built in: Elementary form (K-5), Middle & High School form (6-8 and 9-12), PreK & SPED Recognition (PreK and SPED). Older presets are in the same list, and the Rubric tab edits any of them.",
+    "A department that should get comments instead of scores can be set to 'Comments only' (Setup tab) — also only before it has scores.",
+    "Projects tab: add every project (📷 Scan forms or + Add Project) and give each one a department — a project with no department is scored by nobody. With a judging schedule, add projects BEFORE you import it (a project missing from the schedule is visited by nobody).",
     "Lock (🔒) projects whose details are final, so they cannot be edited or deleted by accident.",
     "The day before: ⬇ Download Projects CSV and 🖨 Export Project List PDF (print one), and print a few blank paper score sheets in case the app is unavailable. See Data safety → 'What is the event-day backup plan?'.",
     "Dry run: on a spare tablet sign in as judge number 1, score one project, check it on Overview, then remove that judge on the Judges tab (or Reset All Data).",
-    "Give each judge: the school link, the invite code and their judge number — all three are on the Overview tab. They do not choose a department; their number decides it.",
+    "Give each judge: the school link, the invite code and their judge number — all three are on the Overview tab. They do not choose a department; their number decides it. Have them sign in at the briefing, and show them ❓ How to judge (or hand out the printed judge guide).",
   ]},
   { title: "Do", icon: "👍", items: [
     "Back up halfway through judging and again right after you lock judging: Score Export → 💾 Save Score Backup, then ⬇ CSV on that backup's row, and ⬇ Download Judge Scores CSV. The saved backup alone lives in the same database — the downloaded files are your real copy.",
@@ -634,7 +635,7 @@ const ADMIN_HELP = [
     "Don't change the rubric after judging starts. Removing or adding a criterion, or changing its points, changes every total and ranking. (Renaming or rewording is safe.) The app asks you to confirm and offers a backup first.",
     "Don't delete a project that has scores — its scores are deleted with it. Lock it instead.",
     "Don't use Reset All Data during the event. It removes all judges, scores, validations, awards and the share link (projects, departments and the rubric stay).",
-    "Don't post the invite code or the Admin PIN publicly. 5 wrong invite codes lock judge sign-in for 5 minutes for the whole school.",
+    "Don't post the invite code or the Admin PIN publicly. 5 wrong invite codes lock that tablet for 5 minutes, and 30 wrong codes across the school lock sign-in for everyone for 5 minutes.",
     "Don't share exports that contain student names (Projects CSV, Project List PDF, registrations) outside your staff.",
     "Don't open the app on any address other than qritiko.com.",
   ]},
@@ -642,7 +643,7 @@ const ADMIN_HELP = [
     ["What is a department?", "One judging pool. The judges whose numbers cover it score its projects (all of them, or an even share with 'N judges per project'). Results, ties and awards are worked out inside each department — projects in different departments never compete. Use whatever fits your fair: school levels, grade bands (PreK, K-2, 3-5, 6-8, 9-12), a SPED division, or a single pool."],
     ["How do I change my departments?", "Setup tab → Departments. Add one, ✏️ rename it, ↑↓ reorder, or 🗑 delete it. Or press a preset to add a whole set at once — a preset only ADDS what you don't have, it never deletes."],
     ["Why won't it let me delete a department?", "Because projects or judges are still in it. Deleting it would leave them unassigned, and an unassigned project is scored by nobody. Move them to another department first (Projects tab → edit → Department), then delete."],
-    ["Can a department be judged without scores?", "Yes. Setup tab → set that department to 'Comments only'. Judges there give a commendation (from a list, or in their own words) and an optional comment instead of the rubric. Nothing is scored, ranked or compared, and on the results page every project in it is shown as a winner. Since 2026-10-21 PreK and SPED are scored on the PreK & SPED form instead (see The rubric), so this is now an option, not the plan."],
+    ["Can a department be judged without scores?", "Yes. Setup tab → set that department to 'Comments only'. Judges there give a commendation (from a list, or in their own words) and an optional comment instead of the rubric. Nothing is scored, ranked or compared, and on the results page every project in it is shown as a winner. (The 2026-27 fair scores PreK and SPED on the PreK & SPED Recognition form instead — see The rubric.)"],
     ["Can I change a department to Comments only after judging has started?", "No — the app blocks it. The scores already given would stop counting but stay in the database. Decide before the first judge signs in."],
     ["Is it safe to rename a department?", "Yes. Projects, judges and scores stay attached — only the label changes."],
     ["Can I use my own project categories?", "Yes. Setup tab → Project Categories. They belong to your school only; no other school sees your list. Add, rename, reorder or delete freely — a robotics fair can replace all six."],
@@ -654,7 +655,7 @@ const ADMIN_HELP = [
     ["I renamed a category — is my downloaded Projects CSV still good?", "Not as a restore. The file still holds the OLD category text, and ⬆ Import keeps a category it does not recognise exactly as written — so restoring that backup would put the old name back on those projects. Download a fresh ⬇ Projects CSV after any category rename, especially if you keep one as your event-day fallback."],
   ]},
   { title: "Project codes", icon: "🏷️", faq: [
-    ["What is a project code?", "A label for each project built from its department code, category code and number — e.g. PK-LS-001 for PreK · Life Science · project 001. Judges, results, printouts and every CSV show it."],
+    ["What is a project code?", "A label for each project built from its department code, category code and number — e.g. PK-LS-001 for PreK · Life, Health & Behavior (code LS) · project 001. Judges, results, printouts and every CSV show it."],
     ["Where do the codes come from?", "Setup → Departments and Project categories: each row's ✏️ edits its Code (e.g. PK, LS). Change a code and every project in it gets the new code straight away — nothing is stored per project."],
     ["Can we use our own format?", "Yes. Setup → Project codes. Combine {DEPT}, {CAT}, {NUM} and {GRADE} with your own text, e.g. SF26/{DEPT}/{NUM} → SF26/PK/001. The examples underneath update as you type. {NUM} is required so every code stays unique. Reset puts back {DEPT}-{CAT}-{NUM}."],
     ["It says some projects share a code.", "Two projects have the same number in the same department and category. Give one of them a new number on the Projects tab."],
@@ -666,12 +667,12 @@ const ADMIN_HELP = [
     ["We have no logo. What do visitors see?", "A circle with your school's initials. Never another school's logo."],
     ["How do I change or remove them?", "Replace logo / Replace poster picks a new image (the old one is deleted after the new one is saved). Remove asks first, then takes it off every page. Edit description changes only the poster's description. Removing cannot be undone — you would upload the image again."],
     ["Do I need to make the image small first?", "No. Big photos are shrunk in your browser before upload (logo to 512 px, poster to 1600 px). iPhone HEIC photos can't be used — take a screenshot or export as JPG first. SVG files are not accepted."],
-    ["It says 'NOT saved'.", "Nothing changed — your old logo/poster is still showing. Usually the connection dropped or your sign-in expired: sign in again on your school's own address and press Save again. If it says the migration is needed, the platform owner has to run migration 2026-10l."],
-    ["How do I change the school year (SY 2025-2026)?", "Setup → School year → ✏️ Change, type e.g. 2026-2027, Save. It appears on the registration form, the dashboard and the default title of your public results. Leave it empty to follow the calendar — a new school year starts in August. A results link you already created keeps the title it was made with; change the title on the Share tab and generate a new link."],
+    ["It says 'NOT saved'.", "Nothing changed — your old logo/poster is still showing. Usually the connection dropped or your sign-in expired: sign in again on your school's own address and press Save again. If it says a database update is needed, tell your technical contact (migration 2026-10l)."],
+    ["How do I change the school year?", "Setup → School year → ✏️ Change, type e.g. 2026-2027, Save. It appears on the registration form, the dashboard and the default title of your public results. Leave it empty to follow the calendar — a new school year starts in August. A results link you already created keeps the title it was made with; change the title on the Share tab and generate a new link."],
     ["Does it change the app icon on judges' tablets?", "No. The browser tab and installed-app icon are the Qritiko mark for every school — one address serves every school, so it can't be one school's logo."],
   ]},
   { title: "The rubric", icon: "📐", faq: [
-    ["Can departments use different rubrics?", "Yes. Each department picks its own in Setup → Departments (the dropdown on each row): one of 'Your rubrics', a built-in preset under 'Add from a preset' (picking it adds it to your rubrics and assigns it in one step), or 'Comments only'. Judges automatically get the rubric of the department each project is in — e.g. 3-5 on the 42-point sheet and 6-8 on the 100-point sheet."],
+    ["Can departments use different rubrics?", "Yes. Each department picks its own in Setup → Departments (the dropdown on each row): one of 'Your rubrics', a built-in preset under 'Add from a preset' (picking it adds it to your rubrics and assigns it in one step), or 'Comments only'. Judges automatically get the rubric of the department each project is in — e.g. K-5 on the Elementary form, 6-8 and 9-12 on the Middle & High School form, PreK and SPED on the PreK & SPED form."],
     ["Where are the 2026-27 evaluation forms?", "In each department's dropdown in Setup, under 'Add from a preset': 'Middle & High School form (2026-27)' (20 items, 100 points), 'Elementary form (2026-27)' (8 items, 40 × 2.5 = 100 points) and 'PreK & SPED Recognition (2026-27)' (4 criteria, 20 points). Picking one adds it to your rubrics and assigns it in one step; choose the same middle/high form for 6-8 and 9-12, and the PreK & SPED form for both PreK and SPED (switching a 'Comments only' department to it is allowed until it has scores). Set them BEFORE the first judge scores — a department's rubric locks once it has scores."],
     ["How does the elementary form get to 100?", "Exactly like the paper form: judges rate 8 items 1–5 (40 points) and the committee multiplies by 2.5. The app does the × 2.5 for you — each button shows the rating (1–5) with its points underneath (3 = 7.5 pts), and the total shows the working, e.g. 'Ratings 32 / 40 × 2.5 = 80 / 100'. Results, rankings and the minimum to place are all out of 100, like middle and high school. The judge-scores CSV has both the 'Total' (out of 100) and the 'Ratings' (out of 40)."],
     ["What are the elementary comment boxes and the safety question?", "The elementary form asks each judge for a Strength (what the student did well), a Next step (one helpful suggestion) and 'Safety / rule concern? No / Yes'. When a judge picks Yes, a red card appears at the top of Alerts straight away — project code, title, which judge and their comments — and the activity log records it. It clears when that judge re-submits the project with No. Comments are never shown to the public."],
@@ -683,7 +684,7 @@ const ADMIN_HELP = [
     ["Can I delete a rubric?", "Yes, if no department uses it and it is not the default. The Rubric tab shows 'Used by: …' for each one."],
     ["What do judges see on the scoring screen?", "The project code in large type (to match the booth sign), the scale for that form at the top (e.g. '1 = Needs Improvement … 5 = Excellent'), then one row of buttons per item. On the 2026-27 forms the buttons are the numbers 1–5, like circling on paper; the middle/high form shows its five section headings. The total adds itself up. Judges never do arithmetic."],
     ["A judge left the scoring screen before submitting — is it lost?", "No. Every tap is kept on that tablet until the score is submitted, even through a refresh or a restart. The project shows '✎ Draft — not submitted' in their list; opening it brings the answers back with a note, and 'Discard draft' starts over. A draft is never a score: it does not count and is not sent until the judge presses Submit."],
-    ["Why is the lowest score 20 and not 0?", "The paper form's scale starts at 1 (Needs improvement), so there is no zero to give. On both 100-point rubrics the lowest possible total is 20. That is expected, not a bug."],
+    ["Why is the lowest score 20 and not 0?", "The paper form's scale starts at 1 (Needs improvement), so there is no zero to give. On every 1–5 form the lowest possible total is 20 of 100 (4 of 20 on the PreK & SPED form). That is expected, not a bug."],
     ["What happens to scores already given if I edit a rubric?", "Totals are recalculated with the edited rubric for every department that uses it, so rankings change. The app shows exactly what changes and offers a backup before saving. Finish your rubrics before judging starts."],
   ]},
   { title: "Suggested judge setup", icon: "💡", faq: [
@@ -696,11 +697,13 @@ const ADMIN_HELP = [
   ]},
   { title: "Awards (1st, 2nd, 3rd)", icon: "🏅", faq: [
     ["Who competes with whom?", "By default everyone in a DEPARTMENT competes for its 1st, 2nd and 3rd. In Setup → Departments each scored department has a second dropdown, 'Places: per department / per category'. Per category gives every category inside that department its own 1st–3rd (e.g. 6-8 Life Science, 6-8 Chemistry …). Use it only where categories have enough projects — a category with one project would get an uncontested 1st."],
-    ["Do I have to type every award?", "No. The Awards tab shows every group with its top three already worked out from the scores. Check it and press '✓ Confirm these places', or '✓ Confirm all ready groups' to confirm every group that is fully scored and has no tie, in one go. Honorable Mention and Best in Category you still give in Validation → Deliberation. A project holds one award: once it has a saved Honorable Mention, Best in Category or No Award it is out of the running for 1st–3rd, and the place passes to the next project."],
+    ["Do I have to type every award?", "No. The Awards tab shows every group with its top three already worked out from the scores. Check it and press '✓ Confirm these places', or '✓ Confirm all ready groups' to confirm every group that is fully scored and has no tie, in one go. Honorable Mention and Best in Category you give in the Validation tab: press Open Manually (or Open Deliberation on a tie alert), choose the award beside the project and Save, then Close Deliberation — Finalize needs deliberation closed. A project holds one award: once it has a saved Honorable Mention, Best in Category or No Award it is out of the running for 1st–3rd, and the place passes to the next project."],
     ["What do the coloured labels mean?", "Not confirmed — nothing saved yet. ✓ Confirmed — saved and still what the scores say. Tie for 1st/2nd/3rd — two projects are level where it decides a place; decide it in Validation → Deliberation. ✓ Decided by hand — you gave the places yourself (e.g. after a tie). A tie counts as decided once all but one of the tied projects have an award you saved after the last score changed (the last one takes the place that is left). Only some places confirmed — you saved some places; press Confirm the remaining places. Scores changed since you confirmed — a judge re-scored after you confirmed; press Re-confirm, or decide by hand. 'N not scored yet' — some projects in the group have no score. 'N still waiting for reviews' — some projects have fewer reviews than they should get (their scheduled visits); the group is not ready until they are in. Groups that need you are listed first, and the Awards menu item shows how many."],
     ["What do the public results show — my awards or the scores?", "Your confirmed awards, once a group has any; until then the places worked out from the scores. That is how a tie you broke in deliberation reaches the podium. If you clear a group ('Clear confirmed places') it goes back to the computed places."],
-    ["Which ties raise the amber alert now?", "Only ties that decide a place: two projects level for 1st, 2nd or 3rd, or level across 3rd and 4th, in the same award group. A tie lower down decides nothing and no longer raises it. A tie you have already decided (all but one of the tied projects have an award saved after the last score change), and ties on the PreK & SPED form (they share the place), never do. Saving only some places does NOT decide a tie further down. Finalize stays unavailable while a tie still decides a place."],
+    ["Which ties raise the amber alert?", "Only ties that decide a place: two projects level for 1st, 2nd or 3rd, or level across 3rd and 4th, in the same award group. A tie lower down decides nothing and does not raise it. A tie you have already decided (all but one of the tied projects have an award saved after the last score change), and ties on the PreK & SPED form (they share the place), never do. Saving only some places does NOT decide a tie further down. Finalize stays unavailable while a tie still decides a place."],
     ["How do I get the list for the ceremony?", "Awards tab → '🖨 Print awards list' (or '⬇ Awards CSV'): every group with its places, any special award, every ribbon, the student names and the teacher. It includes names, so it is for you only — never post it. Groups you have not confirmed yet are marked 'computed, not confirmed yet'."],
+    ["How do I open deliberation?", "It never opens by itself. A tie that decides a place shows an amber 'Tie detected' alert in the Validation tab with an Open Deliberation button; Open Manually works any time. While it is open, judges see a 💬 Deliberation Notes section under their list (a recommendation, a comment, a flag), you see their notes per project and can give any award. Press Close Deliberation when you are done — Finalize needs it closed."],
+    ["Where do I choose places per department or per category?", "Setup → Departments: each scored department's row has a dropdown 'Places: per department' — beside the rubric dropdown. If you cannot see it, reload the page."],
     ["Can I change awards after I finalize?", "Not while results are finalized — the Awards tab becomes read-only. Reopen the results in the Validation tab, change them, and finalize again. While results are reopened, the public link shows \"Results are being updated\" (the same link works again once you finalize). To take a saved award back, choose Pending in its dropdown and press Save (remove award) — a dropdown change does nothing until it is saved."],
   ]},
   { title: "PreK & SPED: ribbons and shared places", icon: "🎀", faq: [
@@ -711,12 +714,12 @@ const ADMIN_HELP = [
   ]},
   { title: "Minimum score to place", icon: "🥉", faq: [
     ["What is it?", "Setup → Minimum score to place. A project must average at least this much of ITS OWN maximum to take 1st, 2nd or 3rd. Below it the project still appears in the results with its real score — it simply gets no medal and no spot on the podium. Set 0 to turn the rule off; that is how the app behaves if you never touch it."],
-    ["Why a percentage and not points?", "Because \"60 points\" does not mean the same thing twice. Your departments can use different rubrics (42 points, 100 points), and a project below grade 5 skips the Abstract criterion, so its maximum is 36 and not 42. A percentage means the same everywhere. The Setup card shows you what it works out to in points for each rubric you actually use."],
+    ["Why a percentage and not points?", "Because \"60 points\" does not mean the same thing twice. Your departments use forms with different totals (100 points, and 20 on the PreK & SPED form), and on the older 42-point rubric a project below grade 5 is out of 36. A percentage means the same everywhere. The Setup card shows you what it works out to in points for each rubric you actually use."],
     ["Does the project disappear from the results?", "No. It keeps its position in the ranked list with its real average and its review count. Only the medal is withheld. Nothing is hidden from families."],
     ["Who gets the medal instead?", "The next project down that DOES clear the minimum. The medals always go to the top three qualifying projects in that department — they are not left empty."],
     ["What if a project is exactly on the line?", "It places. 60% means \"60% or more\", so on a 100-point rubric a project averaging exactly 60.0 still takes its medal."],
     ["Does it stop me awarding a project anyway?", "No. The Validation tab still lets you give any award to any project — if you pick 1st, 2nd or 3rd for a project below the minimum it shows a warning with the numbers, and saves if you go ahead. Honorable Mention and Best in Category are never affected by this rule."],
-    ["What number should we use?", "Whatever your committee decides — the 2026-27 Dishchii'bikoh fair uses 0% (off: the top three always place; decided 2026-10-21 after first choosing 60%). If you do use one: on both 100-point rubrics that is 60 points, which is a straight \"Good\" (3 out of 5) across every section or item. It is also the exact middle of what a project can actually score: neither 100-point rubric has a zero, so the lowest possible total is 20, and 60 sits halfway between 20 and 100."],
+    ["What number should we use?", "Whatever your committee decides; 0% (off) means the top three always place. If you do use one, 60% is a natural choice: on a 100-point 1–5 form it is a straight \"Good\" (3 out of 5) on every item, and the exact middle of what a project can actually score (the lowest possible total is 20, so 60 sits halfway between 20 and 100)."],
     ["Where do I see which projects cannot place?", "Overview → the department leaderboard marks them \"no place\", and judges see \"below N%\" in their validation list so nobody reports it as a bug."],
     ["When should I set it?", "Before judging starts, and tell the judges. Changing it later does not alter a single score — it only changes who gets a medal — but changing it after you have announced winners is confusing."],
   ]},
@@ -754,18 +757,17 @@ const ADMIN_HELP = [
   ]},
   { title: "Judges", icon: "🧑‍⚖️", faq: [
     ["What does 'Judges signed in 0/15' on the Overview mean?", "Judges who have signed in so far / judge numbers in use (the numbers ticked in Setup → Judges). A judge ticked into several departments counts once. It goes up as judges sign in at the briefing."],
-    ["Where do I choose places per department or per category?", "Setup → Departments: each scored department's row has a dropdown 'Places: per department' — beside the rubric dropdown. If you cannot see it, reload the page (an open tab keeps the previous version until it is reloaded). See Help → Awards."],
-    ["A judge's tablet says \"This device is not signed in as that judge\".", "Each tablet that signs in gets its own key for that judge; the server only accepts that judge's scores from it. The message means this tablet's key is no longer valid — usually because the judge signed in on another tablet (a transfer), or signed in before the security update was installed. Judges tab → Allow Transfer on that judge (Admin PIN), then they sign in again on the tablet they will use. Scores already saved are kept."],
+    ["How do judges learn the app?", "On their tablet: ❓ How to judge, on the sign-in screen and above their project list — 9 steps with pictures of the real screens, plus quick answers for when something goes wrong. It works offline. Help → 🧑‍⚖️ Judge guide shows you the same and prints it for the briefing."],
+    ["A judge's tablet says the server has not accepted a score after several tries (Alerts: 'server refusing').", "The scores are safe on that tablet — tell the judge NOT to sign out or clear the browser. The usual cause: that judge number was signed in on another tablet since then. Each tablet that signs in gets its own key, and the server accepts a judge's scores only from the tablet that signed in last. Carry on judging on that tablet (or press Allow Transfer and sign in again), and send the IT Logs report (OFFLINE_SYNC_FAILED) to your technical contact so the stuck scores can be checked."],
     ["A judge's tablet died.", "Judges tab → Allow Transfer on that judge (Admin PIN). Within 10 minutes the judge signs in on the new device with the same judge number and invite code. Their scores are kept. From then on only the NEW tablet can save that judge's scores — the old one is switched off. If the box says \"The transfer was NOT approved\", nothing was saved — check the internet and press Approve transfer again."],
     ["Finalize is greyed out and says a judge raised a concern.", "A judge's concern blocks Finalize until it is resolved. Talk to that judge: they press Revise my validation and approve. If they have left, press Clear concern next to their name on the Validation tab — they go back to Pending (it is logged). A judge who simply has not validated yet does not block Finalize."],
-    ["A judge lost internet.", "Scores are kept on the device and sync automatically: when it reconnects, every 20 seconds while anything is waiting, and when the tablet wakes up (Sync Now still works too). The app will not let a judge sign out while scores are still only on the device. A score waiting to sync stays ticked as scored even if the page is refreshed — the judge should NOT score it again."],
+    ["A judge lost internet.", "Scores are kept on the device and sync automatically: when it reconnects, every 20 seconds while anything is waiting, and when the tablet wakes up (Sync Now still works too). The app will not let a judge sign out while scores are still only on the device. A score waiting to sync shows '⏳ … — not sent yet' and still counts as scored, even after a refresh — the judge should NOT score it again."],
     ["A tablet says \"Can't reach the server\" or \"The scoring form could not be loaded\".", "\"Can't reach the server\" means the tablet is offline (or the server is not answering) and has never loaded your school before — it is NOT \"School Not Found\", and it retries on its own. A tablet that has loaded the school once opens normally even with no connection, showing the projects and scoring forms as it last saw them. \"The scoring form could not be loaded\" on a project means that department's rubric could not be fetched: check the Wi-Fi and press Try again. The app never swaps in a different form, because scores entered on the wrong form would be saved under the wrong criteria."],
     ["A judge says Submit is slow, or the screen says \"Your score was NOT saved\".", "On weak Wi-Fi Submit waits at most about 15 seconds; then the score is kept on the tablet and sent later, and the judge goes back to their list as normal. \"NOT saved\" appears only when neither the server nor the tablet could keep it (for example the tablet's storage is full). The answers are still on that screen — the judge should stay there, check the Wi-Fi and press Submit again. The IT log records it as SCORE_NOT_SAVED."],
     ["Can a judge change a score?", "Yes — open the project again and resubmit, until they validate their results or you lock judging."],
     ["A judge validated too early.", "They can press Revise my validation until you finalize the results. If a project is added to a judge AFTER they validated, their screen says so and shows Revise my validation, so they can score it and validate again."],
     ["What does Finalize do to judging?", "Finalize also LOCKS judging, so no score can change after the results are final (reopening the results does not unlock it — unlock by hand if you need to). A score a tablet scored offline still reaches the server afterwards, and the IT log then shows SCORE_SYNCED_AFTER_FINALIZE so you can re-check that group's awards."],
-    ["Clear concern is missing for a judge.", "It now shows for every judge with an open concern, even one who has not finished scoring — so a concern can always be cleared."],
-    ["A judge cannot see a project you just added.", "Make sure the project has their department. It appears automatically; if not, ask them to refresh the page."],
+    ["A judge cannot see a project you just added.", "Make sure the project has their department. It appears automatically; if not, ask them to refresh the page. With a judging schedule a new project reaches nobody until you add it to the schedule file and import it again (Alerts lists it as not in the schedule)."],
     ["A judge registered in the wrong department.", "With one judge list for the whole school (the default) this cannot happen — the number decides the department. If someone used the wrong NUMBER: Judges tab → Remove on that judge (Admin PIN), then they sign in with the right number. Removing deletes that judge's scores, so do it before they score. If that tablet still had scores it had not sent, they cannot be sent any more: the tablet keeps them, says so on its start page, and the IT log gets an UNSENT_SCORES_KEPT entry with the project ids and ratings."],
     ["Someone signed in who is not a judge / a test sign-in is in the list.", "Judges tab → Remove (Admin PIN). Their number is freed. No Reset needed."],
     ["How many judge numbers can we have?", "Setup → Judges → Maximum judges: 15 by default, up to 90. The grid only shows numbers up to it. To lower it, first untick the higher numbers."],
@@ -774,21 +776,22 @@ const ADMIN_HELP = [
     ["What is the Name box in the judge grid?", "An optional private note of who has each number (e.g. 'Ms. Rabah'). Only your school's admins can see it — never judges, never the public."],
     ["Can I change the judge grid after judges signed in?", "You can tick MORE departments for a signed-in judge — their project list updates. You cannot untick one: Save is refused and names the judge, because they were told where to judge. Remove that judge on the Judges tab first if needed."],
     ["We have fewer judges than departments need. Can one judge cover several departments?", "Yes — tick that judge number in each department they cover. Their sign-in shows e.g. 'Judge 2 · PreK + K-5' and their list has a heading per department."],
-    ["A department has too many projects for every judge to score them all.", "Setup → Judges → under that department choose e.g. '3 judges per project'. Each project is then scored by 3 judges and the projects are shared out evenly (the Projects column shows each judge's load). A project added later gets its judges automatically. This cannot be changed once the department has scores."],
-    ["A judge did not come — their projects are missing reviews.", "Judges tab → the department's Panels card shows who has not signed in. Press Rebalance: their unscored projects move to the judges who are there. Scored work never moves."],
+    ["A department has too many projects for every judge to score them all.", "Setup → Judges → under that department choose e.g. '3 judges per project'. Each project is then scored by 3 judges and the projects are shared out evenly (the Projects column shows each judge's load). A project added later gets its judges automatically. This cannot be changed once the department has scores, and it is switched off while a judging schedule is in use (the schedule decides)."],
+    ["A judge did not come — their projects are missing reviews.", "With a judging schedule: give a stand-in that judge's number and the invite code (see Judging schedule). Without one: Judges tab → the department's Panels card shows who has not signed in; press Rebalance and their unscored projects move to the judges who are there. Scored work never moves."],
     ["Is '3 judges per project' fair if different projects get different judges?", "The app spreads the projects evenly so each judge sees a similar mix, and the Alerts tab still flags a judge far from a project's average. Every project in a department is still ranked on the same rubric."],
-    ["Judges keep getting \"Invalid invite code\".", "Check the code on the Overview tab and read it out — it is not case-sensitive. 5 wrong tries in a row lock sign-in for 5 minutes FOR THE WHOLE SCHOOL, so tell judges to confirm the code rather than guess. Wait 5 minutes if it happens. A double-tap on Enter as Judge no longer counts twice (the button says Checking… and ignores extra taps)."],
+    ["Judges keep getting \"Invalid invite code\".", "Check the code on the Overview tab and read it out — capitals do not matter. 5 wrong codes on one tablet lock that tablet for 5 minutes (it says 'Too many attempts. Try again in N seconds'); other tablets keep working. 30 wrong codes across the school lock sign-in for everyone for 5 minutes. So tell judges to ask for the code rather than guess. A double tap on Enter as Judge counts once (the button says Checking… meanwhile)."],
+    ["A judge gets \"…is already signed in. Ask the admin to approve a device transfer.\"", "That number is already signed in — on another tablet, or on this one earlier. If it really is that judge: Judges tab → Allow Transfer (Admin PIN), then they sign in again within 10 minutes. If someone typed the wrong number, have them use their own."],
     ["Can numbers restart in each department instead?", "Yes: Setup → Judges → 'Numbers restart in each department'. Each department then has its own Judge1, Judge2… and judges pick their department when signing in. Not recommended — the same name then means several people, and 'judges per project' does not apply."],
   ]},
   { title: "Troubleshooting", icon: "🛠️", faq: [
-    ["Nothing happens when I press Edit on a project.", "The form opens at the TOP of the Projects tab, above the list, and the page now scrolls to it for you — its heading names the project, e.g. \"Edit Project #046 — Local Cactus BioScaffold\". If the page does not move, you are on an older version still cached on the device: reload the page (or close and reopen the installed app) and press Edit again. Until it reloads you can simply scroll up to the form yourself; it is open."],
+    ["Nothing happens when I press Edit on a project.", "The form opens at the TOP of the Projects tab, above the list, and the page scrolls to it — its heading names the project, e.g. \"Edit Project #046 — Local Cactus BioScaffold\". If the page does not move, reload the page (or close and reopen the installed app) and press Edit again — or simply scroll up: the form is open."],
     ["Where is the judge invite code?", "Overview tab, at the top. Before any judge signs in it is inside the \"Get started\" card; after that the card becomes \"Judge sign-in details\" and still shows the school address and invite code with Copy buttons."],
     ["\"Email not confirmed\" when signing in.", "Click the link in the confirmation email (check spam / junk), then sign in again."],
-    ["PIN entry is locked.", "5 wrong PINs lock PIN entry for 5 minutes. Wait, then try again."],
+    ["PIN entry is locked.", "5 wrong PINs lock PIN entry for 5 minutes. Wait, then type it carefully: until the right PIN is entered, each further wrong try locks it for another 5 minutes."],
     ["The lock button says \"Lock failed — retry\".", "The change did not reach the database (often an expired sign-in). Sign out and in, then try again — judges are NOT locked until it succeeds."],
     ["\"Rubric NOT saved\".", "Nothing was changed. Your edits are still on screen — sign in again if needed and press Save Rubric again."],
     ["A red message says something was \"NOT saved\" / \"NOT finalized\".", "The change did not reach the database, so nothing changed — the screen shows the real state. Check the internet (or sign out and in), then press the same button again. Applies to validations, awards, deliberation, Finalize, Reopen, device transfers, Clear concern, share links, and removing or locking a project (shown at the top of the tab)."],
-    ["Live updates seem frozen (judges' scores are not appearing).", "Alerts → Connection shows Live / Connecting… / Disconnected for this screen. If it is not Live, refresh the page. IT Logs records REALTIME_DOWN only when the connection stayed down for over 30 seconds while the screen was in use (a phone locking its screen is no longer logged), and REALTIME_RECONNECTED with how long it was down. When the connection comes back — or a tablet wakes after a minute or more asleep — the screen reloads its data on its own, so changes made meanwhile (scores, the lock, awards) show up without a refresh."],
+    ["Live updates seem frozen (judges' scores are not appearing).", "Alerts → Connection shows Live / Connecting… / Disconnected for this screen. If it is not Live, refresh the page. IT Logs records REALTIME_DOWN only when the connection stayed down for over 30 seconds while the screen was in use (a phone locking its screen is not logged), and REALTIME_RECONNECTED with how long it was down. When the connection comes back — or a tablet wakes after a minute or more asleep — the screen reloads its data on its own, so changes made meanwhile (scores, the lock, awards) show up without a refresh."],
     ["Alerts shows a judge under \"Scores stuck on a device\".", "That tablet has scores it has not managed to send. Ask the judge to connect to Wi-Fi and press Sync Now. If it says \"server refusing\", the scores reach the server but are rejected — tell the judge NOT to sign out or clear the browser, and send the IT Logs report to your technical contact. A tablet that is offline cannot report at all; it appears here once it is back online but still cannot sync."],
     ["Alerts lists a judge as idle.", "They are signed in, still have projects to score, and have not scored anything for 20 minutes. Check on them — a dead tablet, a wrong room, or simply a long conversation with a student."],
     ["IT Logs shows LOAD_FAILED.", "One kind of data (named in the entry) could not be loaded on that device, so its screen may be out of date. Usually an expired sign-in or a dropped connection: refresh the page, or sign out and in."],
@@ -797,12 +800,210 @@ const ADMIN_HELP = [
     ["A project edit says \"Not saved\".", "Nothing was written and the list now shows what the database really holds. Your typing is still in the form — check the internet (or sign out and in) and press Save Changes again. IT Logs records it as PROJECT_UPDATE_FAILED."],
     ["\"Project number … is already used by another project\".", "Every project number is unique in your school — another admin probably just used it. Type a different number, or clear the box to use the next free one, and save again. Nothing was saved. (If you left the number the form filled in, the app picks the next free one by itself.)"],
     ["Reset says some steps failed.", "Nothing is guaranteed cleared — the old judges and scores may still be live. Check the internet and press Reset everything again; it is safe to repeat. Only the green \"Reset Complete\" means it finished. IT Logs records FULL_RESET_FAILED."],
-    ["Judges did not get a project I just added or moved.", "If IT Logs shows JUDGE_ASSIGNMENTS_SYNC_FAILED the server could not update their lists, so nothing was changed — your panels are untouched. Once the connection is back, re-save the judge grid (Setup → Judges) or press Rebalance on the Judges tab."],
+    ["Judges did not get a project I just added or moved.", "If IT Logs shows JUDGE_ASSIGNMENTS_SYNC_FAILED the server could not update their lists, so nothing was changed — your panels are untouched. Once the connection is back, re-save the judge grid (Setup → Judges) or, without a judging schedule, press Rebalance on the Judges tab."],
     ["IT Logs shows SCORE_FEEDBACK_COLS_MISSING.", "The database update for the elementary comments and safety question (migration 2026-10o) has not been run. Nothing is lost — the app saves the Strength / Next step and any safety concern inside the judge's notes instead — but the Alerts board cannot show safety concerns until it is run. Tell your technical contact."],
     ["Something looks wrong.", "IT Logs tab (Admin PIN) → pick \"last 2 hours\" → 📋 Copy Full Report, and send it to your technical contact. Every entry says which app version (build) and which device (admin, judge number or visitor) it came from. App crashes on any device are recorded automatically as CLIENT_ERROR."],
     ["Can I clear the IT logs?", "No — the IT log is permanent, like the activity log. Use the level and time filters to see only what matters."],
   ]},
 ];
+
+// ── ILLUSTRATED GUIDES (2026-11) ─────────────────────────────────────────────
+// Step-by-step pictures for judges (the "How to judge" screen on the judge's tablet, and the
+// admin's Help tab + printout) and for admins (Help tab). The pictures are real screenshots of a
+// made-up school, made by scripts/e2e/help-shots.mjs into public/help/<img>.webp; each red
+// numbered marker in a picture matches the same-numbered line in `points`. Change a screen that
+// appears here → re-run `npm run help:shots` and check the numbers still match (CLAUDE.md rule 84).
+// Plain strings only, like ADMIN_HELP. Judge pictures are precached for offline use (vite.config.js).
+const JUDGE_GUIDE = [
+  { img: "judge-1-open", title: "Open the fair",
+    intro: "On the tablet, open the link your coordinator gave you (qritiko.com/s/…).",
+    points: ["Tap I'm a Judge."],
+    tip: "Use only that link — never another address. The tablet remembers your sign-in for that address only." },
+  { img: "judge-2-signin", title: "Sign in",
+    points: [
+      "Type your judge number — just the number, e.g. 3.",
+      "Check the green line: your number and your department(s). If it looks wrong, ask the coordinator before you go on.",
+      "Type the invite code the coordinator gave you.",
+      "Tap Enter as Judge →.",
+    ],
+    tip: "Sign in at the briefing, not when round 1 starts. 5 wrong codes lock this tablet for 5 minutes — ask for the code instead of guessing. You stay signed in, even if you close the browser." },
+  { img: "judge-3-schedule", title: "Your judging schedule",
+    points: [
+      "Who this tablet is signed in as. If it is not you, tell the coordinator.",
+      "NEXT: the project to visit now — its code, title and booth. Tap Open → to score it.",
+      "All your rounds in order, with the start time, the project code and the booth.",
+      "Breaks (and any free round) are shown too.",
+    ],
+    tip: "Find the booth by the project code on its sign. The times are the plan: NEXT moves on when you submit a score, not by the clock. No schedule at your fair? You simply see your list of projects — tap one to start." },
+  { img: "judge-4-score", title: "Score the project",
+    points: [
+      "Check that this code matches the booth sign.",
+      "The rating scale for this form (e.g. 1 = Needs Improvement … 5 = Excellent).",
+      "Tap one number for each item — the chosen one turns dark blue. Tap another number to change it.",
+    ],
+    tip: "Keep the screen to yourself: scores are not shared with students during the visit. Your taps are kept on the tablet as you go, so a wrong tap on Back loses nothing." },
+  { img: "judge-5-submit", title: "Add a comment and submit",
+    points: [
+      "A comment for the students (optional, but it helps them most).",
+      "The total adds itself up.",
+      "Tap Submit Score →. It stays grey until every item has a rating; the line under it says how many are left — tap that line to jump to them.",
+    ],
+    tip: "On weak Wi-Fi Submit waits at most about 15 seconds; then the score is kept on the tablet and sent later." },
+  { img: "judge-5b-elementary", title: "K-5 only: comments and the safety question",
+    points: [
+      "Strength — what the student did well.",
+      "Next step — one helpful suggestion.",
+      "Safety / rule concern? Leave No. Tap Yes only if something is unsafe or against the rules — the organiser sees it at once. Please tell a committee member too.",
+      "You rate 1–5; the app counts × 2.5 like the paper form, so the total is out of 100.",
+    ] },
+  { img: "judge-6-progress", title: "Back on your list",
+    points: [
+      "✓ and the points: scored and saved.",
+      "✎ Draft — not submitted: you started this one but did not submit. Your taps are kept on this tablet — open it to finish. A draft does not count until you submit it.",
+      "Your progress.",
+    ],
+    tip: "To change a score, tap the project again and submit again — until you validate your results or the coordinator locks judging." },
+  { img: "judge-7-offline", title: "No internet? Keep scoring",
+    points: [
+      "The yellow bar means this tablet is offline. Keep going — your scores are kept on the tablet.",
+      "⏳ … not sent yet: saved on this tablet and sent by itself when the connection is back.",
+    ],
+    tip: "Do NOT sign out, clear the browser, or score the project again. When you are back online press Sync Now at the bottom of your list if anything is still waiting." },
+  { img: "judge-8-validate", title: "When everything is scored: validate",
+    points: [
+      "Approve Results if the ranking of your projects looks right.",
+      "Flag a Concern if something looks wrong — write a short note, then tap Submit Concern.",
+    ],
+    tip: "After you validate you can no longer change scores. Changed your mind? Revise my validation works until the results are finalized." },
+];
+const JUDGE_FAQ = [
+  ["The tablet shows another judge's number.", "It is still signed in as an earlier judge. Tell the coordinator — do not use it as is. They can sign it out, or move your sign-in to it with Allow Transfer."],
+  ["My tablet died, or I have to use another tablet.", "Tell the coordinator. They press Allow Transfer for your number; within 10 minutes sign in on the other tablet with the same number and invite code. Scores already sent are kept. Scores that were only on the old tablet are not — get it online first if you can."],
+  ["\"…is already signed in. Ask the admin to approve a device transfer.\"", "Your number is signed in on another tablet (or this one, earlier). Ask the coordinator to press Allow Transfer, then sign in again."],
+  ["\"Too many attempts. Try again in N seconds.\"", "5 wrong invite codes lock this tablet for 5 minutes. Wait, then type the code carefully — capitals do not matter. Ask the coordinator if unsure."],
+  ["I left the scoring screen before submitting.", "Nothing is lost. The project shows ✎ Draft — not submitted; open it and your answers come back (Discard draft starts over)."],
+  ["Submit Score is greyed out.", "Some items have no rating yet. The line under the button says how many — tap it to jump to the first one."],
+  ["A red message says \"Your score was NOT saved\".", "Stay on that screen — your answers are still there. Check the Wi-Fi and press Submit again. If it keeps happening, tell the coordinator."],
+  ["The list says a score is \"not sent yet\" for a long time.", "The tablet is still waiting for a connection. Join the Wi-Fi and press Sync Now. If a message says the server has not accepted a score after several tries, do not sign out — tell the coordinator."],
+  ["\"Can't reach the server.\"", "The tablet is offline and has never opened the fair before. Connect to Wi-Fi — it tries again by itself."],
+  ["\"The scoring form could not be loaded.\"", "That form could not be fetched. Check the Wi-Fi and press Try again. The app never shows you a different form instead."],
+  ["\"Judging is currently locked by the administrator.\"", "Scoring time is over (or paused). Projects cannot be opened until the coordinator unlocks judging."],
+  ["\"This project is no longer on your list.\"", "The coordinator moved or removed it. Go back to your list and carry on."],
+  ["A \"Deliberation Notes\" section appeared under my list.", "The coordinator opened deliberation, usually to break a tie. For any project you can pick a recommendation, add a comment, flag it for discussion, and press Submit Note. It is optional unless the coordinator asks."],
+  ["\"Something went wrong on this screen.\"", "Tap Reload. Saved scores and unsent work stay on the tablet. Tell the coordinator if it happens again."],
+  ["Who sees my scores and comments?", "The organisers. The public results never show judge names or student names."],
+];
+const ADMIN_GUIDE = [
+  { phase: "Before the event", img: "admin-2-departments", title: "Give each department its form",
+    points: [
+      "Pick how each department is judged: Elementary form for K-5, Middle & High School form for 6-8 and 9-12, PreK & SPED Recognition for PreK and SPED.",
+      "Places: per department (everyone in the department competes), or per category.",
+    ],
+    tip: "Setup tab. Do it before any judge scores — a department's form locks once it has scores." },
+  { img: "admin-3-schedule", title: "Import the schedule and the booth numbers, then print",
+    points: [
+      "⬆ Import schedule (CSV) — your Excel grid saved as CSV. Check the review, then press Save schedule.",
+      "⬆ Import booth numbers (CSV) — the booth template with its Booth # column filled in.",
+      "🖨 Judge sheets — one page per judge, for the clipboards.",
+      "🖨 Booth visit times — so students know when to be at their booth.",
+    ],
+    tip: "Setup → 📅 Judging schedule. Settle project codes and booths BEFORE you print — paper does not update itself." },
+  { img: "admin-4-projects", title: "Check the projects",
+    points: [
+      "📷 Scan forms — photograph paper participation forms; you check each card before it is saved.",
+      "+ Add Project — type one in.",
+      "🔒 Lock a project once its details are final, so nobody edits or deletes it by accident.",
+    ],
+    tip: "Every project needs a department and a place in the schedule — a project in neither is scored by nobody (the Alerts tab lists them)." },
+  { img: "admin-1-signin", title: "Give judges their sign-in details",
+    points: [
+      "The school link — the only address judges should use.",
+      "The invite code — read it out at the briefing.",
+      "Which judge numbers cover which department.",
+    ],
+    tip: "Overview tab. Have judges sign in at the briefing and do one dry run on a spare tablet the week before. 5 wrong codes lock that one tablet for 5 minutes; 30 wrong codes across the school lock sign-in for everyone for 5 minutes." },
+  { phase: "Judging day", img: "admin-5-alerts", title: "Keep the Alerts tab open",
+    points: [
+      "Connection — this screen is live and online.",
+      "Scores stuck on a device — a tablet that has scores it could not send.",
+      "Scoring progress for each department.",
+    ],
+    tip: "Also listed here: safety concerns from K-5 judges (a red card at the top), projects nobody will score, idle judges and score outliers." },
+  { img: "admin-6-judges", title: "Help a judge",
+    points: [
+      "Allow Transfer — a judge's tablet died or they switch tablets: press it (Admin PIN); within 10 minutes they sign in on the new tablet with the same number and code.",
+      "Remove — someone signed in with the wrong number. It deletes that judge's scores, so do it before they score.",
+    ],
+    tip: "A judge who did not come: give a stand-in that judge's number and the invite code — they get the same projects in the same rounds." },
+  { img: "admin-7-lock", title: "Lock judging when time is up",
+    points: ["Lock Judging (bottom of the sidebar): judges can no longer change scores. Press it again to unlock."],
+    tip: "Finalize locks judging too. Back up right after locking (next step)." },
+  { img: "admin-11-export", title: "Back up",
+    points: ["💾 Save Score Backup, then ⬇ CSV on that backup's row, and ⬇ Download Judge Scores CSV. Keep the files on a school computer."],
+    tip: "Do it halfway through judging and again right after you lock. The saved backup lives in the same database — the downloaded files are your real copy." },
+  { phase: "After judging", img: "admin-8-awards", title: "Confirm the places",
+    points: [
+      "✓ Confirm all ready groups — confirms every group that is fully scored and has no tie, in one go.",
+      "🖨 Print awards list for the ceremony. It has student names — staff only.",
+    ],
+    tip: "Awards tab. Groups that need you (a tie, missing reviews, changed scores) are listed first. Decide a tie in Validation → Open Deliberation." },
+  { img: "admin-9-validation", title: "Validate and finalize",
+    points: [
+      "Each judge's validation: Approved, Concern or Pending.",
+      "Your own validation — press Approve Results.",
+      "🏁 Finalize Results. It also locks judging. If it is grey, the line above it says why (your approval, an open concern, open deliberation or an undecided tie).",
+    ],
+    tip: "Validation tab. A judge who has not validated does not block Finalize; an open concern does — talk to the judge, or press Clear concern." },
+  { img: "admin-10-share", title: "Share the results",
+    points: [
+      "Copy the public results link and share it.",
+      "👁 Preview Page — what families see: no judge names, no student names.",
+      "⬇ Download Results CSV for your records.",
+    ],
+    tip: "Share tab — it opens once results are finalized. Reopening the results (Validation tab) shows \"Results are being updated\" on the link until you finalize again." },
+];
+
+// One illustrated guide: numbered steps, each a screenshot with its numbered points.
+// Module-level (not inside App) so it never affects the React Compiler's view of App (rule 37).
+function GuideSteps({ steps, idPrefix }) {
+  return steps.map((s, i) => (
+    <section key={s.img} className="guide-step" id={idPrefix ? `${idPrefix}-${i + 1}` : undefined}>
+      {s.phase && <div className="guide-phase">{s.phase}</div>}
+      <h3 className="guide-h"><span className="guide-no">{i + 1}</span>{s.title}</h3>
+      {s.intro && <p className="guide-intro">{s.intro}</p>}
+      <img className="guide-img" src={`/help/${s.img}.webp`} alt={`${s.title} — screenshot`} loading="lazy" decoding="async" />
+      <ol className="guide-pts">{s.points.map((p, k) => <li key={k}><span className="guide-mk">{k + 1}</span><span>{p}</span></li>)}</ol>
+      {s.tip && <p className="guide-tip">💡 {s.tip}</p>}
+    </section>
+  ));
+}
+// The same guide as a printable page (a new window, like the judge sheets). Images need absolute
+// URLs there; every text goes through escHtml.
+function guidePrintHtml(title, sub, steps, faq, origin) {
+  const step = (s, i) => `<section class="st">${s.phase ? `<div class="ph">${escHtml(s.phase)}</div>` : ""}
+    <h2><span class="no">${i + 1}</span>${escHtml(s.title)}</h2>${s.intro ? `<p>${escHtml(s.intro)}</p>` : ""}
+    <img src="${escHtml(origin)}/help/${escHtml(s.img)}.webp" alt="">
+    <ol>${s.points.map((p, k) => `<li><span class="mk">${k + 1}</span>${escHtml(p)}</li>`).join("")}</ol>
+    ${s.tip ? `<p class="tip">💡 ${escHtml(s.tip)}</p>` : ""}</section>`;
+  const qa = faq?.length ? `<section class="faq"><h2>If something goes wrong</h2>${faq.map(([q, a]) =>
+    `<p><b>${escHtml(q)}</b><br>${escHtml(a)}</p>`).join("")}</section>` : "";
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escHtml(title)}</title><style>
+    body{font-family:"Segoe UI",Arial,sans-serif;color:#1e293b;margin:0 auto;padding:1.2rem 1.6rem;max-width:760px;font-size:.92rem;line-height:1.45}
+    h1{font-size:1.4rem;color:#1e3a5f;margin:.2rem 0} .sub{color:#64748b;margin-bottom:1rem}
+    .st{break-inside:avoid;page-break-inside:avoid;margin:0 0 1.2rem;padding-bottom:1rem;border-bottom:1px solid #e2e8f0}
+    .ph{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-bottom:.2rem}
+    h2{font-size:1.08rem;color:#1e3a5f;margin:.2rem 0 .5rem;display:flex;align-items:center;gap:.5rem}
+    .no{display:inline-flex;width:1.6rem;height:1.6rem;border-radius:50%;background:#1e3a5f;color:#fff;align-items:center;justify-content:center;font-size:.85rem;flex:none}
+    img{display:block;max-width:100%;max-height:520px;margin:.3rem auto .6rem;border:1px solid #e2e8f0;border-radius:8px}
+    ol{list-style:none;margin:0;padding:0} li{display:flex;gap:.5rem;margin:.3rem 0}
+    .mk{flex:none;width:1.35rem;height:1.35rem;border-radius:50%;background:#e11d48;color:#fff;font-weight:700;font-size:.75rem;display:inline-flex;align-items:center;justify-content:center;margin-top:.05rem}
+    .tip{background:#f1f5f9;border-radius:6px;padding:.45rem .65rem;font-size:.85rem;margin:.5rem 0 0}
+    .faq p{margin:.45rem 0;break-inside:avoid} @media print{body{padding:0} button{display:none!important}}
+  </style></head><body><h1>${escHtml(title)}</h1><div class="sub">${escHtml(sub)}</div>
+  ${steps.map(step).join("")}${qa}
+  <div style="text-align:center;margin-top:1rem"><button onclick="window.print()" style="padding:.5rem 1.5rem;background:#1e3a5f;color:#fff;border:none;border-radius:6px;cursor:pointer">🖨 Print / Save as PDF</button></div>
+  </body></html>`;
+}
 
 // ── PROJECT MEMBER HELPERS ───────────────────────────────────
 // group_members comes in three shapes and every reader must accept all of them:
@@ -1938,6 +2139,38 @@ const CSS = `
   .help-faq{border-top:1px solid var(--bd);padding:.55rem 0;font-size:.88rem;}
   .help-faq summary{cursor:pointer;font-weight:600;color:var(--text);}
   .help-faq div{margin-top:.4rem;color:var(--dim);line-height:1.55;}
+  /* Illustrated guides (JUDGE_GUIDE / ADMIN_GUIDE). The red markers match help-shots.mjs. */
+  .help-tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin:0 0 1rem;}
+  .help-tabs button{border:1.5px solid var(--bd);background:var(--bg);color:var(--text);border-radius:999px;padding:.5rem 1rem;
+    font-family:var(--ff-b);font-size:.88rem;cursor:pointer;min-height:40px;}
+  .help-tabs button.on{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:600;}
+  .help-tools{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.9rem;}
+  .help-search{flex:1;min-width:220px;}
+  .help-count{font-size:.8rem;color:var(--dim);}
+  .guide-step{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:1rem 1.1rem 1.1rem;margin-bottom:1rem;}
+  .guide-phase{font-family:var(--ff-m);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-bottom:.35rem;}
+  .guide-h{font-family:var(--ff-d);font-size:1.08rem;color:var(--navy);display:flex;align-items:center;gap:.55rem;margin:0 0 .5rem;}
+  .guide-no{flex:none;width:1.75rem;height:1.75rem;border-radius:50%;background:var(--navy);color:#fff;font-family:var(--ff-b);
+    font-size:.9rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;}
+  .guide-intro{font-size:.9rem;margin:0 0 .5rem;line-height:1.5;}
+  .guide-img{display:block;width:auto;max-width:100%;max-height:640px;height:auto;margin:.4rem auto .7rem;border:1px solid var(--bd);border-radius:10px;background:var(--s1);}
+  .guide-pts{list-style:none;margin:0;padding:0;}
+  .guide-pts li{display:flex;gap:.55rem;align-items:flex-start;font-size:.92rem;line-height:1.5;margin:.35rem 0;}
+  .guide-mk{flex:none;width:1.45rem;height:1.45rem;border-radius:50%;background:#e11d48;color:#fff;font-weight:700;font-size:.78rem;
+    display:inline-flex;align-items:center;justify-content:center;margin-top:.08rem;}
+  .guide-tip{background:var(--s2);border-radius:8px;padding:.55rem .75rem;font-size:.85rem;line-height:1.5;margin:.6rem 0 0;color:var(--text);}
+  .guide-faq{margin-top:1.2rem;}
+  .guide-faq h3{font-family:var(--ff-d);font-size:1.08rem;color:var(--navy);margin:0 0 .4rem;}
+  /* The judge's "How to judge" screen covers the sign-in / project list (which stay mounted, so
+     what was typed survives). Never shown on the scoring screen. */
+  .guide-overlay{position:fixed;inset:0;z-index:900;background:var(--s1);overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  .guide-overlay .inner{max-width:680px;margin:0 auto;padding:1rem 1rem 3rem;}
+  .guide-bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:.75rem;
+    background:var(--s1);padding:.6rem 0;margin-bottom:.4rem;border-bottom:1px solid var(--bd);}
+  .guide-bar h2{font-family:var(--ff-d);font-size:1.25rem;color:var(--navy);margin:0;}
+  .help-link{display:inline-flex;align-items:center;gap:.35rem;background:none;border:1.5px solid var(--bd);border-radius:999px;
+    padding:.45rem .9rem;min-height:40px;color:var(--navy);font-family:var(--ff-b);font-size:.88rem;font-weight:600;cursor:pointer;}
+  .help-link:hover{background:var(--s2);}
   /* Participation-form scanner */
   .scan-panel{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:1rem 1.1rem;margin-bottom:.75rem;}
   .scan-actions{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin-top:.65rem;}
@@ -2389,6 +2622,10 @@ export default function App() {
   const [adminLockoutUntil,  setAdminLockoutUntil]  = useState(null);
   const [deptMaxDrafts, setDeptMaxDrafts] = useState({});  // { [deptId]: string }
   const [adminTab,   setAdminTab]    = useState("overview");
+  // Help (2026-11): the judge's "How to judge" screen, and the admin Help tab's view + FAQ search.
+  const [judgeHelp,  setJudgeHelp]   = useState(false);
+  const [helpView,   setHelpView]    = useState("guide");   // guide | judges | faq
+  const [helpQuery,  setHelpQuery]   = useState("");
 
   // Setup tab (departments + project categories)
   const [deptEdits,    setDeptEdits]    = useState({});  // { [deptId]: { name, code } } — only while editing
@@ -4676,6 +4913,14 @@ export default function App() {
       </style></head><body>${body}
       <div style="text-align:center;margin-top:1.5rem"><button onclick="window.print()" style="padding:.5rem 1.5rem;background:#1e3a5f;color:#fff;border:none;border-radius:6px;cursor:pointer">🖨 Print / Save as PDF</button></div>
       </body></html>`;
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(html); w.document.close(); }
+  }
+  function printGuide(kind) {
+    const forJudges = kind === "judge";
+    const link = currentSchool?.slug ? `${window.location.origin}/s/${currentSchool.slug}` : window.location.origin;
+    const html = guidePrintHtml(forJudges ? "How to judge — step by step" : "Admin guide — the event, step by step",
+      `${currentSchool?.name || ""} · ${link}`, forJudges ? JUDGE_GUIDE : ADMIN_GUIDE, forJudges ? JUDGE_FAQ : null, window.location.origin);
     const w = window.open("", "_blank");
     if (w) { w.document.write(html); w.document.close(); }
   }
@@ -7899,16 +8144,43 @@ export default function App() {
     </div>
   );
 
+  // The judge's "How to judge" screen (JUDGE_GUIDE). Rendered by the sign-in and project-list
+  // views only — never the scoring screen — on top of the view, which stays mounted.
+  const judgeHelpEl = judgeHelp ? (
+    <div className="guide-overlay" role="dialog" aria-modal="true" aria-label="How to judge" data-testid="judge-guide">
+      <div className="inner">
+        <div className="guide-bar">
+          <h2>How to judge</h2>
+          <button type="button" className="btn sm" style={{ width:"auto" }} onClick={() => setJudgeHelp(false)}>✕ Close</button>
+        </div>
+        <p className="guide-intro">Nine short steps, with pictures of the real screens. Ask the coordinator if anything looks different on your tablet.</p>
+        <GuideSteps steps={JUDGE_GUIDE} />
+        <div className="guide-faq card">
+          <h3>If something goes wrong</h3>
+          {JUDGE_FAQ.map(([q, a]) => (
+            <details key={q} className="help-faq"><summary>{q}</summary><div>{a}</div></details>
+          ))}
+        </div>
+        <button type="button" className="btn" onClick={() => setJudgeHelp(false)}>✕ Close — back to the app</button>
+      </div>
+    </div>
+  ) : null;
+
   /* JUDGE REGISTER */
   if (view === "judge-register") return (
     <div className="app"><style>{CSS}</style>{backdrop}
       <div className="center"><div className="inner">
-        <button className="back" onClick={() => { setView("landing"); setRegErr(""); setRegCode(""); setRegName(""); setRegDept(""); }}>← Back</button>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:".5rem", marginBottom:".75rem" }}>
+          <button className="back" style={{ marginBottom:0 }} onClick={() => { setView("landing"); setRegErr(""); setRegCode(""); setRegName(""); setRegDept(""); }}>← Back</button>
+          <button type="button" className="help-link" data-testid="judge-help-open" onClick={() => setJudgeHelp(true)}>❓ How to judge</button>
+        </div>
         <div className="card">
           <div style={{ textAlign:"center", marginBottom:"1.5rem" }}>
             <div style={{ fontSize:"2.5rem", marginBottom:".5rem" }}>🔐</div>
             <h2 style={{ fontFamily:"var(--ff-d)", fontSize:"1.5rem", marginBottom:".4rem", color:"var(--navy)" }}>Judge Sign In</h2>
-            <p style={{ color:"var(--dim)", fontSize:".95rem" }}>Your coordinator will give you your judge name and invite code before the event starts.</p>
+            <p style={{ color:"var(--dim)", fontSize:".95rem" }}>{schoolNumbering()
+              ? "Your coordinator gives you a judge number and the invite code before judging starts."
+              : "Your coordinator gives you a judge name (like Judge1) and the invite code before judging starts."}</p>
           </div>
           {schoolNumbering() ? (() => {
             // One list for the whole school: the judge types only their number and the
@@ -7988,6 +8260,7 @@ export default function App() {
           </p>
         </div>
       </div></div>
+      {judgeHelpEl}
     </div>
   );
 
@@ -8041,7 +8314,10 @@ export default function App() {
               <p style={{ color:"var(--dim)", fontSize:".9rem" }}>Score each project using the rubric</p>
             </div>
             {/* The device stays signed in (by design), so say exactly who and where. */}
-            <div className="alias-tag">👤 {judge.alias} · {deptNames(judgeDeptIds(judge))}</div>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:".45rem" }}>
+              <div className="alias-tag">👤 {judge.alias} · {deptNames(judgeDeptIds(judge))}</div>
+              <button type="button" className="help-link" data-testid="judge-help-open" onClick={() => setJudgeHelp(true)}>❓ How to judge</button>
+            </div>
           </div>
           {!isOnline && (
             <div className="offline-banner">
@@ -8339,6 +8615,7 @@ export default function App() {
           }}>Sign Out</button>
           )}
         </div></div>
+        {judgeHelpEl}
       </div>
     );
   }
@@ -8407,7 +8684,7 @@ export default function App() {
               <div className="sc-code">{projectCode(proj)}</div>
               <h2>{proj.title}</h2>
               <div style={{ fontSize:".78rem", color:"var(--dim)", marginTop:".35rem" }}>
-                {proj.cat}{proj.grade ? ` · Grade ${proj.grade}` : ""}{departments.find(d => d.id === proj.department_id) ? ` · ${departments.find(d => d.id === proj.department_id).name}` : ""}{proj.room ? ` · Room ${proj.room}` : ""}
+                {proj.cat}{proj.grade ? ` · Grade ${proj.grade}` : ""}{departments.find(d => d.id === proj.department_id) ? ` · ${departments.find(d => d.id === proj.department_id).name}` : ""}{proj.room ? ` · Booth ${proj.room}` : ""}
               </div>
               {proj.description && (
                 <div style={{ fontSize:".8rem", color:"var(--text)", marginTop:".5rem", lineHeight:1.45 }}>{proj.description}</div>
@@ -9059,7 +9336,7 @@ export default function App() {
           <div style={{ marginBottom:"1rem" }}>
             <div className="lbl">Admin PIN</div>
             <input type="password" inputMode="numeric" placeholder="4-8 digits" value={schoolForm.adminPin}
-              onChange={e => setSchoolForm(f => ({ ...f, adminPin: e.target.value.replace(/D/g,"").slice(0,8) }))} />
+              onChange={e => setSchoolForm(f => ({ ...f, adminPin: e.target.value.replace(/\D/g,"").slice(0,8) }))} />
             <div style={{ fontSize:".76rem", color:"var(--dim)", marginTop:".3rem", lineHeight:1.45 }}>
               Separate from your password. Guards <strong>Reset All Data</strong>, the IT Logs tab and
               judge device transfers. Stored encrypted (hashed) — nobody, including us, can read it back,
@@ -9069,7 +9346,7 @@ export default function App() {
           <div style={{ marginBottom:"1.25rem" }}>
             <div className="lbl">Confirm Admin PIN</div>
             <input type="password" inputMode="numeric" placeholder="Re-enter PIN" value={schoolForm.confirmPin}
-              onChange={e => setSchoolForm(f => ({ ...f, confirmPin: e.target.value.replace(/D/g,"").slice(0,8) }))} />
+              onChange={e => setSchoolForm(f => ({ ...f, confirmPin: e.target.value.replace(/\D/g,"").slice(0,8) }))} />
           </div>
           {schoolFormErr && <div className="err" style={{ marginBottom:"1rem" }}>⚠ {schoolFormErr}</div>}
           {schoolCreatedNeedsConfirm ? (
@@ -9373,9 +9650,9 @@ export default function App() {
               <div className="modal-box">
                 <div className="ico">🔐</div>
                 <h2>Approve Device Transfer</h2>
-                <p>Enter the IT PIN to approve a one-time device transfer for <strong>{transferPinAlias}</strong>.</p>
+                <p>Enter the Admin PIN to approve a one-time device transfer for <strong>{transferPinAlias}</strong>.</p>
                 <p style={{fontSize:".8rem",color:"var(--dim)",marginTop:".4rem"}}>Approval expires in 10 minutes.</p>
-                <div className="modal-pin-label" style={{marginTop:"1.25rem"}}>IT PIN</div>
+                <div className="modal-pin-label" style={{marginTop:"1.25rem"}}>Admin PIN</div>
                 <div className="modal-pin-dots">
                   {Array.from({ length: Math.max(4, transferPin.length) }, (_, i) => i).map(i => (
                     <div key={i} className={`modal-pin-dot ${transferPin.length > i ? "filled" : ""}`} />
@@ -9587,17 +9864,17 @@ export default function App() {
                   <div>
                     <div className="lbl">Current PIN</div>
                     <input type="password" inputMode="numeric" placeholder="••••" value={pinForm.current}
-                      onChange={e => { setPinForm(f => ({...f, current:e.target.value.replace(/D/g,"").slice(0,8)})); setPinFormMsg(null); }} />
+                      onChange={e => { setPinForm(f => ({...f, current:e.target.value.replace(/\D/g,"").slice(0,8)})); setPinFormMsg(null); }} />
                   </div>
                   <div>
                     <div className="lbl">New PIN</div>
                     <input type="password" inputMode="numeric" placeholder="4-8 digits" value={pinForm.next}
-                      onChange={e => { setPinForm(f => ({...f, next:e.target.value.replace(/D/g,"").slice(0,8)})); setPinFormMsg(null); }} />
+                      onChange={e => { setPinForm(f => ({...f, next:e.target.value.replace(/\D/g,"").slice(0,8)})); setPinFormMsg(null); }} />
                   </div>
                   <div>
                     <div className="lbl">Confirm New PIN</div>
                     <input type="password" inputMode="numeric" placeholder="Re-enter" value={pinForm.confirm}
-                      onChange={e => { setPinForm(f => ({...f, confirm:e.target.value.replace(/D/g,"").slice(0,8)})); setPinFormMsg(null); }} />
+                      onChange={e => { setPinForm(f => ({...f, confirm:e.target.value.replace(/\D/g,"").slice(0,8)})); setPinFormMsg(null); }} />
                   </div>
                 </div>
                 {pinFormMsg && (
@@ -11408,7 +11685,7 @@ export default function App() {
                         <div style={{fontSize:".76rem",color:"var(--dim)"}}>
                           {deliberationOpen
                             ? `Open · Reason: ${deliberationReason === "tie" ? "Tied scores" : "Admin initiated"}`
-                            : "Not active · Triggered automatically on ties or manually by admin"}
+                            : "Not active · Open it from the tie alert above, or any time with Open Manually"}
                         </div>
                       </div>
                       {deliberationOpen
@@ -11777,7 +12054,7 @@ export default function App() {
               <div className="card">
                 <div className="sec-title">Live Export</div>
                 <p style={{fontSize:".85rem",color:"var(--dim)",marginBottom:"1rem"}}>
-                  Download the current scores as a detailed CSV — one row per judge + project combination, with all 10 rubric criteria, totals, and judge notes.
+                  Download every score as a spreadsheet (CSV) — one row per judge and project, with every item of each department's form, the total, the comments and any safety concern.
                 </p>
                 <div style={{display:"flex",gap:".75rem",flexWrap:"wrap",alignItems:"center"}}>
                   <button className="btn sec sm" style={{width:"auto"}} onClick={exportJudgeScoresCSV}
@@ -11789,7 +12066,7 @@ export default function App() {
                   )}
                 </div>
                 <div style={{marginTop:".75rem",fontSize:".76rem",color:"var(--dim)"}}>
-                  Columns: Judge · Project # · Title · Category · Grade · Presentation · Testable Q · Background · Hypothesis · Variables · Materials · Data · Analysis · Conclusion · Abstract · Total · Notes · Submitted
+                  Columns: Judge · Department · Code · Project # · Title · Category · Grade · Rubric · one column per item of every form in use · Total · Out of · Ratings (K-5 form) · Notes · Strength · Next step · Safety concern · Submitted
                 </div>
               </div>
 
@@ -11797,7 +12074,7 @@ export default function App() {
               <div className="card">
                 <div className="sec-title">Save Backup to Database</div>
                 <p style={{fontSize:".85rem",color:"var(--dim)",marginBottom:"1rem"}}>
-                  Snapshot the current scores and store them permanently in Supabase. Saved backups are listed below and can be re-downloaded anytime.
+                  Saves a copy of the current scores (and the forms) inside the app's database. Saved backups are listed below — press ⬇ CSV on one to keep your own copy: only a downloaded file protects you if the database is ever unavailable.
                 </p>
                 <div style={{display:"flex",gap:".75rem",flexWrap:"wrap",alignItems:"center"}}>
                   <button className="btn sm" style={{width:"auto",background:backupSaved?"var(--green)":undefined}}
@@ -11974,22 +12251,69 @@ export default function App() {
 
             {/* RUBRIC */}
             {/* HELP & FAQ — content lives in ADMIN_HELP (top of file). Keep it current. */}
-            {adminTab==="help" && <>
+            {adminTab==="help" && (() => {
+              // Search: every typed word must START a word in the answer, its question or its
+              // section title ("tie" finds ties / tied, not "properties").
+              const words = helpQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+              const res = words.map(w => new RegExp("(^|[^\\p{L}\\p{N}])" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "iu"));
+              const hit = (...t) => { const x = t.join(" "); return res.every(r => r.test(x)); };
+              const secs = ADMIN_HELP.map(sec => ({ ...sec,
+                items: sec.items ? sec.items.filter(t => hit(t, sec.title)) : null,
+                faq: sec.faq ? sec.faq.filter(([q, a]) => hit(q, a, sec.title)) : null,
+              })).filter(sec => (sec.items?.length || 0) + (sec.faq?.length || 0) > 0);
+              const found = secs.reduce((n, sec) => n + (sec.items?.length || 0) + (sec.faq?.length || 0), 0);
+              return <>
               <div className="adm-h1">Help &amp; FAQ</div>
-              <div className="adm-sub">How the system works, what to do and what to avoid. Last updated {ADMIN_HELP_UPDATED}.</div>
-              {ADMIN_HELP.map(sec => (
-                <div key={sec.title} className="card help-card">
-                  <div className="help-title">{sec.icon} {sec.title}</div>
-                  {sec.items && <ul className="help-list">{sec.items.map((t, i) => <li key={i}>{t}</li>)}</ul>}
-                  {sec.faq && sec.faq.map(([q, a]) => (
-                    <details key={q} className="help-faq">
-                      <summary>{q}</summary>
-                      <div>{a}</div>
-                    </details>
-                  ))}
+              <div className="adm-sub">Step-by-step pictures for you and your judges, and answers to common questions. Last updated {ADMIN_HELP_UPDATED}.</div>
+              <div className="help-tabs" role="tablist" aria-label="Help">
+                {[["guide", "📘 Admin step-by-step"], ["judges", "🧑‍⚖️ Judge guide"], ["faq", "❓ Questions & answers"]].map(([id, label]) => (
+                  <button key={id} type="button" role="tab" aria-selected={helpView === id} className={helpView === id ? "on" : ""}
+                    onClick={() => setHelpView(id)}>{label}</button>
+                ))}
+              </div>
+              {helpView === "guide" && <>
+                <div className="help-tools">
+                  <span className="help-count" style={{ flex:1 }}>The event in order — before, on and after judging day. Each red number in a picture matches the same number below it.</span>
+                  <button type="button" className="btn sec sm" style={{ width:"auto" }} onClick={() => printGuide("admin")}>🖨 Print this guide</button>
                 </div>
-              ))}
-            </>}
+                <GuideSteps steps={ADMIN_GUIDE} idPrefix="admin-step" />
+              </>}
+              {helpView === "judges" && <>
+                <div className="help-tools">
+                  <span className="help-count" style={{ flex:1 }}>Exactly what judges see when they tap ❓ How to judge on the sign-in screen or their project list. Print it for the judges' briefing.</span>
+                  <button type="button" className="btn sm" style={{ width:"auto" }} onClick={() => printGuide("judge")}>🖨 Print the judge guide</button>
+                </div>
+                <GuideSteps steps={JUDGE_GUIDE} idPrefix="judge-step" />
+                <div className="card guide-faq">
+                  <h3>If something goes wrong (what judges read)</h3>
+                  {JUDGE_FAQ.map(([q, a]) => <details key={q} className="help-faq"><summary>{q}</summary><div>{a}</div></details>)}
+                </div>
+              </>}
+              {helpView === "faq" && <>
+                <div className="help-tools">
+                  <input type="text" className="help-search" aria-label="Search the help" value={helpQuery}
+                    placeholder="Search — e.g. invite code, tie, offline, backup" onChange={e => setHelpQuery(e.target.value)} />
+                  {words.length > 0 && <span className="help-count" data-testid="help-count">{found} answer{found !== 1 ? "s" : ""}</span>}
+                  {words.length > 0 && <button type="button" className="btn sec sm" style={{ width:"auto" }} onClick={() => setHelpQuery("")}>Clear</button>}
+                </div>
+                {words.length > 0 && found === 0 && (
+                  <div className="scan-msg warn" data-testid="help-none">No answer matches “{helpQuery.trim()}”. Try one shorter word (e.g. “code” instead of “invite code problem”), or look in the step-by-step guides.</div>
+                )}
+                {secs.map(sec => (
+                  <div key={sec.title} className="card help-card">
+                    <div className="help-title">{sec.icon} {sec.title}</div>
+                    {sec.items?.length > 0 && <ul className="help-list">{sec.items.map((t, i) => <li key={i}>{t}</li>)}</ul>}
+                    {sec.faq?.map(([q, a]) => (
+                      <details key={q} className="help-faq" open={words.length > 0}>
+                        <summary>{q}</summary>
+                        <div>{a}</div>
+                      </details>
+                    ))}
+                  </div>
+                ))}
+              </>}
+              </>;
+            })()}
 
             {adminTab==="rubric" && (() => {
               // Everything below acts on the rubric chosen in the library bar (2026-10j).
@@ -12278,7 +12602,7 @@ export default function App() {
                 <div className="pin-gate">
                   <div className="ico">🔐</div>
                   <h2>IT Access Required</h2>
-                  <p>This section contains sensitive diagnostic data. Enter the IT PIN to continue.</p>
+                  <p>This section contains sensitive diagnostic data. Enter the Admin PIN to continue.</p>
                   <div className="pin-dots">
                     {Array.from({ length: Math.max(4, itPin.length) }, (_, i) => i).map(i => (
                       <div key={i} className={`pin-dot ${itPin.length > i ? "filled" : ""}`} />

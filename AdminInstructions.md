@@ -14,7 +14,7 @@ Your fair lives at its own address: **`https://qritiko.com/s/your-school`**. Eve
 
 **To enter admin mode:**
 1. Open your school's link
-2. Click **"I'm an Admin"**
+2. Click **"Admin"**
 3. Enter your admin email and password
 4. You'll see the full dashboard with tabs
 
@@ -28,7 +28,8 @@ judge device transfers. **You choose it when you register the school** — 4 to 
   replaced.
 - Obvious PINs (0000, 1111, 1234) are rejected at sign-up.
 - **5 wrong attempts locks PIN entry for 5 minutes** for your whole school. This is deliberate:
-  it stops someone guessing a 4-digit PIN. If you lock yourself out, just wait it out.
+  it stops someone guessing a 4-digit PIN. If you lock yourself out, wait it out — and type it
+  carefully afterwards: until the right PIN is entered, each further wrong try locks it again.
 - To change it: **Overview tab → Admin PIN card** → enter current PIN, new PIN, confirm.
   Change it before every event, and immediately if anyone who knew it has left.
 
@@ -40,9 +41,144 @@ judge device transfers. **You choose it when you register the school** — 4 to 
 
 ---
 
-> **In the app:** the **❓ Help & FAQ** tab (admin sidebar) has the same essentials — how the system
-> works, a before-event checklist, do's and don'ts, and answers to common problems. It is kept up to
+> **In the app:** the **❓ Help & FAQ** tab (admin sidebar) has three parts: **📘 Admin step-by-step**
+> (the walkthrough below, with pictures), **🧑‍⚖️ Judge guide** (exactly what judges see under
+> **❓ How to judge** on their tablets — print it for the briefing), and **❓ Questions & answers** with a
+> search box (how the system works, the checklist, do's and don'ts, troubleshooting). It is kept up to
 > date with every change to the system.
+
+## Event day, step by step (with pictures)
+
+The whole event in order. The red numbers in each picture match the numbered lines under it. The
+same guide is in the app: **❓ Help & FAQ → 📘 Admin step-by-step** (with **🖨 Print this guide**).
+The judges' own guide — which they open with **❓ How to judge** on their tablets — is under
+**🧑‍⚖️ Judge guide**; print it for the judges' briefing.
+
+### Before the event
+
+**1. Give each department its form** — Setup tab.
+
+<img src="public/help/admin-2-departments.webp" width="640" alt="Setup, Departments: the form dropdown and the Places dropdown for 6-8">
+
+1. Pick how each department is judged: **Elementary form** for K-5, **Middle & High School form** for
+   6-8 and 9-12, **PreK & SPED Recognition** for PreK and SPED.
+2. **Places:** per department (everyone in the department competes), or per category.
+
+💡 Do it before any judge scores — a department's form locks once it has scores.
+
+**2. Import the schedule and the booth numbers, then print** — Setup → 📅 Judging schedule.
+
+<img src="public/help/admin-3-schedule.webp" width="640" alt="Judging schedule box: import schedule, import booth numbers, judge sheets, booth visit times">
+
+1. **⬆ Import schedule (CSV)** — your Excel grid saved as CSV. Check the review, then **Save schedule**.
+2. **⬆ Import booth numbers (CSV)** — the booth template with its *Booth #* column filled in.
+3. **🖨 Judge sheets** — one page per judge, for the clipboards.
+4. **🖨 Booth visit times** — so students know when to be at their booth.
+
+💡 Settle project codes and booths **before** you print — paper does not update itself.
+
+**3. Check the projects** — Projects tab.
+
+<img src="public/help/admin-4-projects.webp" width="640" alt="Projects tab: Scan forms, Add Project, and Lock / Edit / Remove on a project">
+
+1. **📷 Scan forms** — photograph paper participation forms; you check each card before it is saved.
+2. **+ Add Project** — type one in.
+3. **🔒 Lock** a project once its details are final, so nobody edits or deletes it by accident.
+
+💡 Every project needs a department and a place in the schedule — a project in neither is scored by
+nobody (the Alerts tab lists them).
+
+**4. Give judges their sign-in details** — Overview tab.
+
+<img src="public/help/admin-1-signin.webp" width="640" alt="Judge sign-in details: school URL, invite code, judge numbers">
+
+1. The **school link** — the only address judges should use.
+2. The **invite code** — read it out at the briefing.
+3. Which **judge numbers** cover which department.
+
+💡 Have judges sign in at the briefing and do one dry run on a spare tablet the week before.
+**5 wrong codes lock that one tablet for 5 minutes; 30 wrong codes across the school lock sign-in for
+everyone for 5 minutes.**
+
+### Judging day
+
+**5. Keep the Alerts tab open.**
+
+<img src="public/help/admin-5-alerts.webp" width="640" alt="Alerts and event health: connection, scores stuck on a device, scoring progress">
+
+1. **Connection** — this screen is live and online.
+2. **Scores stuck on a device** — a tablet that has scores it could not send.
+3. **Scoring progress** for each department.
+
+💡 Also listed here: safety concerns from K-5 judges (a red card at the top), projects nobody will
+score, idle judges and score outliers.
+
+**6. Help a judge** — Judges tab.
+
+<img src="public/help/admin-6-judges.webp" width="640" alt="Judges tab: Allow Transfer and Remove on a judge">
+
+1. **Allow Transfer** — a judge's tablet died or they switch tablets: press it (Admin PIN); within
+   10 minutes they sign in on the new tablet with the same number and code.
+2. **Remove** — someone signed in with the wrong number. It deletes that judge's scores, so do it
+   before they score.
+
+💡 A judge who did not come: give a stand-in that judge's number and the invite code — they get the
+same projects in the same rounds.
+
+**7. Lock judging when time is up.**
+
+<img src="public/help/admin-7-lock.webp" width="640" alt="Sidebar with Lock Judging">
+
+1. **Lock Judging** (bottom of the sidebar): judges can no longer change scores. Press it again to unlock.
+
+💡 Finalize locks judging too. Back up right after locking (next step).
+
+**8. Back up** — Score Export tab.
+
+<img src="public/help/admin-11-export.webp" width="640" alt="Score Export: Save Score Backup and Download Judge Scores CSV">
+
+1. **💾 Save Score Backup**, then **⬇ CSV** on that backup's row, and
+2. **⬇ Download Judge Scores CSV**. Keep the files on a school computer.
+
+💡 Do it halfway through judging and again right after you lock. The saved backup lives in the same
+database — the downloaded files are your real copy. See [Event-day backup plan](#event-day-backup-plan).
+
+### After judging
+
+**9. Confirm the places** — Awards tab.
+
+<img src="public/help/admin-8-awards.webp" width="640" alt="Awards tab: Confirm all ready groups and Print awards list">
+
+1. **✓ Confirm all ready groups** — confirms every group that is fully scored and has no tie, in one go.
+2. **🖨 Print awards list** for the ceremony. It has student names — staff only.
+
+💡 Groups that need you (a tie, missing reviews, changed scores) are listed first. Decide a tie in
+Validation → **Open Deliberation**.
+
+**10. Validate and finalize** — Validation tab.
+
+<img src="public/help/admin-9-validation.webp" width="640" alt="Validation: judge validations, your validation, Finalize Results">
+
+1. Each **judge's validation**: Approved, Concern or Pending.
+2. **Your own validation** — press **Approve Results**.
+3. **🏁 Finalize Results.** It also locks judging. If it is grey, the line above it says why (your
+   approval, an open concern, open deliberation or an undecided tie).
+
+💡 A judge who has not validated does not block Finalize; an open concern does — talk to the judge, or
+press **Clear concern**.
+
+**11. Share the results** — Share tab (it opens once results are finalized).
+
+<img src="public/help/admin-10-share.webp" width="640" alt="Share tab: copy the link, preview the page, download the results CSV">
+
+1. **Copy** the public results link and share it.
+2. **👁 Preview Page** — what families see: no judge names, no student names.
+3. **⬇ Download Results CSV** for your records.
+
+💡 Reopening the results (Validation tab) shows *"Results are being updated"* on the link until you
+finalize again.
+
+---
 
 ## Tab Overview
 
@@ -61,7 +197,7 @@ judge device transfers. **You choose it when you register the school** — 4 to 
 | **Registration** | Student registration link and submissions (not used in 2026-27) |
 | **Rubric** | Your rubric library — create, edit, rename, delete, set the default |
 | **IT Logs** | Diagnostic terminal for troubleshooting (PIN-gated) |
-| **Help & FAQ** | How the system works, checklist, do's and don'ts, troubleshooting |
+| **Help & FAQ** | Step-by-step guides with pictures (yours and the judges'), plus searchable questions & answers |
 
 At the bottom of the sidebar: **🔓 Lock Judging**, **Exit**, **Sign Out** and **⚠️ Reset All Data**.
 
@@ -90,6 +226,7 @@ Run through this a few days before, not on the morning of.
 - [ ] **Do a dry run:** sign in as judge number 1 on a spare tablet, score one project, confirm it shows in Overview, then **Remove** that judge on the Judges tab.
 - [ ] **Write down** the school link, invite code, and which judge number each judge gets (Overview → "Judge sign-in details" lists the numbers per department).
 - [ ] **Plan your backups** — see [Event-day backup plan](#event-day-backup-plan). The day before: download the Projects CSV and print the project list.
+- [ ] **Print the judge guide** for the briefing (Help & FAQ → 🧑‍⚖️ Judge guide → 🖨 Print the judge guide) and show judges **❓ How to judge** on their tablets.
 
 ---
 
@@ -159,9 +296,8 @@ Each department row has a **how it is judged** dropdown with three groups:
 | **A rubric** (e.g. *Upper grades 100-point*) | That rubric — each department can use a different one | Totals, averages, ranking, ties, 1st/2nd/3rd, out of that rubric's points |
 | **Comments only** | A commendation to pick (or type) plus an optional comment | Nothing is scored or ranked. Every project is listed as a winner |
 
-Use **Comments only** for grades you don't want to rank. (The 2026-27 fair first planned this for PreK and
-K-2; since 2026-10-21 **PreK and SPED are scored on the PreK & SPED form** instead — see *The 2026-27
-evaluation forms*.)
+Use **Comments only** for grades you don't want to rank. (The 2026-27 fair scores PreK and SPED on the
+**PreK & SPED Recognition** form instead — see *The 2026-27 evaluation forms*.)
 Those departments never appear in a leaderboard, never trigger a tie or an outlier alert, and on
 the public results page they appear under *"Everyone is a winner"* with the commendations they were
 given, with no rank, no score and no medal.
@@ -192,7 +328,7 @@ Judge 5      ☑     ☐     ☐     ☐     ☐         2
 - **Name (private):** an optional note of who has each number (*"Ms. Rabah"*). Only your school's
   admins can see it — never judges, never the public.
 - **Projects** column: how many projects each judge will score (≈ = estimate until you save). Aim for
-  no more than ~20 (about 5 minutes per scored project).
+  no more than ~20 (the About column assumes about 6 minutes per project).
 - **Maximum judges** (above the grid): 15 by default, up to 90. The grid shows numbers up to it; to
   lower it, untick the higher numbers first.
 - Warnings: a department with projects but **nobody ticked**; a department that needs more judges than
@@ -210,7 +346,8 @@ with 31 projects) choose **"3 judges per project"** under its column in the grid
 - Each project is scored by **3 different judges**, and the app **shares the projects out evenly**
   (with 6 judges, about 16 each instead of 31). Judges see only the projects assigned to them.
 - A **project added later** gets its 3 judges automatically — nobody else's list changes.
-- **Locked once the department has scores** (same as its rubric).
+- **Locked once the department has scores** (same as its rubric), and **switched off while a judging
+  schedule is in use** — the schedule decides who judges what.
 - Every project in the department is still ranked on the same rubric; the Alerts tab still flags a
   judge far from a project's average.
 
@@ -249,10 +386,10 @@ The subject areas students pick from. **These belong to your school alone** — 
 The six built-in ones match the 2026-27 participation form, but you can replace all of them. A robotics fair might use *Autonomous*, *Remote-Operated* and *Innovation & Design* instead.
 
 - **Add / rename / reorder / delete** — exactly like departments.
-- **Code** — a short tag used in student registration numbers (`JHS-LS-001`). Leave it blank and the app builds one from the name.
+- **Code** — builds every project code (`G68-LS-014`, see *Project codes*) and student registration numbers (`JHS-LS-001`). Leave it blank and the app builds one from the name.
 - **↺ Restore built-in categories** — adds back any of the original six that are missing. It never removes your own.
 
-> **Deleting or renaming a category never changes existing projects.** A project keeps the category text it was saved with; only the choice disappears from the dropdowns. When you edit such a project it shows the old value as *"(old category)"* so you can pick a new one.
+> **Deleting or renaming a category never changes existing projects.** A project keeps the category text it was saved with; only the choice disappears from the dropdowns. When you edit such a project it shows the old value as *"(old category)"* so you can pick a new one. **After a rename, move the projects over** — see *Renaming a category (after projects exist)*.
 
 > The 📷 form scanner reads your current category list automatically — there is nothing to keep in sync.
 
@@ -289,7 +426,7 @@ The six built-in ones match the 2026-27 participation form, but you can replace 
 
 ### ⚠️ Order matters: add ALL projects BEFORE judges sign in
 
-A judge's project list is built when they sign in. The app now pushes newly added
+A judge's project list is built when they sign in. The app pushes newly added
 projects out to judges who have already registered — but the safest sequence is still:
 
 1. Set the judge numbers (Setup tab)
@@ -298,7 +435,9 @@ projects out to judges who have already registered — but the safest sequence i
 
 If you must add a late entry after judging has started, it is pushed to the judges in
 that department automatically. Ask them to pull-to-refresh, and check the Judges tab —
-their "Projects Assigned" count should go up by one.
+their **Assigned** count should go up by one. **With a judging schedule** a late project reaches
+nobody until you add it to the schedule file and import it again (Alerts lists it as not in the
+schedule).
 
 ---
 
@@ -329,7 +468,7 @@ appear on the project rows and on the printed project list PDF.
 | Department | Required — a project with no department is scored by nobody |
 | Title | The project name |
 | Category | One of your school's categories (Setup tab) |
-| Grade | PreK, K or 1–12. On the 42-point rubric, grades below 5 skip the Abstract criterion (scored out of 36); the 100-point rubrics have no such rule |
+| Grade | PreK, K or 1–12. The 2026-27 forms treat every grade the same; only the older 42-point rubric uses it (grades below 5 skip Abstract) |
 | Number | Auto-filled; edit if you use your own numbering |
 | Teacher / Adviser | Teacher/coach — optional but appears on the project list |
 | Room | Where the project is — shown to judges and on the project list |
@@ -377,8 +516,9 @@ add projects with **+ Add Project** instead.
   - Example: tick Judge 1–2 under PreK, Judge 3–4 under K-2, and Judge 2 under SPED too if they cover both
   - Give each judge their number. They do not need to know their department — the app shows it to them
 - **Invite code:** shown at the top of your admin Overview tab — in the "Get started" card before any judge signs in, then in the "Judge sign-in details" card (it stays visible for the whole event). Judges type this to sign in.
-  It is checked on the server, so a wrong code now returns a clear error — and 5 wrong attempts
-  lock sign-in for 5 minutes across the school.
+  It is checked on the server. **5 wrong codes on one tablet lock that tablet for 5 minutes**
+  (*"Too many attempts. Try again in N seconds"*); other tablets keep working. 30 wrong codes across
+  the school lock sign-in for everyone for 5 minutes. Tell judges to ask rather than guess.
 - **Department:** follows from the number. (Only if you switched to per-department numbering must you tell each judge which department to tap.)
 
 ---
@@ -467,14 +607,13 @@ If a judge's tablet fails and they need to continue on another device:
 3. Change title, category, grade, number, department, teacher, students, room or either answer
 4. Click **"Save Changes"**
 
-> **"Nothing happens when I press Edit."** Fixed 2026-10-21 — the page now scrolls to the form. On a
-> device still running an older cached version the form opens *above* your scroll position, so it
-> looks like the button did nothing. Reload the page (or close and reopen the installed app). Until
-> then just scroll up to the top of the Projects tab — the form is open and waiting.
+> **"Nothing happens when I press Edit."** The page scrolls to the form at the top of the tab. If it
+> does not move, reload the page (or close and reopen the installed app) — or just scroll up: the form
+> is open and waiting.
 
 > **If the save fails** you get a red *"Not saved — …"* under the form. Nothing was written, the
 > list goes back to what the database really holds, and your typing stays in the form so you can
-> press **Save Changes** again. (Before 2026-10-06 a failed save closed the editor and said nothing.)
+> press **Save Changes** again.
 
 > **Moving a project that already has scores.** If the department you are moving it to is judged
 > differently — a different rubric, or one of the two is **Comments only** — the move is refused and
@@ -484,15 +623,13 @@ If a judge's tablet fails and they need to continue on another device:
 > it, delete that project's scores first.
 
 > **One click is enough.** While a project is saving the button reads *Saving…* and is disabled, so
-> an impatient second tap cannot create a duplicate. (It used to create two projects sharing one
-> number.)
+> an impatient second tap cannot create a duplicate.
 
 > **Two admins at once.** Every project number is unique within your school. If another admin takes
 > the number the form filled in for you a moment before you press **Add Project**, the app quietly
 > uses the next free number instead. If you **typed** the number yourself and it is already taken,
 > you get *"Project number 007 is already used by another project"* — nothing is saved and your
 > typing stays in the form. Type another number, or clear the box to use the next free one.
-> (Needs database migration 2026-10n — until it is run, two admins can still end up on one number.)
 
 **Delete a Project:**
 1. Click **"Remove"**
@@ -636,7 +773,11 @@ Green banner appears when all completed judges have approved AND admin has appro
 
 ### Step 4: Deliberation (Conditional)
 
-Opens automatically on a tie, or admin can open manually. Admin assigns final awards per project.
+It never opens by itself. A tie that decides a place shows an amber **"Tie detected"** alert with an
+**Open Deliberation** button; **Open Manually** works any time. While it is open, judges see a
+**💬 Deliberation Notes** section under their list, you see their notes per project, and you give awards
+(including Honorable Mention / Best in Category) project by project. Press **Close Deliberation** when
+done — Finalize needs it closed.
 A tie on the **PreK & SPED form** does not open it — tied children share the place (see *PreK & SPED:
 ribbons and shared places*); open it manually if you want to break such a tie using the judge's comments.
 
@@ -686,14 +827,14 @@ The **🏅 Awards** tab turns the scores into places without typing a single awa
 shows the next project from the scores. Until then they show the places worked out from the scores. **Clear confirmed places** puts a group back to the computed places.
 
 **Which ties raise the amber "Tie detected" alert.** Only ties that decide a place: level for 1st, 2nd or
-3rd, or across 3rd and 4th, inside one award group. A tie lower down decides nothing and no longer raises
+3rd, or across 3rd and 4th, inside one award group. A tie lower down decides nothing and does not raise
 it; a tie you have decided, and ties on the PreK & SPED form, never do. Saving only 1st does **not** decide a
 tie for 2nd, and a tie that appears after you confirmed raises the alert again. **Finalize is unavailable
 while a tie still decides a place.** Once a department has confirmed places, its *Places: per department /
 per category* setting is locked (clear them first), and a placed project cannot be moved to another group.
 
-**Honorable Mention and Best in Category** are still given in Validation → Deliberation, project by
-project. Confirming places never touches them. A project holds **one** award: once it has a saved
+**Honorable Mention and Best in Category** are given in Validation → **Open Manually** (deliberation),
+project by project — then **Close Deliberation**. Confirming places never touches them. A project holds **one** award: once it has a saved
 Honorable Mention, Best in Category or **No Award**, it is out of the running for 1st–3rd and the place
 passes to the next project. In the Validation dropdowns **nothing changes until you press Save** (an amber
 "Not saved yet" note shows meanwhile); to **take an award back**, choose **Pending** and press **Save (remove award)**.
@@ -705,7 +846,7 @@ confirmed yet are marked *computed, not confirmed yet*.
 
 **After Finalize** the Awards tab is read-only. Reopen the results in the Validation tab to change anything.
 
-The **results CSV** (Share tab) now has an **Award group** column, and its **Rank** restarts in each group.
+The **results CSV** (Share tab) has an **Award group** column, and its **Rank** restarts in each group.
 
 ---
 
@@ -781,7 +922,7 @@ that form only:
 - **Ties share the place.** Places go to the highest, second-highest and third-highest *different*
   totals, so **18, 18, 15 → 1st, 1st, 2nd**. A tie on this form does **not** open deliberation. If you
   would rather break one yourself, read that judge's comments (Validation → Open Manually) and give the
-  award there. A tie on any other form still raises the amber *Tie detected* alert as before.
+  award there. A tie on any other form raises the amber *Tie detected* alert.
 
 ### Other built-in presets
 
@@ -863,9 +1004,8 @@ If some rows say **NOT saved**, nothing was half-written; press Import again to 
 
 **CAUTION — This is permanent:**
 
-1. Go to **IT Logs tab** (enter your Admin PIN)
-2. Click **"Reset All Data"**
-3. Enter your Admin PIN and confirm
+1. Click **⚠️ Reset All Data** at the bottom of the sidebar
+2. Enter your Admin PIN and confirm
 
 **What resets:**
 - All judge registrations and sessions (across all departments)
@@ -947,14 +1087,13 @@ link shows the results.
    hours**, everything loaded). **📋 Copy Full Report** copies exactly what you are looking at —
    pick "last 2 hours" when reporting something that just happened
 
-**What every entry records** (2026-10-07): at the end of its payload, `ctx` says which **build**
+**What every entry records:** at the end of its payload, `ctx` says which **build**
 of the app that device was running, a **session** id (one per page load — follow one tablet's events
 in order), the **role** (admin / judge / visitor) and judge number, whether it was **online**, and
 whether it was the **installed app**. The report header adds your school's address and this
 screen's build. The results-link token is hidden in reports and snapshots.
 
-**The IT log is permanent** — there is no Clear button (the old one only hid the entries until the
-next refresh). The tab loads the newest 1,000 entries and says so when it hits that limit.
+**The IT log is permanent** — there is no Clear button. The tab loads the newest 1,000 entries and says so when it hits that limit.
 
 **Entries written while a tablet was offline** are kept on the tablet and sent when it reconnects,
 with their original time (`ctx.delayed: true`).
@@ -967,11 +1106,11 @@ with their original time (`ctx.delayed: true`).
 - `JUDGE_REMOVED` / `JUDGE_TRANSFER_APPROVED` — Judges tab actions
 - `FULL_RESET` — All data cleared
 
-**Problems to watch for** (added 2026-10-06):
+**Problems to watch for:**
 - `*_FAILED` (e.g. `FINALIZE_FAILED`, `DECISION_SAVE_FAILED`, `VALIDATION_SAVE_FAILED`, `DELIB_NOTE_FAILED`) — a save did not reach the database. The person saw a red **"NOT saved"** message and nothing changed; they just retry.
 - `OFFLINE_SYNC_FAILED` — a judge's queued scores were rejected by the server when they came back online. Shows the alias, how many scores, the error code and how long the oldest has waited. The scores stay on the judge's device.
-- `SCORE_QUEUED` — now records whether the device was simply **offline** or the **server refused** the score (`reason`).
-- `REALTIME_DOWN` / `REALTIME_RECONNECTED` — the live-update connection was down for **over 30 seconds while the screen was in use** / came back (with how long it was down). Brief drops and phones with a locked screen are no longer logged — they used to fill the log. While down, dashboards do not update by themselves. When it reconnects (or a tablet wakes after a minute or more asleep) the screen reloads its data on its own, so anything that changed meanwhile appears without a refresh.
+- `SCORE_QUEUED` — a score kept on the tablet to send later; `reason` says whether the device was **offline**, the save **timed out** (weak Wi-Fi, after about 15 seconds) or the **server refused** it.
+- `REALTIME_DOWN` / `REALTIME_RECONNECTED` — the live-update connection was down for **over 30 seconds while the screen was in use** / came back (with how long it was down). Brief drops and phones with a locked screen are not logged. While down, dashboards do not update by themselves. When it reconnects (or a tablet wakes after a minute or more asleep) the screen reloads its data on its own, so anything that changed meanwhile appears without a refresh.
 - `SCHEDULE_IMPORTED` / `SCHEDULE_CLEARED` / `SCHEDULE_SAVE_FAILED` / `BOOTHS_IMPORTED` — judging schedule and booth numbers.
 - `SAFETY_CONCERN_RAISED` — a judge answered Yes to the safety question (the comment text is never logged).
 - `SCORE_FEEDBACK_COLS_MISSING` — database update 2026-10o has not been run; elementary comments and safety answers are being saved inside notes instead. Tell your technical contact.
@@ -989,8 +1128,8 @@ Logs never contain student names or form text.
 
 - Judges can score offline if internet drops
 - Scores sync automatically when connection returns
-- A score waiting to sync still shows as scored on that judge's device, even after the page is
-  refreshed or the tablet restarts — the judge does not need to score it again
+- A score waiting to sync shows **⏳ … — not sent yet** on that judge's device and still counts as
+  scored, even after the page is refreshed or the tablet restarts — the judge must not score it again
 
 ### Multiple Devices
 
@@ -1072,7 +1211,8 @@ ticked into three departments collects three separate shares — which is how on
 four times another's load. One scored department each levels it out, and it also means nobody has to
 switch between two different rubrics halfway through their session.
 
-Comment-only departments (PreK, SPED) are too small to split, so they ride along with the lightest group.
+Comment-only departments are too small to split, so they ride along with the lightest group. (Scored
+departments — PreK and SPED on the PreK & SPED form, for example — each get their own minimum.)
 
 ### How it picks the numbers
 
@@ -1091,11 +1231,12 @@ is quicker, and a 20-item rubric is slower. The figure turns amber above 20 proj
 **With a judging schedule** the Projects column is each judge's number of **visits** in the schedule
 (e.g. 12), not every project of the departments ticked for them.
 
-> **Worked example (the 2026-27 fair).** 63 projects — PreK 2 · K-5 8 · 6-8 31 · 9-12 19 · SPED 3 —
-> with 15 judges at 3 scores each. The suggestion is **K-5 3 judges · 6-8 7 · 9-12 5**, with PreK and
-> SPED riding along with K-5's three. Everyone reviews **11–13 projects, about 1¼ hours**, and every
-> project gets 3 scores. Left on "every judge scores all" the same roster puts one judge on **58
-> projects — nearly 6 hours.**
+> **Worked example (planning for the 2026-27 fair, while PreK and SPED were still comment-only).**
+> 63 projects — PreK 2 · K-5 8 · 6-8 31 · 9-12 19 · SPED 3 — with 15 judges at 3 scores each: **K-5 3
+> judges · 6-8 7 · 9-12 5**, everyone on **11–13 projects, about 1¼ hours**. Left on "every judge scores
+> all" the same roster put one judge on **58 projects — nearly 6 hours.** (With PreK and SPED scored too,
+> five departments × 3 scores need all 15 judges as a minimum; the fair now runs on its timed judging
+> schedule, which replaces the suggestion.)
 
 ---
 
@@ -1204,10 +1345,9 @@ If you stop there you have **one category under two names**. The consequences:
 > **Scanned forms.** 📷 Scan forms accepts only an exact match to your current list. If your paper
 > entry forms still print the old category name, those scans arrive with the category blank.
 
-**Done at this fair (2026-10-21):** `Life Science` → `Life, Health & Behavior` to match the 2026-27
-middle/high form. The code stayed `LS`, 16 projects were moved over in one database statement, and all
-63 projects were then verified to carry a live category and the same code as before — nothing needed
-reprinting.
+**Example from this fair:** `Life Science` → `Life, Health & Behavior` to match the 2026-27
+middle/high form. The code stayed `LS`, the 16 projects were moved over in one step by the technical
+contact, and every project kept the same code — nothing needed reprinting.
 
 ---
 
@@ -1217,13 +1357,13 @@ reprinting.
 2nd and 3rd — **however low they are**. If you do not want a weak project on the podium, set a minimum.
 
 It is a **percentage of each project's own maximum**, not a number of points. That is deliberate:
-your departments may use different rubrics (42 points, 100 points), and a project below grade 5 skips
-the Abstract criterion so its maximum is 36, not 42. A percentage means the same thing everywhere.
+your departments use forms with different totals (100 points, and 20 on the PreK & SPED form), and on
+the older 42-point rubric a project below grade 5 is out of 36. A percentage means the same thing everywhere.
 The card shows you what it comes to in points for the rubrics you actually use — e.g. *60% (60 of 100)*.
 
 | | What happens |
 |---|---|
-| **0 (default)** | No rule. Any score can place. **This is what the 2026-27 fair uses** (decided 2026-10-21). |
+| **0 (default)** | No rule. Any score can place. **This is what the 2026-27 fair uses.** |
 | **60** | A project must average at least 60% of its own maximum to take 1st, 2nd or 3rd. |
 
 **A project below the minimum is not hidden.** It keeps its position in the results with its real
@@ -1232,9 +1372,8 @@ next projects down that *do* qualify, so you never end up with an empty podium s
 
 A project **exactly on the line places** — 60% means "60% or more".
 
-**If you do use one, 60 is a good number.** (The 2026-27 fair chose 60 first, then decided on 0 on
-2026-10-21 — the top three always place.) On both 100-point rubrics 60% is 60 points, which is a straight *Good*
-(3 out of 5) on every section or item. Neither rubric has a zero, so the lowest total a project can
+**If you do use one, 60 is a good number.** On a 100-point 1–5 form 60% is 60 points, which is a
+straight *Good* (3 out of 5) on every item. These forms have no zero, so the lowest total a project can
 possibly get is 20 — which puts 60 exactly halfway between the floor (20) and full marks (100).
 That is an easy bar to explain to a parent: *a project has to average "Good" to place.*
 
@@ -1270,7 +1409,7 @@ only who gets a medal — but changing it after you have announced winners is co
 
 ### Scenario: Judges can't sign in
 - *"Judge N is not on this school's judge list"* — that number is not ticked in the judge grid (or is above Maximum judges)
-- *"Invalid invite code"* — check the code on the Overview tab. 5 wrong tries lock sign-in for 5 minutes for the whole school
+- *"Invalid invite code"* — check the code on the Overview tab. 5 wrong codes lock **that tablet** for 5 minutes (*"Too many attempts…"*); 30 across the school lock every tablet for 5 minutes
 - *"Judge7 is already signed in"* — another device has that number: **Allow Transfer** if it was them, **Remove** if it was someone else
 
 ### Scenario: Scores not showing up

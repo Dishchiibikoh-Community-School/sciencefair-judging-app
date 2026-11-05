@@ -44,8 +44,8 @@ console.log("\n── Judge (tablet 820px)");
     assert.ok(!log.some(l => l.includes("project_private") && l.includes("[admin]")));
   });
   await page.getByText("Existing Volcano Study").click();
-  await check("scoring screen shows room + description", async () => {
-    await page.getByText(/Room B12/).waitFor({ timeout: 4000 });
+  await check("scoring screen shows the booth + description", async () => {
+    await page.getByText(/Booth B12/).waitFor({ timeout: 4000 });   // "Booth", as on the list (2026-11)
     await page.getByText("How lava cools").waitFor();
   });
   await page.screenshot({ path: `${OUT}/judge-scoring-820.png` });

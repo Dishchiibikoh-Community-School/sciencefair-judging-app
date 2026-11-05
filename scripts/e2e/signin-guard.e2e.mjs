@@ -1,5 +1,5 @@
 // Browser E2E — judge sign-in sends one attempt at a time (FIXES_2026-11.md F6, app part).
-// Five wrong invite codes lock sign-in for the whole school for 5 minutes. A double-tap on
+// Five wrong invite codes lock that tablet for 5 minutes (30 lock the school — 11b). A double-tap on
 // "Enter as Judge", or Enter pressed twice, used to send TWO register_judge calls — with a typo,
 // two failures. Also: the invite box must not autocorrect the code.
 // Run: see scan.e2e.mjs header (dev server on :5199 with mock Supabase env).

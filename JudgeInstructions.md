@@ -1,360 +1,273 @@
 # Judge Instructions — Science Fair Judging App
 
-## Welcome to the Digital Judging Platform
+Thank you for judging! This guide shows every step with pictures of the real screens. The red
+numbers in each picture match the numbered lines under it.
 
-This guide will walk you through how to use the app to score science fair projects. The process is straightforward: sign in with your judge number, score the projects assigned to you, and submit your validation.
+> **On the tablet:** tap **❓ How to judge** — on the sign-in screen or above your project list — for
+> the same steps with pictures. It works without internet.
 
 ---
 
-## Before You Start
+## Before you start
 
 **You'll need:**
-- **Your school's app link** — it looks like `https://qritiko.com/s/your-school`. Your organizer will give you the exact address. Bookmark it.
-- Your **judge number** (for example **7**) — provided by your event organizer. Each number belongs to one person, so you do **not** choose a department: the app fills it in from your number. At small fairs one judge may cover **two or more departments** — the sign-in screen then shows them all (e.g. *"✓ Judge 2 · PreK + K-2"*) and your project list has a heading for each department. Score every project in the list.
-- Invite code: **provided by your event organizer** (a short code set by your school)
-- A tablet, phone, or laptop with internet access
-- About 5 minutes per project in your list (your organizer will tell you roughly how many)
+
+- **Your school's link** — it looks like `https://qritiko.com/s/your-school`. Your coordinator gives
+  you the exact address. A plain `qritiko.com` with no `/s/…` does **not** show your fair.
+- Your **judge number** (for example **3**). Each number belongs to one person. You do **not** choose
+  a department — the app fills it in from your number. One judge may cover **two or more
+  departments**; the sign-in screen then shows them all (e.g. *"✓ Judge 3 · 6-8 + 9-12"*).
+- The **invite code** (a short code from your coordinator).
+- A tablet, phone or laptop. Internet helps, but you can keep scoring without it (see step 7).
+- Time: at the 2026-27 fair each visit is **7 minutes**; your schedule lists your rounds.
 
 ---
 
-## Step 1: Sign In as a Judge
+## Quick start, with pictures
 
-1. **Open your school's link** — `https://qritiko.com/s/your-school` (ask your organizer for the exact address; a plain `qritiko.com` with no `/s/...` will NOT show your fair)
-2. **Click "I'm a Judge"**
-3. **Enter your judge number** (just the number, e.g. `7`). A green line shows your department — for example *"✓ Judge 7 · 6-8"*. If that is not the department you expected, stop and ask your organizer.
-4. **Enter the invite code** provided by organizers
-5. **Tap "Enter as Judge"**
+### 1. Open the fair
 
-> Some schools still number judges separately in each department. If your sign-in screen shows a
-> list of departments, tap the one your organizer told you, then type your judge name (e.g. `Judge1`).
+On the tablet, open the link your coordinator gave you.
 
-If you see an error:
-- **"Judge N is not on this school's judge list"** — the number is wrong. Check it with your organizer.
-- **"Judge7 is already signed in"** — your number is in use on another device. Ask the admin to approve a device transfer, then try again
-- **"Invalid invite code"** — Double-check the code with organizers. The code is checked on the
-  server, and **5 wrong attempts lock sign-in for 5 minutes** for everyone at your school — so
-  confirm the code with an organizer rather than guessing. Press **Enter as Judge** once: the button
-  says *Checking…* while it checks, and extra taps are ignored (they no longer count as extra tries).
-- **"Max judges reached"** / **"is full"** — only on schools that number per department: all slots are taken. Contact organizers.
+<img src="public/help/judge-1-open.webp" width="420" alt="The school's start page with the I'm a Judge card marked 1">
 
----
+1. Tap **I'm a Judge**.
 
-## Step 2: Judge Home Screen
+💡 Use only that link — never another address. The tablet remembers your sign-in for that address only.
 
-After registering, you'll see:
+### 2. Sign in
 
-- **Project list** — the projects assigned to you. In a big department each project may be scored by only some of the judges (e.g. 3), so your list can be a share of the department rather than all of it — that is normal
-- **Progress bar** — Shows how many projects you've completed
-- **Your status** — Whether you've validated your results
+<img src="public/help/judge-2-signin.webp" width="420" alt="Judge Sign In: judge number, green department line, invite code, Enter as Judge">
 
-### Project List
-- Each project shows its **code** (e.g. **PK-LS-001** = PreK · Life Science · project 001), **title, category and grade** — the same code is on the project's display
-- **Green checkmark** = Already scored
-- **Empty circle** = Not yet scored
-- **Click any project** to open the scoring form
+1. Type your **judge number** — just the number, e.g. `3`.
+2. Check the **green line**: your number and your department(s). If it looks wrong, ask the
+   coordinator before you go on.
+3. Type the **invite code**.
+4. Tap **Enter as Judge →**. It says *Checking…* for a moment; extra taps are ignored.
 
-### If your fair uses a timed schedule
+💡 Sign in at the briefing, not when round 1 starts. **5 wrong codes lock this tablet for 5 minutes**
+(*"Too many attempts. Try again in N seconds"*) — ask for the code instead of guessing; capitals do
+not matter. You stay signed in, even if you close the browser.
 
-Your list is your **morning in order**: each row starts with the round and its time (**R3 · 8:46**),
-then the project **code**, the **booth**, and the title. Breaks appear between the rounds; a round with
-nothing for you says *free*.
+### 3. Your judging schedule
 
-At the top, the dark **NEXT** card shows where to go now — e.g. **NEXT · R3 · 8:46–8:53 ·
-G68-ERT-015 · Booth 14**. Tap it to open that project's form. After you press **Submit Score**, NEXT
-moves on to your next round. You will also get a printed sheet with the same rounds — tick each project
-on it when you have submitted it in the app.
+<img src="public/help/judge-3-schedule.webp" width="420" alt="My Projects: who is signed in, the NEXT card, rounds with times and booths, a break">
 
-If you are standing in for another judge, sign in with **their number**: you get their projects in
-their rounds.
+1. **Who this tablet is signed in as** (e.g. *👤 Judge3 · 6-8 + 9-12*). If it is not you, tell the
+   coordinator.
+2. **NEXT** — the project to visit now: its code, title and booth. Tap **Open →** to score it.
+3. **All your rounds in order**, with the start time, the project code and the booth.
+4. **Breaks** (and any round with nothing for you, marked *free*).
 
-**Note:** You only see the projects assigned to you. If the list changes during the event (for example a late project, or the organizer moves work from a judge who could not come), it updates on its own — projects you already scored never disappear.
+💡 Find the booth by the **project code** on its sign. The times are the plan: NEXT moves on when you
+submit a score, not by the clock. You may also get a printed sheet with the same rounds — tick each
+project on it when you have submitted it in the app. Standing in for another judge? Sign in with
+**their** number: you get their projects in their rounds.
 
----
+*No schedule at your fair?* You simply see your list of projects (grouped by department if you cover
+several) — tap one to start. In a big department you may get only a share of its projects; that is
+normal.
 
-## Step 3: Score a Project
+### 4. Score the project
 
-### Scoring Form Layout
-When you open a project to score, you'll see:
+<img src="public/help/judge-4-score.webp" width="420" alt="Scoring screen: project code, rating scale, buttons 1 to 5">
 
-1. **Project heading** — the **project code in large type** (e.g. **G68-ERT-015** — match it to the
-   booth sign and your schedule), the title, category, grade, room (if given), and a short description
-   of what the students planned to investigate or build
-2. **The scale for your form** (blue box) — what 1 to 5 means
-3. **The scoring criteria** — each with buttons to tap
-4. **Comments** — the comment box(es) on your form
-5. **Total score** — Automatically calculated at the bottom
-6. **Submit Score button** — Save and go back to your project list. While it is greyed out, an amber
-   button underneath says how many items are still to rate — tap it to jump to the first one
-7. **Back** — "← Back to my projects" or your tablet's own Back button both return to the list
+1. Check that this **code matches the booth sign**.
+2. The **rating scale** for this form (e.g. 1 = Needs Improvement … 5 = Excellent).
+3. Tap **one number for each item** — the chosen one turns dark blue. Tap another number to change it.
 
-**Nothing you tap is lost before you submit.** Your answers are kept on the tablet as you go — if you
-go back to the list, the page refreshes or the tablet restarts, the project shows **✎ Draft — not
-submitted** and opening it brings your answers back. A score that is saved on the tablet but **not sent
-yet** shows **⏳ … — not sent yet** in the list; it changes to **✓** once it reaches the server. A draft does **not** count until you press
-**Submit Score**. Use **Discard draft** if you want to start that project over.
+💡 Keep the screen to yourself: scores are not shared with students during the visit.
 
-### How Scoring Works
+### 5. Add a comment and submit
 
-Each criterion shows **discrete buttons** (never a slider). Tap the one you want. You cannot
-submit until every criterion has been given a score.
+<img src="public/help/judge-5-submit.webp" width="420" alt="Comment box, total score and the Submit Score button">
 
-**Some departments are not scored at all.** (At the 2026-27 fair every department is scored — PreK and
-SPED use the PreK & SPED form below.) If yours is one, you will
-see a purple note saying *"This group is not scored — every project here is a winner."* Instead of a
-rubric you choose a **commendation** that fits what you saw — Great Scientific Thinking, Creative
-Idea, Excellent Teamwork, Wonderful Presentation, Careful Observer, Asked Great Questions, Terrific
-Effort — or type your own in the box underneath. A comment for the students is optional but very
-welcome; they get to read it. There is no total and nothing is ranked. Pick a commendation and press
-**Submit Review**. The rest of this section does not apply to you.
+1. **A comment** for the students — optional, but it helps them most.
+2. The **total** adds itself up.
+3. Tap **Submit Score →**. It stays grey until every item has a rating; the amber line under it says
+   how many are left — tap it to jump to them.
 
-**If your department IS scored**, it uses the rubric your organizer chose **for that department** —
-different departments can use different rubrics, so if you judge two departments the form may change
-between them. The app always shows the live total and the maximum on the form itself — trust that over
-this page.
+💡 On weak Wi-Fi Submit waits at most about 15 seconds; then the score is kept on the tablet and sent
+later, and you go back to your list as normal.
 
-### The 2026-27 forms
+### 6. K-5 only: comments and the safety question
 
-**Middle & High School form** — 20 items under five headings (Project Overview & Purpose · Scientific
-Inquiry & Method · Data & Conclusion · Presentation & Defense · Research, Collaboration & Compliance).
-Tap **1 to 5** for each item, exactly like circling on the paper form:
-1 = Needs Improvement · 2 = Fair · 3 = Good · 4 = Very Good · 5 = Excellent. The total is out of 100
-(lowest possible 20). Then write your **Judge Comments & Constructive Feedback** — positive feedback
-and actionable suggestions. Scores are not shared with students during booth visits.
+<img src="public/help/judge-5b-elementary.webp" width="420" alt="Elementary form: Strength, Next step, Safety concern No/Yes, ratings × 2.5">
 
-**Elementary form** — 8 items. Judge age-appropriately: focus on the student's own work, thinking,
-evidence and understanding — not the cost or appearance of the project. Tap **1 to 5** for each item
-(1 = just starting · 3 = getting there · 5 = shining). Each number shows its points underneath because
-the form counts **× 2.5**: the total reads e.g. *Ratings 32 / 40 × 2.5 = 80 / 100* — the same sum as
-the paper form, done for you. Then:
-- **Strength / What the student did well**
-- **Next step / Suggestion for improvement** — one helpful next step
-- **Safety / rule concern?** — leave it on **No**, or tap **Yes — notify the Science Fair
-  Committee**. *Yes* alerts the organizer's screen as soon as you submit; please also tell a
-  committee member in person.
+1. **Strength** — what the student did well.
+2. **Next step** — one helpful suggestion.
+3. **Safety / rule concern?** Leave **No**. Tap **Yes — notify the Science Fair Committee** only if
+   something is unsafe or against the rules — the organiser sees it at once. Please tell a committee
+   member too.
+4. You rate 1–5; the app counts **× 2.5** like the paper form, so the total is out of 100
+   (e.g. *Ratings 32 / 40 × 2.5 = 80 / 100*).
 
-**PreK & SPED form** — 4 criteria: **Curiosity · Hands-On Exploration · Sharing What They Learned ·
-Effort and Teamwork**. Tap **1 to 5** for each (whole numbers); under each criterion the form says what
-5, 3–4 and 1–2 look like. The total is out of 20. Help from an adult or a communication device
-**never lowers a score** — score the child's effort and participation, not the materials. Tips from
-the rubric sheet: a visit is 7 minutes (about 1 minute hello, 4 minutes exploring and talking,
-2 minutes celebrating and scoring); get down to eye level, smile and give plenty of time to answer;
-enter scores right after the visit; never compare projects — the totals set the places and every
-child gets a ribbon. A comment is optional.
+### 7. Back on your list
 
-**If the form has headings** (Project Title, Scientific Inquiry, Data and Conclusion, Presentation,
-Further Research) **and about 20 rows**, you are on an earlier version of the 20-item form: rate every
-item from Needs improvement to Excellent (1–5 points each, 100 in total, lowest possible 20).
+<img src="public/help/judge-6-progress.webp" width="420" alt="Project list with a scored project, a draft and the progress bar">
 
-**If the buttons show words** (Needs improvement · Fair · Good · Very Good · Excellent), you are on
-the 100-point rubric. Tap the rating that fits; the points for that section appear underneath, and
-they differ per section because some sections are worth more. There is no zero — the lowest rating
-is still worth points, so the lowest possible total is 20 out of 100. Each section lists the things
-to look at underneath its name; read them, then give the section one rating.
+1. **✓ and the points** — scored and saved.
+2. **✎ Draft — not submitted** — you started this one but did not submit. Your taps are kept on this
+   tablet (even through a refresh or a restart) — open it to finish, or press **Discard draft** to
+   start over. A draft does **not** count until you submit it.
+3. **Your progress.**
 
-**If the buttons show only numbers (0–6)**, you are on the 42-point rubric:
+💡 To change a score, tap the project again and submit again — until you validate your results or the
+coordinator locks judging.
 
-| Points | Meaning |
-|---|---|
-| 0 | Not present |
-| 1 or 2 | Partial (shows progress but incomplete) |
-| 2 or 4 | Complete (meets all requirements) |
-| 3 or 6 | Exceptional (exceeds expectations) |
+### 8. No internet? Keep scoring
 
-On that rubric, projects below grade 5 skip the Abstract criterion (so they are scored out of 36),
-and projects in grade 5 and up cannot be given a 0 — the form will tell you if you try.
+<img src="public/help/judge-7-offline.webp" width="420" alt="Offline banner and a score marked not sent yet">
 
-### Reference: the 42-point rubric (10 criteria)
+1. The **yellow bar** means this tablet is offline. Keep going — your scores are kept on the tablet.
+2. **⏳ … — not sent yet** — saved on this tablet and sent by itself when the connection is back
+   (straight away, every 20 seconds while any are waiting, and when the tablet wakes up). It changes to
+   **✓** once it reaches the server.
 
-> Only if your form uses it. Your organizer chooses the rubric for each department, so your form
-> may look completely different — the app always shows the criteria and the live total on the form
-> itself. Trust that over this page.
+💡 Do **NOT** sign out, clear the browser, or score the project again. When you are back online press
+**Sync Now** (bottom of your list) if anything is still waiting. You cannot sign out while scores are
+only on the tablet — the app shows a warning instead of the Sign Out button.
 
-Based on the Northeast AZ Regional Science and Engineering Fair scoring sheet.
+### 9. When everything is scored: validate
 
-1. **Presentation** (0, 2, 4, 6) — How well is the project displayed and explained?
-2. **Testable Question** (0, 1, 2, 3) — Is the research question measurable and specific?
-3. **Background Research** (0, 1, 2, 3) — Is research based on multiple credible sources?
-4. **Hypothesis** (0, 1, 2, 3) — Is it based on the research and scientifically sound?
-5. **Variables** (0, 1, 2, 3) — Are independent, controlled, and dependent variables clear?
-6. **Materials & Procedure** (0, 1, 2, 3) — Are they detailed, appropriate, and reproducible?
-7. **Data** (0, 2, 4, 6) — Is both quantitative and qualitative data well-collected?
-8. **Analysis** (0, 2, 4, 6) — Are trends/patterns identified and explained?
-9. **Conclusion** (0, 1, 2, 3) — Does it address results and hypothesis?
-10. **Abstract** (0, 2, 4, 6) — For grades 5+: does it summarize the project concisely? (250 words or less)
+<img src="public/help/judge-8-validate.webp" width="420" alt="All projects scored, the ranked list, Approve Results and Flag a Concern">
 
-### Tips for Scoring
+1. **Approve Results** if the ranking of your projects looks right.
+2. **Flag a Concern** if something looks wrong — write a short note, then tap **Submit Concern**.
 
-Do:
-- Read the project thoroughly before scoring
-- Use the scoring guide consistently
-- Give every criterion a score before submitting (the button stays disabled until you do)
-- Take notes if something stands out
-
-Don't:
-- Compare projects while scoring (evaluate each independently)
-- Second-guess yourself excessively
-
-### Scoring Examples (42-point rubric)
-
-**Example 1: Strong Project**
-- Presentation: 6, Testable Q: 3, Background: 3, Hypothesis: 3
-- Variables: 3, Materials: 3, Data: 6, Analysis: 6, Conclusion: 3, Abstract: 6
-- **Total: 42**
-
-**Example 2: Average Project**
-- Presentation: 2, Testable Q: 1, Background: 1, Hypothesis: 2
-- Variables: 2, Materials: 2, Data: 2, Analysis: 2, Conclusion: 1, Abstract: 2
-- **Total: 17**
+💡 After you validate you can no longer change scores. Changed your mind? **Revise my validation** works
+until the results are finalized.
 
 ---
 
-## Step 4: Complete All Projects
+## The 2026-27 forms
 
-1. Work through every project in your list, in any order
-2. Press **"Submit Score →"** (or **"Submit Review →"** in a comments-only group) after each project
-3. Check the progress bar — it updates as you go
-4. Once **100% complete**, a **"📋 Validate Computed Results"** section appears on your project list
+The app shows each department's own form. Trust what the screen shows over this page.
 
----
+**Middle & High School form (6-8, 9-12)** — 20 items under five headings (Project Overview & Purpose ·
+Scientific Inquiry & Method · Data & Conclusion · Presentation & Defense · Research, Collaboration &
+Compliance). Tap **1 to 5** for each item, exactly like circling on the paper form:
+1 = Needs Improvement · 2 = Fair · 3 = Good · 4 = Very Good · 5 = Excellent. Out of 100 (the lowest
+possible total is 20). Then write your **Judge Comments & Constructive Feedback**.
 
-## Step 5: Validate Your Results
+**Elementary form (K-5)** — 8 items. Judge age-appropriately: focus on the student's own work,
+thinking, evidence and understanding — not the cost or look of the project. 1 = just starting ·
+3 = getting there · 5 = shining. Each number shows its points underneath because the form counts
+× 2.5. Then Strength, Next step and the safety question (step 6 above).
 
-After scoring every project in your list:
+**PreK & SPED Recognition form** — 4 criteria: **Curiosity · Hands-On Exploration · Sharing What They
+Learned · Effort and Teamwork**, each 1–5 (whole numbers); under each one the form says what 5, 3–4
+and 1–2 look like. Out of 20. Help from an adult or a communication device **never lowers a score** —
+score the child's effort and participation, not the materials. Tips from the rubric sheet: about
+1 minute hello, 4 minutes exploring and talking, 2 minutes celebrating and scoring; get down to eye
+level, smile and give plenty of time to answer; enter scores right after the visit; never compare
+projects — the totals set the places and every child gets a ribbon. A comment is optional.
 
-1. **You'll see a read-only summary** — All your projects and their average scores, ranked
-2. **Two options:**
-   - **"Approve Results"** — Your scores look good; submit them as-is
-   - **"Flag a Concern"** — Something seems off; add an optional comment
-
-### What "Approve" Means
-- You're confirming your scores are fair and accurate
-- You believe the ranked order reflects relative project quality within your department
-- You're satisfied with your scoring consistency
-
-### When to "Flag"
-- You noticed a tie in scores among top projects
-- One score seems inconsistent with others
-- You have concerns about scoring fairness
-
-If you see a red **"Your validation was NOT saved"** message, nothing was recorded — check your
-internet connection and press the button again. The same applies to deliberation notes
-("Your note … was NOT saved").
-
-### "below 60%" next to a project
-
-Your organizer can set a **minimum score to place**: a project has to reach a certain share of the
-points available to it before it can take 1st, 2nd or 3rd. If your school uses one, projects under
-it are marked (for example *below 60%*) in the list you are asked to validate. The 2026-27 fair does
-not use one (0%), so you should not see this mark.
-
-Nothing about your scoring changes, and the project is not removed — it keeps its position and its
-real score. It simply will not be given a medal. **This is not a fault**, so there is no need to flag
-it as a concern. If you think the project deserves a medal anyway, say so in your comment — the
-organizer can still award it.
-
-### After Validation
-- Admin will see your validation status
-- You cannot change scores after validating
-- Admin may open deliberation if ties exist or concerns are raised
-- **A concern holds up the final results** until it is resolved. Once you and the admin have talked
-  it through, press **Revise my validation** and approve (the admin can also clear it)
-- If a project is **added to your list after you validated**, your screen says so: press
-  **Revise my validation**, score it, and validate again
-- If your screen says **"No projects are assigned to you yet"**, tell the coordinator your number
-- If the admin resets the event (e.g. after a practice round), your device signs you out the next
-  time you open the app — just sign in again with your number and the invite code
+**Tips for every form:** look at the whole project before you rate; use the scale the same way for
+every project; rate each project on its own, never against the one before; a short, kind, specific
+comment is worth more than a long one.
 
 ---
 
-## Step 6: Offline Mode (If Needed)
+## Validation, concerns and deliberation
 
-If internet drops:
-1. Your scores are stored locally on this device
-2. Continue scoring offline — the form works without internet
-3. Scores sync on their own — when the internet returns, every 20 seconds while any are waiting,
-   and when the tablet wakes up
-4. You'll see an **"Offline" banner** while disconnected
-5. Use **"Sync Now"** when back online if shown
-6. A score that is still waiting to sync stays ticked as scored, even if the page refreshes or the
-   tablet restarts — **do not score it again**. It goes up on its own once you are back online
-7. On very slow Wi-Fi, **Submit waits at most about 15 seconds**. After that your score is kept on the
-   tablet and sent later, and you go back to your list as normal
-8. If you ever see **"Your score was NOT saved"**, stay on that screen — every answer is still there.
-   Check the Wi-Fi and press Submit again, or ask the coordinator
-9. If the tablet restarts with no internet, the app still opens with your projects as it last saw
-   them. If it says **"Can't reach the server"**, it opens by itself once the Wi-Fi is back — do not
-   clear the browser
-10. If a project says **"The scoring form could not be loaded"**, check the Wi-Fi and press **Try again**
-11. If a project you have open says **"This project is no longer on your list"**, the organiser removed or
-    moved it — go back to your list. If a screen ever says **"Something went wrong"**, tap **Reload**: your
-    saved scores and unsent work stay on the tablet
+- When every project in your list is scored, a **📋 Validate Computed Results** section appears with your
+  projects ranked within each department. Approve, or flag a concern (step 9).
+- **A concern holds up the final results** until it is resolved. Once you and the coordinator have
+  talked it through, press **Revise my validation** and approve (the coordinator can also clear it).
+- If a project is **added to your list after you validated**, your screen says so: press **Revise my
+  validation**, score it, and validate again.
+- *"below N%"* next to a project means your school set a minimum score to place and that project is
+  under it. It keeps its score and position — it just cannot take a medal. Not a fault; no need to flag
+  it. (The 2026-27 fair does not use a minimum.)
+- **💬 Deliberation Notes** — if the coordinator opens deliberation (usually to break a tie), a section
+  appears under your list. For any project you can pick a recommendation (Recommend for Award · Strong
+  Contender · Good Work · Needs Improvement), add a comment, tick **🚩 Flag this project for
+  discussion**, and press **Submit Note** (later **Update Note**). It is optional unless the coordinator
+  asks.
+- If you see red **"Your validation was NOT saved"** or **"Your note … was NOT saved"**, nothing was
+  recorded — check the Wi-Fi and press the button again.
 
-**Note:** Ensure your browser doesn't clear data, or scores may be lost.
+---
 
-**You cannot sign out while scores are only on your device.** The app shows a warning instead of the
-Sign Out button until they have synced — connect to the internet and press **Sync Now** first.
+## Messages you might see
+
+| On screen | What it means | What to do |
+|---|---|---|
+| *Judge N is not on this school's judge list* | Wrong number | Check your number with the coordinator |
+| *JudgeN is already signed in. Ask the admin to approve a device transfer.* | Your number is signed in on another tablet (or this one, earlier) | Ask the coordinator to press **Allow Transfer**, then sign in again within 10 minutes |
+| *Invalid invite code* | Typo in the code | Type it again carefully; ask if unsure |
+| *Too many attempts. Try again in N seconds.* | 5 wrong codes on this tablet | Wait, then type the code carefully. (30 wrong codes across the school lock every tablet for 5 minutes) |
+| *🔒 Judging is currently locked by the administrator.* | Scoring time is over or paused | Projects cannot be opened until the coordinator unlocks judging |
+| *Your score was NOT saved* | Neither the server nor the tablet could keep it | Stay on the screen — your answers are there. Check the Wi-Fi and press Submit again |
+| *⏳ … — not sent yet* (in the list) | Saved on the tablet, waiting for a connection | Keep scoring; join the Wi-Fi; press **Sync Now** |
+| *The server has not accepted one of them after several tries* | The server refuses a waiting score | Do **not** sign out or clear the browser — tell the coordinator |
+| *Can't reach the server* | Offline, and this tablet never opened the fair before | Connect to Wi-Fi — it tries again by itself |
+| *The scoring form could not be loaded* | That department's form could not be fetched | Check the Wi-Fi and press **Try again** (the app never shows a different form instead) |
+| *This project is no longer on your list* | The coordinator moved or removed it | Go back to your list and carry on |
+| *No projects are assigned to you yet* | Your number has no projects yet | Tell the coordinator your number — the list fills in by itself |
+| *Something went wrong on this screen* | An unexpected error | Tap **Reload** — saved scores and unsent work stay on the tablet |
+
+Some schools number judges separately in each department: if your sign-in screen shows a list of
+departments, tap the one your coordinator named and type your judge name (e.g. `Judge1`). There, *"…
+is full"* means all its places are taken — tell the coordinator.
 
 ---
 
 ## FAQs
 
-**Q: Which projects will I score?**
-A: Only the projects assigned to you — usually every project in your department, or an even share of it in a big department. You will not see projects from departments you do not judge.
+**Which projects will I score?**
+Only the ones on your list — usually your schedule's visits, every project in your department, or an
+even share of it in a big department. Projects you already scored never disappear if the list changes.
 
-**Q: Can I change a score after submitting?**
-A: Yes — go back to the project and tap it again. Scores are editable until you validate results, or until the admin locks judging. Once you validate, or once judging is locked, submissions are refused.
+**Can I change a score after submitting?**
+Yes — open the project and submit again, until you validate or the coordinator locks judging.
 
-**Q: The list shows someone else's judge number.**
-A: The top of your project list shows who this device is signed in as (e.g. *"👤 Judge15 · PreK"*).
-If that is not you, the device is still signed in as an earlier judge — press **Sign Out** and sign in
-with your own number. If Sign Out is blocked because scores are still waiting to sync, connect to the
-internet first.
+**The tablet shows someone else's judge number.**
+It is still signed in as an earlier judge. Tell the coordinator — do not score on it. They can sign it
+out, or move your sign-in to it with Allow Transfer.
 
-**Q: I ended up in the wrong department.**
-A: You probably typed the wrong number. Tell your admin before you score anything — they can remove that sign-in on the Judges tab so you can sign in again with the right number.
+**My tablet died, or I have to use another tablet.**
+Tell the coordinator. They press **Allow Transfer** for your number; within 10 minutes sign in on the
+other tablet with the same number and invite code. Scores already sent are kept; scores that were only
+on the old tablet are not — get it online first if you can.
 
-**Q: It says my judge number is already signed in.**
-A: Another device is already signed in as you (or someone used your number). Ask the admin: Allow Transfer if it was you on another device, or Remove if it was someone else.
+**Can I leave and come back?**
+Yes — the tablet stays signed in and keeps your drafts. Signing in again on another tablet needs the
+coordinator's **Allow Transfer** first.
 
-**Q: Can I score projects from a different department?**
-A: Only the departments your organizer put your number in. Most judges cover one department; at a small
+**I typed the wrong number.**
+Tell the coordinator before you score anything — they can remove that sign-in so you can sign in again
+with the right number.
 
-**Q: My tablet says "This device is not signed in as that judge".**
-A: Your scores can only be saved from the tablet you signed in on last. Ask the admin to press **Allow Transfer**, then sign in again with your number and the invite code. Scores you already saved are kept.
-fair your number may cover two or more, and then your project list has a heading for each one — score
-everything in the list. You cannot add a department yourself: ask your organizer, who sets this up in the
-judge grid.
+**Who sees my scores and comments?**
+The organisers. The public results never show judge names or student names.
 
-**Q: How long does scoring take?**
-A: Typically 30–45 minutes depending on how many projects are in your list.
-
-**Q: Can I leave and come back later?**
-A: Yes. Your progress is saved on this device. If you must sign in again, use the same judge number and invite code.
-
-**Q: Is my data private?**
-A: Your scores are secure. Admin can see them for aggregation/ranking, but your individual responses aren't shared with other judges. Public results never show judge names.
+**If something else goes wrong:** don't clear the browser. Tell the coordinator your judge number,
+what you were doing, and the exact message (a photo of the screen helps).
 
 ---
 
-## Need Help?
+## Other forms (only if your school uses them)
 
-If you encounter issues:
-1. Try refreshing the page (Ctrl+R or Cmd+R)
-2. Check your internet connection
-3. Contact an organizer with:
-   - Your judge number (e.g., 3)
-   - Your department (e.g., 6-8)
-   - What you were doing when the error occurred
-   - Any error message (screenshot if possible)
+Your coordinator chooses each department's form; the 2026-27 fair uses the three above. If yours looks
+different:
+
+- **Buttons with words** (Needs improvement … Excellent) — the Cibecue / ISEF-style 100-point rubric:
+  one rating per section; the points under each word differ by section. The lowest total is 20.
+- **About 20 rows under five headings, rated 1–5** — the earlier detailed 20-item form (100 points).
+- **Buttons 0–6** — the Northeast AZ 42-point rubric: 0 = not present · 1/2 = partial · 2/4 = complete ·
+  3/6 = exceptional. Projects below grade 5 skip Abstract (out of 36); grade 5 and up cannot get a 0.
+- **A purple "not scored" note and commendation buttons** — a comments-only group: pick a commendation
+  (or type your own), add an optional comment, press **Submit Review**. Nothing is ranked.
 
 ---
 
 ## Summary
 
-1. Sign in with your **judge number** and the invite code — your department is filled in for you
-2. Score every project in your list using the form for its department
-3. Add optional notes for each project
-4. Validate (approve or flag) your results
-5. Wait for final rankings and results
+1. Open your school's link → **I'm a Judge** → your **number** and the **invite code**.
+2. Follow **NEXT**: check the code at the booth, rate every item, comment, **Submit Score**.
+3. No internet? Keep scoring — never sign out or clear the browser while scores wait.
+4. When all are scored, **Approve** (or flag a concern).
 
 **Thank you for being a fair, thoughtful judge!**

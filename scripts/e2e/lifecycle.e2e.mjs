@@ -315,6 +315,7 @@ await check("confirmed save stores the new 9-criterion rubric", async () => {
 
 await A.page.locator(".nav-it", { hasText: "Help & FAQ" }).click();
 await check("Help & FAQ tab shows the guide with sections and FAQs", async () => {
+  await A.page.getByRole("tab", { name: /Questions & answers/ }).click();   // opens on the step-by-step guide (2026-11)
   await A.page.getByText("How this system works").waitFor({ timeout: 4000 });
   for (const t of ["Before the event — checklist", "Data safety", "Form scanning", "Troubleshooting"]) await A.page.getByText(t, { exact: false }).first().waitFor();
   await A.page.getByText("What does Reset All Data clear?").click();
