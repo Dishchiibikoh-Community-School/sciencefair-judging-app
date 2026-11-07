@@ -590,7 +590,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-05";
+const ADMIN_HELP_UPDATED = "2026-11-06b";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -746,9 +746,10 @@ const ADMIN_HELP = [
   { title: "Judging schedule (rounds & times)", icon: "📅", faq: [
     ["Why is the judge grid greyed out?", "Because a judging schedule is in use, and the schedule decides who judges what. The ticks were filled in from it — they show which departments each judge visits — and each department column says '📅 Set by the schedule'. They are locked so a click cannot hand judges different projects from your printed schedule. The Projects column is each judge's number of visits. The Name boxes stay editable. To change who judges what, edit the schedule file and import it again; Remove schedule unlocks the grid."],
     ["What does the judging schedule do?", "It makes your timed schedule the plan the app follows. Each judge's tablet lists their projects in round order with the times (e.g. 'R3 · 8:46–8:53 · G68-ERT-015 · Booth 14'), shows the breaks, and puts a NEXT card at the top that moves on after every submit. The schedule decides who judges what: the judge grid, 'judges per project', Rebalance and the Suggested setup are switched off until you remove it."],
-    ["How do I import it?", "Make the grid in Excel: one row per judge (Judge 1, Judge 2, …), one column per round with its time in the heading (R1 8:30–8:37), BREAK / WRAP-UP columns if you like, and a project CODE in each cell exactly as the app shows it (e.g. G68-ERT-015). '—' means the judge is free. Save it as CSV (File → Save As → CSV UTF-8), then Setup → 📅 Judging schedule → ⬆ Import schedule (CSV)."],
+    ["Is there a template for the schedule?", "Yes. Setup → 📅 Judging schedule → 📄 Make a blank schedule template. Type when the first round starts, the minutes per visit and between visits, how many rounds, after which rounds there is a break (e.g. 4, 8), the break length and the wrap-up length — the times appear underneath — then ⬇ Download template. You get the grid in exactly the layout the import reads: one row per judge (Judge 1 up to your Maximum judges), one column per round with its time, the breaks, and every project code listed under the grid to copy from. Fill each round cell with a code ('—' or empty = free), save as CSV and import it. The review then checks every code, every project's visits and every booth before anything is saved."],
+    ["How do I import it?", "Make the grid in Excel (or start from the template above): one row per judge (Judge 1, Judge 2, …), one column per round with its time in the heading (R1 8:30–8:37), BREAK / WRAP-UP columns if you like, and a project CODE in each cell exactly as the app shows it (e.g. G68-ERT-015). '—' means the judge is free. Save it as CSV (File → Save As → CSV UTF-8), then Setup → 📅 Judging schedule → ⬆ Import schedule (CSV)."],
     ["What does the review check?", "Before anything is saved it shows the judges, rounds, breaks, the number of visits and how many visits each project gets. A code that matches no project, a judge visiting the same project twice, or a judge number above Maximum judges blocks saving (fix the file and import again). A project nobody visits, and two judges at the same booth in the same round, are shown as warnings."],
-    ["How do booth numbers get onto the tablets?", "Fill in the 'Booth #' column of the booth template, save it as CSV, and press ⬆ Import booth numbers (CSV) in the same box. Each project's booth is saved as its Room / booth and shown to judges next to the code. Locked projects are skipped (unlock them first)."],
+    ["How do booth numbers get onto the tablets?", "Press ⬇ Booth template (Setup → 📅 Judging schedule): it lists every project code with its department and title. Fill in the 'Booth #' column, save it as CSV, and press ⬆ Import booth numbers (CSV) in the same box. Each project's booth is saved as its Room / booth and shown to judges next to the code. Locked projects are skipped (unlock them first)."],
     ["What can I print?", "🖨 Judge sheets — one page per judge: round, time, code, booth and title, with the breaks, and a box to tick each project. 🖨 Booth visit times — every booth with the times and judge numbers of its visits, so students know when to be there. No student names and no scores are printed."],
     ["A judge did not come.", "Give a stand-in that judge's number and the invite code — they get exactly the same projects in the same rounds. The Judges tab lists which scheduled judges have not signed in yet. Rebalance is off while a schedule is in use (it knows nothing about rounds and could give a judge two projects at once)."],
     ["Can I change the schedule after judging starts?", "Yes — edit the file and import it again (Replace the schedule). It is refused if it takes away a visit a judge has already scored; keep those visits in the file. Moving a visit to another round is fine."],
@@ -773,6 +774,7 @@ const ADMIN_HELP = [
     ["How many judge numbers can we have?", "Setup → Judges → Maximum judges: 15 by default, up to 90. The grid only shows numbers up to it. To lower it, first untick the higher numbers."],
     ["I signed in as a new judge number but still see the old judge's projects.", "That device is still signed in as the earlier judge — the app remembers each device so judges never lose their place. The top of the project list shows who it is (e.g. 'Judge15 · PreK'). Press Sign Out, then sign in with the new number. Use one device per judge on event day."],
     ["How do judge numbers work?", "Setup → Judges is a grid: one row per judge number, one column per department. Tick where each judge judges and press Save judges. A judge types only their number; the sign-in screen shows their department(s). Each number is one person."],
+    ["Can I see exactly which projects a judge will judge?", "Yes. Setup → Judges: click the number in that judge's Projects column. It lists their projects — with a judging schedule, every round in order with its time, the project code, booth and title, the breaks and any free round, exactly as the judge's tablet and printed sheet will show it; without one, the projects of their departments (only their own share where a department has 'N judges per project'). Use it to check a judge's list before the event, or to answer 'where do I go next?' on the day. It shows 'Estimate' until unsaved grid changes are saved."],
     ["What is the Name box in the judge grid?", "An optional private note of who has each number (e.g. 'Ms. Rabah'). Only your school's admins can see it — never judges, never the public."],
     ["Can I change the judge grid after judges signed in?", "You can tick MORE departments for a signed-in judge — their project list updates. You cannot untick one: Save is refused and names the judge, because they were told where to judge. Remove that judge on the Judges tab first if needed."],
     ["We have fewer judges than departments need. Can one judge cover several departments?", "Yes — tick that judge number in each department they cover. Their sign-in shows e.g. 'Judge 2 · PreK + K-5' and their list has a heading per department."],
@@ -902,10 +904,11 @@ const ADMIN_GUIDE = [
     tip: "Setup tab. Do it before any judge scores — a department's form locks once it has scores." },
   { img: "admin-3-schedule", title: "Import the schedule and the booth numbers, then print",
     points: [
-      "⬆ Import schedule (CSV) — your Excel grid saved as CSV. Check the review, then press Save schedule.",
-      "⬆ Import booth numbers (CSV) — the booth template with its Booth # column filled in.",
+      "⬆ Import schedule (CSV) — your Excel grid saved as CSV (start from 📄 Make a blank schedule template if you have none). Check the review, then press Save schedule.",
+      "⬆ Import booth numbers (CSV) — ⬇ Booth template, with its Booth # column filled in.",
       "🖨 Judge sheets — one page per judge, for the clipboards.",
       "🖨 Booth visit times — so students know when to be at their booth.",
+      "📄 Make a blank schedule template — no schedule yet? Type your start time, visit length, rounds and breaks, and download a grid with the times and every project code ready to fill in.",
     ],
     tip: "Setup → 📅 Judging schedule. Settle project codes and booths BEFORE you print — paper does not update itself." },
   { img: "admin-4-projects", title: "Check the projects",
@@ -1399,6 +1402,52 @@ function parseScheduleCsv(text) {
   }
   if (!rows.length) return { slots: [], rows: [], error: "No judge rows found (rows starting with \"Judge 1\", \"Judge 2\", …)." };
   return { slots, rows, error: "" };
+}
+
+// ── Schedule TEMPLATE (2026-11) — a blank grid in exactly the layout parseScheduleCsv() reads ──
+// Times are worked out from a few numbers so a school never types "R7 9:23–9:30" by hand:
+// visit length, the gap between visits, which rounds are followed by a break, the wrap-up.
+// A break starts one gap after the round before it and the next round starts when it ends;
+// the defaults reproduce the 2026-27 Dishchii'bikoh day exactly (8:30, 7 + 1 min, 12 rounds,
+// breaks after R4 and R8 of 5 min, a 14-min wrap-up → 8:30–8:37 … BREAK 9:02–9:07 … 10:16–10:30).
+const SCHED_TPL_DEFAULT = { start: "8:30", visit: "7", gap: "1", rounds: "12", breaksAfter: "4, 8", breakMin: "5", wrapMin: "14" };
+function schedTemplateSlots(o) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(o.start || "").trim());
+  const visit = parseInt(o.visit, 10), gap = parseInt(o.gap, 10), rounds = parseInt(o.rounds, 10);
+  const breakMin = parseInt(o.breakMin, 10), wrapMin = parseInt(o.wrapMin, 10);
+  const after = String(o.breaksAfter || "").split(/[\s,;]+/).filter(Boolean).map(Number);
+  if (!m || +m[1] > 23 || +m[2] > 59) return { error: "Start time must look like 8:30." };
+  if (!(visit >= 1 && visit <= 60)) return { error: "Minutes per visit must be 1–60." };
+  if (!(gap >= 0 && gap <= 30)) return { error: "Minutes between visits must be 0–30." };
+  if (!(rounds >= 1 && rounds <= 40)) return { error: "Rounds must be 1–40." };
+  if (after.some(n => !(Number.isInteger(n) && n >= 1 && n < rounds))) return { error: `Breaks go after a round from 1 to ${rounds - 1} (e.g. "4, 8").` };
+  if (after.length && !(breakMin >= 1 && breakMin <= 120)) return { error: "Break length must be 1–120 minutes." };
+  if (!(wrapMin >= 0 && wrapMin <= 120)) return { error: "Wrap-up must be 0–120 minutes (0 = none)." };
+  const fmt = (t) => `${Math.floor(t / 60) % 24}:${String(t % 60).padStart(2, "0")}`;
+  const slots = []; let t = +m[1] * 60 + +m[2];
+  for (let r = 1; r <= rounds; r++) {
+    slots.push({ kind: "round", label: `R${r}`, start: fmt(t), end: fmt(t + visit) });
+    t += visit;
+    if (after.includes(r)) { slots.push({ kind: "break", label: "BREAK", start: fmt(t + gap), end: fmt(t + gap + breakMin) }); t += gap + breakMin; }
+    else if (r < rounds) t += gap;
+  }
+  if (wrapMin > 0) slots.push({ kind: "break", label: "WRAP-UP", start: fmt(t + gap), end: fmt(t + gap + wrapMin) });
+  return { slots, error: "" };
+}
+// judges: [{ number, label }], projects: [{ code, dept, title, booth }] — no student names, ever.
+function schedTemplateCsv({ schoolName, slots, judges, projects }) {
+  const rows = [
+    [`${schoolName || "Science fair"} — JUDGING SCHEDULE`],
+    ["Put a project CODE (from the list under the grid) in each round cell. \"—\" or empty = the judge is free. Do not change the header row. Save as CSV (File → Save As → CSV UTF-8), then Setup → 📅 Judging schedule → ⬆ Import schedule (CSV)."],
+    [],
+    ["Judge", "Judge Name\n(optional)", "Interviews", ...slots.map(s => `${s.label}\n${s.start}–${s.end}`)],
+    ...judges.map(j => [`Judge ${j.number}`, j.label || "", "", ...slots.map(s => s.kind === "round" ? "" : s.label === "BREAK" ? "COMMON BREAK" : "WRAP-UP & DEBRIEF")]),
+    [],
+    ["PROJECT CODES — copy these into the grid (this list is ignored on import)"],
+    ["Code", "Department", "Title", "Booth"],
+    ...projects.map(p => [p.code, p.dept, p.title, p.booth || ""]),
+  ];
+  return String.fromCharCode(0xFEFF) + rows.map(r => r.map(csvCell).join(",")).join("\r\n");
 }
 
 // Read a criterion value from a score row. v2 stores { criteria: {...} };
@@ -2139,6 +2188,30 @@ const CSS = `
   .help-faq{border-top:1px solid var(--bd);padding:.55rem 0;font-size:.88rem;}
   .help-faq summary{cursor:pointer;font-weight:600;color:var(--text);}
   .help-faq div{margin-top:.4rem;color:var(--dim);line-height:1.55;}
+  /* Judge grid → one judge's project list (judgeProjectList) */
+  .roster-load-btn{background:none;border:1px solid var(--bd);border-radius:8px;padding:.15rem .55rem;min-width:2.4rem;min-height:30px;
+    font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;}
+  .roster-load-btn:hover{background:var(--s2);border-color:var(--navy);color:var(--navy);}
+  .jl-box{background:var(--bg);border-radius:16px;padding:1.25rem 1.4rem;width:100%;max-width:820px;max-height:85vh;overflow-y:auto;
+    text-align:left;box-shadow:0 24px 80px rgba(0,0,0,.18);}
+  .jl-head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:.7rem;}
+  .jl-head h3{font-family:var(--ff-d);font-size:1.2rem;color:var(--navy);margin:0 0 .2rem;}
+  .jl-sub{font-size:.85rem;color:var(--dim);}
+  .jl-note{font-size:.8rem;color:var(--dim);margin:0 0 .5rem;}
+  .jl-table{width:100%;border-collapse:collapse;font-size:.85rem;}
+  .jl-table th{text-align:left;font-family:var(--ff-m);font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);
+    padding:.35rem .5rem;border-bottom:1px solid var(--bd);}
+  .jl-table td{padding:.42rem .5rem;border-bottom:1px solid var(--bd);vertical-align:top;}
+  .jl-code{font-family:var(--ff-m);font-weight:600;color:var(--navy);white-space:nowrap;}
+  .jl-break td{background:var(--amber-l);color:#92400e;font-weight:600;}
+  .jl-free td{color:var(--dim);font-style:italic;}
+  /* Judging-schedule template maker (Setup → 📅 Judging schedule) */
+  .sched-tpl{margin-top:.8rem;border:1px dashed var(--bd);border-radius:10px;padding:.55rem .8rem;background:var(--s1);}
+  .sched-tpl summary{cursor:pointer;font-weight:600;font-size:.88rem;color:var(--navy);}
+  .tpl-grid{display:flex;flex-wrap:wrap;gap:.5rem .9rem;}
+  .tpl-field{display:flex;flex-direction:column;gap:.2rem;font-size:.74rem;color:var(--dim);}
+  .tpl-field input{padding:.4rem .5rem;font-size:.88rem;}
+  .tpl-preview{margin-top:.6rem;font-family:var(--ff-m);font-size:.74rem;color:var(--text);line-height:1.6;background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:.45rem .6rem;}
   /* Illustrated guides (JUDGE_GUIDE / ADMIN_GUIDE). The red markers match help-shots.mjs. */
   .help-tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin:0 0 1rem;}
   .help-tabs button{border:1.5px solid var(--bd);background:var(--bg);color:var(--text);border-radius:999px;padding:.5rem 1rem;
@@ -2569,6 +2642,8 @@ export default function App() {
   const [scheduleSlots,    setScheduleSlots]    = useState([]);    // [{ kind, no?, label, start, end }]
   const [hasSchedule,      setHasSchedule]      = useState(true);  // false = migration 2026-10p not run
   const [schedDraft,       setSchedDraft]       = useState(null);  // an imported file under review
+  const [schedTpl,         setSchedTpl]         = useState(SCHED_TPL_DEFAULT);  // template maker (times)
+  const [judgeListFor,     setJudgeListFor]     = useState(null);  // judge grid: number whose project list is open
   const [schedMsg,         setSchedMsg]         = useState(null);  // { ok, text }
   const [schedBusy,        setSchedBusy]        = useState(false);
   const [schedClearAsk,    setSchedClearAsk]    = useState(false);
@@ -4653,6 +4728,42 @@ export default function App() {
     }
     return { total, approx };
   }
+  // The projects one judge NUMBER will judge (Setup → Judges, click the Projects count). Same sources as
+  // rosterLoad(): with a schedule, the visits in round order with the breaks and free rounds (rule 77);
+  // otherwise every project of the ticked departments, or only the stored panel assignments in a
+  // department with "N judges per project". Unsaved grid changes / panels not filled yet → estimate.
+  // → { rows: [{ kind: "visit"|"break"|"free", round?, time?, label?, proj?, dept? }], estimate }
+  function judgeProjectList(n) {
+    const deptName = (id) => departments.find(d => d.id === id)?.name || "";
+    if (scheduleActive()) {
+      const mine = scheduleFor(n);
+      const rows = scheduleSlots.map(s => {
+        if (s.kind === "break") return { kind: "break", label: s.label, time: s.start ? `${s.start}–${s.end}` : "" };
+        const v = mine.find(x => x.round_no === s.no);
+        const p = v && projects.find(x => x.id === v.project_id);
+        return p ? { kind: "visit", round: s.no, time: roundTime(s.no), proj: p, dept: deptName(p.department_id) } : { kind: "free", round: s.no, time: roundTime(s.no) };
+      });
+      // A visit in a round the slots do not list (should not happen) is never hidden.
+      mine.filter(v => !scheduleSlots.some(s => s.kind === "round" && s.no === v.round_no)).forEach(v => {
+        const p = projects.find(x => x.id === v.project_id);
+        if (p) rows.push({ kind: "visit", round: v.round_no, time: "", proj: p, dept: deptName(p.department_id) });
+      });
+      return { rows, estimate: false };
+    }
+    const map = rosterView();
+    const ordOf = (id) => departments.find(d => d.id === id)?.ord ?? 999;
+    let estimate = rosterDraft !== null;
+    const list = [];
+    for (const deptId of [...(map[n] || [])].sort((a, b) => ordOf(a) - ordOf(b))) {
+      const d = departments.find(x => x.id === deptId);
+      const inDept = projects.filter(p => p.department_id === deptId).sort((a, b) => String(a.num).localeCompare(String(b.num)));
+      if (!d?.judges_per_project) { list.push(...inDept); continue; }
+      const mine = inDept.filter(p => projectJudges.some(x => x.project_id === p.id && x.judge_number === n));
+      if (!projectJudges.some(x => inDept.some(p => p.id === x.project_id))) estimate = true;
+      list.push(...mine);
+    }
+    return { rows: list.map(p => ({ kind: "visit", proj: p, dept: deptName(p.department_id) })), estimate };
+  }
   async function saveRoster() {
     setSetupErr("");
     const sid = currentSchool.id;
@@ -4923,6 +5034,35 @@ export default function App() {
       `${currentSchool?.name || ""} · ${link}`, forJudges ? JUDGE_GUIDE : ADMIN_GUIDE, forJudges ? JUDGE_FAQ : null, window.location.origin);
     const w = window.open("", "_blank");
     if (w) { w.document.write(html); w.document.close(); }
+  }
+  // Templates (2026-11): a blank schedule grid in the import layout, and the booth template.
+  // Neither holds student names — codes, departments, titles, booths and judge numbers only.
+  function templateProjects() {
+    const ordOf = (id) => departments.find(d => d.id === id)?.ord ?? 999;
+    return projects.filter(p => p.department_id)
+      .sort((a, b) => ordOf(a.department_id) - ordOf(b.department_id) || String(a.num).localeCompare(String(b.num)))
+      .map(p => ({ code: projectCode(p), dept: departments.find(d => d.id === p.department_id)?.name || "", title: p.title || "", booth: p.room || "" }));
+  }
+  function downloadText(name, text) {
+    const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = name; a.click();
+    URL.revokeObjectURL(url);
+  }
+  function downloadScheduleTemplate() {
+    const t = schedTemplateSlots(schedTpl);
+    if (t.error) return;
+    const n = judgeMax();
+    const judges = Array.from({ length: n }, (_, i) => ({ number: i + 1, label: judgeLabels[i + 1] || "" }));
+    const csv = schedTemplateCsv({ schoolName: currentSchool?.name, slots: t.slots, judges, projects: templateProjects() });
+    downloadText(`judging-schedule-template-${currentSchool?.slug || "school"}.csv`, csv);
+    addItLog("INFO", "ADMIN", "SCHEDULE_TEMPLATE_DOWNLOADED", "Admin downloaded a judging schedule template",
+      { judges: n, rounds: t.slots.filter(s => s.kind === "round").length, projects: templateProjects().length });
+  }
+  function downloadBoothTemplate() {
+    const rows = [["Booth # (fill in)", "Project code", "Department", "Title"], ...templateProjects().map(p => [p.booth, p.code, p.dept, p.title])];
+    downloadText(`booth-template-${currentSchool?.slug || "school"}.csv`, String.fromCharCode(0xFEFF) + rows.map(r => r.map(csvCell).join(",")).join("\r\n"));
+    addItLog("INFO", "ADMIN", "BOOTH_TEMPLATE_DOWNLOADED", "Admin downloaded the booth template", { projects: rows.length - 1 });
   }
   function printJudgeSheets() {
     const nums = [...new Set(schedule.map(s => s.judge_number))].sort((a, b) => a - b);
@@ -10297,7 +10437,11 @@ export default function App() {
                                   {/* Stable classes: adding the time column broke two tests that
                                       read this row by position. Never depend on column order. */}
                                   <td className="roster-load" style={{color: load.total > 20 ? "var(--amber)" : "var(--dim)"}}>
-                                    {(map[n] || []).length ? `${load.approx ? "≈" : ""}${load.total}` : "—"}
+                                    {(map[n] || []).length
+                                      ? <button type="button" className="roster-load-btn" aria-label={`Show the projects of Judge ${n}`}
+                                          title="Show the projects this judge will judge" onClick={() => setJudgeListFor(n)}>
+                                          {`${load.approx ? "≈" : ""}${load.total}`}</button>
+                                      : "—"}
                                   </td>
                                   <td className="roster-time" style={{color: load.total > 20 ? "var(--amber)" : "var(--dim)", fontSize:".78rem", whiteSpace:"nowrap"}}>
                                     {(map[n] || []).length ? judgeTimeText(load.total) : "—"}
@@ -10308,6 +10452,49 @@ export default function App() {
                           </tbody>
                         </table>
                       </div>
+                      {judgeListFor != null && (() => {
+                        const n = judgeListFor;
+                        const { rows, estimate } = judgeProjectList(n);
+                        const visits = rows.filter(r => r.kind === "visit");
+                        const label = labelDrafts[n] ?? judgeLabels[n] ?? "";
+                        const close = () => setJudgeListFor(null);
+                        return (
+                          <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) close(); }}>
+                            <div className="jl-box" role="dialog" aria-modal="true" aria-label={`Projects of Judge ${n}`} data-testid="judge-list">
+                              <div className="jl-head">
+                                <div>
+                                  <h3>Judge {n}{label ? ` · ${label}` : ""}</h3>
+                                  <div className="jl-sub">{deptNames([...(map[n] || [])].sort((a, b) => (departments.find(d => d.id === a)?.ord ?? 999) - (departments.find(d => d.id === b)?.ord ?? 999)))} · <b>{visits.length}</b> project{visits.length !== 1 ? "s" : ""} · about {judgeTimeText(visits.length)}</div>
+                                </div>
+                                <button type="button" className="btn sec sm" style={{width:"auto"}} onClick={close}>✕ Close</button>
+                              </div>
+                              {estimate && <div className="judge-num-miss" style={{textAlign:"left",marginBottom:".6rem"}}>
+                                Estimate — press Save judges (and fill the panels) for the exact list.</div>}
+                              {scheduleActive() && <div className="jl-note">In round order, exactly as this judge's tablet and printed sheet will show it.</div>}
+                              {rows.length === 0 ? <p className="jl-note">No projects — this judge has nothing to judge yet.</p> : (
+                                <div style={{overflowX:"auto"}}>
+                                  <table className="jl-table">
+                                    <thead><tr>{scheduleActive() && <><th>Round</th><th>Time</th></>}<th>Code</th><th>Booth</th><th>Project</th><th>Department</th></tr></thead>
+                                    <tbody>
+                                      {rows.map((r, i) => r.kind === "break"
+                                        ? <tr key={i} className="jl-break"><td colSpan={6}>☕ {r.label}{r.time ? ` · ${r.time}` : ""}</td></tr>
+                                        : r.kind === "free"
+                                        ? <tr key={i} className="jl-free"><td>R{r.round}</td><td>{r.time}</td><td colSpan={4}>free</td></tr>
+                                        : <tr key={i}>
+                                            {scheduleActive() && <><td>R{r.round}</td><td style={{whiteSpace:"nowrap"}}>{r.time}</td></>}
+                                            <td className="jl-code">{projectCode(r.proj)}</td>
+                                            <td>{r.proj.room || "—"}</td>
+                                            <td>{r.proj.title}</td>
+                                            <td>{r.dept}</td>
+                                          </tr>)}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
                       {noJudges.map(d => <div key={d.id} className="judge-num-miss" style={{textAlign:"left"}}>⚠ Nobody judges {d.name} — it has projects but no judge is ticked.</div>)}
                       {tooFew.map(d => <div key={d.id} className="judge-num-miss" style={{textAlign:"left"}}>⚠ {d.name} needs {d.judges_per_project} judges per project but only {seatsOf(d.id).length} {seatsOf(d.id).length === 1 ? "is" : "are"} ticked.</div>)}
 
@@ -10503,9 +10690,44 @@ export default function App() {
                       <input type="file" accept=".csv,text/csv,.xlsx,.xls" style={{display:"none"}} aria-label="Import booth numbers"
                         onChange={e => { importBoothFile(e.target.files?.[0]); e.target.value = ""; }} />
                     </label>
-                    <span style={{fontSize:".76rem",color:"var(--dim)"}}>Booth numbers: the booth template with its “Booth #” column filled in — saved as each project's Room / booth.</span>
+                    <button type="button" className="btn sec sm" style={{width:"auto"}} onClick={downloadBoothTemplate} disabled={!projects.length}>⬇ Booth template</button>
+                    <span style={{fontSize:".76rem",color:"var(--dim)"}}>Booth numbers: download the booth template, fill in its “Booth #” column, save as CSV and import it — saved as each project's Room / booth.</span>
                   </div>
                 )}
+                {!schedDraft && (() => {
+                  // Template maker: the times are worked out from these numbers (schedTemplateSlots).
+                  const t = schedTemplateSlots(schedTpl);
+                  const set = (k) => (e) => setSchedTpl(s => ({ ...s, [k]: e.target.value }));
+                  const field = (k, label, w = 70) => (
+                    <label className="tpl-field" key={k}><span>{label}</span>
+                      <input type="text" inputMode={k === "start" || k === "breaksAfter" ? "text" : "numeric"} value={schedTpl[k]} onChange={set(k)} aria-label={label} style={{ width: w }} /></label>);
+                  return (
+                    <details className="sched-tpl" data-testid="sched-tpl">
+                      <summary>📄 Make a blank schedule template (CSV)</summary>
+                      <p style={{fontSize:".8rem",color:"var(--dim)",margin:".5rem 0"}}>
+                        Set your day, download, then fill the grid in Excel: one row per judge (Judge 1 … Judge {judgeMax()}), a project code in each
+                        round. Every project code is listed under the grid to copy from. Save it as CSV and import it above — the review then checks
+                        every code, every project's visits and every booth.
+                      </p>
+                      <div className="tpl-grid">
+                        {field("start", "First round starts", 70)}
+                        {field("visit", "Minutes per visit")}
+                        {field("gap", "Minutes between visits")}
+                        {field("rounds", "Rounds")}
+                        {field("breaksAfter", "Break after rounds", 90)}
+                        {field("breakMin", "Break minutes")}
+                        {field("wrapMin", "Wrap-up minutes")}
+                      </div>
+                      {t.error
+                        ? <div className="brand-err" role="alert">{t.error}</div>
+                        : <div className="tpl-preview" data-testid="tpl-preview">{t.slots.map(s => `${s.label} ${s.start}–${s.end}`).join(" · ")}</div>}
+                      <div style={{display:"flex",gap:".5rem",flexWrap:"wrap",marginTop:".5rem"}}>
+                        <button type="button" className="btn sm" style={{width:"auto"}} disabled={!!t.error} onClick={downloadScheduleTemplate}>⬇ Download template</button>
+                        <button type="button" className="btn sec sm" style={{width:"auto"}} onClick={() => setSchedTpl(SCHED_TPL_DEFAULT)}>Reset times</button>
+                      </div>
+                    </details>
+                  );
+                })()}
                 {schedMsg && <div className={schedMsg.ok ? "brand-ok" : "brand-err"} role={schedMsg.ok ? "status" : "alert"} data-testid="sched-msg">{schedMsg.text}</div>}
                 </>}
               </div>

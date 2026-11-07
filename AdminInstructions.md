@@ -74,6 +74,8 @@ The judges' own guide — which they open with **❓ How to judge** on their tab
 2. **⬆ Import booth numbers (CSV)** — the booth template with its *Booth #* column filled in.
 3. **🖨 Judge sheets** — one page per judge, for the clipboards.
 4. **🖨 Booth visit times** — so students know when to be at their booth.
+5. **📄 Make a blank schedule template** — no schedule yet? Type your times and download a grid with every
+   project code ready to fill in (see *Making the file* below).
 
 💡 Settle project codes and booths **before** you print — paper does not update itself.
 
@@ -327,7 +329,9 @@ Judge 5      ☑     ☐     ☐     ☐     ☐         2
   the sign-in screen shows their department(s), e.g. *"✓ Judge 2 · PreK + SPED"*.
 - **Name (private):** an optional note of who has each number (*"Ms. Rabah"*). Only your school's
   admins can see it — never judges, never the public.
-- **Projects** column: how many projects each judge will score (≈ = estimate until you save). Aim for
+- **Projects** column: how many projects each judge will score (≈ = estimate until you save). **Click the
+  number** to see that judge's list — with a judging schedule, every round in order with its time, code,
+  booth and title (exactly what the judge's tablet will show); otherwise their projects per department. Aim for
   no more than ~20 (the About column assumes about 6 minutes per project).
 - **Maximum judges** (above the grid): 15 by default, up to 90. The grid shows numbers up to it; to
   lower it, untick the higher numbers first.
@@ -1251,7 +1255,22 @@ project, NEXT moves on to the following round. A round where they have nothing r
 
 ### Making the file
 
-Build the grid in Excel (the 2026-27 schedule already has this shape):
+**Start from the template.** Setup → 📅 Judging schedule → **📄 Make a blank schedule template**:
+
+1. Type when the **first round starts** (e.g. 8:30), the **minutes per visit** (7) and **between visits** (1),
+   how many **rounds** (12), **after which rounds there is a break** (e.g. **4, 8**), the **break minutes** (5)
+   and the **wrap-up minutes** (14). The times appear underneath as you type — those numbers give exactly
+   the 2026-27 day (R1 8:30–8:37 … BREAK 9:02–9:07 … WRAP-UP 10:16–10:30).
+2. **⬇ Download template.** The file has one row per judge (Judge 1 up to your Maximum judges, with the
+   private names you gave them in the judge grid), one column per round with its time, the breaks, and
+   **every project code listed under the grid** (with department, title and booth) to copy from. No
+   student names.
+3. Open it in Excel and put a project code in each round cell (**—** or empty = free). Do not change the
+   header row.
+4. Save it as CSV and import it (below). The review checks every code, every project's visits and every
+   booth before anything is saved.
+
+Or build the grid yourself in Excel (the 2026-27 schedule already has this shape):
 
 | Judge | Judge Name | Interviews | R1 8:30–8:37 | R2 8:38–8:45 | … | BREAK 9:02–9:07 | R5 9:07–9:14 | … | WRAP-UP 10:16–10:30 |
 |---|---|---|---|---|---|---|---|---|---|
@@ -1285,7 +1304,8 @@ has **already scored** is refused; moving it to another round is fine.
 
 ### Booth numbers
 
-Fill in the **Booth #** column of the booth template, save it as CSV, and press
+Press **⬇ Booth template** (same box): it lists every project code with its department, title and current
+booth. Fill in the **Booth #** column, save it as CSV, and press
 **⬆ Import booth numbers (CSV)** in the same box. Each project's booth is saved as its *Room / booth*
 and appears next to the code on the judges' tablets and on the printouts. Locked projects are skipped.
 

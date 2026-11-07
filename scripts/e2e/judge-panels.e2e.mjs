@@ -86,6 +86,18 @@ await check("the grid's Projects column shows each judge's real load", async () 
   assert.equal(await load(1), String(expected1));
 });
 
+await check("clicking Judge 1's Projects number lists exactly their assigned projects (no schedule: no rounds)", async () => {
+  await A.getByRole("button", { name: "Show the projects of Judge 1", exact: true }).click();
+  const box = A.getByTestId("judge-list"); await box.waitFor();
+  const titles = await box.locator("tbody tr td:nth-child(3)").allInnerTexts();
+  const want = midRows().filter(r => r.judge_number === 1).map(r => store.projects.find(p => p.id === r.project_id).title);
+  assert.deepEqual([...titles].sort(), [...want].sort());
+  assert.equal(await box.getByRole("columnheader", { name: "Round" }).count(), 0);
+  assert.match(await box.innerText(), new RegExp(`${want.length} projects`));
+  await box.getByRole("button", { name: /Close/ }).click();
+  await box.waitFor({ state: "detached" });
+});
+
 console.log("\n── Judges see only their assigned projects");
 const J1 = await judge(1);
 const mine1 = () => midRows().filter(r => r.judge_number === 1).map(r => r.project_id).sort();

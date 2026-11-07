@@ -130,6 +130,21 @@ await check("the grid's Projects / About show each judge's VISITS (Judge 1: 3, 1
   assert.equal((await row.locator(".roster-load").innerText()).trim(), "3");
   assert.equal((await row.locator(".roster-time").innerText()).trim(), "18 min");
 });
+await check("clicking Judge 1's Projects number shows their morning: R1 8:30 Elem-LS-010 · R2 JHS-ERT-012 · the break · R3 JHS-PMA-013 · R4 free", async () => {
+  await A.page.getByRole("button", { name: "Show the projects of Judge 1", exact: true }).click();
+  const box = A.page.getByTestId("judge-list"); await box.waitFor();
+  const rows = (await box.locator("tbody tr").allInnerTexts()).map(t => t.replace(/\s+/g, " ").trim());
+  assert.equal(rows.length, 6, rows.join(" | "));
+  assert.match(rows[0], /^R1 8:30–8:37 Elem-LS-010 .*Bean Plants Elementary$/);
+  assert.match(rows[1], /^R2 8:38–8:45 JHS-ERT-012 /);
+  assert.match(rows[2], /BREAK · 8:46–8:51/);
+  assert.match(rows[3], /^R3 8:51–8:58 JHS-PMA-013 /);
+  assert.match(rows[4], /^R4 8:59–9:06 free$/);
+  assert.match(await box.innerText(), /3 projects · about 18 min/);
+  assert.ok(!(await box.innerText()).includes("Ana Ruiz"));
+  await box.getByRole("button", { name: /Close/ }).click();
+  await box.waitFor({ state: "detached" });
+});
 await check("the judge grid is locked and the Suggested setup is hidden while the schedule rules", async () => {
   await A.page.locator("[data-testid=grid-locked]").waitFor();
   assert.equal(await A.page.getByLabel("Judge 1 judges Elementary").isDisabled(), true);

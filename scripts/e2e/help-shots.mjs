@@ -364,7 +364,8 @@ const schedCard = A.page.locator("#schedule");
 await shot(A, "admin-3-schedule", { region: schedCard,
   marks: [[schedCard.locator("label.btn", { hasText: /Import a new version|Import schedule/ }), 1, "tr"],
     [schedCard.locator("label.btn", { hasText: /Import booth numbers/ }), 2, "tr"],
-    [schedCard.getByRole("button", { name: /Judge sheets/ }), 3, "tr"], [schedCard.getByRole("button", { name: /Booth visit times/ }), 4, "tr"]] });
+    [schedCard.getByRole("button", { name: /Judge sheets/ }), 3, "tr"], [schedCard.getByRole("button", { name: /Booth visit times/ }), 4, "tr"],
+    [schedCard.locator('[data-testid="sched-tpl"] summary'), 5, "tr"]] });
 
 await tab(A, "Projects");
 const projHead = A.page.locator(".adm-main > div").filter({ hasText: "Projects Overview" }).first();
