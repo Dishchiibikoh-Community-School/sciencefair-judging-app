@@ -70,7 +70,7 @@
       "source_file": "eslint.config.js",
       "source_location": "L1",
       "id": "eslint_config_js",
-      "community": 37,
+      "community": 39,
       "norm_label": "eslint.config.js"
     },
     {
@@ -79,7 +79,7 @@
       "source_file": "vite.config.js",
       "source_location": "L1",
       "id": "vite_config_js",
-      "community": 38,
+      "community": 40,
       "norm_label": "vite.config.js"
     },
     {
@@ -187,7 +187,7 @@
       "source_file": "api\\send-registration-email.js",
       "source_location": "L1",
       "id": "api_send_registration_email_js",
-      "community": 31,
+      "community": 33,
       "norm_label": "send-registration-email.js"
     },
     {
@@ -196,7 +196,7 @@
       "source_file": "api\\send-registration-email.js",
       "source_location": "L28",
       "id": "api_send_registration_email_esc",
-      "community": 31,
+      "community": 33,
       "norm_label": "esc()"
     },
     {
@@ -205,7 +205,7 @@
       "source_file": "api\\send-registration-email.js",
       "source_location": "L33",
       "id": "api_send_registration_email_loadschoolbranding",
-      "community": 31,
+      "community": 33,
       "norm_label": "loadschoolbranding()"
     },
     {
@@ -214,7 +214,7 @@
       "source_file": "api\\send-registration-email.js",
       "source_location": "L67",
       "id": "api_send_registration_email_handler",
-      "community": 31,
+      "community": 33,
       "norm_label": "handler()"
     },
     {
@@ -493,7 +493,7 @@
       "source_file": "scripts\\registration-email.test.mjs",
       "source_location": "L1",
       "id": "scripts_registration_email_test_mjs",
-      "community": 27,
+      "community": 29,
       "norm_label": "registration-email.test.mjs"
     },
     {
@@ -502,7 +502,7 @@
       "source_file": "scripts\\registration-email.test.mjs",
       "source_location": "L17",
       "id": "scripts_registration_email_test_ok",
-      "community": 27,
+      "community": 29,
       "norm_label": "ok()"
     },
     {
@@ -511,7 +511,7 @@
       "source_file": "scripts\\registration-email.test.mjs",
       "source_location": "L22",
       "id": "scripts_registration_email_test_j",
-      "community": 27,
+      "community": 29,
       "norm_label": "j()"
     },
     {
@@ -520,7 +520,7 @@
       "source_file": "scripts\\registration-email.test.mjs",
       "source_location": "L33",
       "id": "scripts_registration_email_test_call",
-      "community": 27,
+      "community": 29,
       "norm_label": "call()"
     },
     {
@@ -529,7 +529,7 @@
       "source_file": "scripts\\registration-email.test.mjs",
       "source_location": "L37",
       "id": "scripts_registration_email_test_reg",
-      "community": 27,
+      "community": 29,
       "norm_label": "reg()"
     },
     {
@@ -538,7 +538,7 @@
       "source_file": "scripts\\registration-email.test.mjs",
       "source_location": "L39",
       "id": "scripts_registration_email_test_reset",
-      "community": 27,
+      "community": 29,
       "norm_label": "reset()"
     },
     {
@@ -556,7 +556,7 @@
       "source_file": "scripts\\scan-form.test.mjs",
       "source_location": "L1",
       "id": "scripts_scan_form_test_mjs",
-      "community": 32,
+      "community": 34,
       "norm_label": "scan-form.test.mjs"
     },
     {
@@ -565,7 +565,7 @@
       "source_file": "scripts\\scan-form.test.mjs",
       "source_location": "L15",
       "id": "scripts_scan_form_test_j",
-      "community": 32,
+      "community": 34,
       "norm_label": "j()"
     },
     {
@@ -574,7 +574,7 @@
       "source_file": "scripts\\scan-form.test.mjs",
       "source_location": "L31",
       "id": "scripts_scan_form_test_call",
-      "community": 32,
+      "community": 34,
       "norm_label": "call()"
     },
     {
@@ -583,7 +583,7 @@
       "source_file": "scripts\\scan-form.test.mjs",
       "source_location": "L48",
       "id": "scripts_scan_form_test_ok",
-      "community": 32,
+      "community": 34,
       "norm_label": "ok()"
     },
     {
@@ -592,7 +592,7 @@
       "source_file": "scripts\\e2e\\admin-actions.e2e.mjs",
       "source_location": "L1",
       "id": "scripts_e2e_admin_actions_e2e_mjs",
-      "community": 29,
+      "community": 31,
       "norm_label": "admin-actions.e2e.mjs"
     },
     {
@@ -601,7 +601,7 @@
       "source_file": "scripts\\e2e\\admin-actions.e2e.mjs",
       "source_location": "L11",
       "id": "e2e_admin_actions_e2e_ok",
-      "community": 29,
+      "community": 31,
       "norm_label": "ok()"
     },
     {
@@ -610,7 +610,7 @@
       "source_file": "scripts\\e2e\\admin-actions.e2e.mjs",
       "source_location": "L12",
       "id": "e2e_admin_actions_e2e_check",
-      "community": 29,
+      "community": 31,
       "norm_label": "check()"
     },
     {
@@ -619,7 +619,7 @@
       "source_file": "scripts\\e2e\\admin-actions.e2e.mjs",
       "source_location": "L28",
       "id": "e2e_admin_actions_e2e_card",
-      "community": 29,
+      "community": 31,
       "norm_label": "card()"
     },
     {
@@ -628,7 +628,7 @@
       "source_file": "scripts\\e2e\\admin-actions.e2e.mjs",
       "source_location": "L29",
       "id": "e2e_admin_actions_e2e_remove",
-      "community": 29,
+      "community": 31,
       "norm_label": "remove()"
     },
     {
@@ -1382,7 +1382,7 @@
       "label": "card()",
       "file_type": "code",
       "source_file": "scripts\\e2e\\help-shots.mjs",
-      "source_location": "L376",
+      "source_location": "L377",
       "id": "e2e_help_shots_card",
       "community": 5,
       "norm_label": "card()"
@@ -1393,7 +1393,7 @@
       "source_file": "scripts\\e2e\\import.e2e.mjs",
       "source_location": "L1",
       "id": "scripts_e2e_import_e2e_mjs",
-      "community": 0,
+      "community": 18,
       "norm_label": "import.e2e.mjs"
     },
     {
@@ -1402,7 +1402,7 @@
       "source_file": "scripts\\e2e\\import.e2e.mjs",
       "source_location": "L14",
       "id": "e2e_import_e2e_ok",
-      "community": 0,
+      "community": 18,
       "norm_label": "ok()"
     },
     {
@@ -1411,7 +1411,7 @@
       "source_file": "scripts\\e2e\\import.e2e.mjs",
       "source_location": "L15",
       "id": "e2e_import_e2e_check",
-      "community": 0,
+      "community": 18,
       "norm_label": "check()"
     },
     {
@@ -1420,7 +1420,7 @@
       "source_file": "scripts\\e2e\\import.e2e.mjs",
       "source_location": "L19",
       "id": "e2e_import_e2e_adminpage",
-      "community": 0,
+      "community": 18,
       "norm_label": "adminpage()"
     },
     {
@@ -1429,7 +1429,7 @@
       "source_file": "scripts\\e2e\\import.e2e.mjs",
       "source_location": "L34",
       "id": "e2e_import_e2e_fileinput",
-      "community": 0,
+      "community": 18,
       "norm_label": "fileinput()"
     },
     {
@@ -1438,7 +1438,7 @@
       "source_file": "scripts\\e2e\\import.e2e.mjs",
       "source_location": "L35",
       "id": "e2e_import_e2e_importbtn",
-      "community": 0,
+      "community": 18,
       "norm_label": "importbtn()"
     },
     {
@@ -1447,7 +1447,7 @@
       "source_file": "scripts\\e2e\\import.e2e.mjs",
       "source_location": "L93",
       "id": "e2e_import_e2e_bytitle",
-      "community": 0,
+      "community": 18,
       "norm_label": "bytitle()"
     },
     {
@@ -1456,7 +1456,7 @@
       "source_file": "scripts\\e2e\\import.e2e.mjs",
       "source_location": "L94",
       "id": "e2e_import_e2e_priv",
-      "community": 0,
+      "community": 18,
       "norm_label": "priv()"
     },
     {
@@ -1465,7 +1465,7 @@
       "source_file": "scripts\\e2e\\import.e2e.mjs",
       "source_location": "L215",
       "id": "e2e_import_e2e_numinput",
-      "community": 0,
+      "community": 18,
       "norm_label": "numinput()"
     },
     {
@@ -1537,7 +1537,7 @@
       "source_file": "scripts\\e2e\\judge-numbers.e2e.mjs",
       "source_location": "L1",
       "id": "scripts_e2e_judge_numbers_e2e_mjs",
-      "community": 0,
+      "community": 19,
       "norm_label": "judge-numbers.e2e.mjs"
     },
     {
@@ -1546,7 +1546,7 @@
       "source_file": "scripts\\e2e\\judge-numbers.e2e.mjs",
       "source_location": "L13",
       "id": "e2e_judge_numbers_e2e_ok",
-      "community": 0,
+      "community": 19,
       "norm_label": "ok()"
     },
     {
@@ -1555,7 +1555,7 @@
       "source_file": "scripts\\e2e\\judge-numbers.e2e.mjs",
       "source_location": "L14",
       "id": "e2e_judge_numbers_e2e_check",
-      "community": 0,
+      "community": 19,
       "norm_label": "check()"
     },
     {
@@ -1564,7 +1564,7 @@
       "source_file": "scripts\\e2e\\judge-numbers.e2e.mjs",
       "source_location": "L19",
       "id": "e2e_judge_numbers_e2e_rng",
-      "community": 0,
+      "community": 19,
       "norm_label": "rng()"
     },
     {
@@ -1573,7 +1573,7 @@
       "source_file": "scripts\\e2e\\judge-numbers.e2e.mjs",
       "source_location": "L22",
       "id": "e2e_judge_numbers_e2e_newpage",
-      "community": 0,
+      "community": 19,
       "norm_label": "newpage()"
     },
     {
@@ -1582,7 +1582,7 @@
       "source_file": "scripts\\e2e\\judge-numbers.e2e.mjs",
       "source_location": "L30",
       "id": "e2e_judge_numbers_e2e_numbox",
-      "community": 0,
+      "community": 19,
       "norm_label": "numbox()"
     },
     {
@@ -1591,7 +1591,7 @@
       "source_file": "scripts\\e2e\\judge-numbers.e2e.mjs",
       "source_location": "L31",
       "id": "e2e_judge_numbers_e2e_codebox",
-      "community": 0,
+      "community": 19,
       "norm_label": "codebox()"
     },
     {
@@ -1600,7 +1600,7 @@
       "source_file": "scripts\\e2e\\judge-numbers.e2e.mjs",
       "source_location": "L83",
       "id": "e2e_judge_numbers_e2e_cell",
-      "community": 0,
+      "community": 19,
       "norm_label": "cell()"
     },
     {
@@ -1609,7 +1609,7 @@
       "source_file": "scripts\\e2e\\judge-numbers.e2e.mjs",
       "source_location": "L105",
       "id": "e2e_judge_numbers_e2e_nums",
-      "community": 0,
+      "community": 19,
       "norm_label": "nums()"
     },
     {
@@ -1697,7 +1697,7 @@
       "label": "mine1()",
       "file_type": "code",
       "source_file": "scripts\\e2e\\judge-panels.e2e.mjs",
-      "source_location": "L91",
+      "source_location": "L103",
       "id": "e2e_judge_panels_e2e_mine1",
       "community": 16,
       "norm_label": "mine1()"
@@ -1744,7 +1744,7 @@
       "source_file": "scripts\\e2e\\judge-suggest.e2e.mjs",
       "source_location": "L1",
       "id": "scripts_e2e_judge_suggest_e2e_mjs",
-      "community": 23,
+      "community": 0,
       "norm_label": "judge-suggest.e2e.mjs"
     },
     {
@@ -1753,7 +1753,7 @@
       "source_file": "scripts\\e2e\\judge-suggest.e2e.mjs",
       "source_location": "L12",
       "id": "e2e_judge_suggest_e2e_ok",
-      "community": 23,
+      "community": 0,
       "norm_label": "ok()"
     },
     {
@@ -1762,7 +1762,7 @@
       "source_file": "scripts\\e2e\\judge-suggest.e2e.mjs",
       "source_location": "L13",
       "id": "e2e_judge_suggest_e2e_check",
-      "community": 23,
+      "community": 0,
       "norm_label": "check()"
     },
     {
@@ -1771,7 +1771,7 @@
       "source_file": "scripts\\e2e\\judge-suggest.e2e.mjs",
       "source_location": "L31",
       "id": "e2e_judge_suggest_e2e_make",
-      "community": 23,
+      "community": 0,
       "norm_label": "make()"
     },
     {
@@ -1780,7 +1780,7 @@
       "source_file": "scripts\\e2e\\judge-suggest.e2e.mjs",
       "source_location": "L43",
       "id": "e2e_judge_suggest_e2e_adminpage",
-      "community": 23,
+      "community": 0,
       "norm_label": "adminpage()"
     },
     {
@@ -1789,7 +1789,7 @@
       "source_file": "scripts\\e2e\\judge-suggest.e2e.mjs",
       "source_location": "L59",
       "id": "e2e_judge_suggest_e2e_row",
-      "community": 23,
+      "community": 0,
       "norm_label": "row()"
     },
     {
@@ -1798,7 +1798,7 @@
       "source_file": "scripts\\e2e\\judge-suggest.e2e.mjs",
       "source_location": "L60",
       "id": "e2e_judge_suggest_e2e_judgesin",
-      "community": 23,
+      "community": 0,
       "norm_label": "judgesin()"
     },
     {
@@ -1951,7 +1951,7 @@
       "source_file": "scripts\\e2e\\lifecycle.e2e.mjs",
       "source_location": "L1",
       "id": "scripts_e2e_lifecycle_e2e_mjs",
-      "community": 21,
+      "community": 23,
       "norm_label": "lifecycle.e2e.mjs"
     },
     {
@@ -1960,7 +1960,7 @@
       "source_file": "scripts\\e2e\\lifecycle.e2e.mjs",
       "source_location": "L14",
       "id": "e2e_lifecycle_e2e_ok",
-      "community": 21,
+      "community": 23,
       "norm_label": "ok()"
     },
     {
@@ -1969,7 +1969,7 @@
       "source_file": "scripts\\e2e\\lifecycle.e2e.mjs",
       "source_location": "L15",
       "id": "e2e_lifecycle_e2e_check",
-      "community": 21,
+      "community": 23,
       "norm_label": "check()"
     },
     {
@@ -1978,7 +1978,7 @@
       "source_file": "scripts\\e2e\\lifecycle.e2e.mjs",
       "source_location": "L28",
       "id": "e2e_lifecycle_e2e_newpage",
-      "community": 21,
+      "community": 23,
       "norm_label": "newpage()"
     },
     {
@@ -1987,7 +1987,7 @@
       "source_file": "scripts\\e2e\\lifecycle.e2e.mjs",
       "source_location": "L37",
       "id": "e2e_lifecycle_e2e_scoreof",
-      "community": 21,
+      "community": 23,
       "norm_label": "scoreof()"
     },
     {
@@ -1996,7 +1996,7 @@
       "source_file": "scripts\\e2e\\lifecycle.e2e.mjs",
       "source_location": "L38",
       "id": "e2e_lifecycle_e2e_maxall",
-      "community": 21,
+      "community": 23,
       "norm_label": "maxall()"
     },
     {
@@ -2005,7 +2005,7 @@
       "source_file": "scripts\\e2e\\lifecycle.e2e.mjs",
       "source_location": "L108",
       "id": "e2e_lifecycle_e2e_itevents",
-      "community": 21,
+      "community": 23,
       "norm_label": "itevents()"
     },
     {
@@ -2014,7 +2014,7 @@
       "source_file": "scripts\\e2e\\lifecycle.e2e.mjs",
       "source_location": "L161",
       "id": "e2e_lifecycle_e2e_editseed",
-      "community": 21,
+      "community": 23,
       "norm_label": "editseed()"
     },
     {
@@ -2221,7 +2221,7 @@
       "source_file": "scripts\\e2e\\mock.mjs",
       "source_location": "L694",
       "id": "e2e_mock_installscanmock",
-      "community": 24,
+      "community": 0,
       "norm_label": "installscanmock()"
     },
     {
@@ -2554,7 +2554,7 @@
       "source_file": "scripts\\e2e\\rubric-presets-setup.e2e.mjs",
       "source_location": "L1",
       "id": "scripts_e2e_rubric_presets_setup_e2e_mjs",
-      "community": 28,
+      "community": 30,
       "norm_label": "rubric-presets-setup.e2e.mjs"
     },
     {
@@ -2563,7 +2563,7 @@
       "source_file": "scripts\\e2e\\rubric-presets-setup.e2e.mjs",
       "source_location": "L14",
       "id": "e2e_rubric_presets_setup_e2e_ok",
-      "community": 28,
+      "community": 30,
       "norm_label": "ok()"
     },
     {
@@ -2572,7 +2572,7 @@
       "source_file": "scripts\\e2e\\rubric-presets-setup.e2e.mjs",
       "source_location": "L15",
       "id": "e2e_rubric_presets_setup_e2e_check",
-      "community": 28,
+      "community": 30,
       "norm_label": "check()"
     },
     {
@@ -2581,7 +2581,7 @@
       "source_file": "scripts\\e2e\\rubric-presets-setup.e2e.mjs",
       "source_location": "L32",
       "id": "e2e_rubric_presets_setup_e2e_sel",
-      "community": 28,
+      "community": 30,
       "norm_label": "sel()"
     },
     {
@@ -2590,7 +2590,7 @@
       "source_file": "scripts\\e2e\\rubric-presets-setup.e2e.mjs",
       "source_location": "L33",
       "id": "e2e_rubric_presets_setup_e2e_opts",
-      "community": 28,
+      "community": 30,
       "norm_label": "opts()"
     },
     {
@@ -2599,7 +2599,7 @@
       "source_file": "scripts\\e2e\\rubric-presets-setup.e2e.mjs",
       "source_location": "L34",
       "id": "e2e_rubric_presets_setup_e2e_presetvalue",
-      "community": 28,
+      "community": 30,
       "norm_label": "presetvalue()"
     },
     {
@@ -2608,7 +2608,7 @@
       "source_file": "scripts\\e2e\\rubric100.e2e.mjs",
       "source_location": "L1",
       "id": "scripts_e2e_rubric100_e2e_mjs",
-      "community": 22,
+      "community": 24,
       "norm_label": "rubric100.e2e.mjs"
     },
     {
@@ -2617,7 +2617,7 @@
       "source_file": "scripts\\e2e\\rubric100.e2e.mjs",
       "source_location": "L13",
       "id": "e2e_rubric100_e2e_ok",
-      "community": 22,
+      "community": 24,
       "norm_label": "ok()"
     },
     {
@@ -2626,7 +2626,7 @@
       "source_file": "scripts\\e2e\\rubric100.e2e.mjs",
       "source_location": "L14",
       "id": "e2e_rubric100_e2e_check",
-      "community": 22,
+      "community": 24,
       "norm_label": "check()"
     },
     {
@@ -2635,7 +2635,7 @@
       "source_file": "scripts\\e2e\\rubric100.e2e.mjs",
       "source_location": "L30",
       "id": "e2e_rubric100_e2e_newpage",
-      "community": 22,
+      "community": 24,
       "norm_label": "newpage()"
     },
     {
@@ -2644,7 +2644,7 @@
       "source_file": "scripts\\e2e\\rubric100.e2e.mjs",
       "source_location": "L40",
       "id": "e2e_rubric100_e2e_adminpage",
-      "community": 22,
+      "community": 24,
       "norm_label": "adminpage()"
     },
     {
@@ -2653,7 +2653,7 @@
       "source_file": "scripts\\e2e\\rubric100.e2e.mjs",
       "source_location": "L50",
       "id": "e2e_rubric100_e2e_activerubric",
-      "community": 22,
+      "community": 24,
       "norm_label": "activerubric()"
     },
     {
@@ -2662,7 +2662,7 @@
       "source_file": "scripts\\e2e\\rubric100.e2e.mjs",
       "source_location": "L51",
       "id": "e2e_rubric100_e2e_scorefor",
-      "community": 22,
+      "community": 24,
       "norm_label": "scorefor()"
     },
     {
@@ -2671,7 +2671,7 @@
       "source_file": "scripts\\e2e\\rubric100.e2e.mjs",
       "source_location": "L52",
       "id": "e2e_rubric100_e2e_totalof",
-      "community": 22,
+      "community": 24,
       "norm_label": "totalof()"
     },
     {
@@ -2788,7 +2788,7 @@
       "source_file": "scripts\\e2e\\rubrics.e2e.mjs",
       "source_location": "L1",
       "id": "scripts_e2e_rubrics_e2e_mjs",
-      "community": 18,
+      "community": 20,
       "norm_label": "rubrics.e2e.mjs"
     },
     {
@@ -2797,7 +2797,7 @@
       "source_file": "scripts\\e2e\\rubrics.e2e.mjs",
       "source_location": "L16",
       "id": "e2e_rubrics_e2e_ok",
-      "community": 18,
+      "community": 20,
       "norm_label": "ok()"
     },
     {
@@ -2806,7 +2806,7 @@
       "source_file": "scripts\\e2e\\rubrics.e2e.mjs",
       "source_location": "L17",
       "id": "e2e_rubrics_e2e_check",
-      "community": 18,
+      "community": 20,
       "norm_label": "check()"
     },
     {
@@ -2815,7 +2815,7 @@
       "source_file": "scripts\\e2e\\rubrics.e2e.mjs",
       "source_location": "L28",
       "id": "e2e_rubrics_e2e_newpage",
-      "community": 18,
+      "community": 20,
       "norm_label": "newpage()"
     },
     {
@@ -2824,7 +2824,7 @@
       "source_file": "scripts\\e2e\\rubrics.e2e.mjs",
       "source_location": "L36",
       "id": "e2e_rubrics_e2e_rub",
-      "community": 18,
+      "community": 20,
       "norm_label": "rub()"
     },
     {
@@ -2833,7 +2833,7 @@
       "source_file": "scripts\\e2e\\rubrics.e2e.mjs",
       "source_location": "L37",
       "id": "e2e_rubrics_e2e_dep",
-      "community": 18,
+      "community": 20,
       "norm_label": "dep()"
     },
     {
@@ -2842,7 +2842,7 @@
       "source_file": "scripts\\e2e\\rubrics.e2e.mjs",
       "source_location": "L56",
       "id": "e2e_rubrics_e2e_newrubric",
-      "community": 18,
+      "community": 20,
       "norm_label": "newrubric()"
     },
     {
@@ -2851,7 +2851,7 @@
       "source_file": "scripts\\e2e\\rubrics.e2e.mjs",
       "source_location": "L82",
       "id": "e2e_rubrics_e2e_sel",
-      "community": 18,
+      "community": 20,
       "norm_label": "sel()"
     },
     {
@@ -2860,7 +2860,7 @@
       "source_file": "scripts\\e2e\\rubrics.e2e.mjs",
       "source_location": "L99",
       "id": "e2e_rubrics_e2e_judgeopens",
-      "community": 18,
+      "community": 20,
       "norm_label": "judgeopens()"
     },
     {
@@ -2968,7 +2968,7 @@
       "source_file": "scripts\\e2e\\scan.e2e.mjs",
       "source_location": "L1",
       "id": "scripts_e2e_scan_e2e_mjs",
-      "community": 24,
+      "community": 0,
       "norm_label": "scan.e2e.mjs"
     },
     {
@@ -2977,7 +2977,7 @@
       "source_file": "scripts\\e2e\\scan.e2e.mjs",
       "source_location": "L16",
       "id": "e2e_scan_e2e_fx",
-      "community": 24,
+      "community": 0,
       "norm_label": "fx()"
     },
     {
@@ -2986,7 +2986,7 @@
       "source_file": "scripts\\e2e\\scan.e2e.mjs",
       "source_location": "L17",
       "id": "e2e_scan_e2e_pdf",
-      "community": 24,
+      "community": 0,
       "norm_label": "pdf()"
     },
     {
@@ -2995,7 +2995,7 @@
       "source_file": "scripts\\e2e\\scan.e2e.mjs",
       "source_location": "L33",
       "id": "e2e_scan_e2e_ok",
-      "community": 24,
+      "community": 0,
       "norm_label": "ok()"
     },
     {
@@ -3004,7 +3004,7 @@
       "source_file": "scripts\\e2e\\scan.e2e.mjs",
       "source_location": "L34",
       "id": "e2e_scan_e2e_check",
-      "community": 24,
+      "community": 0,
       "norm_label": "check()"
     },
     {
@@ -3013,8 +3013,71 @@
       "source_file": "scripts\\e2e\\scan.e2e.mjs",
       "source_location": "L86",
       "id": "e2e_scan_e2e_cardbyfile",
-      "community": 24,
+      "community": 0,
       "norm_label": "cardbyfile()"
+    },
+    {
+      "label": "schedule-template.e2e.mjs",
+      "file_type": "code",
+      "source_file": "scripts\\e2e\\schedule-template.e2e.mjs",
+      "source_location": "L1",
+      "id": "scripts_e2e_schedule_template_e2e_mjs",
+      "community": 26,
+      "norm_label": "schedule-template.e2e.mjs"
+    },
+    {
+      "label": "ok()",
+      "file_type": "code",
+      "source_file": "scripts\\e2e\\schedule-template.e2e.mjs",
+      "source_location": "L16",
+      "id": "e2e_schedule_template_e2e_ok",
+      "community": 26,
+      "norm_label": "ok()"
+    },
+    {
+      "label": "check()",
+      "file_type": "code",
+      "source_file": "scripts\\e2e\\schedule-template.e2e.mjs",
+      "source_location": "L17",
+      "id": "e2e_schedule_template_e2e_check",
+      "community": 26,
+      "norm_label": "check()"
+    },
+    {
+      "label": "P()",
+      "file_type": "code",
+      "source_file": "scripts\\e2e\\schedule-template.e2e.mjs",
+      "source_location": "L24",
+      "id": "e2e_schedule_template_e2e_p",
+      "community": 26,
+      "norm_label": "p()"
+    },
+    {
+      "label": "download()",
+      "file_type": "code",
+      "source_file": "scripts\\e2e\\schedule-template.e2e.mjs",
+      "source_location": "L49",
+      "id": "e2e_schedule_template_e2e_download",
+      "community": 26,
+      "norm_label": "download()"
+    },
+    {
+      "label": "parse()",
+      "file_type": "code",
+      "source_file": "scripts\\e2e\\schedule-template.e2e.mjs",
+      "source_location": "L54",
+      "id": "e2e_schedule_template_e2e_parse",
+      "community": 26,
+      "norm_label": "parse()"
+    },
+    {
+      "label": "toCsv()",
+      "file_type": "code",
+      "source_file": "scripts\\e2e\\schedule-template.e2e.mjs",
+      "source_location": "L60",
+      "id": "e2e_schedule_template_e2e_tocsv",
+      "community": 26,
+      "norm_label": "tocsv()"
     },
     {
       "label": "schedule.e2e.mjs",
@@ -3112,7 +3175,7 @@
       "source_file": "scripts\\e2e\\setup.e2e.mjs",
       "source_location": "L1",
       "id": "scripts_e2e_setup_e2e_mjs",
-      "community": 25,
+      "community": 27,
       "norm_label": "setup.e2e.mjs"
     },
     {
@@ -3121,7 +3184,7 @@
       "source_file": "scripts\\e2e\\setup.e2e.mjs",
       "source_location": "L11",
       "id": "e2e_setup_e2e_ok",
-      "community": 25,
+      "community": 27,
       "norm_label": "ok()"
     },
     {
@@ -3130,7 +3193,7 @@
       "source_file": "scripts\\e2e\\setup.e2e.mjs",
       "source_location": "L12",
       "id": "e2e_setup_e2e_check",
-      "community": 25,
+      "community": 27,
       "norm_label": "check()"
     },
     {
@@ -3139,7 +3202,7 @@
       "source_file": "scripts\\e2e\\setup.e2e.mjs",
       "source_location": "L19",
       "id": "e2e_setup_e2e_newpage",
-      "community": 25,
+      "community": 27,
       "norm_label": "newpage()"
     },
     {
@@ -3148,7 +3211,7 @@
       "source_file": "scripts\\e2e\\setup.e2e.mjs",
       "source_location": "L27",
       "id": "e2e_setup_e2e_deptnames",
-      "community": 25,
+      "community": 27,
       "norm_label": "deptnames()"
     },
     {
@@ -3157,7 +3220,7 @@
       "source_file": "scripts\\e2e\\setup.e2e.mjs",
       "source_location": "L28",
       "id": "e2e_setup_e2e_catnames",
-      "community": 25,
+      "community": 27,
       "norm_label": "catnames()"
     },
     {
@@ -3166,7 +3229,7 @@
       "source_file": "scripts\\e2e\\setup.e2e.mjs",
       "source_location": "L31",
       "id": "e2e_setup_e2e_row",
-      "community": 25,
+      "community": 27,
       "norm_label": "row()"
     },
     {
@@ -3211,7 +3274,7 @@
       "source_file": "scripts\\e2e\\shared-judges.e2e.mjs",
       "source_location": "L1",
       "id": "scripts_e2e_shared_judges_e2e_mjs",
-      "community": 0,
+      "community": 25,
       "norm_label": "shared-judges.e2e.mjs"
     },
     {
@@ -3220,7 +3283,7 @@
       "source_file": "scripts\\e2e\\shared-judges.e2e.mjs",
       "source_location": "L15",
       "id": "e2e_shared_judges_e2e_ok",
-      "community": 0,
+      "community": 25,
       "norm_label": "ok()"
     },
     {
@@ -3229,7 +3292,7 @@
       "source_file": "scripts\\e2e\\shared-judges.e2e.mjs",
       "source_location": "L16",
       "id": "e2e_shared_judges_e2e_check",
-      "community": 0,
+      "community": 25,
       "norm_label": "check()"
     },
     {
@@ -3238,7 +3301,7 @@
       "source_file": "scripts\\e2e\\shared-judges.e2e.mjs",
       "source_location": "L21",
       "id": "e2e_shared_judges_e2e_dep",
-      "community": 0,
+      "community": 25,
       "norm_label": "dep()"
     },
     {
@@ -3247,7 +3310,7 @@
       "source_file": "scripts\\e2e\\shared-judges.e2e.mjs",
       "source_location": "L31",
       "id": "e2e_shared_judges_e2e_newpage",
-      "community": 0,
+      "community": 25,
       "norm_label": "newpage()"
     },
     {
@@ -3256,7 +3319,7 @@
       "source_file": "scripts\\e2e\\shared-judges.e2e.mjs",
       "source_location": "L50",
       "id": "e2e_shared_judges_e2e_j2",
-      "community": 0,
+      "community": 25,
       "norm_label": "j2()"
     },
     {
@@ -3265,7 +3328,7 @@
       "source_file": "scripts\\e2e\\shared-judges.e2e.mjs",
       "source_location": "L79",
       "id": "e2e_shared_judges_e2e_cell",
-      "community": 0,
+      "community": 25,
       "norm_label": "cell()"
     },
     {
@@ -3274,7 +3337,7 @@
       "source_file": "scripts\\e2e\\shared-judges.e2e.mjs",
       "source_location": "L87",
       "id": "e2e_shared_judges_e2e_load",
-      "community": 0,
+      "community": 25,
       "norm_label": "load()"
     },
     {
@@ -3391,7 +3454,7 @@
       "source_file": "src\\main.jsx",
       "source_location": "L1",
       "id": "src_main_jsx",
-      "community": 30,
+      "community": 32,
       "norm_label": "main.jsx"
     },
     {
@@ -3400,7 +3463,7 @@
       "source_file": "src\\main.jsx",
       "source_location": "L14",
       "id": "src_main_errorboundary",
-      "community": 30,
+      "community": 32,
       "norm_label": "errorboundary"
     },
     {
@@ -3409,7 +3472,7 @@
       "source_file": "src\\main.jsx",
       "source_location": "L15",
       "id": "src_main_errorboundary_constructor",
-      "community": 30,
+      "community": 32,
       "norm_label": ".constructor()"
     },
     {
@@ -3418,7 +3481,7 @@
       "source_file": "src\\main.jsx",
       "source_location": "L16",
       "id": "src_main_errorboundary_getderivedstatefromerror",
-      "community": 30,
+      "community": 32,
       "norm_label": ".getderivedstatefromerror()"
     },
     {
@@ -3427,7 +3490,7 @@
       "source_file": "src\\main.jsx",
       "source_location": "L17",
       "id": "src_main_errorboundary_render",
-      "community": 30,
+      "community": 32,
       "norm_label": ".render()"
     },
     {
@@ -3722,7 +3785,7 @@
       "label": "GuideSteps()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L968",
+      "source_location": "L971",
       "id": "src_sciencefairjudging_guidesteps",
       "community": 1,
       "norm_label": "guidesteps()"
@@ -3731,7 +3794,7 @@
       "label": "guidePrintHtml()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L982",
+      "source_location": "L985",
       "id": "src_sciencefairjudging_guideprinthtml",
       "community": 1,
       "norm_label": "guideprinthtml()"
@@ -3740,7 +3803,7 @@
       "label": "normGrade()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1013",
+      "source_location": "L1016",
       "id": "src_sciencefairjudging_normgrade",
       "community": 1,
       "norm_label": "normgrade()"
@@ -3749,7 +3812,7 @@
       "label": "normMembers()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1023",
+      "source_location": "L1026",
       "id": "src_sciencefairjudging_normmembers",
       "community": 1,
       "norm_label": "normmembers()"
@@ -3758,7 +3821,7 @@
       "label": "membersText()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1035",
+      "source_location": "L1038",
       "id": "src_sciencefairjudging_memberstext",
       "community": 1,
       "norm_label": "memberstext()"
@@ -3767,7 +3830,7 @@
       "label": "highestGrade()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1040",
+      "source_location": "L1043",
       "id": "src_sciencefairjudging_highestgrade",
       "community": 1,
       "norm_label": "highestgrade()"
@@ -3776,7 +3839,7 @@
       "label": "blankProjForm()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1049",
+      "source_location": "L1052",
       "id": "src_sciencefairjudging_blankprojform",
       "community": 1,
       "norm_label": "blankprojform()"
@@ -3785,7 +3848,7 @@
       "label": "escHtml()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1055",
+      "source_location": "L1058",
       "id": "src_sciencefairjudging_eschtml",
       "community": 1,
       "norm_label": "eschtml()"
@@ -3794,7 +3857,7 @@
       "label": "schoolYearFor()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1062",
+      "source_location": "L1065",
       "id": "src_sciencefairjudging_schoolyearfor",
       "community": 1,
       "norm_label": "schoolyearfor()"
@@ -3803,7 +3866,7 @@
       "label": "cleanSchoolYear()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1068",
+      "source_location": "L1071",
       "id": "src_sciencefairjudging_cleanschoolyear",
       "community": 1,
       "norm_label": "cleanschoolyear()"
@@ -3812,7 +3875,7 @@
       "label": "validateSchoolYear()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1072",
+      "source_location": "L1075",
       "id": "src_sciencefairjudging_validateschoolyear",
       "community": 1,
       "norm_label": "validateschoolyear()"
@@ -3821,7 +3884,7 @@
       "label": "schoolInitials()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1101",
+      "source_location": "L1104",
       "id": "src_sciencefairjudging_schoolinitials",
       "community": 1,
       "norm_label": "schoolinitials()"
@@ -3830,7 +3893,7 @@
       "label": "SchoolLogo()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1111",
+      "source_location": "L1114",
       "id": "src_sciencefairjudging_schoollogo",
       "community": 1,
       "norm_label": "schoollogo()"
@@ -3839,7 +3902,7 @@
       "label": "BrandPoster()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1128",
+      "source_location": "L1131",
       "id": "src_sciencefairjudging_brandposter",
       "community": 1,
       "norm_label": "brandposter()"
@@ -3848,7 +3911,7 @@
       "label": "decodeBrandImage()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1140",
+      "source_location": "L1143",
       "id": "src_sciencefairjudging_decodebrandimage",
       "community": 1,
       "norm_label": "decodebrandimage()"
@@ -3857,7 +3920,7 @@
       "label": "canvasBlob()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1153",
+      "source_location": "L1156",
       "id": "src_sciencefairjudging_canvasblob",
       "community": 1,
       "norm_label": "canvasblob()"
@@ -3866,7 +3929,7 @@
       "label": "prepareBrandImage()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1158",
+      "source_location": "L1161",
       "id": "src_sciencefairjudging_preparebrandimage",
       "community": 1,
       "norm_label": "preparebrandimage()"
@@ -3875,7 +3938,7 @@
       "label": "uid()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1200",
+      "source_location": "L1203",
       "id": "src_sciencefairjudging_uid",
       "community": 1,
       "norm_label": "uid()"
@@ -3884,7 +3947,7 @@
       "label": "genToken()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1201",
+      "source_location": "L1204",
       "id": "src_sciencefairjudging_gentoken",
       "community": 1,
       "norm_label": "gentoken()"
@@ -3893,7 +3956,7 @@
       "label": "fmt()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1202",
+      "source_location": "L1205",
       "id": "src_sciencefairjudging_fmt",
       "community": 1,
       "norm_label": "fmt()"
@@ -3902,7 +3965,7 @@
       "label": "fmtFull()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1203",
+      "source_location": "L1206",
       "id": "src_sciencefairjudging_fmtfull",
       "community": 1,
       "norm_label": "fmtfull()"
@@ -3911,7 +3974,7 @@
       "label": "fmtISO()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1204",
+      "source_location": "L1207",
       "id": "src_sciencefairjudging_fmtiso",
       "community": 1,
       "norm_label": "fmtiso()"
@@ -3920,7 +3983,7 @@
       "label": "itId()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1205",
+      "source_location": "L1208",
       "id": "src_sciencefairjudging_itid",
       "community": 1,
       "norm_label": "itid()"
@@ -3929,7 +3992,7 @@
       "label": "isStandaloneApp()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1214",
+      "source_location": "L1217",
       "id": "src_sciencefairjudging_isstandaloneapp",
       "community": 1,
       "norm_label": "isstandaloneapp()"
@@ -3938,7 +4001,7 @@
       "label": "readItOutbox()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1231",
+      "source_location": "L1234",
       "id": "src_sciencefairjudging_readitoutbox",
       "community": 1,
       "norm_label": "readitoutbox()"
@@ -3947,7 +4010,7 @@
       "label": "writeItOutbox()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1235",
+      "source_location": "L1238",
       "id": "src_sciencefairjudging_writeitoutbox",
       "community": 1,
       "norm_label": "writeitoutbox()"
@@ -3956,7 +4019,7 @@
       "label": "requiresAbstract()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1238",
+      "source_location": "L1241",
       "id": "src_sciencefairjudging_requiresabstract",
       "community": 1,
       "norm_label": "requiresabstract()"
@@ -3965,7 +4028,7 @@
       "label": "MISSING_COL()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1242",
+      "source_location": "L1245",
       "id": "src_sciencefairjudging_missing_col",
       "community": 1,
       "norm_label": "missing_col()"
@@ -3974,7 +4037,7 @@
       "label": "MISSING_TABLE()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1244",
+      "source_location": "L1247",
       "id": "src_sciencefairjudging_missing_table",
       "community": 1,
       "norm_label": "missing_table()"
@@ -3983,7 +4046,7 @@
       "label": "MISSING_FN()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1251",
+      "source_location": "L1254",
       "id": "src_sciencefairjudging_missing_fn",
       "community": 1,
       "norm_label": "missing_fn()"
@@ -3992,7 +4055,7 @@
       "label": "cacheSet()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1263",
+      "source_location": "L1266",
       "id": "src_sciencefairjudging_cacheset",
       "community": 1,
       "norm_label": "cacheset()"
@@ -4001,7 +4064,7 @@
       "label": "cacheGet()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1266",
+      "source_location": "L1269",
       "id": "src_sciencefairjudging_cacheget",
       "community": 1,
       "norm_label": "cacheget()"
@@ -4010,7 +4073,7 @@
       "label": "publicProjectRow()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1273",
+      "source_location": "L1276",
       "id": "src_sciencefairjudging_publicprojectrow",
       "community": 1,
       "norm_label": "publicprojectrow()"
@@ -4019,7 +4082,7 @@
       "label": "cachedRead()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1279",
+      "source_location": "L1282",
       "id": "src_sciencefairjudging_cachedread",
       "community": 1,
       "norm_label": "cachedread()"
@@ -4028,7 +4091,7 @@
       "label": "csvCell()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1290",
+      "source_location": "L1293",
       "id": "src_sciencefairjudging_csvcell",
       "community": 1,
       "norm_label": "csvcell()"
@@ -4037,7 +4100,7 @@
       "label": "parseCsv()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1300",
+      "source_location": "L1303",
       "id": "src_sciencefairjudging_parsecsv",
       "community": 1,
       "norm_label": "parsecsv()"
@@ -4046,7 +4109,7 @@
       "label": "uncsvCell()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1321",
+      "source_location": "L1324",
       "id": "src_sciencefairjudging_uncsvcell",
       "community": 1,
       "norm_label": "uncsvcell()"
@@ -4055,7 +4118,7 @@
       "label": "parseMembersText()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1326",
+      "source_location": "L1329",
       "id": "src_sciencefairjudging_parsememberstext",
       "community": 1,
       "norm_label": "parsememberstext()"
@@ -4064,7 +4127,7 @@
       "label": "projectsFromCsv()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1347",
+      "source_location": "L1350",
       "id": "src_sciencefairjudging_projectsfromcsv",
       "community": 1,
       "norm_label": "projectsfromcsv()"
@@ -4073,16 +4136,34 @@
       "label": "parseScheduleCsv()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1372",
+      "source_location": "L1375",
       "id": "src_sciencefairjudging_parseschedulecsv",
       "community": 1,
       "norm_label": "parseschedulecsv()"
     },
     {
+      "label": "schedTemplateSlots()",
+      "file_type": "code",
+      "source_file": "src\\ScienceFairJudging.jsx",
+      "source_location": "L1414",
+      "id": "src_sciencefairjudging_schedtemplateslots",
+      "community": 1,
+      "norm_label": "schedtemplateslots()"
+    },
+    {
+      "label": "schedTemplateCsv()",
+      "file_type": "code",
+      "source_file": "src\\ScienceFairJudging.jsx",
+      "source_location": "L1438",
+      "id": "src_sciencefairjudging_schedtemplatecsv",
+      "community": 1,
+      "norm_label": "schedtemplatecsv()"
+    },
+    {
       "label": "critVal()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L1406",
+      "source_location": "L1455",
       "id": "src_sciencefairjudging_critval",
       "community": 1,
       "norm_label": "critval()"
@@ -4091,7 +4172,7 @@
       "label": "dbToJudge()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L2334",
+      "source_location": "L2407",
       "id": "src_sciencefairjudging_dbtojudge",
       "community": 1,
       "norm_label": "dbtojudge()"
@@ -4100,7 +4181,7 @@
       "label": "judgeDeptIds()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L2342",
+      "source_location": "L2415",
       "id": "src_sciencefairjudging_judgedeptids",
       "community": 1,
       "norm_label": "judgedeptids()"
@@ -4109,7 +4190,7 @@
       "label": "dbToDept()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L2349",
+      "source_location": "L2422",
       "id": "src_sciencefairjudging_dbtodept",
       "community": 1,
       "norm_label": "dbtodept()"
@@ -4118,7 +4199,7 @@
       "label": "normJudgeAlias()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L2363",
+      "source_location": "L2436",
       "id": "src_sciencefairjudging_normjudgealias",
       "community": 1,
       "norm_label": "normjudgealias()"
@@ -4127,7 +4208,7 @@
       "label": "judgeNumOf()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L2367",
+      "source_location": "L2440",
       "id": "src_sciencefairjudging_judgenumof",
       "community": 1,
       "norm_label": "judgenumof()"
@@ -4136,7 +4217,7 @@
       "label": "dbToLog()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L2371",
+      "source_location": "L2444",
       "id": "src_sciencefairjudging_dbtolog",
       "community": 1,
       "norm_label": "dbtolog()"
@@ -4145,7 +4226,7 @@
       "label": "newUuid()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L2375",
+      "source_location": "L2448",
       "id": "src_sciencefairjudging_newuuid",
       "community": 1,
       "norm_label": "newuuid()"
@@ -4154,7 +4235,7 @@
       "label": "dbToItLog()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L2382",
+      "source_location": "L2455",
       "id": "src_sciencefairjudging_dbtoitlog",
       "community": 1,
       "norm_label": "dbtoitlog()"
@@ -4163,7 +4244,7 @@
       "label": "scoresToMap()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L2385",
+      "source_location": "L2458",
       "id": "src_sciencefairjudging_scorestomap",
       "community": 1,
       "norm_label": "scorestomap()"
@@ -4172,7 +4253,7 @@
       "label": "queuedScoresFor()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L2408",
+      "source_location": "L2481",
       "id": "src_sciencefairjudging_queuedscoresfor",
       "community": 1,
       "norm_label": "queuedscoresfor()"
@@ -4181,7 +4262,7 @@
       "label": "delibNotesToMap()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L2420",
+      "source_location": "L2493",
       "id": "src_sciencefairjudging_delibnotestomap",
       "community": 1,
       "norm_label": "delibnotestomap()"
@@ -4190,7 +4271,7 @@
       "label": "finalDecisionsToMap()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L2429",
+      "source_location": "L2502",
       "id": "src_sciencefairjudging_finaldecisionstomap",
       "community": 1,
       "norm_label": "finaldecisionstomap()"
@@ -4199,7 +4280,7 @@
       "label": "App()",
       "file_type": "code",
       "source_file": "src\\ScienceFairJudging.jsx",
-      "source_location": "L2459",
+      "source_location": "L2532",
       "id": "src_sciencefairjudging_app",
       "community": 1,
       "norm_label": "app()"
@@ -4210,7 +4291,7 @@
       "source_file": "src\\supabaseClient.js",
       "source_location": "L1",
       "id": "src_supabaseclient_js",
-      "community": 39,
+      "community": 41,
       "norm_label": "supabaseclient.js"
     },
     {
@@ -4231,7 +4312,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 33,
+      "community": 35,
       "norm_label": "app (sciencefairjudging.jsx)",
       "id": "sciencefairjudging_app"
     },
@@ -4244,7 +4325,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 33,
+      "community": 35,
       "norm_label": "animatedbackdrop component",
       "id": "sciencefairjudging_animatedbackdrop"
     },
@@ -4530,7 +4611,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 34,
+      "community": 36,
       "norm_label": "loadreglinks()",
       "id": "sciencefairjudging_loadreglinks"
     },
@@ -4543,7 +4624,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 34,
+      "community": 36,
       "norm_label": "generatereglink()",
       "id": "sciencefairjudging_generatereglink"
     },
@@ -4556,7 +4637,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 40,
+      "community": 42,
       "norm_label": "generateregnum()",
       "id": "sciencefairjudging_generateregnum"
     },
@@ -4621,7 +4702,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 35,
+      "community": 37,
       "norm_label": "additlog()",
       "id": "sciencefairjudging_additlog"
     },
@@ -4725,7 +4806,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 33,
+      "community": 35,
       "norm_label": "supabaseclient.js",
       "id": "sciencefairjudging_supabaseclient"
     },
@@ -4803,7 +4884,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 35,
+      "community": 37,
       "norm_label": "it_logs table",
       "id": "schema_it_logs"
     },
@@ -4816,7 +4897,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 41,
+      "community": 43,
       "norm_label": "share_links table",
       "id": "schema_share_links"
     },
@@ -4881,7 +4962,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 42,
+      "community": 44,
       "norm_label": "score_backups table",
       "id": "schema_score_backups"
     },
@@ -4894,7 +4975,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 34,
+      "community": 36,
       "norm_label": "registration_links table",
       "id": "regmig_registration_links"
     },
@@ -4920,7 +5001,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 36,
+      "community": 38,
       "norm_label": "project overview (claude.md)",
       "id": "claudemd_overview"
     },
@@ -5024,7 +5105,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 36,
+      "community": 38,
       "norm_label": "qa assessment",
       "id": "qa_assessment"
     },
@@ -5271,7 +5352,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 26,
+      "community": 28,
       "norm_label": "favicon svg",
       "id": "favicon_svg"
     },
@@ -5284,7 +5365,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 26,
+      "community": 28,
       "norm_label": "lightning bolt / z-shape icon",
       "id": "lightning_bolt_shape"
     },
@@ -5297,7 +5378,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 26,
+      "community": 28,
       "norm_label": "purple color scheme (#863bff / #7e14ff)",
       "id": "purple_color_scheme"
     },
@@ -5310,7 +5391,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 26,
+      "community": 28,
       "norm_label": "blue accent (#47bfff)",
       "id": "blue_accent"
     },
@@ -5323,7 +5404,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 26,
+      "community": 28,
       "norm_label": "gaussian blur filters",
       "id": "gaussian_blur_effects"
     },
@@ -5336,7 +5417,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 26,
+      "community": 28,
       "norm_label": "browser tab icon purpose",
       "id": "browser_tab_icon"
     },
@@ -5349,7 +5430,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 26,
+      "community": 28,
       "norm_label": "qritiko brand identity",
       "id": "qritiko_brand"
     },
@@ -5362,7 +5443,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 19,
+      "community": 21,
       "norm_label": "icons.svg (svg sprite sheet)",
       "id": "icons.svg"
     },
@@ -5375,7 +5456,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 19,
+      "community": 21,
       "norm_label": "bluesky icon symbol",
       "id": "bluesky-icon"
     },
@@ -5388,7 +5469,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 19,
+      "community": 21,
       "norm_label": "discord icon symbol",
       "id": "discord-icon"
     },
@@ -5401,7 +5482,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 19,
+      "community": 21,
       "norm_label": "documentation icon symbol",
       "id": "documentation-icon"
     },
@@ -5414,7 +5495,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 19,
+      "community": 21,
       "norm_label": "github icon symbol",
       "id": "github-icon"
     },
@@ -5427,7 +5508,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 19,
+      "community": 21,
       "norm_label": "social icon symbol",
       "id": "social-icon"
     },
@@ -5440,7 +5521,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 19,
+      "community": 21,
       "norm_label": "x (twitter) icon symbol",
       "id": "x-icon"
     },
@@ -5453,7 +5534,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 19,
+      "community": 21,
       "norm_label": "svg <symbol> sprite pattern",
       "id": "svg-sprite-pattern"
     },
@@ -5466,7 +5547,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 19,
+      "community": 21,
       "norm_label": "purple accent color #aa3bff",
       "id": "purple-accent-aa3bff"
     },
@@ -5479,7 +5560,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 20,
+      "community": 22,
       "norm_label": "logo.png (school logo)",
       "id": "logo_png"
     },
@@ -5492,7 +5573,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 20,
+      "community": 22,
       "norm_label": "wildcat mascot illustration",
       "id": "wildcat_mascot"
     },
@@ -5505,7 +5586,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 20,
+      "community": 22,
       "norm_label": "dishchiibikoh community school",
       "id": "dishchiibikoh_school"
     },
@@ -5518,7 +5599,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 20,
+      "community": 22,
       "norm_label": "blue color scheme",
       "id": "color_blue"
     },
@@ -5531,7 +5612,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 20,
+      "community": 22,
       "norm_label": "white accent",
       "id": "color_white"
     },
@@ -5544,7 +5625,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 20,
+      "community": 22,
       "norm_label": "black outline/background",
       "id": "color_black"
     },
@@ -5557,7 +5638,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 20,
+      "community": 22,
       "norm_label": "pwa app icon",
       "id": "pwa_icon"
     },
@@ -5570,7 +5651,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 20,
+      "community": 22,
       "norm_label": "science fair judging app",
       "id": "science_fair_app"
     },
@@ -5583,7 +5664,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 20,
+      "community": 22,
       "norm_label": "snarling/roaring profile pose",
       "id": "snarling_pose"
     }
@@ -7388,9 +7469,9 @@
       "source_file": "scripts\\e2e\\help-guide.e2e.mjs",
       "source_location": "L15",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_guide_e2e_mjs",
-      "target": "scripts_e2e_mock_mjs",
-      "confidence_score": 1.0
+      "target": "scripts_e2e_mock_mjs"
     },
     {
       "relation": "imports",
@@ -7399,9 +7480,9 @@
       "source_file": "scripts\\e2e\\help-guide.e2e.mjs",
       "source_location": "L15",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_guide_e2e_mjs",
-      "target": "e2e_mock_freshstore",
-      "confidence_score": 1.0
+      "target": "e2e_mock_freshstore"
     },
     {
       "relation": "imports",
@@ -7410,9 +7491,9 @@
       "source_file": "scripts\\e2e\\help-guide.e2e.mjs",
       "source_location": "L15",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_guide_e2e_mjs",
-      "target": "e2e_mock_installmock",
-      "confidence_score": 1.0
+      "target": "e2e_mock_installmock"
     },
     {
       "relation": "contains",
@@ -7420,9 +7501,9 @@
       "source_file": "scripts\\e2e\\help-guide.e2e.mjs",
       "source_location": "L19",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_guide_e2e_mjs",
-      "target": "e2e_help_guide_e2e_ok",
-      "confidence_score": 1.0
+      "target": "e2e_help_guide_e2e_ok"
     },
     {
       "relation": "contains",
@@ -7430,9 +7511,9 @@
       "source_file": "scripts\\e2e\\help-guide.e2e.mjs",
       "source_location": "L20",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_guide_e2e_mjs",
-      "target": "e2e_help_guide_e2e_check",
-      "confidence_score": 1.0
+      "target": "e2e_help_guide_e2e_check"
     },
     {
       "relation": "contains",
@@ -7440,9 +7521,9 @@
       "source_file": "scripts\\e2e\\help-guide.e2e.mjs",
       "source_location": "L25",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_guide_e2e_mjs",
-      "target": "e2e_help_guide_e2e_guideimgs",
-      "confidence_score": 1.0
+      "target": "e2e_help_guide_e2e_guideimgs"
     },
     {
       "relation": "contains",
@@ -7450,9 +7531,9 @@
       "source_file": "scripts\\e2e\\help-guide.e2e.mjs",
       "source_location": "L37",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_guide_e2e_mjs",
-      "target": "e2e_help_guide_e2e_newpage",
-      "confidence_score": 1.0
+      "target": "e2e_help_guide_e2e_newpage"
     },
     {
       "relation": "contains",
@@ -7460,9 +7541,9 @@
       "source_file": "scripts\\e2e\\help-guide.e2e.mjs",
       "source_location": "L46",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_guide_e2e_mjs",
-      "target": "e2e_help_guide_e2e_allimagesload",
-      "confidence_score": 1.0
+      "target": "e2e_help_guide_e2e_allimagesload"
     },
     {
       "relation": "calls",
@@ -7471,9 +7552,9 @@
       "source_file": "scripts\\e2e\\help-guide.e2e.mjs",
       "source_location": "L20",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "e2e_help_guide_e2e_check",
-      "target": "e2e_help_guide_e2e_ok",
-      "confidence_score": 1.0
+      "target": "e2e_help_guide_e2e_ok"
     },
     {
       "relation": "calls",
@@ -7493,9 +7574,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L13",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_shots_mjs",
-      "target": "scripts_e2e_mock_mjs",
-      "confidence_score": 1.0
+      "target": "scripts_e2e_mock_mjs"
     },
     {
       "relation": "imports",
@@ -7504,9 +7585,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L13",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_shots_mjs",
-      "target": "e2e_mock_freshstore",
-      "confidence_score": 1.0
+      "target": "e2e_mock_freshstore"
     },
     {
       "relation": "imports",
@@ -7515,9 +7596,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L13",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_shots_mjs",
-      "target": "e2e_mock_installmock",
-      "confidence_score": 1.0
+      "target": "e2e_mock_installmock"
     },
     {
       "relation": "contains",
@@ -7525,9 +7606,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L19",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_shots_mjs",
-      "target": "e2e_help_shots_want",
-      "confidence_score": 1.0
+      "target": "e2e_help_shots_want"
     },
     {
       "relation": "contains",
@@ -7535,9 +7616,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L27",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_shots_mjs",
-      "target": "e2e_help_shots_dept",
-      "confidence_score": 1.0
+      "target": "e2e_help_shots_dept"
     },
     {
       "relation": "contains",
@@ -7545,9 +7626,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L90",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_shots_mjs",
-      "target": "e2e_help_shots_newpage",
-      "confidence_score": 1.0
+      "target": "e2e_help_shots_newpage"
     },
     {
       "relation": "contains",
@@ -7555,9 +7636,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L112",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_shots_mjs",
-      "target": "e2e_help_shots_towebp",
-      "confidence_score": 1.0
+      "target": "e2e_help_shots_towebp"
     },
     {
       "relation": "contains",
@@ -7565,9 +7646,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L122",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_shots_mjs",
-      "target": "e2e_help_shots_scrub",
-      "confidence_score": 1.0
+      "target": "e2e_help_shots_scrub"
     },
     {
       "relation": "contains",
@@ -7575,9 +7656,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L130",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_shots_mjs",
-      "target": "e2e_help_shots_box",
-      "confidence_score": 1.0
+      "target": "e2e_help_shots_box"
     },
     {
       "relation": "contains",
@@ -7585,9 +7666,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L137",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_shots_mjs",
-      "target": "e2e_help_shots_shot",
-      "confidence_score": 1.0
+      "target": "e2e_help_shots_shot"
     },
     {
       "relation": "contains",
@@ -7595,9 +7676,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L178",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_shots_mjs",
-      "target": "e2e_help_shots_adminin",
-      "confidence_score": 1.0
+      "target": "e2e_help_shots_adminin"
     },
     {
       "relation": "contains",
@@ -7605,9 +7686,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L188",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_shots_mjs",
-      "target": "e2e_help_shots_tab",
-      "confidence_score": 1.0
+      "target": "e2e_help_shots_tab"
     },
     {
       "relation": "contains",
@@ -7615,9 +7696,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L190",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_shots_mjs",
-      "target": "e2e_help_shots_rateall",
-      "confidence_score": 1.0
+      "target": "e2e_help_shots_rateall"
     },
     {
       "relation": "contains",
@@ -7625,9 +7706,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L203",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_shots_mjs",
-      "target": "e2e_help_shots_rubricof",
-      "confidence_score": 1.0
+      "target": "e2e_help_shots_rubricof"
     },
     {
       "relation": "contains",
@@ -7635,9 +7716,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L309",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_shots_mjs",
-      "target": "e2e_help_shots_aliasnum",
-      "confidence_score": 1.0
+      "target": "e2e_help_shots_aliasnum"
     },
     {
       "relation": "contains",
@@ -7645,9 +7726,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L351",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_shots_mjs",
-      "target": "e2e_help_shots_main",
-      "confidence_score": 1.0
+      "target": "e2e_help_shots_main"
     },
     {
       "relation": "contains",
@@ -7655,9 +7736,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L376",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_e2e_help_shots_mjs",
-      "target": "e2e_help_shots_card",
-      "confidence_score": 1.0
+      "target": "e2e_help_shots_card"
     },
     {
       "relation": "calls",
@@ -7666,9 +7747,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L138",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "e2e_help_shots_shot",
-      "target": "e2e_help_shots_want",
-      "confidence_score": 1.0
+      "target": "e2e_help_shots_want"
     },
     {
       "relation": "calls",
@@ -7677,9 +7758,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L179",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "e2e_help_shots_adminin",
-      "target": "e2e_help_shots_newpage",
-      "confidence_score": 1.0
+      "target": "e2e_help_shots_newpage"
     },
     {
       "relation": "calls",
@@ -7699,9 +7780,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L171",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "e2e_help_shots_shot",
-      "target": "e2e_help_shots_towebp",
-      "confidence_score": 1.0
+      "target": "e2e_help_shots_towebp"
     },
     {
       "relation": "calls",
@@ -7710,9 +7791,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L145",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "e2e_help_shots_shot",
-      "target": "e2e_help_shots_scrub",
-      "confidence_score": 1.0
+      "target": "e2e_help_shots_scrub"
     },
     {
       "relation": "calls",
@@ -7721,9 +7802,9 @@
       "source_file": "scripts\\e2e\\help-shots.mjs",
       "source_location": "L148",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "e2e_help_shots_shot",
-      "target": "e2e_help_shots_box",
-      "confidence_score": 1.0
+      "target": "e2e_help_shots_box"
     },
     {
       "relation": "imports_from",
@@ -9264,6 +9345,17 @@
       "relation": "imports_from",
       "context": "import",
       "confidence": "EXTRACTED",
+      "source_file": "scripts\\e2e\\schedule-template.e2e.mjs",
+      "source_location": "L10",
+      "weight": 1.0,
+      "source": "scripts_e2e_schedule_template_e2e_mjs",
+      "target": "scripts_e2e_mock_mjs",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
       "source_file": "scripts\\e2e\\schedule.e2e.mjs",
       "source_location": "L12",
       "weight": 1.0,
@@ -9462,6 +9554,17 @@
       "relation": "imports",
       "context": "import",
       "confidence": "EXTRACTED",
+      "source_file": "scripts\\e2e\\schedule-template.e2e.mjs",
+      "source_location": "L10",
+      "weight": 1.0,
+      "source": "scripts_e2e_schedule_template_e2e_mjs",
+      "target": "e2e_mock_freshstore",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
       "source_file": "scripts\\e2e\\schedule.e2e.mjs",
       "source_location": "L12",
       "weight": 1.0,
@@ -9655,6 +9758,17 @@
       "confidence_score": 1.0,
       "source": "scripts_e2e_scan_e2e_mjs",
       "target": "e2e_mock_installmock"
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts\\e2e\\schedule-template.e2e.mjs",
+      "source_location": "L10",
+      "weight": 1.0,
+      "source": "scripts_e2e_schedule_template_e2e_mjs",
+      "target": "e2e_mock_installmock",
+      "confidence_score": 1.0
     },
     {
       "relation": "imports",
@@ -10913,6 +11027,77 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "scripts\\e2e\\schedule-template.e2e.mjs",
+      "source_location": "L16",
+      "weight": 1.0,
+      "source": "scripts_e2e_schedule_template_e2e_mjs",
+      "target": "e2e_schedule_template_e2e_ok",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts\\e2e\\schedule-template.e2e.mjs",
+      "source_location": "L17",
+      "weight": 1.0,
+      "source": "scripts_e2e_schedule_template_e2e_mjs",
+      "target": "e2e_schedule_template_e2e_check",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts\\e2e\\schedule-template.e2e.mjs",
+      "source_location": "L24",
+      "weight": 1.0,
+      "source": "scripts_e2e_schedule_template_e2e_mjs",
+      "target": "e2e_schedule_template_e2e_p",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts\\e2e\\schedule-template.e2e.mjs",
+      "source_location": "L49",
+      "weight": 1.0,
+      "source": "scripts_e2e_schedule_template_e2e_mjs",
+      "target": "e2e_schedule_template_e2e_download",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts\\e2e\\schedule-template.e2e.mjs",
+      "source_location": "L54",
+      "weight": 1.0,
+      "source": "scripts_e2e_schedule_template_e2e_mjs",
+      "target": "e2e_schedule_template_e2e_parse",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts\\e2e\\schedule-template.e2e.mjs",
+      "source_location": "L60",
+      "weight": 1.0,
+      "source": "scripts_e2e_schedule_template_e2e_mjs",
+      "target": "e2e_schedule_template_e2e_tocsv",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts\\e2e\\schedule-template.e2e.mjs",
+      "source_location": "L17",
+      "weight": 1.0,
+      "source": "e2e_schedule_template_e2e_check",
+      "target": "e2e_schedule_template_e2e_ok",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "scripts\\e2e\\schedule.e2e.mjs",
       "source_location": "L18",
       "weight": 1.0,
@@ -11705,9 +11890,9 @@
       "source_file": "src\\ScienceFairJudging.jsx",
       "source_location": "L968",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_sciencefairjudging_jsx",
-      "target": "src_sciencefairjudging_guidesteps",
-      "confidence_score": 1.0
+      "target": "src_sciencefairjudging_guidesteps"
     },
     {
       "relation": "contains",
@@ -11715,9 +11900,9 @@
       "source_file": "src\\ScienceFairJudging.jsx",
       "source_location": "L982",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_sciencefairjudging_jsx",
-      "target": "src_sciencefairjudging_guideprinthtml",
-      "confidence_score": 1.0
+      "target": "src_sciencefairjudging_guideprinthtml"
     },
     {
       "relation": "contains",
@@ -12103,6 +12288,26 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\ScienceFairJudging.jsx",
+      "source_location": "L1414",
+      "weight": 1.0,
+      "source": "src_sciencefairjudging_jsx",
+      "target": "src_sciencefairjudging_schedtemplateslots",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\ScienceFairJudging.jsx",
+      "source_location": "L1438",
+      "weight": 1.0,
+      "source": "src_sciencefairjudging_jsx",
+      "target": "src_sciencefairjudging_schedtemplatecsv",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\ScienceFairJudging.jsx",
       "source_location": "L79",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -12344,9 +12549,9 @@
       "source_file": "src\\ScienceFairJudging.jsx",
       "source_location": "L990",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_sciencefairjudging_guideprinthtml",
-      "target": "src_sciencefairjudging_eschtml",
-      "confidence_score": 1.0
+      "target": "src_sciencefairjudging_eschtml"
     },
     {
       "relation": "calls",
@@ -12435,6 +12640,17 @@
       "confidence_score": 1.0,
       "source": "src_sciencefairjudging_preparebrandimage",
       "target": "src_sciencefairjudging_canvasblob"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\ScienceFairJudging.jsx",
+      "source_location": "L1429",
+      "weight": 1.0,
+      "source": "src_sciencefairjudging_schedtemplateslots",
+      "target": "src_sciencefairjudging_fmt",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
