@@ -3,7 +3,7 @@
 > Single source of truth for AI-assisted development. Read it before changing anything.
 > Do not delete it. When code and this file disagree, the code wins — then fix this file.
 >
-> Last reviewed: 2026-11-05 (illustrated guides: the judge's "❓ How to judge" screen, the admin Help tab's step-by-step + judge guide + searchable Q&A, screenshots by `npm run help:shots`, help text corrected against the code — rule 84; before that 2026-11-04: pre-event audit fixes F1–F17, deployed `a88bb98` with migrations 2026-11a/11b run on live — every fix, test and revert hash in [FIXES_2026-11.md](FIXES_2026-11.md); migrations 2026-11a/11b; earlier: 2026-10-21 Phase 3: award groups + the Awards tab; the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
+> Last reviewed: 2026-11-06 (judging-schedule template + booth template; the head's FINAL schedule imported on live and verified for all 15 judges — see Change History; 2026-11-05: illustrated guides: the judge's "❓ How to judge" screen, the admin Help tab's step-by-step + judge guide + searchable Q&A, screenshots by `npm run help:shots`, help text corrected against the code — rule 84; before that 2026-11-04: pre-event audit fixes F1–F17, deployed `a88bb98` with migrations 2026-11a/11b run on live — every fix, test and revert hash in [FIXES_2026-11.md](FIXES_2026-11.md); migrations 2026-11a/11b; earlier: 2026-10-21 Phase 3: award groups + the Awards tab; the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
 
 ---
 
@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (311 checks). Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`), the 2026-27 forms + drafts + safety (`rubrics-2627.e2e.mjs`), the judging schedule (`schedule.e2e.mjs`), the PreK & SPED form (`prek-sped.e2e.mjs`), awards (`awards.e2e.mjs`). Start the dev server first (see the file header). 2026-11 added save-robust, offline-start, realtime-reconnect (a fake realtime server via `page.routeWebSocket`), awards-integrity, finalize-gates, signin-guard, share-links, admin-actions, judge-ux, judge-identity; 2026-11-05 help-guide (the illustrated guides). **647 checks across 35 files** (2026-11-05). `npm run help:shots` (same dev server) re-takes the guide screenshots — not a test |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`), the 2026-27 forms + drafts + safety (`rubrics-2627.e2e.mjs`), the judging schedule (`schedule.e2e.mjs`), the PreK & SPED form (`prek-sped.e2e.mjs`), awards (`awards.e2e.mjs`). Start the dev server first (see the file header). 2026-11 added save-robust, offline-start, realtime-reconnect (a fake realtime server via `page.routeWebSocket`), awards-integrity, finalize-gates, signin-guard, share-links, admin-actions, judge-ux, judge-identity; 2026-11-05 help-guide (the illustrated guides); 2026-11-06 schedule-template. **656 checks across 36 files** (2026-11-06; signup and save-robust each flaked once in a chained run and passed alone). `npm run help:shots` (same dev server) re-takes the guide screenshots — not a test |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -777,6 +777,13 @@ parseScheduleCsv(text), SCHED_FREE   // module: the organiser's grid → { slots
 loadSchedule(sid), scheduleActive(), scheduleFor(n), scheduleRounds(), roundTime(no), unscheduledProjects()
 importScheduleFile(file) → schedDraft (review, nothing saved) → saveSchedule() (set_judge_schedule RPC) · clearSchedule()
 importBoothFile(file)        // booth template ("Booth #" + "Project code") → projects.room; skips locked (rule 12)
+SCHED_TPL_DEFAULT, schedTemplateSlots(o), schedTemplateCsv({schoolName, slots, judges, projects})   // module (2026-11-06):
+                             // a blank grid in parseScheduleCsv()'s layout; times from start/visit/gap/rounds/breaksAfter/
+                             // breakMin/wrapMin (defaults = the 2026-27 day); project codes listed under the grid (ignored on import)
+downloadScheduleTemplate(), downloadBoothTemplate(), templateProjects()   // App; no student names in either file
+judgeProjectList(n)          // Setup → Judges: click a judge's Projects count (judgeListFor) → the projects that NUMBER judges:
+                             // schedule → slots in round order (visits, breaks, free); else ticked departments, narrowed to
+                             // project_judges where judges_per_project is set. Same sources as rosterLoad(); "estimate" when unsaved
 printJudgeSheets(), printBoothSheet(), schedPrintWindow()   // no names, no scores
 rubricSettings(criteria)     // module: the matching preset's settings (guide, factor, feedback, safety) or {}
 ratingOf(settings, v)        // module: points → the rating the judge tapped (v / factor); display only
@@ -1145,6 +1152,36 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-11-06 — Schedule + booth templates; the FINAL schedule verified on live** (no migration).
+- **The head of the fair's final schedule** ("PreK & SPED in Rounds 1–2, all K-5 in Rounds 3–5") changed 36 of the
+  179 visits. The file wrote the SPED codes as **SD-CMS-00x** while the app's SPED department code is **SPED** —
+  the import would have refused those three visits; an import copy with only that fixed
+  (Desktop: judges-schedule-2026-27-FINAL-import.csv, no names) was tested through the real import on a copy of the
+  live public data, then imported on live by the organiser. Verified with anonymous reads: **0 of 179 slots differ**,
+  slots identical, 63/63 projects covered (3 visits, 1 for PreK/SPED), no judge twice on a project, no booth clash.
+  **Judge side:** all 15 judges signed in on the mock loaded with a copy of the live projects / roster / schedule /
+  slots (never on live — that would create judge rows and spend invite attempts): every tablet lists exactly the
+  head's rounds, codes, breaks and free round, NEXT = the R1 project. The previous file (2026-11-05) had 6 codes
+  outdated by the 2026-11-03 category changes — paper must be printed from the app (🖨 Judge sheets), not the file.
+- **📄 Make a blank schedule template** (Setup → 📅 Judging schedule): start time, minutes per visit / between visits,
+  rounds, "break after rounds", break and wrap-up minutes → live preview of every slot → ⬇ a CSV in exactly the
+  layout `parseScheduleCsv()` reads (Judge 1…Maximum judges with their private labels, the time headers, BREAK /
+  WRAP-UP columns) and every project code with department / title / booth listed UNDER the grid (rows that do not
+  start with "Judge N" are ignored on import). Defaults reproduce the 2026-27 day exactly.
+- **⬇ Booth template** — the help said "the booth template" but the app never offered one (it existed only on the
+  organiser's Desktop). Booth # | Project code | Department | Title, in the columns importBoothFile() reads.
+- IT log: SCHEDULE_TEMPLATE_DOWNLOADED / BOOTH_TEMPLATE_DOWNLOADED (counts only). Help: new Q&A "Is there a template
+  for the schedule?", booth answer, admin guide step 2 point 5 + marker 5 in admin-3-schedule.webp, AdminInstructions.
+- **Judge grid → click a judge's Projects number** → a list of exactly what that judge number will judge
+  (`judgeProjectList()`): with a schedule every round in order with time, code, booth, title, department, the breaks
+  and free rounds; without one, the ticked departments' projects, narrowed to the stored panel assignments. Asked for
+  by the organiser to check judges' lists in Setup. Checked on a copy of live data: Judge 3's list = the head's row.
+  schedule.e2e +1, judge-panels.e2e +1 (**mutation-tested**: listing every department project instead of the
+  assignments → fails).
+Tests: new `scripts/e2e/schedule-template.e2e.mjs` (7: default times = the 2026-27 day, a bad value explained + download
+disabled, the file's header / judge rows / codes / no names, a filled-in template imports cleanly and stores the right
+visits, the IT-log entry, the booth template round trip). Lint 28/5; build clean.
 
 **2026-11-05 — Illustrated guides; help checked against the code** (no migration; rule 84).
 The organiser asked for a step-by-step tutorial with pictures for judges and admins: there was none, and judges
@@ -2035,6 +2072,9 @@ anon key cannot do it (it answers `200` with 0 rows — rule 54).
 **Done 2026-10-21, verified with anonymous reads:** PreK + SPED → **PreK & SPED Recognition (2026-27)** (scoring_mode
 `scored`, 4 × 1–5 = 20, ids/order/maxima identical to the preset, so ribbons + shared places apply); minimum to
 place = **0**; `judge_max` = 15. No judges, no scores yet.
+
+**Final judging schedule — imported and verified 2026-11-06** (see Change History): the head's version with K-5 in
+Rounds 3–5; 0 of 179 slots differ from her file; all 15 judges' tablets checked on a copy of the live data.
 
 **Still to do before the dry run:** ~~import the organiser's `Judges Schedule.csv`~~ (done — 179 visits
 verified live 2026-11-02); import the booth numbers when the map exists (**0 of 63 projects have a
