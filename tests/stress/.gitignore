@@ -1,0 +1,5 @@
+# Generated SQL bundles (derived from ../../supabase/*.sql — never commit a second copy)
+out/
+
+# Staging credentials. Also matched by the repo-root .gitignore rule `.env.*.local`.
+.env.stress.local
