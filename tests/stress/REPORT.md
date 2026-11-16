@@ -216,6 +216,36 @@ degradation may be local (sockets, CPU) rather than a Supabase limit. Treat 60 a
 where this setup stopped being clean", not as a proven server ceiling. The useful fact is the
 one below it: **30 held perfectly.**
 
+### 3.11 Judges who do not turn up — the coverage test
+
+Added after the organiser asked what happens to the projects of a judge who never arrives.
+Run on a schedule with the **live fair's exact visit structure**: 179 visits, 58 scored
+projects × 3 judges, 5 PreK/SPED projects × 1 judge, 15 judges.
+
+Two judges held back — the one who is the sole visitor to PreK, and one 6-8 judge:
+
+| | Projects |
+|---|---|
+| **No review at all** | **2** — both PreK, the single-visit projects |
+| Fewer reviews than planned | 21 |
+| Fully reviewed | 40 |
+
+Every 3-visit project still got at least 2 reviews, so averages and rankings remain valid for
+the scored departments. **The damage falls entirely on the single-visit PreK and SPED
+projects**, which is the one place the schedule has no redundancy.
+
+**The documented remedy works.** A stand-in signing in with the absent judge's number:
+
+- inherited **exactly** that judge's 10 scheduled visits (not the department's whole list);
+- had every score accepted;
+- restored both PreK projects from 0 reviews to 1, leaving **no project with zero reviews**.
+
+⚠️ **One thing was NOT verified:** whether the admin screens surface this at the time. The
+staging project has email logins disabled, so the dashboard could not be reached. Reading the
+code, `expectedReviews()` counts a project's scheduled visits and the Awards tab flags groups
+with `N not scored yet` and `N still waiting for reviews`, holding them back from "ready" —
+but that was read, not seen. Enabling email sign-in on staging would let this be confirmed.
+
 ---
 
 ## 4. Findings
@@ -231,6 +261,7 @@ not code tidiness.
 | **S-04** | Low | — | Every score insert is broadcast to **every** connected device on the school channel | One Realtime channel per school, by design | None at this size. It is why Test 10 was added — the cost scales with devices × writes, so it matters at a much larger fair, not this one |
 | **S-05** | Info | 5 | Public pages log a **401 on `project_private`** | Correct and intended: that table is admin-only and anon has no privileges | None. Recorded so it is not mistaken for a fault when reading logs on the day |
 | **S-06** | Low | 3 | Under 30 minutes of sustained load, **slowest-5 % latency grew 333 ms → 3 039 ms** (median 152 → 304 ms). Zero errors throughout | Periodic stalling under sustained concurrent writes — the *minimum* never changed (108 → 105 ms), so the fast path is unaffected. Most likely free-tier CPU burst credits depleting, possibly with some contention from my own machine running the browser and 15 workers at once. **It recovers fully within a minute of load stopping** | None needed for this event. The test ran at ~35 writes/min; your fair generates about **1 write/min**, roughly 35× lighter. Worth re-checking only if the fair grows several-fold or moves to continuous all-day use |
+| **S-08** | **High** (event-day) | 11 | With 2 of 15 judges absent, **2 PreK projects received no review at all** — no score, no ribbon, no place. 21 more projects dropped below their planned review count | Not an app defect: the schedule gives every PreK and SPED project **exactly one** visit, so there is no second judge to fall back on. Scored projects have 3 visits and degrade safely to 2. Nothing is reassigned automatically — Rebalance is off under a schedule by design (rule 77) | **Check the Judges tab before Round 1** and give any missing judge's **number** to a stand-in. Cover the PreK/SPED judge first. Verified: a stand-in inherited exactly that judge's 10 visits and restored all 63 projects to full coverage |
 | **S-07** | Low | 10 | At **60** simultaneous device connections, join time rose from 0.6 s to 10 s and one client never subscribed | Realtime connection handling at the free tier, and/or the single test machine holding 60 sockets | None for this event — **30 devices was flawless** and you plan at most 30. If the fair ever exceeds ~50 simultaneous devices, re-test from more than one machine before relying on it |
 
 ### Things that were explicitly checked and found sound

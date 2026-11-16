@@ -85,6 +85,41 @@ pre-load the tablets, and keep an admin with the PIN in the room.
 
 ---
 
+## Session 2 — 2026-11-16
+
+### Question from the organiser
+"If only 13 of 15 judges turn up, what happens to the projects assigned to the two who did
+not?" The Session 1 stress test did not cover this — it measured whether the system breaks
+under load, not what happens when the plan is not fully staffed.
+
+### What was added
+- **`seed.mjs --shape=event`** — a second schedule shape reproducing the live fair's visit
+  structure exactly: 179 visits, every scored project seen by 3 different judges, every PreK
+  and SPED project by 1. The original (now `--shape=load`, still the default) uses a
+  round-robin built for concurrency, which gives PreK two visits and would have **hidden the
+  entire risk**.
+- **An admin account**, created through the Auth Admin API with `email_confirm: true`, so it
+  does not depend on the project's email settings. Its credentials are in the manifest.
+- **`test11-absent-judges.mjs`** — holds two judges back and measures the cost, what the
+  organiser is shown, and whether a stand-in recovers it.
+
+### Result
+**2 PreK projects ended with no review at all**; 21 more fell below their planned count; 40
+were untouched. Every 3-visit project still had at least 2 reviews. A stand-in using the
+absent judge's number inherited exactly that judge's 10 visits and restored full coverage.
+
+Recorded as **S-08 (High, event-day)** in REPORT.md — not an app defect, a schedule-redundancy
+risk: PreK and SPED have no second judge.
+
+### Not verified
+Whether the **admin screens** show it at the time. Staging has email logins disabled, so the
+dashboard is unreachable; the test reports this as NOT CHECKED rather than a failure, because
+calling it a failure would tell an auditor the app is broken when that was never observed. To
+finish it: staging → Authentication → Sign In / Providers → Email → enable. "Confirm email"
+can stay on.
+
+---
+
 ## Resuming in a later session
 
 ```
