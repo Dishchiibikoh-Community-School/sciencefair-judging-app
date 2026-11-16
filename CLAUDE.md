@@ -3,7 +3,7 @@
 > Single source of truth for AI-assisted development. Read it before changing anything.
 > Do not delete it. When code and this file disagree, the code wins — then fix this file.
 >
-> Last reviewed: 2026-11-06 (judging-schedule template + booth template; the head's FINAL schedule imported on live and verified for all 15 judges — see Change History; 2026-11-05: illustrated guides: the judge's "❓ How to judge" screen, the admin Help tab's step-by-step + judge guide + searchable Q&A, screenshots by `npm run help:shots`, help text corrected against the code — rule 84; before that 2026-11-04: pre-event audit fixes F1–F17, deployed `a88bb98` with migrations 2026-11a/11b run on live — every fix, test and revert hash in [FIXES_2026-11.md](FIXES_2026-11.md); migrations 2026-11a/11b; earlier: 2026-10-21 Phase 3: award groups + the Awards tab; the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
+> Last reviewed: 2026-11-13 (pre-event STRESS TEST against a separate staging project — 10 scenarios, 3,706 writes, 0 errors, verdict GO; see Change History, `tests/stress/REPORT.md` and `tests/stress/SESSION-LOG.md`. No app code changed. Before that, 2026-11-06: judging-schedule template + booth template; the head's FINAL schedule imported on live and verified for all 15 judges — see Change History; 2026-11-05: illustrated guides: the judge's "❓ How to judge" screen, the admin Help tab's step-by-step + judge guide + searchable Q&A, screenshots by `npm run help:shots`, help text corrected against the code — rule 84; before that 2026-11-04: pre-event audit fixes F1–F17, deployed `a88bb98` with migrations 2026-11a/11b run on live — every fix, test and revert hash in [FIXES_2026-11.md](FIXES_2026-11.md); migrations 2026-11a/11b; earlier: 2026-10-21 Phase 3: award groups + the Awards tab; the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
 
 ---
 
@@ -122,6 +122,12 @@ The v1 Vercel project was deleted 2026-09-30. **Do not resurrect v1.**
 ├── CLAUDE.md                    ← this file
 ├── AdminInstructions.md         ← end-user guide for admins
 ├── JudgeInstructions.md         ← end-user guide for judges
+├── tests/stress/                ← PRE-EVENT STRESS TESTS (2026-11-13). Load, burst, endurance, network
+│                                  trouble, devices, conflicts, sleep/wake, results accuracy, limits,
+│                                  Realtime connections. Runs ONLY against a separate staging Supabase
+│                                  project — env.mjs refuses production and wraps fetch + WebSocket to
+│                                  block it at runtime. REPORT.md = findings; SESSION-LOG.md = what was
+│                                  done/decided/still untested. No app code is touched by anything here
 └── QA_ASSESSMENT.md             ← 2026-03 QA review, all items closed (historical)
 ```
 
@@ -1152,6 +1158,38 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-11-13 — Pre-event stress test** (no migration, **no app code changed**; everything new is under
+`tests/stress/` on branch `stress-test`). Ten scenarios against a **separate staging Supabase project**
+seeded with a fake fair shaped like the real one (63 projects, the three 2026-27 forms, a 12-round
+schedule, scaled to 30 judge numbers). **3,706 score writes, 0 errors, 0 lost / duplicated / altered
+scores, 0 incorrect results. Verdict: GO.** Full numbers in [tests/stress/REPORT.md](tests/stress/REPORT.md),
+narrative + decisions + what is still untested in [tests/stress/SESSION-LOG.md](tests/stress/SESSION-LOG.md).
+- **Isolation is an enforced control, not a convention** — `tests/stress/env.mjs` wraps `fetch` AND
+  `WebSocket` at import and refuses any production URL before a byte is sent; this machine has no `.env`,
+  so a dev server cannot reach production by accident; the dev/preview servers inject staging credentials
+  in-process and **write no env file**. `isolation-check.mjs` proves all of it, including by ATTEMPTING
+  three production connections and requiring each to be blocked. ⚠️ The first version was a static source
+  scan; it was **mutation-tested and FAILED** (a URL built on one line and used on the next went straight
+  past it), which is why the runtime guard exists. Reading code cannot prove where a request goes.
+- **Results:** 10/20/30 judges — median 120–130 ms, 0 lost writes. 306 simultaneous submits — 100 %
+  Realtime delivery. 30 min endurance — 1,065 writes, **no memory / listener / socket leak**. 60 s outages
+  and flapping Wi-Fi — nothing lost or duplicated. Two judges on one project, double-tap, mid-submit
+  refresh, Back — all clean. 10 min backgrounded — session and draft survived. **55/55 published averages
+  identical to an independent recomputation.** No breaking point at 600 concurrent writes (~300/sec).
+  30 simultaneous Realtime devices = 100 % fan-out (degrades at 60).
+- **Findings (none Critical or High):** S-01 first-ever load is **6.9–7.6 s on weak Wi-Fi** (the app is one
+  915 KB JS chunk; Vite warns at build) → **pre-load every tablet before the event**, no code change.
+  S-02 a judge number is locked to one device, so a spare tablet needs an admin PIN → keep one in the room.
+  S-03/S-06/S-07 low: burst latency 2.2 s; tail latency drifts 9× under 30 min of sustained load but
+  **recovers in a minute** and the test ran 35× the fair's write rate; Realtime degrades at 60 devices.
+- **Untested, must be checked in person:** the venue Wi-Fi (a saturated access point cannot be emulated);
+  **real Safari and real Firefox** — all browser testing used Chromium, so the iPhone/iPad runs used Apple
+  viewports and user agents but NOT Apple's engine; the invite-code lockout under a real briefing
+  (5 wrong codes lock that tablet, 30 lock the school — migration 2026-11b).
+- The **staging project is being KEPT** for further testing (2026-11-13); the fake fair was removed and the
+  removal verified (0 rows across 20 tables). No key and not even the staging project id is in any tracked
+  file — this repo is public.
 
 **2026-11-06 — Schedule + booth templates; the FINAL schedule verified on live** (no migration).
 - **The head of the fair's final schedule** ("PreK & SPED in Rounds 1–2, all K-5 in Rounds 3–5") changed 36 of the
