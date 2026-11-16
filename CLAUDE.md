@@ -3,7 +3,7 @@
 > Single source of truth for AI-assisted development. Read it before changing anything.
 > Do not delete it. When code and this file disagree, the code wins — then fix this file.
 >
-> Last reviewed: 2026-11-13 (pre-event STRESS TEST against a separate staging project — 10 scenarios, 3,706 writes, 0 errors, verdict GO; see Change History, `tests/stress/REPORT.md` and `tests/stress/SESSION-LOG.md`. No app code changed. Before that, 2026-11-06: judging-schedule template + booth template; the head's FINAL schedule imported on live and verified for all 15 judges — see Change History; 2026-11-05: illustrated guides: the judge's "❓ How to judge" screen, the admin Help tab's step-by-step + judge guide + searchable Q&A, screenshots by `npm run help:shots`, help text corrected against the code — rule 84; before that 2026-11-04: pre-event audit fixes F1–F17, deployed `a88bb98` with migrations 2026-11a/11b run on live — every fix, test and revert hash in [FIXES_2026-11.md](FIXES_2026-11.md); migrations 2026-11a/11b; earlier: 2026-10-21 Phase 3: award groups + the Awards tab; the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
+> Last reviewed: 2026-11-16 (**audit finding F04 fixed**: a judge may no longer validate while their device still holds unsent scores — validating used to strand that score permanently; see Change History and rule 85. The rest of that external audit is deliberately NOT actioned before the fair — see Known gaps. Before that, 2026-11-13: pre-event STRESS TEST against a separate staging project — 10 scenarios, 3,706 writes, 0 errors, verdict GO; see Change History, `tests/stress/REPORT.md` and `tests/stress/SESSION-LOG.md`. No app code changed. Before that, 2026-11-06: judging-schedule template + booth template; the head's FINAL schedule imported on live and verified for all 15 judges — see Change History; 2026-11-05: illustrated guides: the judge's "❓ How to judge" screen, the admin Help tab's step-by-step + judge guide + searchable Q&A, screenshots by `npm run help:shots`, help text corrected against the code — rule 84; before that 2026-11-04: pre-event audit fixes F1–F17, deployed `a88bb98` with migrations 2026-11a/11b run on live — every fix, test and revert hash in [FIXES_2026-11.md](FIXES_2026-11.md); migrations 2026-11a/11b; earlier: 2026-10-21 Phase 3: award groups + the Awards tab; the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
 
 ---
 
@@ -1080,6 +1080,13 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
     flagged `SCORE_SYNCED_AFTER_FINALIZE` (asked of the server, not state). The public page shows "Results are
     being updated" while results are reopened; Regenerate / Revoke act on EVERY live link.
 
+85. **A judge may not validate while their device still holds unsent scores.** A `validations` row makes
+    `submit_score()` refuse every later write by that judge (2026-11a), so validating with a queued score
+    strands it permanently — the flush is rejected on every retry. `submitJudgeValidation()` checks
+    `queuedForJudge()` first and the buttons are disabled with the reason on screen. **The gate covers a
+    CONCERN as well as an approval** — the RPC tests for the row, not the verdict. Never gate this in the UI
+    only (rule 18): the flush is asynchronous, so a score can queue between the render and the tap.
+
 **Illustrated guides (2026-11-05)**
 84. **The guide pictures are real screenshots, made by `npm run help:shots`** (`scripts/e2e/help-shots.mjs`: the app on
     the mocked backend, a made-up "Sample School", no real names) into `public/help/*.webp`. Change a screen that a
@@ -1158,6 +1165,25 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-11-16 — A judge may not validate while this device still holds unsent scores** (no migration).
+Found by an external read-only audit (F04) and confirmed in the code: completion counts QUEUED scores, so a
+judge whose last score is still on the tablet reads 100% and is offered the validation step. Saving a
+validation then makes `submit_score()` refuse every later write by that judge (migration 2026-11a, line 111),
+so the offline flush is rejected on every retry and the score can never arrive — only "Revise my validation"
+releases it. On weak venue Wi-Fi this silently loses a score.
+- `submitJudgeValidation()` now refuses while `queuedForJudge()` is non-empty, and both buttons are disabled
+  with the reason shown BEFORE the tap. Gated in the handler as well as the UI (rule 18) — the flush is
+  asynchronous, so a score can queue between the render and the tap. **A concern is gated too**: the RPC looks
+  for the validations ROW, not its verdict, so a concern strands scores exactly as an approval does.
+- IT log `VALIDATION_BLOCKED_UNSENT` (counts only, rule 69).
+Tests: new `scripts/e2e/validate-queued.e2e.mjs` (11 checks: two scores online, the third queued offline, the
+validation step still offered, the warning, both buttons disabled, a FORCED click writing no validation row,
+the score still queued, then sync → warning gone, button enabled, approval recorded). **Mutation-tested: 6 of
+the 11 fail against the previous code**, including the forced-click check — proving the old build really did
+write a validation while a score was unsent. Lint 28/5 unchanged; help, both guides and `ADMIN_HELP_UPDATED`
+(→ 2026-11-16) updated in the same commit (rule 56).
+⚠️ The rest of that audit is NOT actioned and mostly should not be before the fair — see Known gaps.
 
 **2026-11-13 — Pre-event stress test** (no migration, **no app code changed**; everything new is under
 `tests/stress/` on branch `stress-test`). Ten scenarios against a **separate staging Supabase project**

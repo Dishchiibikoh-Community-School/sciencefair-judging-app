@@ -169,6 +169,11 @@ Validation → **Open Deliberation**.
 💡 A judge who has not validated does not block Finalize; an open concern does — talk to the judge, or
 press **Clear concern**.
 
+💡 **"A judge says Approve Results is greyed out."** That tablet still holds a score that has not reached
+the server. Have them press **Sync Now** and wait for *"All local scores synced"*. This is deliberate: a
+judge who validates can no longer send scores, so validating with one still queued would strand it.
+Tell judges at the briefing: **do not approve until every project shows as sent.**
+
 **11. Share the results** — Share tab (it opens once results are finalized).
 
 <img src="public/help/admin-10-share.webp" width="640" alt="Share tab: copy the link, preview the page, download the results CSV">

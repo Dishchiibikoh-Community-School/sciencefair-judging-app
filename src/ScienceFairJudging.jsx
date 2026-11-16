@@ -590,7 +590,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-06b";
+const ADMIN_HELP_UPDATED = "2026-11-16";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -779,6 +779,7 @@ const ADMIN_HELP = [
     ["Can I change the judge grid after judges signed in?", "You can tick MORE departments for a signed-in judge — their project list updates. You cannot untick one: Save is refused and names the judge, because they were told where to judge. Remove that judge on the Judges tab first if needed."],
     ["We have fewer judges than departments need. Can one judge cover several departments?", "Yes — tick that judge number in each department they cover. Their sign-in shows e.g. 'Judge 2 · PreK + K-5' and their list has a heading per department."],
     ["A department has too many projects for every judge to score them all.", "Setup → Judges → under that department choose e.g. '3 judges per project'. Each project is then scored by 3 judges and the projects are shared out evenly (the Projects column shows each judge's load). A project added later gets its judges automatically. This cannot be changed once the department has scores, and it is switched off while a judging schedule is in use (the schedule decides)."],
+    ["A judge cannot press Approve Results — the button is greyed out.", "That tablet is still holding a score that has not reached the server. The judge should join the Wi-Fi and press Sync Now; once the list says \"All local scores synced\" the button works. This is deliberate: once a judge validates, the server refuses any further score from them, so validating with a score still on the tablet would stop that score ever being sent."],
     ["A judge did not come — their projects are missing reviews.", "With a judging schedule: give a stand-in that judge's number and the invite code (see Judging schedule). Without one: Judges tab → the department's Panels card shows who has not signed in; press Rebalance and their unscored projects move to the judges who are there. Scored work never moves."],
     ["Is '3 judges per project' fair if different projects get different judges?", "The app spreads the projects evenly so each judge sees a similar mix, and the Alerts tab still flags a judge far from a project's average. Every project in a department is still ranked on the same rubric."],
     ["Judges keep getting \"Invalid invite code\".", "Check the code on the Overview tab and read it out — capitals do not matter. 5 wrong codes on one tablet lock that tablet for 5 minutes (it says 'Too many attempts. Try again in N seconds'); other tablets keep working. 30 wrong codes across the school lock sign-in for everyone for 5 minutes. So tell judges to ask for the code rather than guess. A double tap on Enter as Judge counts once (the button says Checking… meanwhile)."],
@@ -886,6 +887,7 @@ const JUDGE_FAQ = [
   ["I left the scoring screen before submitting.", "Nothing is lost. The project shows ✎ Draft — not submitted; open it and your answers come back (Discard draft starts over)."],
   ["Submit Score is greyed out.", "Some items have no rating yet. The line under the button says how many — tap it to jump to the first one."],
   ["A red message says \"Your score was NOT saved\".", "Stay on that screen — your answers are still there. Check the Wi-Fi and press Submit again. If it keeps happening, tell the coordinator."],
+  ["Approve Results is greyed out.", "One of your scores is still on this tablet and has not reached the server. Press Sync Now and wait until it says \"All local scores synced\", then approve. The app stops you on purpose: once you approve, the server will not accept any more scores from you, so approving now would leave that score stuck here for good."],
   ["The list says a score is \"not sent yet\" for a long time.", "The tablet is still waiting for a connection. Join the Wi-Fi and press Sync Now. If a message says the server has not accepted a score after several tries, do not sign out — tell the coordinator."],
   ["\"Can't reach the server.\"", "The tablet is offline and has never opened the fair before. Connect to Wi-Fi — it tries again by itself."],
   ["\"The scoring form could not be loaded.\"", "That form could not be fetched. Check the Wi-Fi and press Try again. The app never shows you a different form instead."],
@@ -7265,8 +7267,29 @@ export default function App() {
     addLog("Admin closed deliberation phase");
     addItLog("INFO","ADMIN","DELIBERATION_CLOSED","Admin closed deliberation phase",{ timestamp:fmtISO(Date.now()) });
   }
+  // Scores of THIS judge that are still only on this device. A validation row makes
+  // submit_score() refuse every later write by this judge (migration 2026-11a), so these are
+  // exactly the scores that validating would strand.
+  function queuedForJudge() {
+    return judge ? offlineQueue.filter(i => i?.data?.judge_id === judge.id) : [];
+  }
+
   async function submitJudgeValidation(approved) {
     setValErr("");
+    // F04 (external audit, 2026-11-16). Completion counts queued scores, so a judge whose last
+    // score is still waiting sees 100% and can validate. The server then refuses that score for
+    // good: submit_score() raises while a validations row exists, so the offline flush is
+    // rejected on every retry and only "Revise my validation" releases it. A concern does the
+    // same damage as an approval — the RPC looks for the ROW, not its verdict — so both are
+    // gated. In the handler as well as on the buttons (rule 18): the flush is asynchronous, so
+    // a score can queue between the render and the tap.
+    const pending = queuedForJudge();
+    if (pending.length) {
+      setValErr(`${pending.length} of your score${pending.length !== 1 ? "s have" : " has"} not reached the server yet. Press Sync Now and wait for “All local scores synced”, then validate — validating now would stop ${pending.length !== 1 ? "them" : "it"} from ever being sent.`);
+      addItLog("WARN","JUDGE","VALIDATION_BLOCKED_UNSENT","Validation refused — this device still holds unsent scores",
+        { judgeId: judge.id, alias: judge.alias, approved, queued: pending.length, online: navigator.onLine });
+      return;
+    }
     const { error } = await judgeWrite("submit_validation",
       { p_school_id: currentSchool.id, p_judge_id: judge.id, p_approved: approved, p_comment: valComment },
       () => supabase.from("validations").upsert(
@@ -8623,13 +8646,25 @@ export default function App() {
                   </div>
                 )}
                 {valErr && <div className="err" style={{marginBottom:".75rem"}}>⚠ {valErr}</div>}
+                {/* F04: say so BEFORE the tap. Validating with unsent scores stops them being
+                    sent at all (see submitJudgeValidation), so the buttons wait for the queue. */}
+                {queuedForJudge().length > 0 && (
+                  <div className="err" style={{marginBottom:".75rem"}} data-testid="val-unsent">
+                    ⚠ {queuedForJudge().length} of your score{queuedForJudge().length !== 1 ? "s are" : " is"} still on this device and
+                    not sent yet. Press <b>Sync Now</b> above and wait for “All local scores synced” —
+                    validating now would stop {queuedForJudge().length !== 1 ? "them" : "it"} from ever reaching the server.
+                  </div>
+                )}
                 <div style={{display:"flex",gap:".65rem",flexWrap:"wrap"}}>
-                  <button className="btn sm" style={{width:"auto",background:"var(--green)"}} onClick={() => submitJudgeValidation(true)}>
+                  <button className="btn sm" style={{width:"auto",background:"var(--green)"}}
+                    disabled={queuedForJudge().length > 0} data-testid="val-approve"
+                    onClick={() => submitJudgeValidation(true)}>
                     ✓ Approve Results
                   </button>
                   {!showValForm
                     ? <button className="btn sec sm" style={{width:"auto"}} onClick={() => setShowValForm(true)}>⚠ Flag a Concern</button>
-                    : <button className="btn danger sm" style={{width:"auto"}} onClick={() => submitJudgeValidation(false)}>Submit Concern</button>
+                    : <button className="btn danger sm" style={{width:"auto"}} disabled={queuedForJudge().length > 0}
+                        onClick={() => submitJudgeValidation(false)}>Submit Concern</button>
                   }
                 </div>
               </div>
