@@ -1074,6 +1074,13 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
     flagged `SCORE_SYNCED_AFTER_FINALIZE` (asked of the server, not state). The public page shows "Results are
     being updated" while results are reopened; Regenerate / Revoke act on EVERY live link.
 
+85. **A judge may not validate while their device still holds unsent scores.** A `validations` row makes
+    `submit_score()` refuse every later write by that judge (2026-11a), so validating with a queued score
+    strands it permanently — the flush is rejected on every retry. `submitJudgeValidation()` checks
+    `queuedForJudge()` first and the buttons are disabled with the reason on screen. **The gate covers a
+    CONCERN as well as an approval** — the RPC tests for the row, not the verdict. Never gate this in the UI
+    only (rule 18): the flush is asynchronous, so a score can queue between the render and the tap.
+
 **Illustrated guides (2026-11-05)**
 84. **The guide pictures are real screenshots, made by `npm run help:shots`** (`scripts/e2e/help-shots.mjs`: the app on
     the mocked backend, a made-up "Sample School", no real names) into `public/help/*.webp`. Change a screen that a
@@ -1152,6 +1159,25 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-11-16 — A judge may not validate while this device still holds unsent scores** (no migration).
+Found by an external read-only audit (F04) and confirmed in the code: completion counts QUEUED scores, so a
+judge whose last score is still on the tablet reads 100% and is offered the validation step. Saving a
+validation then makes `submit_score()` refuse every later write by that judge (migration 2026-11a, line 111),
+so the offline flush is rejected on every retry and the score can never arrive — only "Revise my validation"
+releases it. On weak venue Wi-Fi this silently loses a score.
+- `submitJudgeValidation()` now refuses while `queuedForJudge()` is non-empty, and both buttons are disabled
+  with the reason shown BEFORE the tap. Gated in the handler as well as the UI (rule 18) — the flush is
+  asynchronous, so a score can queue between the render and the tap. **A concern is gated too**: the RPC looks
+  for the validations ROW, not its verdict, so a concern strands scores exactly as an approval does.
+- IT log `VALIDATION_BLOCKED_UNSENT` (counts only, rule 69).
+Tests: new `scripts/e2e/validate-queued.e2e.mjs` (11 checks: two scores online, the third queued offline, the
+validation step still offered, the warning, both buttons disabled, a FORCED click writing no validation row,
+the score still queued, then sync → warning gone, button enabled, approval recorded). **Mutation-tested: 6 of
+the 11 fail against the previous code**, including the forced-click check — proving the old build really did
+write a validation while a score was unsent. Lint 28/5 unchanged; help, both guides and `ADMIN_HELP_UPDATED`
+(→ 2026-11-16) updated in the same commit (rule 56).
+⚠️ The rest of that audit is NOT actioned and mostly should not be before the fair — see Known gaps.
 
 **2026-11-06 — Schedule + booth templates; the FINAL schedule verified on live** (no migration).
 - **The head of the fair's final schedule** ("PreK & SPED in Rounds 1–2, all K-5 in Rounds 3–5") changed 36 of the

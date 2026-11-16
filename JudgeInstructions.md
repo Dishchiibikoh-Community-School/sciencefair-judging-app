@@ -135,6 +135,11 @@ only on the tablet — the app shows a warning instead of the Sign Out button.
 1. **Approve Results** if the ranking of your projects looks right.
 2. **Flag a Concern** if something looks wrong — write a short note, then tap **Submit Concern**.
 
+⚠️ **If Approve Results is greyed out**, one of your scores is still on this tablet and has not reached
+the server. Join the Wi-Fi and press **Sync Now**; once it says *"All local scores synced"* the button
+works. The app stops you on purpose — once you validate, the server will not accept any more scores from
+you, so approving with a score still waiting would leave it stuck on the tablet for good.
+
 💡 After you validate you can no longer change scores. Changed your mind? **Revise my validation** works
 until the results are finalized.
 
