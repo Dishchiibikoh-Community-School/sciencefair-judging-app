@@ -7,6 +7,9 @@
 //   • Confirm all ready groups: ONE write, a tie inside a category is held back.
 //   • Switching is refused while a department has confirmed places, and the refusal is shown on
 //     the Awards tab (not only in Setup); a refused department never blocks the others.
+//   • Per category there is no "Best in Category" (the category's 1st is that): not offered, refused
+//     by the save handler, and a saved one blocks the switch to per category.
+//   • Leaderboard and the judge's validation list restart the rank in every category.
 //   • Read-only once results are finalized.
 // Run: see scan.e2e.mjs header (dev server on :5199 with mock Supabase env).
 import { chromium } from "playwright-core";
@@ -47,6 +50,12 @@ for (const [id, num, title, dept, cat, total] of P) {
   store.scores.push({ id: `s_${id}`, school_id: SID, judge_id: "j_a", project_id: id, criteria: { presentation: total }, notes: "", submitted_at: now });
 }
 store.judges.push({ id: "j_a", school_id: SID, alias: "Judge1", department_id: DEPTS.D_ELEM, department_ids: [DEPTS.D_ELEM, DEPTS.D_MID], projects: [], joined_at: now });
+// Judge2 scored every Middle School project with the SAME totals as Judge1 (averages unchanged) —
+// used to read the judge's validation list.
+const MID = ["m1", "m2", "m3", "m4", "m5"];
+store.judges.push({ id: "j_b", school_id: SID, alias: "Judge2", department_id: DEPTS.D_MID, department_ids: [DEPTS.D_MID], projects: MID, joined_at: now });
+for (const [id, , , , , total] of P.filter(x => MID.includes(x[0])))
+  store.scores.push({ id: `s2_${id}`, school_id: SID, judge_id: "j_b", project_id: id, criteria: { presentation: total }, notes: "", submitted_at: now });
 const dept = (id) => store.departments.find(d => d.id === id);
 const placed = () => store.final_decisions.filter(d => d.finalized && /Place/.test(d.award));
 
@@ -138,6 +147,16 @@ await check("Middle School switches too; the message names it; the button is now
   assert.match(await msg(), /Middle School now awards places per category/);
   assert.ok(await page.getByTestId("grouping-all-cat").isDisabled());
 });
+await check("Overview leaderboard per category: a heading per category and the rank restarts in each", async () => {
+  await tab("Overview");
+  const card = page.locator(".card", { has: page.locator(".sec-title", { hasText: "Elementary — Project Leaderboard" }) });
+  assert.equal(await card.getByTestId("lb-cat-head").count(), 5);
+  const ranks = await card.locator("tbody tr").evaluateAll(trs => trs.map(tr => tr.children.length === 1 ? "|" + tr.textContent.trim() : tr.children[0].childNodes[0].textContent.trim()));
+  assert.deepEqual(ranks.slice(0, 5), [`|${LS}`, "1", "2", "3", "4"]);
+  assert.equal(ranks.filter(r => r === "1").length, 5, ranks.join(" "));
+  assert.ok(!ranks.includes("5"), "no department-wide rank left");
+  await tab("Awards");
+});
 await check("a tie inside a category is flagged; a 2-project category says there is no 3rd place", async () => {
   assert.match(await group(`Middle School · ${LS}`).getByTestId("st-tie").innerText(), /Tie for 1st/);
   assert.equal(await group(`Middle School · ${CMS}`).getByTestId("st-two").count(), 1);
@@ -187,6 +206,73 @@ await check("Elementary is one group again with the department's top three", asy
 });
 await check("every change is in the IT log (AWARD_GROUPING_SET) — three successful switches", async () => {
   assert.equal(store.it_logs.filter(l => l.event === "AWARD_GROUPING_SET").length, 3);
+});
+
+console.log("\n── The judge's validation list (Middle School is per category)");
+{
+  const jctx = await browser.newContext({ viewport: { width: 820, height: 1180 } });
+  const J = await jctx.newPage();
+  J.on("pageerror", e => errs.push("PAGEERROR(judge) " + e.message));
+  await installMock(J, store, []);
+  await J.goto(`${BASE}/s/test`);
+  await J.evaluate(([id, j]) => { localStorage.setItem("sf_judge_id", id); localStorage.setItem("sf_judge_slug", "test"); localStorage.setItem("sf_judge_data", JSON.stringify(j)); },
+    ["j_b", { id: "j_b", alias: "Judge2", projects: MID, department_id: DEPTS.D_MID, department_ids: [DEPTS.D_MID] }]);
+  await J.reload();
+  await check("a heading per category, and the rank restarts in each (Life Science 1–3, Chemistry 1–2)", async () => {
+    await J.getByTestId("val-cat-head").first().waitFor({ timeout: 10000 });
+    assert.deepEqual(await J.getByTestId("val-cat-head").allInnerTexts(), [LS, CMS]);
+    const sec = J.locator(".delib-section", { hasText: "Validate Computed Results" });
+    const ranks = (await sec.locator("span", { hasText: /^\d+\.$/ }).allInnerTexts()).map(t => t.trim());
+    assert.deepEqual(ranks, ["1.", "2.", "3.", "1.", "2."]);
+  });
+  await jctx.close();
+}
+
+console.log("\n── No 'Best in Category' where a department awards per category");
+await tab("Validation");
+await page.getByRole("button", { name: "Open Manually" }).click();
+await page.waitForTimeout(600);
+const delib = (pid) => page.locator(`[data-testid=delib-proj][data-pid=${pid}]`);
+const awardSel = (pid) => delib(pid).locator("select.delib-rec-select").last();
+const opts = async (pid) => awardSel(pid).locator("option").allInnerTexts();
+await check("per department (Elementary): Best in Category is offered; per category (Middle School): it is not", async () => {
+  await delib("k4").waitFor({ timeout: 6000 });
+  assert.ok((await opts("k4")).includes("Best in Category"));
+  assert.ok(!(await opts("m3")).includes("Best in Category"));
+  assert.ok((await opts("m3")).includes("Honorable Mention"));
+});
+await awardSel("k4").selectOption("Best in Category");
+await delib("k4").getByRole("button", { name: "Save Award" }).click();
+await page.waitForTimeout(600);
+await tab("Awards");
+const w2 = deptWrites;
+await page.getByLabel("Winners for Elementary").selectOption("category");
+await page.waitForTimeout(700);
+await check("a saved Best in Category blocks the switch to per category — named, nothing written", async () => {
+  assert.equal(store.final_decisions.find(d => d.project_id === "k4")?.award, "Best in Category");
+  assert.match(await msg(), /Elementary.*Best in Category.*#104/);
+  assert.equal(dept(DEPTS.D_ELEM).award_grouping, "department");
+  assert.equal(deptWrites - w2, 0);
+});
+await tab("Validation");
+await awardSel("k5").selectOption("Best in Category");     // a DRAFT, left unsaved
+await awardSel("k4").selectOption("Pending");
+await delib("k4").getByRole("button", { name: "Save (remove award)" }).click();
+await page.waitForTimeout(600);
+await tab("Awards");
+await page.getByLabel("Winners for Elementary").selectOption("category");
+await page.waitForTimeout(700);
+await check("once that award is taken back the switch works", async () => {
+  assert.equal(dept(DEPTS.D_ELEM).award_grouping, "category");
+});
+await tab("Validation");
+const before = store.final_decisions.filter(d => d.project_id === "k5").length;
+await delib("k5").getByRole("button", { name: "Save Award" }).click();
+await page.waitForTimeout(600);
+await check("a Best in Category drafted BEFORE the switch is refused by the save handler, and says why", async () => {
+  assert.equal(store.final_decisions.filter(d => d.project_id === "k5").length, before);
+  assert.match(await page.locator(".err", { hasText: "Best in Category" }).first().innerText(), /#105.*1st, 2nd and 3rd in every category.*Nothing was saved/);
+  assert.equal(store.it_logs.filter(l => l.event === "BEST_IN_CATEGORY_REFUSED").length, 1);
 });
 
 console.log("\n── Finalized results");

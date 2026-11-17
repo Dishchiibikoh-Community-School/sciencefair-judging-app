@@ -3,7 +3,7 @@
 > Single source of truth for AI-assisted development. Read it before changing anything.
 > Do not delete it. When code and this file disagree, the code wins — then fix this file.
 >
-> Last reviewed: 2026-11-16 (**audit finding F04 fixed**: a judge may no longer validate while their device still holds unsent scores — validating used to strand that score permanently; see Change History and rule 85. The rest of that external audit is deliberately NOT actioned before the fair — see Known gaps. Before that, 2026-11-13: pre-event STRESS TEST against a separate staging project — 10 scenarios, 3,706 writes, 0 errors, verdict GO; see Change History, `tests/stress/REPORT.md` and `tests/stress/SESSION-LOG.md`. No app code changed. Before that, 2026-11-06: judging-schedule template + booth template; the head's FINAL schedule imported on live and verified for all 15 judges — see Change History; 2026-11-05: illustrated guides: the judge's "❓ How to judge" screen, the admin Help tab's step-by-step + judge guide + searchable Q&A, screenshots by `npm run help:shots`, help text corrected against the code — rule 84; before that 2026-11-04: pre-event audit fixes F1–F17, deployed `a88bb98` with migrations 2026-11a/11b run on live — every fix, test and revert hash in [FIXES_2026-11.md](FIXES_2026-11.md); migrations 2026-11a/11b; earlier: 2026-10-21 Phase 3: award groups + the Awards tab; the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
+> Last reviewed: 2026-11-16 (**winners per department OR per category, chosen on the Awards tab**; per category has no Best in Category and ranks restart per category — rule 86; stress-tested with 15 judges. Before that, **audit finding F04 fixed**: a judge may no longer validate while their device still holds unsent scores — validating used to strand that score permanently; see Change History and rule 85. The rest of that external audit is deliberately NOT actioned before the fair — see Known gaps. Before that, 2026-11-13: pre-event STRESS TEST against a separate staging project — 10 scenarios, 3,706 writes, 0 errors, verdict GO; see Change History, `tests/stress/REPORT.md` and `tests/stress/SESSION-LOG.md`. No app code changed. Before that, 2026-11-06: judging-schedule template + booth template; the head's FINAL schedule imported on live and verified for all 15 judges — see Change History; 2026-11-05: illustrated guides: the judge's "❓ How to judge" screen, the admin Help tab's step-by-step + judge guide + searchable Q&A, screenshots by `npm run help:shots`, help text corrected against the code — rule 84; before that 2026-11-04: pre-event audit fixes F1–F17, deployed `a88bb98` with migrations 2026-11a/11b run on live — every fix, test and revert hash in [FIXES_2026-11.md](FIXES_2026-11.md); migrations 2026-11a/11b; earlier: 2026-10-21 Phase 3: award groups + the Awards tab; the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
 
 ---
 
@@ -31,7 +31,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (311 checks). Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`), the 2026-27 forms + drafts + safety (`rubrics-2627.e2e.mjs`), the judging schedule (`schedule.e2e.mjs`), the PreK & SPED form (`prek-sped.e2e.mjs`), awards (`awards.e2e.mjs`). Start the dev server first (see the file header). 2026-11 added save-robust, offline-start, realtime-reconnect (a fake realtime server via `page.routeWebSocket`), awards-integrity, finalize-gates, signin-guard, share-links, admin-actions, judge-ux, judge-identity; 2026-11-05 help-guide (the illustrated guides); 2026-11-06 schedule-template; 2026-11-16 validate-queued, awards-category. **684 checks across 38 files** (2026-11-16; signup and save-robust each flaked once in a chained run and passed alone). `npm run help:shots` (same dev server) re-takes the guide screenshots — not a test |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`), the 2026-27 forms + drafts + safety (`rubrics-2627.e2e.mjs`), the judging schedule (`schedule.e2e.mjs`), the PreK & SPED form (`prek-sped.e2e.mjs`), awards (`awards.e2e.mjs`). Start the dev server first (see the file header). 2026-11 added save-robust, offline-start, realtime-reconnect (a fake realtime server via `page.routeWebSocket`), awards-integrity, finalize-gates, signin-guard, share-links, admin-actions, judge-ux, judge-identity; 2026-11-05 help-guide (the illustrated guides); 2026-11-06 schedule-template; 2026-11-16 validate-queued, awards-category. **690 checks across 38 files, 0 failures in one chained run** (2026-11-16). `npm run help:shots` (same dev server) re-takes the guide screenshots — not a test |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -128,6 +128,7 @@ The v1 Vercel project was deleted 2026-09-30. **Do not resurrect v1.**
 │                                  project — env.mjs refuses production and wraps fetch + WebSocket to
 │                                  block it at runtime. REPORT.md = findings; SESSION-LOG.md = what was
 │                                  done/decided/still untested. No app code is touched by anything here
+├── CONCURRENCY_AUDIT_2026-11-12.md ← 15 judges on 16 devices (mocked backend): findings + the 2026-11-16 per-category addendum
 └── QA_ASSESSMENT.md             ← 2026-03 QA review, all items closed (historical)
 ```
 
@@ -704,6 +705,7 @@ confirmedPlaces(projs), groupPlaces(projs), deptPlaces(deptId)   // confirmed aw
 groupTie(g), tieGroups(), hasTie(), groupStatus(g)   // medal-deciding ties per group; Awards-tab state
 confirmAwardGroups(groups, "confirm"|"clear"), updateDeptAwardGrouping(id, v, report?) → "" | refusal text
 setAwardGroupingFromAwards(deptIds, v)   // Awards tab "How winners are chosen" (one department or all); a refused department never blocks the others
+perCategoryProject(p), awardOptionsFor(p, current)   // rule 86: no "Best in Category" where the project's department awards per category
 awardsListRows(), printAwardsList(), exportAwardsCSV()   // ceremony list — names, admin only
 tiesShare(proj), ribbonOf(proj)   // PreK & SPED form (rule 78): tied averages share a place; the ribbon
 ribbonFor(settings, avg)     // module: the ribbon band for an average, or null when the rubric has none
@@ -1088,6 +1090,15 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
     CONCERN as well as an approval** — the RPC tests for the row, not the verdict. Never gate this in the UI
     only (rule 18): the flush is asynchronous, so a score can queue between the render and the tap.
 
+86. **Per category there is no "Best in Category", and ranks restart per category** (organiser's decision 2026-11-16).
+    Per category the category's 1st IS its best; a saved Best in Category is a non-place award, so it would take
+    that project OUT of its own 1st (`heldOutOfPlaces`). So: the Validation dropdown offers it only for
+    per-department projects (`awardOptionsFor`), `saveFinalDecision()` refuses it for a per-category project (rule 18
+    — a department can be switched while a draft is open), and `updateDeptAwardGrouping()` refuses the switch TO
+    per category while the department holds a saved one. Every rank shown next to a medal comes from the award
+    groups: the Overview leaderboard and the judge's validation list put each category under its own heading and
+    number it from 1. A single-project category's uncontested 1st is intended (the Awards tab says so).
+
 **Illustrated guides (2026-11-05)**
 84. **The guide pictures are real screenshots, made by `npm run help:shots`** (`scripts/e2e/help-shots.mjs`: the app on
     the mocked backend, a made-up "Sample School", no real names) into `public/help/*.webp`. Change a screen that a
@@ -1178,18 +1189,30 @@ Phase 3) but was hidden in Setup; live had every department per department.
 - Group chips **Only 1 project — 1st is uncontested** / **Only 2 projects — no 3rd place**, and a
   "N with fewer than 3 projects" count per department. On the live data per category gives K-5 FIVE groups,
   four of them a single project (each an automatic 1st, whatever its score).
-- Help: two new Q&As, Awards guide point 3 + marker 3 in admin-8-awards.webp, AdminInstructions (it wrongly
-  said the setting could change "at any time" — it is refused once places are confirmed).
-Tests: new `scripts/e2e/awards-category.e2e.mjs` (17, live-shaped K-5: per-department top 3, switch from the
+- **Organiser's decisions on the audit (same day), implemented — rule 86:** single-project categories winning
+  1st is intended; **no Best in Category per category** (not offered, refused by the handler, a saved one blocks
+  the switch — `BEST_IN_CATEGORY_REFUSED`); the **rank restarts per category** on the Overview leaderboard
+  (a heading per category) and in the judge's validation list (it showed a department-wide rank beside
+  per-category medals). Category renames still split groups (Known gaps).
+- Help: Q&As (who competes, 3 winners per category, why can't I switch, where is Best in Category, why the
+  number restarts), a judge FAQ (category headings), Awards guide point 3 + marker 3 in admin-8-awards.webp,
+  AdminInstructions (it wrongly said the setting could change "at any time" — refused once places are
+  confirmed), JudgeInstructions.
+Tests: new `scripts/e2e/awards-category.e2e.mjs` (23, live-shaped K-5: per-department top 3, switch from the
 Awards tab in ONE write, 5 groups, LS 1st–3rd, single-project 1sts + chips, Setup shows the same choice,
 leaderboard 5×🥇, All departments, a tie inside a category held back, Confirm all = ONE write of 9 places,
 refusal shown ON the Awards tab with nothing written, partial "All departments" naming the refused one, IT log,
-read-only after Finalize). **Mutation-tested**: refusals swallowed → 2 fail; grouping ignored → 4 fail.
+leaderboard and judge-list ranks restarting per category, Best in Category offered only per department, a saved
+one blocking the switch, a pre-switch draft refused by the handler, read-only after Finalize).
+**Mutation-tested**: refusals swallowed → 2 fail; grouping ignored → 4 fail; and each rule-86 piece removed on its
+own (option always offered, handler not refusing, switch not blocked, leaderboard rank, judge-list rank) → its check fails.
 **Stress:** the 15-judge / 16-device concurrency harness (gitignored, `scripts/e2e/out/`, see
 CONCURRENCY_AUDIT_2026-11-12.md) re-run with EVERY department per category and a per-category oracle: 18 award
 groups, 17 tie-free groups' 1st–3rd = the oracle, one tie flagged (6-8 ERT 3rd), Confirm all = ONE write of
 exactly the oracle's 41 places, live and reloaded leaderboards = the oracle. 25/26 — the one fail is the known
-audit-trail gap (a reload during "Saving…" loses the SCORE_SUBMITTED line, not the score).
+audit-trail gap (a reload during "Saving…" loses the SCORE_SUBMITTED line, not the score). Re-run after rule 86
+(ranks restarting per category checked against the oracle too): per category 25/26, per department 22/23 — same
+single known fail. Full browser suite 690/690 in one chained run; npm test 311/311.
 Lint 28/5 unchanged; awards, awards-integrity, prek-sped, finalize-gates, help-guide all pass.
 
 **2026-11-16 — A judge may not validate while this device still holds unsent scores** (no migration).
@@ -2302,12 +2325,10 @@ text — keep rule 56.
 
 ### Known gaps (not yet fixed)
 
-- **Per category (found 2026-11-16, not fixed — decisions for the organiser):** (1) a single-project category
-  gets an uncontested 1st (K-5 live: 4 of 5 categories) — flagged on the Awards tab; Minimum score to place is the
-  only lever. (2) **"Best in Category" is a non-place award, so giving it to a category's 1st-place project takes
-  that 1st away** (`heldOutOfPlaces`) and the 2nd moves up — natural to do by mistake under per category.
-  (3) The judge's validation list and the Overview "#" column rank the whole DEPARTMENT, while medals are per
-  category (a 🥇 can sit beside rank 7). (4) A renamed category's old text forms a separate award group (see below).
+- **Per category (2026-11-16):** a single-project category gets an uncontested 1st (K-5 live: 4 of 5 categories) —
+  **intended** (organiser), flagged on the Awards tab. Best in Category and the department-wide rank were FIXED the
+  same day (rule 86). Still open: a renamed category's old text forms a separate award group (see "Renaming a
+  category" below). The public results page and the results CSV were already per group.
 
 - **A judge whose tablet's key is no longer valid is not told so directly** (found 2026-11-05). The SQL refuses
   with "This device is not signed in as that judge", but a refused score is queued and the judge sees only

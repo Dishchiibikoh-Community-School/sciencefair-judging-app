@@ -590,7 +590,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-16b";
+const ADMIN_HELP_UPDATED = "2026-11-16c";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -698,14 +698,16 @@ const ADMIN_HELP = [
   { title: "Awards (1st, 2nd, 3rd)", icon: "🏅", faq: [
     ["Who competes with whom?", "By default everyone in a DEPARTMENT competes for its 1st, 2nd and 3rd. Per category gives every category inside that department its own 1st–3rd (e.g. K-5 Life Science, K-5 Chemistry …). Choose it on the Awards tab under 'How winners are chosen' (one department, or All departments at once) or in Setup → Departments ('Places: per department / per category') — it is the same setting. A category with ONE project gets an uncontested 1st whatever its score, and one with two projects has no 3rd; the Awards tab marks those groups."],
     ["We want 3 winners in EACH category of a department. How?", "Awards tab → How winners are chosen → set that department to Per category. Every category in it then gets its own 1st, 2nd and 3rd, and Confirm all ready groups confirms them all in one go. Do it BEFORE you confirm any places: once a department has confirmed places the switch is refused (press Clear confirmed places on its groups first). Switching never changes a score. To go back, choose Per department the same way."],
-    ["Do I have to type every award?", "No. The Awards tab shows every group with its top three already worked out from the scores. Check it and press '✓ Confirm these places', or '✓ Confirm all ready groups' to confirm every group that is fully scored and has no tie, in one go. Honorable Mention and Best in Category you give in the Validation tab: press Open Manually (or Open Deliberation on a tie alert), choose the award beside the project and Save, then Close Deliberation — Finalize needs deliberation closed. A project holds one award: once it has a saved Honorable Mention, Best in Category or No Award it is out of the running for 1st–3rd, and the place passes to the next project."],
+    ["Do I have to type every award?", "No. The Awards tab shows every group with its top three already worked out from the scores. Check it and press '✓ Confirm these places', or '✓ Confirm all ready groups' to confirm every group that is fully scored and has no tie, in one go. Honorable Mention (and Best in Category, only in a department that awards per department) you give in the Validation tab: press Open Manually (or Open Deliberation on a tie alert), choose the award beside the project and Save, then Close Deliberation — Finalize needs deliberation closed. A project holds one award: once it has a saved Honorable Mention, Best in Category or No Award it is out of the running for 1st–3rd, and the place passes to the next project."],
     ["What do the coloured labels mean?", "Not confirmed — nothing saved yet. ✓ Confirmed — saved and still what the scores say. Tie for 1st/2nd/3rd — two projects are level where it decides a place; decide it in Validation → Deliberation. ✓ Decided by hand — you gave the places yourself (e.g. after a tie). A tie counts as decided once all but one of the tied projects have an award you saved after the last score changed (the last one takes the place that is left). Only some places confirmed — you saved some places; press Confirm the remaining places. Scores changed since you confirmed — a judge re-scored after you confirmed; press Re-confirm, or decide by hand. 'N not scored yet' — some projects in the group have no score. 'N still waiting for reviews' — some projects have fewer reviews than they should get (their scheduled visits); the group is not ready until they are in. Groups that need you are listed first, and the Awards menu item shows how many."],
     ["What do the public results show — my awards or the scores?", "Your confirmed awards, once a group has any; until then the places worked out from the scores. That is how a tie you broke in deliberation reaches the podium. If you clear a group ('Clear confirmed places') it goes back to the computed places."],
     ["Which ties raise the amber alert?", "Only ties that decide a place: two projects level for 1st, 2nd or 3rd, or level across 3rd and 4th, in the same award group. A tie lower down decides nothing and does not raise it. A tie you have already decided (all but one of the tied projects have an award saved after the last score change), and ties on the PreK & SPED form (they share the place), never do. Saving only some places does NOT decide a tie further down. Finalize stays unavailable while a tie still decides a place."],
     ["How do I get the list for the ceremony?", "Awards tab → '🖨 Print awards list' (or '⬇ Awards CSV'): every group with its places, any special award, every ribbon, the student names and the teacher. It includes names, so it is for you only — never post it. Groups you have not confirmed yet are marked 'computed, not confirmed yet'."],
     ["How do I open deliberation?", "It never opens by itself. A tie that decides a place shows an amber 'Tie detected' alert in the Validation tab with an Open Deliberation button; Open Manually works any time. While it is open, judges see a 💬 Deliberation Notes section under their list (a recommendation, a comment, a flag), you see their notes per project and can give any award. Press Close Deliberation when you are done — Finalize needs it closed."],
     ["Where do I choose places per department or per category?", "Two places, one setting: the Awards tab → How winners are chosen (per department, or All departments at once), or Setup → Departments → the 'Places: per department' dropdown beside the rubric dropdown. If you cannot see it, reload the page."],
-    ["Why can't I switch a department to per category (or back)?", "It already has confirmed places. They belong to projects, so switching would carry them into the wrong groups. On the Awards tab press Clear confirmed places on that department's groups, switch, then confirm again. After Finalize the choice is read-only."],
+    ["Why can't I switch a department to per category (or back)?", "It already has confirmed places, or (switching TO per category) a project with a saved Best in Category. Places belong to projects, so switching would carry them into the wrong groups: on the Awards tab press Clear confirmed places on that department's groups, switch, then confirm again. A Best in Category: change it in Validation (Pending or Honorable Mention) first. After Finalize the choice is read-only."],
+    ["Where is Best in Category for a per-category department?", "There is none, on purpose. Per category every category already gets its own 1st, 2nd and 3rd, so the 1st place IS the best in that category — a separate Best in Category would only take that project out of its own 1st place. The Validation dropdown offers it only for departments that award per department, and saving it for a per-category project is refused."],
+    ["Why does the leaderboard number restart?", "That department awards per category. The Overview leaderboard shows each category under its own heading and numbers its projects 1, 2, 3 … again, so the number matches the medal. Judges see their validation list the same way."],
     ["Can I change awards after I finalize?", "Not while results are finalized — the Awards tab becomes read-only. Reopen the results in the Validation tab, change them, and finalize again. While results are reopened, the public link shows \"Results are being updated\" (the same link works again once you finalize). To take a saved award back, choose Pending in its dropdown and press Save (remove award) — a dropdown change does nothing until it is saved."],
   ]},
   { title: "PreK & SPED: ribbons and shared places", icon: "🎀", faq: [
@@ -890,6 +892,7 @@ const JUDGE_FAQ = [
   ["Submit Score is greyed out.", "Some items have no rating yet. The line under the button says how many — tap it to jump to the first one."],
   ["A red message says \"Your score was NOT saved\".", "Stay on that screen — your answers are still there. Check the Wi-Fi and press Submit again. If it keeps happening, tell the coordinator."],
   ["Approve Results is greyed out.", "One of your scores is still on this tablet and has not reached the server. Press Sync Now and wait until it says \"All local scores synced\", then approve. The app stops you on purpose: once you approve, the server will not accept any more scores from you, so approving now would leave that score stuck here for good."],
+  ["My results list has category headings and starts again at 1.", "Your department gives a 1st, 2nd and 3rd in every category, so each category is ranked on its own. Check the order inside each category, then approve."],
   ["The list says a score is \"not sent yet\" for a long time.", "The tablet is still waiting for a connection. Join the Wi-Fi and press Sync Now. If a message says the server has not accepted a score after several tries, do not sign out — tell the coordinator."],
   ["\"Can't reach the server.\"", "The tablet is offline and has never opened the fair before. Connect to Wi-Fi — it tries again by itself."],
   ["\"The scoring form could not be loaded.\"", "That form could not be fetched. Check the Wi-Fi and press Try again. The app never shows you a different form instead."],
@@ -5748,6 +5751,15 @@ export default function App() {
       report(msg);
       return msg;
     }
+    // Per category has no "Best in Category" (the category's 1st is that). A saved one would keep
+    // the project out of 1st–3rd in its own category, so it must be changed first.
+    const bestHere = value === "category" ? projects.filter(p => (p.department_id || null) === deptId
+      && finalDecisions[p.id]?.finalized && finalDecisions[p.id].award === "Best in Category") : [];
+    if (bestHere.length) {
+      const msg = `"${dept.name}" has ${bestHere.length} project${bestHere.length !== 1 ? "s" : ""} with a saved "Best in Category" (#${bestHere.map(p => p.num).join(", #")}). Per category has no such award — its 1st place is the best in the category. Change ${bestHere.length !== 1 ? "those awards" : "that award"} in Validation first (Pending or Honorable Mention), then switch.`;
+      report(msg);
+      return msg;
+    }
     const { data, error } = await supabase.from("departments").update({ award_grouping: value })
       .eq("school_id", currentSchool.id).eq("id", deptId).select("id");
     if (error || !data?.length) {
@@ -7400,10 +7412,26 @@ export default function App() {
     addItLog("WARN","ADMIN","RESULTS_REOPENED","Admin reopened finalized results for revision",{ timestamp:fmtISO(Date.now()) });
   }
 
+  // Per category, 1st–3rd ARE the category's winners, so "Best in Category" would only take a
+  // project out of its own 1st place (heldOutOfPlaces). It is offered only where a department
+  // awards per department (organiser's decision, 2026-11-16).
+  function perCategoryProject(p) {
+    return !!p?.department_id && departments.find(d => d.id === p.department_id)?.award_grouping === "category";
+  }
+  function awardOptionsFor(p, current) {
+    return AWARD_OPTIONS.filter(a => a !== "Best in Category" || !perCategoryProject(p) || current === a);
+  }
   async function saveFinalDecision(pid, award, adminNotes) {
     setDelibErr("");
     const isFinalize = award !== "Pending";
     const proj = projects.find(p => p.id === pid);
+    // In the handler as well as the dropdown (rule 18): the department can be switched to per
+    // category while this dropdown is open.
+    if (award === "Best in Category" && perCategoryProject(proj)) {
+      setDelibErr(`Project #${proj?.num}: its department gives a 1st, 2nd and 3rd in every category, so there is no separate "Best in Category". Its place in the category is its award. Nothing was saved.`);
+      addItLog("WARN","ADMIN","BEST_IN_CATEGORY_REFUSED","Best in Category refused — the department awards per category",{ projectId: pid, projectNum: proj?.num });
+      return false;
+    }
     const { error } = await supabase.from("final_decisions").upsert({
       school_id: currentSchool.id, project_id: pid, award, admin_notes: adminNotes,
       finalized: isFinalize, finalized_at: isFinalize ? new Date().toISOString() : null,
@@ -8650,13 +8678,18 @@ export default function App() {
                 </p>
                 <div style={{marginBottom:"1rem"}}>
                   {/* Ranked within each department — never across departments (rule 8). */}
+                  {/* Per category (2026-11-16) the rank restarts in each category, under its name —
+                      the same award groups that decide the medals (rule 79). */}
                   {judgeDeptIds(judge).filter(id => !isFeedbackDept(id)).flatMap(id =>
-                    rankedProjectsIn(id).filter(p => myProj.some(mp => mp.id === p.id))
-                      .map((p, i) => ({ ...p, _rank: i + 1, _dept: id })))
+                    awardGroups().filter(g => g.deptId === id).flatMap(g =>
+                      g.projects.filter(p => myProj.some(mp => mp.id === p.id))
+                        .map((p, i) => ({ ...p, _rank: i + 1, _dept: id, _cat: g.cat }))))
                     .map((p, i, arr) => (
                     <div key={p.id}>
                     {judgeDeptIds(judge).length > 1 && (i === 0 || arr[i - 1]._dept !== p._dept) &&
                       <div className="jh-dept-head">{departments.find(d => d.id === p._dept)?.name}</div>}
+                    {p._cat !== null && (i === 0 || arr[i - 1]._dept !== p._dept || arr[i - 1]._cat !== p._cat) &&
+                      <div data-testid="val-cat-head" style={{fontSize:".75rem",fontWeight:600,color:"var(--navy)",padding:".4rem .75rem .2rem"}}>{p._cat || "No category"}</div>}
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:".55rem .75rem",borderBottom:"1px solid var(--bd)",fontSize:".88rem"}}>
                       <span style={{color:"var(--dim)",fontFamily:"var(--ff-m)",marginRight:".5rem"}}>{p._rank}.</span>
                       <span style={{flex:1}}>
@@ -10168,6 +10201,12 @@ export default function App() {
                 const scored   = all.filter(p => p.avg !== null);
                 const unscored = all.filter(p => p.avg === null);
                 const places   = deptPlaces(dept.id);
+                // 2026-11-16: per category the # restarts in every category, under a heading — a
+                // department-wide rank beside per-category medals put a 🥇 next to "7".
+                const sections = dept.award_grouping === "category"
+                  ? awardGroups().filter(g => g.deptId === dept.id)
+                      .map(g => ({ cat: g.cat, rows: g.projects.filter(p => p.avg !== null) })).filter(s => s.rows.length)
+                  : [{ cat: null, rows: scored }];
                 return (
                   <div className="card" key={dept.id}>
                     <div className="sec-title">
@@ -10179,7 +10218,14 @@ export default function App() {
                       <table>
                         <thead><tr><th>#</th><th>Project</th><th>Category</th><th>Avg</th><th>Reviews</th></tr></thead>
                         <tbody>
-                          {scored.map((p,i) => (
+                          {sections.flatMap(s => [
+                            ...(s.cat !== null ? [
+                              <tr key={`cat|${s.cat}`} data-testid="lb-cat-head">
+                                <td colSpan={5} style={{fontSize:".75rem",fontWeight:600,color:"var(--navy)",background:"var(--s1)",padding:".35rem .75rem"}}>
+                                  {s.cat || "No category"}
+                                </td>
+                              </tr>] : []),
+                            ...s.rows.map((p,i) => (
                             <tr key={p.id}>
                               <td style={{fontFamily:"var(--ff-m)",color:"var(--dim)"}}>
                                 {i+1}
@@ -10196,7 +10242,7 @@ export default function App() {
                               <td style={{fontFamily:"var(--ff-m)",color:"var(--navy)"}}>{p.avg}</td>
                               <td>{p.revs}</td>
                             </tr>
-                          ))}
+                          ))])}
                           {unscored.length > 0 && (
                             <tr><td colSpan={5} style={{textAlign:"center",fontSize:".75rem",color:"var(--dim)",padding:".4rem .75rem",background:"var(--s1)",fontFamily:"var(--ff-m)",letterSpacing:".05em"}}>NOT YET SCORED</td></tr>
                           )}
@@ -11991,7 +12037,7 @@ export default function App() {
                       const awardDraft = awardDrafts[p.id] ?? savedAward;
                       const awardDirty = awardDraft !== savedAward;
                       return (
-                        <div key={p.id} style={{borderTop:"1px solid var(--bd)",paddingTop:".85rem",marginTop:".85rem"}}>
+                        <div key={p.id} data-testid="delib-proj" data-pid={p.id} style={{borderTop:"1px solid var(--bd)",paddingTop:".85rem",marginTop:".85rem"}}>
                           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:"1rem",flexWrap:"wrap",marginBottom:".5rem"}}>
                             <div>
                               <div style={{fontFamily:"var(--ff-m)",fontSize:".73rem",color:"var(--navy)"}}>{projectCode(p)} · {g.label} · Rank {i+1}</div>
@@ -12055,7 +12101,7 @@ export default function App() {
                               <select className="delib-rec-select" style={{flex:1,minWidth:"140px"}}
                                 value={awardDraft}
                                 onChange={e => { const v = e.target.value; setAwardDrafts(prev => ({ ...prev, [p.id]: v })); }}>
-                                {AWARD_OPTIONS.map(a => <option key={a} value={a}>{a}</option>)}
+                                {awardOptionsFor(p, awardDraft).map(a => <option key={a} value={a}>{a}</option>)}
                               </select>
                               {/* A warning, never a block: the awards are the admin's call, and on
                                   event day a refusal with no override is worse than a clear note. */}

@@ -289,8 +289,12 @@ set **all departments** at once. It decides who competes for 1st, 2nd and 3rd:
 Per category means more winners: a department with 5 categories gives up to five 1st, five 2nd and five
 3rd places. **A category with one project gets an uncontested 1st, whatever its score**, and a category with
 two projects has no 3rd — the Awards tab marks those groups (*Only 1 project — 1st is uncontested*,
-*Only 2 projects — no 3rd place*). If that is not wanted, keep that department per department, or set a
-**Minimum score to place** (Setup) so a low score cannot take a medal.
+*Only 2 projects — no 3rd place*). That is intended (the organiser's decision, 2026-11-16). If a low score
+should not take a medal, set a **Minimum score to place** (Setup).
+
+Per category, the **Overview leaderboard** shows each category under its own heading with the **#** starting
+again at 1, and judges see their validation list the same way. There is **no Best in Category** award per
+category — the category's 1st place is that (see *Awards*).
 
 You can switch until the department has **confirmed places**. After that the switch is refused and says
 why — press **Clear confirmed places** on its groups first, then switch. A switch never changes a score.
@@ -856,6 +860,11 @@ it; a tie you have decided, and ties on the PreK & SPED form, never do. Saving o
 tie for 2nd, and a tie that appears after you confirmed raises the alert again. **Finalize is unavailable
 while a tie still decides a place.** Once a department has confirmed places, its *Places: per department /
 per category* setting is locked (clear them first), and a placed project cannot be moved to another group.
+
+**Best in Category exists only where a department awards per department.** Per category, the category's
+1st place IS the best in that category, so the Validation dropdown does not offer it there, saving one is
+refused, and a department holding a saved Best in Category cannot switch to per category until that award
+is changed (Pending or Honorable Mention).
 
 **Honorable Mention and Best in Category** are given in Validation → **Open Manually** (deliberation),
 project by project — then **Close Deliberation**. Confirming places never touches them. A project holds **one** award: once it has a saved

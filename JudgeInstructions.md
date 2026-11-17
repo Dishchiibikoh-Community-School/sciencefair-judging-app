@@ -177,7 +177,8 @@ comment is worth more than a long one.
 ## Validation, concerns and deliberation
 
 - When every project in your list is scored, a **📋 Validate Computed Results** section appears with your
-  projects ranked within each department. Approve, or flag a concern (step 9).
+  projects ranked within each department — or, where the department gives winners **per category**, under
+  each category's name with the ranking starting again at 1. Approve, or flag a concern (step 9).
 - **A concern holds up the final results** until it is resolved. Once you and the coordinator have
   talked it through, press **Revise my validation** and approve (the coordinator can also clear it).
 - If a project is **added to your list after you validated**, your screen says so: press **Revise my
