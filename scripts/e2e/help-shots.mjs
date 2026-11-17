@@ -388,7 +388,8 @@ await shot(A, "admin-7-lock", { region: A.page.locator(".adm-side"), tall: 1000,
 await tab(A, "Awards");
 await shot(A, "admin-8-awards", { region: [A.page.locator(".adm-main > *").first(), A.page.locator(".adm-main .card").nth(2)], tall: 1800,
   marks: [[A.page.getByRole("button", { name: /Confirm all ready groups/ }), 1, "tr"],
-    [A.page.getByRole("button", { name: /Print awards list/ }), 2, "tr"]] });
+    [A.page.getByRole("button", { name: /Print awards list/ }), 2, "tr"],
+    [A.page.getByTestId("awards-grouping").locator(".sec-title"), 3, "r"]] });
 await A.page.getByRole("button", { name: /Confirm all ready groups/ }).click();
 await A.page.waitForTimeout(800);
 

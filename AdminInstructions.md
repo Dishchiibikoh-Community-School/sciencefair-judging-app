@@ -153,6 +153,8 @@ database — the downloaded files are your real copy. See [Event-day backup plan
 
 1. **✓ Confirm all ready groups** — confirms every group that is fully scored and has no tie, in one go.
 2. **🖨 Print awards list** for the ceremony. It has student names — staff only.
+3. **How winners are chosen** — per department (one 1st–3rd) or per category (a 1st–3rd in every category).
+   Decide this before you confirm.
 
 💡 Groups that need you (a tie, missing reviews, changed scores) are listed first. Decide a tie in
 Validation → **Open Deliberation**.
@@ -276,16 +278,22 @@ A new school starts with **Elementary / Middle School / High School**, but that 
 #### Places: per department or per category
 
 Each scored department has a second dropdown, **Places: per department** (default) or **Places: per
-category**. It decides who competes for 1st, 2nd and 3rd:
+category**. The same choice is on the **🏅 Awards** tab under **How winners are chosen**, with buttons to
+set **all departments** at once. It decides who competes for 1st, 2nd and 3rd:
 
 - **Per department** — every project in the department competes together: one 1st, 2nd, 3rd.
 - **Per category** — each category inside that department has its own 1st, 2nd, 3rd (e.g. *6-8 · Life
   Science*, *6-8 · Chemistry & Material Science*). The public results show the department split into its
   categories.
 
-Choose per category only where each category has several projects — a category with a single project
-would get an uncontested 1st. You can change it at any time; groups you already confirmed on the Awards
-tab will then say *Scores changed since you confirmed* so you can re-confirm.
+Per category means more winners: a department with 5 categories gives up to five 1st, five 2nd and five
+3rd places. **A category with one project gets an uncontested 1st, whatever its score**, and a category with
+two projects has no 3rd — the Awards tab marks those groups (*Only 1 project — 1st is uncontested*,
+*Only 2 projects — no 3rd place*). If that is not wanted, keep that department per department, or set a
+**Minimum score to place** (Setup) so a low score cannot take a medal.
+
+You can switch until the department has **confirmed places**. After that the switch is refused and says
+why — press **Clear confirmed places** on its groups first, then switch. A switch never changes a score.
 
 #### Which rubric — or comments only?
 
@@ -811,6 +819,11 @@ A score a tablet scored offline still arrives after Finalize; IT Logs then shows
 
 The **🏅 Awards** tab turns the scores into places without typing a single award.
 
+**How winners are chosen** (top of the tab): for each department, **Per department** or **Per category**, and
+**All departments: per department / per category** to set them all. It is the same setting as Setup's
+*Places* dropdown. A department with confirmed places cannot switch (the message names it — clear its places
+first); the other departments still switch. Read-only after Finalize.
+
 1. Each **award group** — a department, or a category inside it (see *Places: per department or per
    category*) — is a card with its projects in order and the computed **🥇 1st / 🥈 2nd / 🥉 3rd**.
 2. A group is **ready** when every project has **all the reviews it should get** (its scheduled visits, or
@@ -830,6 +843,8 @@ The **🏅 Awards** tab turns the scores into places without typing a single awa
 | **Scores changed since you confirmed** | A judge re-scored after you confirmed | **↻ Re-confirm from the scores**, or decide by hand |
 | **✓ Confirmed** | Saved, and still what the scores say | Nothing |
 | **Ties share the place** | PreK & SPED form — tied children share the place | Nothing (see *PreK & SPED: ribbons and shared places*) |
+| **Only 1 project — 1st is uncontested** | Per category, and this category has a single project | Nothing, or switch the department to per department |
+| **Only 2 projects — no 3rd place** | Per category, and this category has two projects | Nothing |
 
 **What the public sees.** Once a group has confirmed places, the public podium and ranked table show
 **your** places — that is how a tie you broke reaches the podium. A place you have not confirmed still

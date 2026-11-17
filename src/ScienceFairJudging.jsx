@@ -590,7 +590,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-16";
+const ADMIN_HELP_UPDATED = "2026-11-16b";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -696,14 +696,16 @@ const ADMIN_HELP = [
     ["Can I ignore the suggestion?", "Yes, completely. Tick the grid however you like — it is only a starting point. Apply never saves on its own."],
   ]},
   { title: "Awards (1st, 2nd, 3rd)", icon: "🏅", faq: [
-    ["Who competes with whom?", "By default everyone in a DEPARTMENT competes for its 1st, 2nd and 3rd. In Setup → Departments each scored department has a second dropdown, 'Places: per department / per category'. Per category gives every category inside that department its own 1st–3rd (e.g. 6-8 Life Science, 6-8 Chemistry …). Use it only where categories have enough projects — a category with one project would get an uncontested 1st."],
+    ["Who competes with whom?", "By default everyone in a DEPARTMENT competes for its 1st, 2nd and 3rd. Per category gives every category inside that department its own 1st–3rd (e.g. K-5 Life Science, K-5 Chemistry …). Choose it on the Awards tab under 'How winners are chosen' (one department, or All departments at once) or in Setup → Departments ('Places: per department / per category') — it is the same setting. A category with ONE project gets an uncontested 1st whatever its score, and one with two projects has no 3rd; the Awards tab marks those groups."],
+    ["We want 3 winners in EACH category of a department. How?", "Awards tab → How winners are chosen → set that department to Per category. Every category in it then gets its own 1st, 2nd and 3rd, and Confirm all ready groups confirms them all in one go. Do it BEFORE you confirm any places: once a department has confirmed places the switch is refused (press Clear confirmed places on its groups first). Switching never changes a score. To go back, choose Per department the same way."],
     ["Do I have to type every award?", "No. The Awards tab shows every group with its top three already worked out from the scores. Check it and press '✓ Confirm these places', or '✓ Confirm all ready groups' to confirm every group that is fully scored and has no tie, in one go. Honorable Mention and Best in Category you give in the Validation tab: press Open Manually (or Open Deliberation on a tie alert), choose the award beside the project and Save, then Close Deliberation — Finalize needs deliberation closed. A project holds one award: once it has a saved Honorable Mention, Best in Category or No Award it is out of the running for 1st–3rd, and the place passes to the next project."],
     ["What do the coloured labels mean?", "Not confirmed — nothing saved yet. ✓ Confirmed — saved and still what the scores say. Tie for 1st/2nd/3rd — two projects are level where it decides a place; decide it in Validation → Deliberation. ✓ Decided by hand — you gave the places yourself (e.g. after a tie). A tie counts as decided once all but one of the tied projects have an award you saved after the last score changed (the last one takes the place that is left). Only some places confirmed — you saved some places; press Confirm the remaining places. Scores changed since you confirmed — a judge re-scored after you confirmed; press Re-confirm, or decide by hand. 'N not scored yet' — some projects in the group have no score. 'N still waiting for reviews' — some projects have fewer reviews than they should get (their scheduled visits); the group is not ready until they are in. Groups that need you are listed first, and the Awards menu item shows how many."],
     ["What do the public results show — my awards or the scores?", "Your confirmed awards, once a group has any; until then the places worked out from the scores. That is how a tie you broke in deliberation reaches the podium. If you clear a group ('Clear confirmed places') it goes back to the computed places."],
     ["Which ties raise the amber alert?", "Only ties that decide a place: two projects level for 1st, 2nd or 3rd, or level across 3rd and 4th, in the same award group. A tie lower down decides nothing and does not raise it. A tie you have already decided (all but one of the tied projects have an award saved after the last score change), and ties on the PreK & SPED form (they share the place), never do. Saving only some places does NOT decide a tie further down. Finalize stays unavailable while a tie still decides a place."],
     ["How do I get the list for the ceremony?", "Awards tab → '🖨 Print awards list' (or '⬇ Awards CSV'): every group with its places, any special award, every ribbon, the student names and the teacher. It includes names, so it is for you only — never post it. Groups you have not confirmed yet are marked 'computed, not confirmed yet'."],
     ["How do I open deliberation?", "It never opens by itself. A tie that decides a place shows an amber 'Tie detected' alert in the Validation tab with an Open Deliberation button; Open Manually works any time. While it is open, judges see a 💬 Deliberation Notes section under their list (a recommendation, a comment, a flag), you see their notes per project and can give any award. Press Close Deliberation when you are done — Finalize needs it closed."],
-    ["Where do I choose places per department or per category?", "Setup → Departments: each scored department's row has a dropdown 'Places: per department' — beside the rubric dropdown. If you cannot see it, reload the page."],
+    ["Where do I choose places per department or per category?", "Two places, one setting: the Awards tab → How winners are chosen (per department, or All departments at once), or Setup → Departments → the 'Places: per department' dropdown beside the rubric dropdown. If you cannot see it, reload the page."],
+    ["Why can't I switch a department to per category (or back)?", "It already has confirmed places. They belong to projects, so switching would carry them into the wrong groups. On the Awards tab press Clear confirmed places on that department's groups, switch, then confirm again. After Finalize the choice is read-only."],
     ["Can I change awards after I finalize?", "Not while results are finalized — the Awards tab becomes read-only. Reopen the results in the Validation tab, change them, and finalize again. While results are reopened, the public link shows \"Results are being updated\" (the same link works again once you finalize). To take a saved award back, choose Pending in its dropdown and press Save (remove award) — a dropdown change does nothing until it is saved."],
   ]},
   { title: "PreK & SPED: ribbons and shared places", icon: "🎀", faq: [
@@ -950,6 +952,7 @@ const ADMIN_GUIDE = [
     points: [
       "✓ Confirm all ready groups — confirms every group that is fully scored and has no tie, in one go.",
       "🖨 Print awards list for the ceremony. It has student names — staff only.",
+      "How winners are chosen — per department (one 1st–3rd) or per category (a 1st–3rd in every category). Decide before you confirm.",
     ],
     tip: "Awards tab. Groups that need you (a tie, missing reviews, changed scores) are listed first. Decide a tie in Validation → Open Deliberation." },
   { img: "admin-9-validation", title: "Validate and finalize",
@@ -5724,37 +5727,64 @@ export default function App() {
       mode === "confirm" ? "Admin confirmed computed places" : "Admin cleared confirmed places",
       { groups: groups.length, awards: placed, cleared: rows.length - placed });
   }
-  async function updateDeptAwardGrouping(deptId, value) {
+  // `report` shows a refusal where the admin pressed the control (Setup, or the Awards tab —
+  // 2026-11-16). Returns "" on success (or nothing to change), else the message shown.
+  async function updateDeptAwardGrouping(deptId, value, report = setSetupErr) {
     const dept = departments.find(d => d.id === deptId);
-    if (!dept || (value !== "category" && value !== "department") || dept.award_grouping === value) return;
-    setSetupErr("");
+    if (!dept || (value !== "category" && value !== "department") || dept.award_grouping === value) return "";
+    report("");
     // F7d (N6): confirmed places belong to projects, not to groups. Regrouping with places saved
     // carried them into the new groups — per category → per department gave one department six
     // 1sts on the public podium. Clear them first; never after results are finalized.
     if (resultsFinalized) {
-      setSetupErr(`Results are finalized — reopen them (Validation tab) before changing how "${dept.name}" awards places.`);
-      return;
+      const msg = `Results are finalized — reopen them (Validation tab) before changing how "${dept.name}" awards places.`;
+      report(msg);
+      return msg;
     }
     const placedHere = projects.filter(p => (p.department_id || null) === deptId
       && finalDecisions[p.id]?.finalized && PLACE_AWARDS.includes(finalDecisions[p.id].award));
     if (placedHere.length) {
-      setSetupErr(`"${dept.name}" already has ${placedHere.length} confirmed place${placedHere.length !== 1 ? "s" : ""}. Clear them on the Awards tab first, then change how it awards places — otherwise they would land in the wrong groups.`);
-      return;
+      const msg = `"${dept.name}" already has ${placedHere.length} confirmed place${placedHere.length !== 1 ? "s" : ""}. Clear them on the Awards tab first, then change how it awards places — otherwise they would land in the wrong groups.`;
+      report(msg);
+      return msg;
     }
     const { data, error } = await supabase.from("departments").update({ award_grouping: value })
       .eq("school_id", currentSchool.id).eq("id", deptId).select("id");
     if (error || !data?.length) {
       const missing = MISSING_COL(error);
-      setSetupErr(missing
+      const msg = missing
         ? "Awarding by category needs database update 2026-10f, which has not been run. Nothing was changed."
-        : `Could not change how "${dept.name}" awards places: ${error?.message || "nothing was saved"}`);
+        : `Could not change how "${dept.name}" awards places: ${error?.message || "nothing was saved"}`;
+      report(msg);
       addItLog(missing ? "WARN" : "ERROR","DB", missing ? "AWARD_GROUPING_COL_MISSING" : "AWARD_GROUPING_FAILED",
         "A department's award grouping could not be written", { dept: dept.name, value, error: error?.message || "0 rows" });
-      return;
+      return msg;
     }
     setDepartments(prev => prev.map(d => d.id === deptId ? { ...d, award_grouping: value } : d));
     addLog(`Admin set ${dept.name} to award places ${value === "category" ? "per category" : "per department"}`);
     addItLog("INFO","ADMIN","AWARD_GROUPING_SET","Admin changed how a department awards places",{ dept: dept.name, value });
+    return "";
+  }
+  // Awards tab (2026-11-16): change one department, or every scored department at once. One
+  // write per department, in order; a refused department (confirmed places, finalized) is named
+  // and the others still change. Nothing here touches a score or an award.
+  async function setAwardGroupingFromAwards(deptIds, value) {
+    if (awardsBusy) return;
+    setAwardsMsg(null);
+    const targets = departments.filter(d => d.id && deptIds.includes(d.id) && d.scoring_mode !== "feedback" && (d.award_grouping || "department") !== value);
+    if (!targets.length) { setAwardsMsg({ ok: true, text: "Nothing to change." }); return; }
+    setAwardsBusy(true);
+    const refused = [];
+    for (const d of targets) {
+      const msg = await updateDeptAwardGrouping(d.id, value, () => {});
+      if (msg) refused.push(msg);
+    }
+    setAwardsBusy(false);
+    const changed = targets.length - refused.length;
+    const how = value === "category" ? "per category" : "per department";
+    setAwardsMsg(refused.length
+      ? { ok: false, text: `${changed ? `${changed} department${changed !== 1 ? "s" : ""} changed to places ${how}. ` : ""}Not changed: ${refused.join(" ")}` }
+      : { ok: true, text: `${targets.map(d => d.name).join(", ")} now award${targets.length === 1 ? "s" : ""} places ${how}.` });
   }
   // Every place in one department, across its groups (leaderboard).
   function deptPlaces(deptId) {
@@ -12113,10 +12143,64 @@ export default function App() {
                     </div>
                   </div>
                   <div style={{fontSize:".78rem",color:"var(--dim)",marginTop:".6rem",lineHeight:1.5}}>
-                    Each department competes as one group, or per category if you chose <i>Places: per category</i> in Setup.
                     A <b>ready</b> group is fully scored with no tie. The awards list and CSV include student and teacher names — keep them private.
                   </div>
                 </div>
+                {/* 2026-11-16: choose here (as well as in Setup) whether a department gives 1st–3rd once,
+                    or once in every category. Same rules as Setup: refused while that department has
+                    confirmed places or results are finalized. */}
+                {(() => {
+                  const scoredDepts = departments.filter(d => d.id && d.scoring_mode !== "feedback" && rankedProjectsIn(d.id).length);
+                  if (!scoredDepts.length) return null;
+                  const nCat = scoredDepts.filter(d => d.award_grouping === "category").length;
+                  return (
+                    <div className="card" data-testid="awards-grouping" style={{marginBottom:"1rem"}}>
+                      <div className="sec-title" style={{marginBottom:".35rem"}}>How winners are chosen</div>
+                      <div style={{fontSize:".8rem",color:"var(--dim)",lineHeight:1.5,marginBottom:".6rem"}}>
+                        <b>Per department</b>: one 1st, 2nd and 3rd for the whole department.{" "}
+                        <b>Per category</b>: a 1st, 2nd and 3rd in every category of that department.
+                        You can change this until a department has confirmed places.
+                      </div>
+                      <div className="tbl-wrap">
+                        <table>
+                          <thead><tr><th>Department</th><th>Winners</th><th>Groups</th></tr></thead>
+                          <tbody>
+                            {scoredDepts.map(d => {
+                              const gs = groups.filter(g => g.deptId === d.id);
+                              const small = gs.filter(g => g.projects.length < 3).length;
+                              return (
+                                <tr key={d.id} data-testid="grouping-row" data-dept={d.name}>
+                                  <td>{d.name}</td>
+                                  <td>
+                                    <select className="setup-mode" value={d.award_grouping || "department"}
+                                      aria-label={`Winners for ${d.name}`} disabled={awardsBusy || resultsFinalized}
+                                      onChange={e => setAwardGroupingFromAwards([d.id], e.target.value)}>
+                                      <option value="department">Per department</option>
+                                      <option value="category">Per category</option>
+                                    </select>
+                                  </td>
+                                  <td style={{fontSize:".8rem"}}>
+                                    {gs.length} group{gs.length !== 1 ? "s" : ""}
+                                    {small > 0 && <span className="badge ba" data-testid="grouping-small" style={{marginLeft:".4rem",fontSize:".62rem"}}>
+                                      {small} with fewer than 3 projects</span>}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div style={{display:"flex",gap:".5rem",flexWrap:"wrap",marginTop:".6rem"}}>
+                        <button className="btn sec sm" style={{width:"auto"}} data-testid="grouping-all-dept"
+                          disabled={awardsBusy || resultsFinalized || nCat === 0}
+                          onClick={() => setAwardGroupingFromAwards(scoredDepts.map(d => d.id), "department")}>All departments: per department</button>
+                        <button className="btn sec sm" style={{width:"auto"}} data-testid="grouping-all-cat"
+                          disabled={awardsBusy || resultsFinalized || nCat === scoredDepts.length}
+                          onClick={() => setAwardGroupingFromAwards(scoredDepts.map(d => d.id), "category")}>All departments: per category</button>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {!groups.length && <div className="card" style={{color:"var(--dim)"}}>No scored departments yet.</div>}
                 {shown.map(g => {
                   const { st } = g;
@@ -12134,6 +12218,8 @@ export default function App() {
                           {st.unscored > 0 && chip("ba", `${st.unscored} not scored yet`, "st-unscored")}
                           {st.missing > 0 && chip("ba", `${st.missing} still waiting for reviews`, "st-missing")}
                           {g.projects[0] && tiesShare(g.projects[0]) && chip("bp", "Ties share the place", "st-share")}
+                          {g.projects.length === 1 && chip("ba", "Only 1 project — 1st is uncontested", "st-single")}
+                          {g.projects.length === 2 && chip("ba", "Only 2 projects — no 3rd place", "st-two")}
                         </div>
                       </div>
                       {st.state === "tie" && (
