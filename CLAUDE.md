@@ -1,5 +1,9 @@
 # Qritiko — Science Fair Judging App · Claude Code Context
 
+> **Working with Codex:** follow [AI_COLLABORATION.md](AI_COLLABORATION.md).
+> Read `AGENTS.md` too and verify discrepancies against current code, migrations
+> and tests. Use one implementer and one reviewer unless explicitly assigned otherwise.
+
 > Single source of truth for AI-assisted development. Read it before changing anything.
 > Do not delete it. When code and this file disagree, the code wins — then fix this file.
 >
