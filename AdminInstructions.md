@@ -127,6 +127,9 @@ score, idle judges and score outliers.
 💡 A judge who did not come: give a stand-in that judge's number and the invite code — they get the
 same projects in the same rounds.
 
+💡 A **team** that did not come: Projects tab → **🚫 No-show** on that project (see
+[No-show projects](#no-show-projects)). Every judge's tablet skips it at once.
+
 **7. Lock judging when time is up.**
 
 <img src="public/help/admin-7-lock.webp" width="640" alt="Sidebar with Lock Judging">
@@ -662,6 +665,34 @@ If a judge's tablet fails and they need to continue on another device:
 - Click **"Lock"** to prevent editing/removal
 - Click **"Unlock"** to allow changes again
 
+#### No-show projects
+
+A team that did not come (absent at check-in, or gone when the judges arrive): press **🚫 No-show**
+on that project. You do not delete anything — the project, its students, its number and any score it
+already has stay.
+
+- **Every judge's tablet skips it at once:** the visit reads *🚫 No-show — skip* and cannot be
+  opened, NEXT moves on to the judge's next project, and it no longer counts as work — a judge with a
+  no-show on the list can still reach 100 % and approve the results (*"2/2 scored · 1 no-show"*).
+- **A team nobody scored cannot place.** It has no score, so it is listed at the bottom as unscored
+  with a *no-show* badge; the places go to the projects that were judged. The results CSV says *No-show* in its Place
+  column, and the public page says *Not judged*.
+- **The Awards tab does not wait for it:** its group shows *🚫 1 no-show* instead of *not scored
+  yet*, so **Confirm all ready groups** includes that group.
+- **Alerts** lists every no-show under Coverage.
+- **The team arrived after all?** Press **↩ Undo no-show** — the project is back on every judge's
+  list and can be scored normally.
+- **The team left after some judges scored it?** Mark it anyway. The scores already given **stay and
+  count** — the project is ranked on them — and only the visits nobody has made yet are skipped. The
+  card reads *No-show — partly judged (1 score)* and Alerts lists it. A judge who already scored it still
+  sees their score and can edit it.
+- **Scores are never touched.** A score that arrives after you marked the project (a tablet that was
+  offline) counts too, and it never pulls the other judges back below 100 %.
+- **Two admins at once:** marking two different projects at the very same moment can lose one mark —
+  check the Projects tab (or Alerts) afterwards.
+- **Not allowed after Finalize** (reopen results first). **Reset All Data clears** every no-show mark.
+- Locked projects can be marked too — the mark changes nobody's data, only who has to visit.
+
 **Rubric Breakdown (Expandable):**
 - Shows average score per criterion
 - Helps identify which rubric items judges are rating consistently high/low
@@ -1047,6 +1078,7 @@ If some rows say **NOT saved**, nothing was half-written; press Import again to 
 - All validation entries
 - Share link (public results **and** project list links)
 - The judging lock, deliberation and Finalize go back to off
+- Every **no-show** mark on a project
 - Every judge's device is signed out the next time it opens the app — judges sign in again with the same numbers
 
 **What is NOT reset:**

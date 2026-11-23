@@ -296,6 +296,21 @@ function writeDraft(key, draft) {
   } catch { /* storage full / private mode — the draft is a convenience, never the score */ }
 }
 
+// ── No-show projects (2026-11-22, rule 87) ──
+// app_settings.no_show_projects = { [projectId]: markedAtISO }. Admin-written (RLS), read by
+// every device and pushed live, so all judges' tablets skip the project at once. A MARK, never a
+// score: nothing in scores changes, and a project that has any score is judged — the score wins.
+function parseNoShows(raw) {
+  try {
+    const v = JSON.parse(raw || "{}");
+    if (Array.isArray(v)) return Object.fromEntries(v.filter(x => typeof x === "string" && x).map(x => [x, ""]));
+    if (!v || typeof v !== "object") return {};
+    return Object.fromEntries(Object.entries(v).filter(([k]) => typeof k === "string" && k).map(([k, t]) => [k, typeof t === "string" ? t : ""]));
+  } catch { return {}; }
+}
+// Module level so no Date runs inside App (rule 37 purity baseline).
+function nowIso() { return new Date().toISOString(); }
+
 // ── The offline score queue (sf_offline_queue) — 2026-11 (FIXES_2026-11.md F2) ──
 // Every read and write goes through these two, so a corrupt value or a full / blocked storage
 // can never THROW in the middle of a save: readQueue() treats anything unreadable as empty,
@@ -590,7 +605,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-16c";
+const ADMIN_HELP_UPDATED = "2026-11-23";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -784,6 +799,8 @@ const ADMIN_HELP = [
     ["We have fewer judges than departments need. Can one judge cover several departments?", "Yes — tick that judge number in each department they cover. Their sign-in shows e.g. 'Judge 2 · PreK + K-5' and their list has a heading per department."],
     ["A department has too many projects for every judge to score them all.", "Setup → Judges → under that department choose e.g. '3 judges per project'. Each project is then scored by 3 judges and the projects are shared out evenly (the Projects column shows each judge's load). A project added later gets its judges automatically. This cannot be changed once the department has scores, and it is switched off while a judging schedule is in use (the schedule decides)."],
     ["A judge cannot press Approve Results — the button is greyed out.", "That tablet is still holding a score that has not reached the server. The judge should join the Wi-Fi and press Sync Now; once the list says \"All local scores synced\" the button works. This is deliberate: once a judge validates, the server refuses any further score from them, so validating with a score still on the tablet would stop that score ever being sent."],
+    ["A team did not come (a no-show project).", "Projects tab → 🚫 No-show on that project. Every judge's tablet skips it at once: the visit reads '🚫 No-show — skip', cannot be opened, NEXT moves on, and it no longer counts as work, so those judges can still reach 100 % and approve. It has no score, so it cannot place; the Awards tab shows '🚫 1 no-show' instead of 'not scored yet', so Confirm all ready groups includes its group. Alerts lists it. Nothing is deleted. If the team turns up, press ↩ Undo no-show and it is back on every list."],
+    ["The team left after some judges had already scored it.", "Mark it as a no-show anyway. The scores already given stay and count — the project is ranked on them — and only the visits nobody has made yet are skipped. The card reads 'No-show — partly judged (1 score)' and Alerts lists it. A judge who scored it still sees their score and can edit it. A score that arrives later (a tablet that was offline) counts too and never pulls the other judges back below 100 %. Marks cannot be changed after Finalize (reopen results first), and Reset All Data clears them. Two admins marking different projects at the very same moment can lose one mark — check the Projects tab afterwards."],
     ["A judge did not come — their projects are missing reviews.", "With a judging schedule: give a stand-in that judge's number and the invite code (see Judging schedule). Without one: Judges tab → the department's Panels card shows who has not signed in; press Rebalance and their unscored projects move to the judges who are there. Scored work never moves."],
     ["Is '3 judges per project' fair if different projects get different judges?", "The app spreads the projects evenly so each judge sees a similar mix, and the Alerts tab still flags a judge far from a project's average. Every project in a department is still ranked on the same rubric."],
     ["Judges keep getting \"Invalid invite code\".", "Check the code on the Overview tab and read it out — capitals do not matter. 5 wrong codes on one tablet lock that tablet for 5 minutes (it says 'Too many attempts. Try again in N seconds'); other tablets keep working. 30 wrong codes across the school lock sign-in for everyone for 5 minutes. So tell judges to ask for the code rather than guess. A double tap on Enter as Judge counts once (the button says Checking… meanwhile)."],
@@ -884,6 +901,8 @@ const JUDGE_GUIDE = [
     tip: "After you validate you can no longer change scores. Changed your mind? Revise my validation works until the results are finalized." },
 ];
 const JUDGE_FAQ = [
+  ["A project on my list says 🚫 No-show — skip.", "The coordinator marked that team as absent. There is nothing to score — go to your next project (NEXT already points there). It does not count against you: your progress reads e.g. '2/2 scored · 1 no-show' and you can still validate. If the team arrives later, the coordinator un-marks it and you score it as usual."],
+  ["The team is not at the booth.", "Skip it, go to your next project, and tell the coordinator — they can mark it as a no-show so it leaves your list."],
   ["The tablet shows another judge's number.", "It is still signed in as an earlier judge. Tell the coordinator — do not use it as is. They can sign it out, or move your sign-in to it with Allow Transfer."],
   ["My tablet died, or I have to use another tablet.", "Tell the coordinator. They press Allow Transfer for your number; within 10 minutes sign in on the other tablet with the same number and invite code. Scores already sent are kept. Scores that were only on the old tablet are not — get it online first if you can."],
   ["\"…is already signed in. Ask the admin to approve a device transfer.\"", "Your number is signed in on another tablet (or this one, earlier). Ask the coordinator to press Allow Transfer, then sign in again."],
@@ -1768,6 +1787,9 @@ const CSS = `
   .st-pend{background:var(--s2);color:#475569;}
   .st-draft{background:var(--amber-l);color:#92400e;font-weight:600;}
   .st-queued{background:var(--amber-l);color:#92400e;font-weight:600;}
+  .st-noshow{background:var(--s2);color:#475569;font-weight:600;}
+  .proj-act-btn.noshow{color:#475569;border-color:#47556930;}
+  .proj-act-btn.noshow:hover{background:var(--s2);}
   .items-left{display:block;width:100%;margin-top:.6rem;padding:.65rem .8rem;min-height:44px;background:var(--amber-l);
     color:#92400e;border:1px solid #d9770640;border-radius:10px;font-family:var(--ff-b);font-size:.86rem;font-weight:600;cursor:pointer;}
   /* Judging schedule (2026-10p): the judge's rounds in order, the Next card, admin review. */
@@ -2674,6 +2696,9 @@ export default function App() {
   // projectMax() varies per project (grade < 5 drops abstract), so "50 points" would
   // mean "impossible" on one rubric and "half" on another. See rule 72.
   const [minPlacePct,      setMinPlacePct]      = useState(0);
+  // No-show projects (rule 87): { [projectId]: markedAtISO } — app_settings.no_show_projects.
+  const [noShows,          setNoShows]          = useState({});
+  const [noShowBusy,       setNoShowBusy]       = useState(null);   // project id being saved
   const [minPlaceDraft,    setMinPlaceDraft]    = useState(null);  // null = not editing
   const [minPlaceMsg,      setMinPlaceMsg]      = useState(null);  // { ok, text }
   const defaultResultsTitle = `Science Fair SY ${syText} — Final Results`;
@@ -3060,6 +3085,8 @@ export default function App() {
       // Minimum score to place. Absent / invalid / out of range → 0 (off), so a bad row can
       // never silently strip every medal.
       setMinPlacePct(/^\d{1,2}$/.test(map.min_place_pct || "") ? parseInt(map.min_place_pct, 10) : 0);
+      // No-show projects (rule 87). A bad value reads as "none" — never hides a project by accident.
+      setNoShows(parseNoShows(map.no_show_projects));
       // The schedule's rounds + breaks (2026-10p), written by set_judge_schedule().
       try {
         const sl = JSON.parse(map.judging_schedule || "[]");
@@ -5667,9 +5694,14 @@ export default function App() {
     const ties = groupTies(g);
     const tie = ties.find(t => !tieDecided(t, g.projects)) || null;   // a medal tie NOT decided yet
     const same = confirmed.size === computed.size && [...computed].every(([k, v]) => confirmed.get(k) === v);
-    const unscored = g.projects.filter(p => p.avg === null).length;
+    // A no-show (rule 87) is not "waiting for scores" — it is settled, so it does not hold the
+    // group back from Confirm all. It has no average, so it can never take a place either.
+    const unscored = g.projects.filter(p => p.avg === null && !isNoShow(p.id)).length;
+    const noShow = g.projects.filter(p => isNoShow(p.id)).length;
     // F7c: projects with SOME reviews but fewer than they should get (see expectedReviews).
-    const missing = g.projects.filter(p => p.avg !== null && (p.revs || 0) < expectedReviews(p)).length;
+    // A project marked no-show after some judges scored it (rule 87) is not "waiting" for the visits
+    // that were skipped — its group is ranked on the scores it got.
+    const missing = g.projects.filter(p => p.avg !== null && !noShowMarked(p.id) && (p.revs || 0) < expectedReviews(p)).length;
     const partial = confirmed.size > 0 && confirmed.size < computed.size
       && [...confirmed].every(([k, v]) => computed.get(k) === v);
     // Until 2026-11 ANY confirmed place made a tied group "decided": saving only 1st hid a tie for
@@ -5680,7 +5712,7 @@ export default function App() {
       : same ? "confirmed"
       : partial ? "partial"
       : "changed";
-    return { state, computed, confirmed, tie, unscored, missing,
+    return { state, computed, confirmed, tie, unscored, missing, noShow,
       attention: state === "tie" || state === "changed" || state === "partial" || ((unscored > 0 || missing > 0) && state === "open"),
       clean: state === "open" && !unscored && !missing && computed.size > 0 };
   }
@@ -6241,7 +6273,7 @@ export default function App() {
           p.avg ?? "",
           projectMax(p),
           p.revs,
-          places.has(p.id) ? PLACE_AWARDS[places.get(p.id)] : "",
+          places.has(p.id) ? PLACE_AWARDS[places.get(p.id)] : isNoShow(p.id) ? "No-show" : "",
           ribbonOf(p) || "",
           decision?.finalized ? decision.award : "Pending"
         ].map(csvCell));
@@ -6420,6 +6452,9 @@ export default function App() {
       // Revoke the project-list share link too — it previously survived a reset
       // and kept serving the old roster.
       supabase.from("app_settings").upsert({ school_id: sid, key: "project_list_token",        value: "" }),
+      // No-show marks are event-day state like the scores (rule 87) — a test run must not leave
+      // a project hidden from the real judges.
+      supabase.from("app_settings").upsert({ school_id: sid, key: "no_show_projects",          value: "{}" }),
     ]);
     // Rule 55. Until 2026-10-06 every one of those twelve results was discarded and the modal
     // said "All data has been cleared" regardless — an admin could believe the old judges and
@@ -6443,6 +6478,7 @@ export default function App() {
     setShareExpiry("never");
     setShareTitle("");
     setProjListToken("");
+    setNoShows({});
     setDeliberationNotes({});
     setFinalDecisions({});
     setDeliberationOpen(false);
@@ -6564,9 +6600,24 @@ export default function App() {
     return rankedProjects().filter(p => (p.department_id || null) === (deptId || null));
   }
 
+  // ── No-show projects (rule 87) ──
+  // The mark says "the team is not here": it skips every VISIT that has not been scored yet and
+  // never touches a score. A judge who already scored the project keeps that score (and it counts
+  // for that judge's progress); the project is ranked on whatever scores it got. Each judge's
+  // skip depends only on THEIR OWN score, so an offline score arriving late, or a team that left
+  // after one judge, can never drag the other judges back below 100 %.
+  function projectReviewed(pid) { return Object.keys(scores).some(k => k.endsWith(`_${pid}`)); }
+  function noShowMarked(pid) { return !!pid && Object.prototype.hasOwnProperty.call(noShows, pid); }
+  function visitSkipped(judgeId, pid) { return noShowMarked(pid) && !scores[`${judgeId}_${pid}`]; }
+  // The whole project: marked and nobody scored it — no average, labelled "No-show" in results.
+  function isNoShow(pid) { return noShowMarked(pid) && !projectReviewed(pid); }
+
   function judgeComp(j) {
-    const total = j.projects?.length || 0;
-    const done = (j.projects || []).filter(pid => scores[`${j.id}_${pid}`]).length;
+    // A skipped visit is not work left to do (rule 87) — it leaves the total, so the judge can
+    // still reach 100 % and validate. A skipped visit has no score of this judge, so done is unchanged.
+    const list = (j.projects || []).filter(pid => !visitSkipped(j.id, pid));
+    const total = list.length;
+    const done = list.filter(pid => scores[`${j.id}_${pid}`]).length;
     // Guard against 0 assigned projects (judge registered before projects were
     // added to their department) — 0/0 previously produced NaN%.
     return { done, total, pct: total === 0 ? 0 : Math.round((done/total)*100) };
@@ -6574,7 +6625,7 @@ export default function App() {
 
   function hasScored(pid) { return !!scores[`${judge?.id}_${pid}`]; }
   function totalScored()  { return Object.keys(scores).length; }
-  function possible()     { return judges.reduce((s,j) => s + j.projects.length, 0); }
+  function possible()     { return judges.reduce((s,j) => s + judgeComp(j).total, 0); }   // no-shows excluded (rule 87)
   function draftTotal() {
     const proj = projects.find(p => p.id === scoringPid);
     return projRubric(proj).reduce((s,r) => {
@@ -6677,13 +6728,17 @@ export default function App() {
       const pids = new Set(projIn(d.id).map(p => p.id));
       let total = 0, done = 0;
       judges.forEach(j => (j.projects || []).forEach(pid => {
-        if (!pids.has(pid)) return;
+        if (!pids.has(pid) || visitSkipped(j.id, pid)) return;   // a skipped visit is no work left (rule 87)
         total += 1;
         if (scores[`${j.id}_${pid}`]) done += 1;
       }));
       return { d, total, done, pct: total ? Math.round(done / total * 100) : 0,
-        projects: pids.size, unreviewed: [...pids].filter(pid => !reviewed(pid)).length };
+        projects: pids.size, unreviewed: [...pids].filter(pid => !reviewed(pid) && !isNoShow(pid)).length };
     });
+    // No-show projects (rule 87). A marked project that HAS scores is "partly judged": its scores
+    // count and the visits nobody made are skipped. Shown for information (Undo if the team is back).
+    const noShowList = projects.filter(p => noShowMarked(p.id));
+    const noShowScored = noShowList.filter(p => reviewed(p.id));
 
     // Idle judges: signed in, work left, not validated, nothing scored for IDLE_MIN minutes.
     const idle = locked ? [] : judges.map(j => {
@@ -6732,7 +6787,7 @@ export default function App() {
     const notScheduled = scheduleActive() ? unscheduledProjects() : [];
     const problems = noDept.length + deptsNoJudge.length + panelShort.length + stuck.length + safety.length + notScheduled.length
       + (realtime.status === "down" ? 1 : 0) + (isOnline ? 0 : 1);
-    return { noDept, deptsNoJudge, panelShort, progress, idle, stuck, recentErrors, safety, notScheduled, problems };
+    return { noDept, deptsNoJudge, panelShort, progress, idle, stuck, recentErrors, safety, notScheduled, noShowList, noShowScored, problems };
   }
 
   // Deliberation helpers
@@ -7025,6 +7080,10 @@ export default function App() {
   }
 
   function startScoring(pid) {
+    // Rule 87, in the handler as well as on the list (rule 18): a skipped visit has nothing to score.
+    // The admin undoes the mark if the team turns up, and the project opens again. A judge who
+    // already scored it can still open it to edit their own score.
+    if (judge?.id && visitSkipped(judge.id, pid)) return;
     setScoringPid(pid);
     setScoreErr("");
     pushScoringState();   // F13 (U4): system Back returns to the list instead of leaving the app
@@ -8124,6 +8183,55 @@ export default function App() {
       { projectId:pid, num:proj.num, title:proj.title, timestamp:fmtISO(Date.now()) });
   }
 
+  // Rule 87: mark / unmark a project as a no-show (the team did not come, or left). Stored as ONE
+  // app_settings row that every tablet reads live. Never touches scores: on a project some judges
+  // already scored, those scores stay and count, and only the visits nobody made are skipped.
+  // Refused once results are finalized.
+  async function setProjectNoShow(pid, on) {
+    const proj = projects.find(p => p.id === pid);
+    const sid = currentSchool?.id;
+    if (!proj || !sid || noShowBusy) return;
+    setAdminMsg(null);
+    if (resultsFinalized) {
+      setAdminMsg({ ok: false, text: "Results are finalized — reopen them in the Validation tab before changing a no-show." });
+      return;
+    }
+    const scoredN = Object.keys(scores).filter(k => k.endsWith(`_${pid}`)).length;
+    setNoShowBusy(pid);
+    // Re-read the stored list first. That narrows — it cannot fully close — the window in which two
+    // admins marking different projects at the same instant overwrite each other (last write wins;
+    // the realtime reload then shows the real list). Good enough for one or two admins.
+    const cur = await withTimeout(supabase.from("app_settings").select("value")
+      .eq("school_id", sid).eq("key", "no_show_projects").maybeSingle(), SAVE_TIMEOUT_MS);
+    if (cur.error) {
+      setNoShowBusy(null);
+      setAdminMsg({ ok: false, text: `${projectCode(proj)} was NOT ${on ? "marked as a no-show" : "changed"} — ${cur.error.message || "could not read the current list"}.` });
+      addItLog("ERROR","ADMIN","NO_SHOW_SAVE_FAILED","Could not read the no-show list",{ projectId: pid, num: proj.num, on, error: errInfo(cur.error) });
+      return;
+    }
+    const base = parseNoShows(cur.data?.value);
+    const next = on ? { ...base, [pid]: nowIso() } : Object.fromEntries(Object.entries(base).filter(([k]) => k !== pid));
+    const { error } = await withTimeout(supabase.from("app_settings").upsert({ school_id: sid, key: "no_show_projects", value: JSON.stringify(next) }), SAVE_TIMEOUT_MS);
+    setNoShowBusy(null);
+    if (error) {
+      // Rule 55: nothing changes on screen unless the database has it.
+      setAdminMsg({ ok: false, text: `${projectCode(proj)} was NOT ${on ? "marked as a no-show" : "changed"} — ${error.message || "nothing was saved"}. Try again.` });
+      addItLog("ERROR","ADMIN","NO_SHOW_SAVE_FAILED","Could not save the no-show list",{ projectId: pid, num: proj.num, on, error: errInfo(error) });
+      return;
+    }
+    setNoShows(next);
+    setAdminMsg({ ok: true, text: on
+      ? (scoredN
+        ? `${projectCode(proj)} is marked as a no-show. The ${scoredN} score${scoredN !== 1 ? "s" : ""} already given still count${scoredN !== 1 ? "" : "s"}; every visit not made yet is skipped. Press "Undo no-show" if the team is back.`
+        : `${projectCode(proj)} is marked as a no-show — every judge's tablet now skips it. Press "Undo no-show" if the team arrives.`)
+      : `${projectCode(proj)} is back on the judges' lists.` });
+    addLog(`Admin ${on ? "marked" : "un-marked"} project #${proj.num} as a no-show`);
+    addItLog("INFO","ADMIN", on ? "PROJECT_NO_SHOW" : "PROJECT_NO_SHOW_UNDONE",
+      on ? "Project marked as a no-show" : "No-show mark removed",
+      { projectId: pid, num: proj.num, code: projectCode(proj), scoresKept: on ? scoredN : undefined,
+        noShows: Object.keys(next).filter(id => projects.some(p => p.id === id)).length });
+  }
+
   // ── REGISTRATION ACTIONS ──────────────────────────────────
   // Registration numbers ("JHS-PMA-003") are built server-side by submit_registration();
   // the client only sends the "JHS-PMA" prefix (see handleRegSubmit).
@@ -8491,23 +8599,39 @@ export default function App() {
     const deptOrd = (id) => departments.find(d => d.id === id)?.ord ?? 999;
     const myProj = projects.filter(p => judge.projects.includes(p.id))
       .sort((a, b) => deptOrd(a.department_id) - deptOrd(b.department_id) || String(a.num).localeCompare(String(b.num)));
-    const done   = myProj.filter(p => hasScored(p.id)).length;
+    // No-show projects (rule 87) stay on the list, marked, but are not work left to do — unless this
+    // judge already scored it (then it is their scored project, shown with its score as usual).
+    const active = myProj.filter(p => !visitSkipped(judge.id, p.id));
+    const noShowN = myProj.length - active.length;
+    const done   = active.filter(p => hasScored(p.id)).length;
     // 0 projects: 0 %, never NaN (B4). allDone needs at least one project — a judge with nothing
     // assigned used to see "All projects scored!" and the Approve buttons (F8).
-    const pct    = myProj.length ? Math.round((done / myProj.length) * 100) : 0;
-    const allDone = myProj.length > 0 && done === myProj.length;
+    const pct    = active.length ? Math.round((done / active.length) * 100) : 0;
+    const allDone = active.length > 0 && done === active.length;
     const drafts = readDrafts();   // unsubmitted work on this device (startScoring/editDraft)
     // Judging schedule (2026-10p): the judge's visits in round order, with the times.
     const myNum    = judgeNumOf(judge.alias);
     const mySched  = scheduleActive() && myNum ? scheduleFor(myNum).filter(s => projects.some(p => p.id === s.project_id)) : [];
     const useSched = mySched.length > 0;
-    const nextVisit = useSched ? mySched.find(s => !hasScored(s.project_id)) : null;
+    const nextVisit = useSched ? mySched.find(s => !hasScored(s.project_id) && !visitSkipped(judge.id, s.project_id)) : null;
     const canScore = !locked && !resultsFinalized && !judgeValidations[judge.id];
     const item = (proj, roundLabel) => {
       const scored = hasScored(proj.id);
       const ex = scores[`${judge.id}_${proj.id}`];
       // F13 (U3): a score still waiting on this tablet looks different from one the server has.
       const queued = offlineQueue.some(i => i?.data?.judge_id === judge.id && i?.data?.project_id === proj.id);
+      // Rule 87: the admin marked the team absent — nothing to score, the judge moves on.
+      if (visitSkipped(judge.id, proj.id)) return (
+        <div className={"proj-item is-noshow" + (roundLabel ? " js-item" : "")} data-testid="js-noshow" style={{ cursor:"default", opacity:.6 }}>
+          {roundLabel && <div className="js-round">{roundLabel}</div>}
+          <div className="proj-num">{projectCode(proj)}</div>
+          <div className="proj-info">
+            <div className="proj-title">{proj.title}</div>
+            <div className="proj-meta">{proj.room ? <><b>Booth {proj.room}</b> · </> : ""}The team is not here — skip this visit</div>
+          </div>
+          <span className="proj-st st-noshow" title="The coordinator marked this project as a no-show. Nothing to score.">🚫 No-show — skip</span>
+        </div>
+      );
       return (
         <div className={"proj-item" + (roundLabel ? " js-item" : "")}
           onClick={() => canScore && startScoring(proj.id)}
@@ -8553,11 +8677,11 @@ export default function App() {
           <div className="card" style={{ padding:"1.1rem 1.4rem" }}>
             <div style={{ display:"flex", justifyContent:"space-between", marginBottom:".45rem" }}>
               <span style={{ fontSize:".83rem" }}>Your Progress</span>
-              <span style={{ fontFamily:"var(--ff-m)", fontSize:".9rem", color:"var(--navy)" }}>{done}/{myProj.length} scored</span>
+              <span style={{ fontFamily:"var(--ff-m)", fontSize:".9rem", color:"var(--navy)" }} data-testid="js-progress">{done}/{active.length} scored{noShowN > 0 ? ` · ${noShowN} no-show` : ""}</span>
             </div>
             <div className="pbar" style={{ height:"7px" }}><div className="pfill" style={{ width:`${pct}%`, height:"7px" }} /></div>
           </div>
-          {done === 0 && myProj.length > 0 && (
+          {done === 0 && active.length > 0 && (
             <div style={{ background:"var(--blue-l)", border:"1px solid #2563eb20", borderRadius:"var(--r)", padding:".85rem 1.1rem", marginBottom:".85rem", display:"flex", alignItems:"center", gap:".75rem" }}>
               <span style={{ fontSize:"1.3rem" }}>👆</span>
               <div>
@@ -8635,10 +8759,10 @@ export default function App() {
                   {myVal.approved ? "✓ You approved the computed results" : "⚠ You flagged a concern"}
                 </div>
                 {myVal.comment && <div style={{fontSize:".82rem",color:"var(--dim)",marginTop:".5rem"}}>Your note: "{myVal.comment}"</div>}
-                {done < myProj.length && !resultsFinalized && (
+                {done < active.length && !resultsFinalized && (
                   <div className="scan-msg warn" data-testid="new-after-validation" style={{marginTop:".75rem"}}>
-                    You have {myProj.length - done} project{myProj.length - done !== 1 ? "s" : ""} to score that {myProj.length - done !== 1 ? "were" : "was"} added after you validated.
-                    Press <b>Revise my validation</b> to score {myProj.length - done !== 1 ? "them" : "it"}, then validate again.
+                    You have {active.length - done} project{active.length - done !== 1 ? "s" : ""} to score that {active.length - done !== 1 ? "were" : "was"} added after you validated.
+                    Press <b>Revise my validation</b> to score {active.length - done !== 1 ? "them" : "it"}, then validate again.
                   </div>
                 )}
                 {valReviseErr && <div className="err" style={{marginTop:".75rem"}}>⚠ {valReviseErr}</div>}
@@ -8682,7 +8806,8 @@ export default function App() {
                       the same award groups that decide the medals (rule 79). */}
                   {judgeDeptIds(judge).filter(id => !isFeedbackDept(id)).flatMap(id =>
                     awardGroups().filter(g => g.deptId === id).flatMap(g =>
-                      g.projects.filter(p => myProj.some(mp => mp.id === p.id))
+                      // A no-show (rule 87) has no average — it is not ranked here either.
+                      g.projects.filter(p => myProj.some(mp => mp.id === p.id) && !isNoShow(p.id))
                         .map((p, i) => ({ ...p, _rank: i + 1, _dept: id, _cat: g.cat }))))
                     .map((p, i, arr) => (
                     <div key={p.id}>
@@ -8833,7 +8958,7 @@ export default function App() {
             </div>
           ) : judgeSignOutAsk ? (
             <div className="scan-msg warn" style={{ marginTop:".85rem" }}>
-              <div style={{ marginBottom:".5rem" }}>You have scored {done} of {myProj.length} projects. Sign out anyway? Your saved scores stay in the system.</div>
+              <div style={{ marginBottom:".5rem" }}>You have scored {done} of {active.length} projects. Sign out anyway? Your saved scores stay in the system.</div>
               <div style={{ display:"flex", gap:".5rem", flexWrap:"wrap" }}>
                 <button className="btn danger sm" style={{ width:"auto" }} onClick={() => {
                   if (judge?.id) setJudgeSecret(judge.id, null);   // F1: signing out gives up this device's secret
@@ -8846,7 +8971,7 @@ export default function App() {
             </div>
           ) : (
           <button className="btn sec" style={{ marginTop:".85rem" }} onClick={() => {
-            if (done < myProj.length) { setJudgeSignOutAsk(true); return; }
+            if (done < active.length) { setJudgeSignOutAsk(true); return; }
             setJudge(null);
             ["sf_judge_id","sf_judge_data","sf_scores_cache"].forEach(k => localStorage.removeItem(k));
             setView("landing");
@@ -10249,7 +10374,7 @@ export default function App() {
                           {unscored.map(p => (
                             <tr key={p.id} style={{opacity:.5}}>
                               <td style={{fontFamily:"var(--ff-m)",color:"var(--dim)"}}>—</td>
-                              <td style={{maxWidth:"200px"}}>{p.title}</td>
+                              <td style={{maxWidth:"200px"}}>{p.title}{isNoShow(p.id) && <span className="badge bb" data-testid="lb-noshow" style={{marginLeft:".35rem",fontSize:".6rem"}}>🚫 no-show</span>}</td>
                               <td><span className="badge bb">{p.cat}</span></td>
                               <td style={{fontFamily:"var(--ff-m)",color:"var(--dim)"}}>—</td>
                               <td>{p.revs}</td>
@@ -11274,8 +11399,8 @@ export default function App() {
                                   <span style={{fontFamily:"var(--ff-m)",fontSize:".76rem"}}>{done}/{total}</span>
                                 </div>
                               </td>
-                              <td><span className={`badge ${done===total?"bg":done>0?"ba":"br"}`}>
-                                {done===total?"Complete":done>0?"In Progress":"Not Started"}
+                              <td><span className={`badge ${total===0?"bb":done===total?"bg":done>0?"ba":"br"}`}>
+                                {total===0?"Nothing to score":done===total?"Complete":done>0?"In Progress":"Not Started"}
                               </span></td>
                               <td>
                                 <button className="btn sec sm" style={{width:"auto"}} onClick={() => allowJudgeTransfer(j.alias)}>
@@ -11307,8 +11432,8 @@ export default function App() {
                               <span style={{fontFamily:"var(--ff-m)",fontSize:".76rem"}}>{done}/{total}</span>
                             </div>
                           </td>
-                          <td><span className={`badge ${done===total?"bg":done>0?"ba":"br"}`}>
-                            {done===total?"Complete":done>0?"In Progress":"Not Started"}
+                          <td><span className={`badge ${total===0?"bb":done===total?"bg":done>0?"ba":"br"}`}>
+                            {total===0?"Nothing to score":done===total?"Complete":done>0?"In Progress":"Not Started"}
                           </span></td>
                           <td>
                             <button className="btn sec sm" style={{width:"auto"}} onClick={() => allowJudgeTransfer(j.alias)}>
@@ -11536,6 +11661,9 @@ export default function App() {
                           <span style={{fontFamily:"var(--ff-m)",fontSize:".78rem",color:"var(--navy)"}}>{projectCode(p)} · {p.cat}</span>
                           {(() => { const d = departments.find(d => d.id === p.department_id); if (!d) return <span className="badge br" style={{fontSize:".68rem"}}>Unassigned</span>; const dc = d.name.toLowerCase().includes("elem") ? "bg" : d.name.toLowerCase().includes("middle") ? "ba" : d.name.toLowerCase().includes("high") ? "bb" : "bp"; return <span className={`badge ${dc}`} style={{fontSize:".68rem"}}>{d.name}</span>; })()}
                           {p.locked && <span className="proj-lock-badge">🔒 Locked</span>}
+                          {noShowMarked(p.id) && (hits.length > 0
+                            ? <span className="badge bb" style={{fontSize:".68rem"}} data-testid="noshow-badge-scored" title="Its scores count and it is ranked on them; the visits nobody made are skipped.">🚫 No-show — partly judged ({hits.length} score{hits.length !== 1 ? "s" : ""})</span>
+                            : <span className="badge bb" style={{fontSize:".68rem"}} data-testid="noshow-badge">🚫 No-show</span>)}
                         </div>
                         <div style={{fontWeight:600,marginBottom:".2rem",lineHeight:1.3}}>{p.title}</div>
                         <div style={{fontSize:".76rem",color:"var(--dim)"}}>
@@ -11569,6 +11697,19 @@ export default function App() {
                             title={p.locked ? "Unlock project" : "Lock project"}>
                             {p.locked ? "🔓 Unlock" : "🔒 Lock"}
                           </button>
+                          {/* Rule 87 — the team did not come. Allowed on a locked project: it changes
+                              nobody's data, only who has to visit. */}
+                          {noShowMarked(p.id)
+                            ? <button className="proj-act-btn unlock" data-testid="noshow-undo"
+                                disabled={!!noShowBusy || resultsFinalized}
+                                onClick={() => setProjectNoShow(p.id, false)}
+                                title="The team arrived — put the project back on the judges' lists">{noShowBusy === p.id ? "Saving…" : "↩ Undo no-show"}</button>
+                            : <button className="proj-act-btn noshow" data-testid="noshow-mark"
+                                disabled={!!noShowBusy || resultsFinalized}
+                                onClick={() => setProjectNoShow(p.id, true)}
+                                title={hits.length > 0
+                                  ? "The team left — the scores already given stay and count; the visits not made yet are skipped"
+                                  : "The team did not come — every judge skips it and it cannot place"}>{noShowBusy === p.id ? "Saving…" : "🚫 No-show"}</button>}
                           {!p.locked && (
                             <>
                               <button className="proj-act-btn edit"
@@ -11842,6 +11983,14 @@ export default function App() {
                   <span className="badge br">{h.notScheduled.length}</span> project{h.notScheduled.length !== 1 ? "s are" : " is"} <strong>not in the judging schedule</strong> — nobody will visit {h.notScheduled.length !== 1 ? "them" : "it"}:
                   {" "}{h.notScheduled.slice(0, 6).map(p => projectCode(p)).join(", ")}{h.notScheduled.length > 6 ? "…" : ""}. Add {h.notScheduled.length !== 1 ? "them" : "it"} to the schedule file and import it again.
                   <button className="btn sec sm hb-act" onClick={() => setAdminTab("setup")}>Schedule →</button></div>}
+                {h.noShowList.length > h.noShowScored.length && <div className="hb-item" data-testid="hb-noshow">
+                  <span className="badge bb">{h.noShowList.length - h.noShowScored.length}</span> project{h.noShowList.length - h.noShowScored.length !== 1 ? "s are" : " is"} marked <strong>no-show</strong> — judges skip {h.noShowList.length - h.noShowScored.length !== 1 ? "them" : "it"} and {h.noShowList.length - h.noShowScored.length !== 1 ? "they" : "it"} cannot place:
+                  {" "}{h.noShowList.filter(p => !h.noShowScored.includes(p)).slice(0, 8).map(p => projectCode(p) || `#${p.num}`).join(", ")}{h.noShowList.length - h.noShowScored.length > 8 ? "…" : ""}.
+                  <button className="btn sec sm hb-act" onClick={() => setAdminTab("projects")}>Projects →</button></div>}
+                {h.noShowScored.length > 0 && <div className="hb-item" data-testid="hb-noshow-scored">
+                  <span className="badge bb">{h.noShowScored.length}</span> project{h.noShowScored.length !== 1 ? "s are" : " is"} marked no-show <strong>after some judges scored {h.noShowScored.length !== 1 ? "them" : "it"}</strong> — those scores count and the ranking uses them; the visits nobody made are skipped. If the team is back, press Undo in Projects:
+                  {" "}{h.noShowScored.slice(0, 8).map(p => projectCode(p) || `#${p.num}`).join(", ")}{h.noShowScored.length > 8 ? "…" : ""}.
+                  <button className="btn sec sm hb-act" onClick={() => setAdminTab("projects")}>Projects →</button></div>}
                 {h.noDept.length > 0 && <div className="hb-item" data-testid="hb-nodept">
                   <span className="badge br">{h.noDept.length}</span> project{h.noDept.length !== 1 ? "s have" : " has"} <strong>no department</strong> — nobody will score {h.noDept.length !== 1 ? "them" : "it"}:
                   {" "}{h.noDept.slice(0, 6).map(p => projectCode(p) || `#${p.num}`).join(", ")}{h.noDept.length > 6 ? "…" : ""}.
@@ -12262,6 +12411,7 @@ export default function App() {
                           {st.state === "changed" && chip("br", "Scores changed since you confirmed", "st-changed")}
                           {st.state === "partial" && chip("ba", "Only some places confirmed", "st-partial")}
                           {st.unscored > 0 && chip("ba", `${st.unscored} not scored yet`, "st-unscored")}
+                          {st.noShow > 0 && chip("bb", `🚫 ${st.noShow} no-show`, "st-noshow")}
                           {st.missing > 0 && chip("ba", `${st.missing} still waiting for reviews`, "st-missing")}
                           {g.projects[0] && tiesShare(g.projects[0]) && chip("bp", "Ties share the place", "st-share")}
                           {g.projects.length === 1 && chip("ba", "Only 1 project — 1st is uncontested", "st-single")}
@@ -13318,7 +13468,7 @@ export default function App() {
           )}
           <div style={{marginBottom:".75rem",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:".5rem"}}>
             <div style={{fontFamily:"var(--ff-d)",fontSize:"1.05rem"}}>{deptName} — All Projects</div>
-            <span className="badge bg">{scored.length} scored · {unscored.length} pending</span>
+            <span className="badge bg">{scored.length} scored · {unscored.filter(p => !isNoShow(p.id)).length} pending</span>
           </div>
           <div className="results-table">
             {scored.map((p, i) => (
@@ -13356,9 +13506,9 @@ export default function App() {
                 <div className="res-rank">—</div>
                 <div>
                   <div className="res-title">{p.title}</div>
-                  <div className="res-meta">{p.cat} · Grade {p.grade} · Awaiting scores</div>
+                  <div className="res-meta">{p.cat} · Grade {p.grade} · {isNoShow(p.id) ? "Not judged" : "Awaiting scores"}</div>
                 </div>
-                <div className="res-score"><div style={{fontFamily:"var(--ff-m)",color:"var(--dim)",fontSize:".85rem"}}>TBD</div></div>
+                <div className="res-score"><div style={{fontFamily:"var(--ff-m)",color:"var(--dim)",fontSize:".85rem"}}>{isNoShow(p.id) ? "—" : "TBD"}</div></div>
               </div>
             ))}
           </div>

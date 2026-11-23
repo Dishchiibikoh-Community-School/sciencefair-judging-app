@@ -220,7 +220,16 @@ is full"* means all its places are taken — tell the coordinator.
 
 ---
 
+💡 **🚫 No-show — skip** on a visit means the coordinator marked that team as absent. There is nothing
+to score: go to your next project (NEXT already points there). It does not count against you — your
+progress reads e.g. *"2/2 scored · 1 no-show"* and you can still validate.
+
 ## FAQs
+
+**The team is not at the booth.**
+Skip it and go to your next project, then tell the coordinator. If they mark it as a no-show it reads
+*🚫 No-show — skip* on your list (reopen the app if it does not change within a minute). If the team
+turns up later, the coordinator un-marks it and you can score it as usual.
 
 **Which projects will I score?**
 Only the ones on your list — usually your schedule's visits, every project in your department, or an

@@ -7,7 +7,7 @@
 > Single source of truth for AI-assisted development. Read it before changing anything.
 > Do not delete it. When code and this file disagree, the code wins — then fix this file.
 >
-> Last reviewed: 2026-11-16 (**winners per department OR per category, chosen on the Awards tab**; per category has no Best in Category and ranks restart per category — rule 86; stress-tested with 15 judges. Before that, **audit finding F04 fixed**: a judge may no longer validate while their device still holds unsent scores — validating used to strand that score permanently; see Change History and rule 85. The rest of that external audit is deliberately NOT actioned before the fair — see Known gaps. Before that, 2026-11-13: pre-event STRESS TEST against a separate staging project — 10 scenarios, 3,706 writes, 0 errors, verdict GO; see Change History, `tests/stress/REPORT.md` and `tests/stress/SESSION-LOG.md`. No app code changed. Before that, 2026-11-06: judging-schedule template + booth template; the head's FINAL schedule imported on live and verified for all 15 judges — see Change History; 2026-11-05: illustrated guides: the judge's "❓ How to judge" screen, the admin Help tab's step-by-step + judge guide + searchable Q&A, screenshots by `npm run help:shots`, help text corrected against the code — rule 84; before that 2026-11-04: pre-event audit fixes F1–F17, deployed `a88bb98` with migrations 2026-11a/11b run on live — every fix, test and revert hash in [FIXES_2026-11.md](FIXES_2026-11.md); migrations 2026-11a/11b; earlier: 2026-10-21 Phase 3: award groups + the Awards tab; the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
+> Last reviewed: 2026-11-22 (**no-show projects** — an admin mark that skips the visits nobody made, never a score — rule 87; the live data synced to the organiser's entry sheet (4) and the NEW 12-judge / 16-round schedule imported and verified — see Live status. Before that, 2026-11-16: **winners per department OR per category, chosen on the Awards tab**; per category has no Best in Category and ranks restart per category — rule 86; stress-tested with 15 judges. Before that, **audit finding F04 fixed**: a judge may no longer validate while their device still holds unsent scores — validating used to strand that score permanently; see Change History and rule 85. The rest of that external audit is deliberately NOT actioned before the fair — see Known gaps. Before that, 2026-11-13: pre-event STRESS TEST against a separate staging project — 10 scenarios, 3,706 writes, 0 errors, verdict GO; see Change History, `tests/stress/REPORT.md` and `tests/stress/SESSION-LOG.md`. No app code changed. Before that, 2026-11-06: judging-schedule template + booth template; the head's FINAL schedule imported on live and verified for all 15 judges — see Change History; 2026-11-05: illustrated guides: the judge's "❓ How to judge" screen, the admin Help tab's step-by-step + judge guide + searchable Q&A, screenshots by `npm run help:shots`, help text corrected against the code — rule 84; before that 2026-11-04: pre-event audit fixes F1–F17, deployed `a88bb98` with migrations 2026-11a/11b run on live — every fix, test and revert hash in [FIXES_2026-11.md](FIXES_2026-11.md); migrations 2026-11a/11b; earlier: 2026-10-21 Phase 3: award groups + the Awards tab; the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
 
 ---
 
@@ -343,7 +343,7 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `validations` | Judge/admin validation; `judge_id = 'admin'` for the admin. Conflict `(school_id, judge_id)` |
 | `deliberation_notes` | Judge recommendation/comment/flag per project |
 | `final_decisions` | Admin award per project. Conflict `(school_id, project_id)` |
-| `app_settings` | Key/value, PK `(school_id, key)`: `locked`, `deliberation_open`, `results_finalized`, `judge_transfer_allowances`, `project_list_token`, `judge_numbering` (`school` default when absent \| `department`), `judge_sharing`, `judge_max`, **`project_code_format`** (default `{DEPT}-{CAT}-{NUM}`), **`school_year`** (`2026-2027`; empty/missing = automatic — August starts a new year), **`min_place_pct`** (0–99; `0`/absent = off — the minimum share of a project's own maximum needed to take 1st/2nd/3rd, rule 72), **`judging_schedule`** (JSON slots `[{kind:"round",no,label,start,end} | {kind:"break",label,start,end}]`, 2026-10p) |
+| `app_settings` | Key/value, PK `(school_id, key)`: `locked`, `deliberation_open`, `results_finalized`, `judge_transfer_allowances`, `project_list_token`, `judge_numbering` (`school` default when absent \| `department`), `judge_sharing`, `judge_max`, **`project_code_format`** (default `{DEPT}-{CAT}-{NUM}`), **`school_year`** (`2026-2027`; empty/missing = automatic — August starts a new year), **`min_place_pct`** (0–99; `0`/absent = off — the minimum share of a project's own maximum needed to take 1st/2nd/3rd, rule 72), **`judging_schedule`** (JSON slots `[{kind:"round",no,label,start,end} | {kind:"break",label,start,end}]`, 2026-10p), **`no_show_projects`** (JSON `{ [projectId]: markedAtISO }` — teams that did not come, rule 87; cleared by Reset) |
 | `share_links` | Public results tokens, expiry, `revoked_at` |
 | `score_backups` | Admin snapshots — scores **and a copy of the rubric** |
 | `registration_links` | Student registration tokens |
@@ -711,6 +711,9 @@ confirmAwardGroups(groups, "confirm"|"clear"), updateDeptAwardGrouping(id, v, re
 setAwardGroupingFromAwards(deptIds, v)   // Awards tab "How winners are chosen" (one department or all); a refused department never blocks the others
 perCategoryProject(p), awardOptionsFor(p, current)   // rule 86: no "Best in Category" where the project's department awards per category
 awardsListRows(), printAwardsList(), exportAwardsCSV()   // ceremony list — names, admin only
+visitSkipped(judgeId, pid), isNoShow(pid), noShowMarked(pid), projectReviewed(pid)   // rule 87 — a judge's WORK uses
+                             // visitSkipped (own score decides); the PROJECT's results use isNoShow (nobody scored it)
+setProjectNoShow(pid, on), parseNoShows(raw) /* module */, nowIso() /* module */   // app_settings.no_show_projects
 tiesShare(proj), ribbonOf(proj)   // PreK & SPED form (rule 78): tied averages share a place; the ribbon
 ribbonFor(settings, avg)     // module: the ribbon band for an average, or null when the rubric has none
 saveMinPlacePct()            // app_settings.min_place_pct, upsert + error check (rule 55)
@@ -1103,6 +1106,20 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
     groups: the Overview leaderboard and the judge's validation list put each category under its own heading and
     number it from 1. A single-project category's uncontested 1st is intended (the Awards tab says so).
 
+**No-show projects (2026-11-22)**
+87. **A no-show mark skips VISITS, never touches a score.** `app_settings.no_show_projects` (admin-written, read live
+    by every tablet; no migration). Two helpers, never mixed up: **`visitSkipped(judgeId, pid)`** = marked AND THAT judge
+    has no score for it — the only test for a judge's work (`judgeComp()`, the judge screen's `active` list, NEXT,
+    `startScoring()` (rule 18), the sign-out question, Alerts progress). It depends on the judge's OWN score only, so a
+    team that left after one judge, or an offline score that syncs after the mark, can never pull another judge back
+    below 100 % (the first version used the project-level test there and did exactly that — found in review).
+    **`isNoShow(pid)`** = marked AND nobody scored it — the whole project: no average, never places, labelled *No-show*
+    (leaderboard, results CSV, public *Not judged*, validation list leaves it out), not "not scored yet" in
+    `groupStatus()`; a marked project WITH scores is ranked on them and is not "waiting for reviews" (`missing`).
+    Nothing in ranking reads the mark. `setProjectNoShow()` may mark a scored project ("partly judged"), refuses after
+    Finalize, saves first with a deadline (rule 55), re-reads the list before writing (narrows, does not close, a
+    two-admin race — last write wins). `executeReset()` clears it.
+
 **Illustrated guides (2026-11-05)**
 84. **The guide pictures are real screenshots, made by `npm run help:shots`** (`scripts/e2e/help-shots.mjs`: the app on
     the mocked backend, a made-up "Sample School", no real names) into `public/help/*.webp`. Change a screen that a
@@ -1181,6 +1198,26 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-11-22 — No-show projects (admin side)** (no migration; rule 87). Asked by the organiser: a team that does not
+come left every judge who visits it stuck at 14/15 — never 100 %, no Approve step, NEXT pointing at an empty booth —
+and its award group held back from Confirm all as "not scored yet".
+- **Projects tab → 🚫 No-show / ↩ Undo no-show** per project. Stored in `app_settings.no_show_projects`, read live
+  by every tablet. Refused after Finalize; a failed save changes nothing. A project some judges already scored can
+  be marked (the team left): its scores stay and rank it, the visits not made yet are skipped ("partly judged").
+- **Judge tablet:** the visit reads *🚫 No-show — skip*, cannot be opened, NEXT moves on, progress
+  *"2/2 scored · 1 no-show"*, the judge reaches 100 % and can validate.
+- **Admin:** Judges tab / Overview / Alerts progress exclude it; Alerts lists no-shows (and "marked but has scores"
+  as a problem); leaderboard badge; Awards chip *🚫 1 no-show* instead of *not scored yet*; results CSV Place =
+  *No-show*; public page *Not judged*. Reset All Data clears the marks.
+- Also re-verified the live data the same day: entry sheet (4) applied to all 63 projects with a guarded SQL script
+  (outside the repo — names), #063's student list fixed after my parser split one student's name on a double space.
+Tests: new `scripts/e2e/no-show.e2e.mjs` (31: save + IT log, a judge's first visit a no-show, NEXT, progress; a team
+that LEAVES after one judge scored it — the score untouched, that judge still sees it, the others skip it and reach 100 %,
+approve with a no-show on the list; validation list without it; sign-out with no false "2 of 3"; leaderboard / Judges tab /
+Alerts / Awards chip, no "waiting for reviews", Confirm all; a LATE score after validation leaves the other judge at 100 %;
+failed save; Undo; Finalize; Reset). An independent review found the late-score / team-left gap in the first version (a
+project-level rule) — fixed by the per-judge `visitSkipped`. **Mutation-tested: 12 of 12 mutants caught** (see the commit).
 
 **2026-11-16 — Winners per category chosen on the Awards tab; per-category stress test** (no migration).
 The organiser asked for 3 winners in EACH category (e.g. K-5). That already existed (Setup → Places: per category,
@@ -2190,7 +2227,16 @@ anon key cannot do it (it answers `200` with 0 rows — rule 54).
 `scored`, 4 × 1–5 = 20, ids/order/maxima identical to the preset, so ribbons + shared places apply); minimum to
 place = **0**; `judge_max` = 15. No judges, no scores yet.
 
-**Final judging schedule — imported and verified 2026-11-06** (see Change History): the head's version with K-5 in
+**2026-11-22 — NEW schedule and the final project sheet, both verified on live (anonymous reads):** the organiser's
+workbook (12 judges, 16 rounds 8:30–10:52, breaks 9:02 / 9:39 / 10:16, score hand-in 10:52–11:00, 179 visits) imported by the
+admin from an import copy (SD- → SPED-, G912-PMA-051 → G912-ERT-051, hand-in column renamed — Desktop, no names): 179/179
+visits = the file, judge grid 1–12, Maximum judges 12; all 12 tablets checked on a copy of live. Entry sheet (4) applied to all
+63 projects with a guarded SQL script (Desktop, names — never the repo): only #052 (new title, Physics, Math & Astronomy →
+code **G912-PMA-052**) and #053 (full title) changed publicly; teachers and students set to the sheet; #063 then fixed by a
+second script (one student's name had been split on a double space). ⚠️ Names/teachers not yet re-checked from the admin's
+Projects CSV. ⚠️ The admin's own test left **Judge 1 + 3 scores on live** — Remove / Reset before the fair.
+
+**Final judging schedule — imported and verified 2026-11-06** (SUPERSEDED 2026-11-22 by the 12-judge schedule above) (see Change History): the head's version with K-5 in
 Rounds 3–5; 0 of 179 slots differ from her file; all 15 judges' tablets checked on a copy of the live data.
 
 **Still to do before the dry run:** ~~import the organiser's `Judges Schedule.csv`~~ (done — 179 visits
@@ -2328,6 +2374,13 @@ send student names or scores; log counts, not question text. Its answers are onl
 text — keep rule 56.
 
 ### Known gaps (not yet fixed)
+
+- **A judge signed in on the ADMIN's own browser tab is listed twice on the Judges tab** (2026-11-22, reproduced): that tab
+  appends the judge in `handleRegister()` AND again from its own realtime INSERT echo (the INSERT handler does not de-dup by
+  id). Display only — the database has one row; a refresh clears it; judges on their own tablets do not trigger it
+  (tested). Fix: replace-by-id in both places. Not fixed yet (awaiting the organiser's OK).
+- **No-show marks: two admins marking different projects at the same instant can lose one mark** (read-modify-write of one
+  JSON row, rule 87). A tablet that STARTS offline uses its cached settings and its own cached scores until it loads.
 
 - **Per category (2026-11-16):** a single-project category gets an uncontested 1st (K-5 live: 4 of 5 categories) —
   **intended** (organiser), flagged on the Awards tab. Best in Category and the department-wide rank were FIXED the
