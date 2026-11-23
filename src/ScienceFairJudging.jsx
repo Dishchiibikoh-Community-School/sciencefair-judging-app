@@ -590,7 +590,7 @@ const DIV_CODES     = { "Elementary": "Elem", "Junior High School": "JHS", "Seni
 // ⚠️ KEEP THIS CURRENT. Any change that affects what admins or judges see or do must update
 // this text, ADMIN_HELP_UPDATED, AdminInstructions.md and JudgeInstructions.md in the SAME
 // commit (CLAUDE.md rule 56). Plain strings only — rendered as text, never as HTML.
-const ADMIN_HELP_UPDATED = "2026-11-16c";
+const ADMIN_HELP_UPDATED = "2026-11-19";
 const ADMIN_HELP = [
   { title: "How this system works", icon: "🧭", items: [
     "Your fair lives at qritiko.com/s/your-school. Share only that link — never another address (judges' unsynced scores are tied to the address they used).",
@@ -619,6 +619,7 @@ const ADMIN_HELP = [
     "A department that should get comments instead of scores can be set to 'Comments only' (Setup tab) — also only before it has scores.",
     "Projects tab: add every project (📷 Scan forms or + Add Project) and give each one a department — a project with no department is scored by nobody. With a judging schedule, add projects BEFORE you import it (a project missing from the schedule is visited by nobody).",
     "Lock (🔒) projects whose details are final, so they cannot be edited or deleted by accident.",
+    "Once booths and codes are settled: Projects tab → 🏷️ Booth code cards → 🖨 Print, one card per booth. If a project changes afterwards the tab tells you which cards to reprint.",
     "The day before: ⬇ Download Projects CSV and 🖨 Export Project List PDF (print one), and print a few blank paper score sheets in case the app is unavailable. See Data safety → 'What is the event-day backup plan?'.",
     "Dry run: on a spare tablet sign in as judge number 1, score one project, check it on Overview, then remove that judge on the Judges tab (or Reset All Data).",
     "Give each judge: the school link, the invite code and their judge number — all three are on the Overview tab. They do not choose a department; their number decides it. Have them sign in at the briefing, and show them ❓ How to judge (or hand out the printed judge guide).",
@@ -660,6 +661,10 @@ const ADMIN_HELP = [
     ["Can we use our own format?", "Yes. Setup → Project codes. Combine {DEPT}, {CAT}, {NUM} and {GRADE} with your own text, e.g. SF26/{DEPT}/{NUM} → SF26/PK/001. The examples underneath update as you type. {NUM} is required so every code stays unique. Reset puts back {DEPT}-{CAT}-{NUM}."],
     ["It says some projects share a code.", "Two projects have the same number in the same department and category. Give one of them a new number on the Projects tab."],
     ["A project's code has no department part.", "The project has no department yet (e.g. a student registration). Give it one on the Projects tab and the code completes itself."],
+    ["How do I print a code card for each booth?", "Projects tab → 🏷️ Booth code cards. Pick a department (or All departments), tick or untick 'Student & adviser names', and press 🖨 Print. Each card shows the school, the project code in large letters, the title, category and grade (plus the booth number when it has one), two cards per Letter page with a dashed cut line. Print at 100% scale, portrait. When they come out of the printer press '✓ Yes, they printed' — only then does the app count them as printed."],
+    ["Will the cards stay right if a project changes?", "The cards are always made from the project list as it is at that moment, so a fresh print is never out of date. Paper cannot change itself, though, so the app remembers what you printed. If a project's code (its department, category or number — or a department/category Code or the code format in Setup), title, grade, booth or students change after printing, the Projects tab shows an amber 'printed code card no longer matches' note and lists each card with what changed, e.g. 'code K5-PMA-051 → K5-ERT-051'. Choose 'Only changed & new' and print just those, then throw the old cards away. A card for a removed project is listed too, to throw away."],
+    ["I pressed Print but the cards did not come out.", "Press 'Not printed' — nothing is recorded, and the next print still includes those cards. If the print page never opened at all, the browser blocked the pop-up: allow pop-ups for this site and press Print again."],
+    ["Do the cards show student names?", "Only if 'Student & adviser names' is ticked (it is by default, like the sample cards). Those cards are for the booths on the day — do not post them online. The app's record of what was printed holds codes, titles and dates only, never names."],
   ]},
   { title: "School year, logo & poster", icon: "🎨", faq: [
     ["Where do I add our school logo?", "Setup → School branding → ⬆ Upload logo. Pick a PNG, JPG or WebP (square works best; a transparent background is fine), check the preview, then press ✓ Save logo. It appears on your landing page, the student registration form, the public results, the public project list and the printed project list."],
@@ -2817,6 +2822,15 @@ export default function App() {
   const [importFileName,     setImportFileName]      = useState("");
   const [importMsg,          setImportMsg]           = useState("");
   const [importBusy,         setImportBusy]          = useState(false);
+  // Booth code cards (2026-11-19): what was last printed, so a changed project is caught.
+  // app_settings.code_cards_printed = { at, cards: { [projectId]: { code, title, cat, grade, booth, pv, names } } }
+  // — public columns + a timestamp only (app_settings is anon-readable: never names, rule 45).
+  const [codeCardsPrinted,   setCodeCardsPrinted]    = useState({ at: "", cards: {} });
+  const [cardDept,           setCardDept]            = useState("all");
+  const [cardWhich,          setCardWhich]           = useState("all");    // all | changed
+  const [cardNames,          setCardNames]           = useState(true);
+  const [cardPending,        setCardPending]         = useState(null);     // cards sent to the print page, not yet confirmed
+  const [cardMsg,            setCardMsg]             = useState("");
   const [scanSaving,         setScanSaving]          = useState(false);
   const [scanDiscardAsk,     setScanDiscardAsk]      = useState(false);
   const scanUrlsRef = useRef([]);   // object URLs for thumbnails — revoked when the scanner closes
@@ -2950,7 +2964,7 @@ export default function App() {
     // Before 2026-10b the names were still columns on `projects` — fall back to those.
     const [{ data, error }, { data: priv, error: privErr }] = await Promise.all([
       supabase.from("projects").select("*").eq("school_id", schoolId).order("created_at"),
-      supabase.from("project_private").select("project_id, advisor_name, group_members").eq("school_id", schoolId),
+      supabase.from("project_private").select("project_id, advisor_name, group_members, updated_at").eq("school_id", schoolId),
     ]);
     noteLoadError("projects", error, schoolId);
     noteLoadError("project_private", privErr, schoolId);
@@ -2970,6 +2984,9 @@ export default function App() {
           group_members: normMembers(pv ? pv.group_members : r.group_members),
           // Present only after migration-2026-10-project-details.sql has been applied.
           room: r.room || "", description: r.description || "", motivation: r.motivation || "",
+          // When the names were last saved — how a printed code card notices a student change
+          // without the names ever leaving the admin-only table.
+          privAt: pv?.updated_at || "",
         };
       }));
     }
@@ -3065,6 +3082,12 @@ export default function App() {
         const sl = JSON.parse(map.judging_schedule || "[]");
         setScheduleSlots(Array.isArray(sl) ? sl.filter(s => s && (s.kind === "round" || s.kind === "break")) : []);
       } catch { setScheduleSlots([]); }
+      // Booth code cards printed so far. A hand-edited / broken row reads as "never printed".
+      try {
+        const cc = JSON.parse(map.code_cards_printed || "{}");
+        setCodeCardsPrinted(cc && typeof cc === "object" && cc.cards && typeof cc.cards === "object"
+          ? { at: String(cc.at || ""), cards: cc.cards } : { at: "", cards: {} });
+      } catch { setCodeCardsPrinted({ at: "", cards: {} }); }
       // Note: judge/admin validations are loaded separately by loadValidations()
       // from the validations table — not from app_settings.
     }
@@ -5107,6 +5130,152 @@ export default function App() {
       <table><thead><tr><th style="width:9rem">Code</th><th style="width:6rem">Booth</th><th>Project</th><th style="width:15rem">Judge visits</th></tr></thead>
       <tbody>${rows}</tbody></table>`);
     addItLog("INFO","ADMIN","SCHEDULE_PRINTED","Admin printed the booth visit sheet",{ projects: list.length });
+  }
+  // ── Booth code cards (2026-11-19) ─────────────────────────────────────────────────────────
+  // A ready-to-print card per project (school, CODE, title, category · grade, students, adviser),
+  // two per Letter page with a cut line. Always built from the LIVE project list at the moment
+  // of printing — codes are derived (projectCode), never stored, so a card can never be printed
+  // with an outdated code. What WAS printed is recorded (app_settings.code_cards_printed) so a
+  // project that changes afterwards is flagged for a reprint. Names are never recorded there:
+  // a names change is noticed through project_private.updated_at (privAt) alone.
+  function cardFingerprint(p) {
+    return { code: projectCode(p), title: p.title || "", cat: p.cat || "", grade: String(p.grade || ""),
+      booth: p.room || "", pv: p.privAt || "" };
+  }
+  // "new" (never printed) · "changed" (+ what changed) · "ok" (the printed card is still right).
+  function cardStatus(p) {
+    const was = codeCardsPrinted.cards[p.id];
+    if (!was) return { state: "new", reasons: [] };
+    const now = cardFingerprint(p);
+    const reasons = [
+      was.code !== now.code ? `code ${was.code || "—"} → ${now.code || "—"}` : "",
+      was.title !== now.title ? "title changed" : "",
+      was.cat !== now.cat ? `category → ${now.cat || "none"}` : "",
+      was.grade !== now.grade ? `grade ${was.grade || "—"} → ${now.grade || "—"}` : "",
+      (was.booth || "") !== now.booth ? `booth ${was.booth || "—"} → ${now.booth || "—"}` : "",
+      // Only when the card carried names, and only when the names were actually read (a failed
+      // read leaves privAt empty — that must not flag every card).
+      was.names && now.pv && (was.pv || "") !== now.pv ? "students or adviser edited" : "",
+    ].filter(Boolean);
+    return { state: reasons.length ? "changed" : "ok", reasons };
+  }
+  function cardScope() {
+    const ordOf = (id) => departments.find(d => d.id === id)?.ord ?? 999;
+    return projects.filter(p => cardDept === "all" || (cardDept === "none" ? !p.department_id : p.department_id === cardDept))
+      .sort((a, b) => ordOf(a.department_id) - ordOf(b.department_id)
+        || String(a.num).localeCompare(String(b.num), undefined, { numeric: true }));
+  }
+  // Printed cards whose project no longer exists — that paper card should be thrown away.
+  function removedCards() {
+    if (!projects.length) return [];
+    return Object.entries(codeCardsPrinted.cards).filter(([id]) => !projects.some(p => p.id === id))
+      .map(([id, c]) => ({ id, code: c?.code || "" }));
+  }
+  function codeCardsHtml(list, withNames) {
+    const logoRel = brandingUrl(branding.logoPath);
+    const logoAbs = logoRel ? new URL(logoRel, window.location.origin).href : "";
+    const school  = escHtml((currentSchool?.name || "").toUpperCase());
+    const card = (p) => {
+      const code  = projectCode(p) || String(p.num || "");
+      const size  = Math.min(66, Math.floor(800 / Math.max(code.length, 1)));
+      const grade = p.grade ? (/^pre-?k$/i.test(String(p.grade)) ? "PreK" : `Grade ${p.grade}`) : "";
+      const meta  = [p.cat, grade].filter(Boolean).map(escHtml).join(" &bull; ");
+      const names = withNames ? normMembers(p.group_members).map(m => m.name).filter(Boolean) : [];
+      const adv   = withNames ? (p.advisor_name || "").trim() : "";
+      return `<div class="card">
+        <div class="top">
+          ${logoAbs ? `<img src="${escHtml(logoAbs)}" alt="" onerror="this.remove()">` : ""}
+          <div class="sch"><div class="sn">${school}</div><div class="sf">SCIENCE FAIR</div></div>
+          ${p.room ? `<div class="booth">BOOTH<b>${escHtml(p.room)}</b></div>` : ""}
+        </div>
+        <div class="mid">
+        <div class="lbl">PROJECT CODE</div>
+        <div class="code" style="font-size:${size}pt">${escHtml(code)}</div>
+        <div class="title">${escHtml(p.title || "")}</div>
+        ${meta ? `<div class="meta">${meta}</div>` : ""}
+        ${names.length ? `<div class="names">${names.map(escHtml).join(" &bull; ")}</div>` : ""}
+        ${adv ? `<div class="adv">Adviser &middot; ${escHtml(adv)}</div>` : ""}
+        </div>
+      </div>`;
+    };
+    const pages = Array.from({ length: Math.ceil(list.length / 2) }, (_, i) => list.slice(i * 2, i * 2 + 2))
+      .map(pair => `<div class="page">${card(pair[0])}${pair[1] ? `<div class="cut">&#9986; &nbsp;cut here</div>${card(pair[1])}` : ""}</div>`)
+      .join("");
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">
+      <title>${escHtml(currentSchool?.name ? `${currentSchool.name} — Project code cards` : "Project code cards")}</title>
+      <style>
+        @page{size:letter portrait;margin:.4in}
+        *{box-sizing:border-box} body{font-family:"Segoe UI",Arial,sans-serif;color:#1e293b;margin:0;background:#f1f5f9}
+        .bar{background:#1e3a5f;color:#fff;padding:.7rem 1rem;font-size:.9rem;display:flex;gap:1rem;align-items:center;justify-content:space-between;flex-wrap:wrap}
+        .bar button{padding:.5rem 1.4rem;background:#fff;color:#1e3a5f;border:none;border-radius:6px;font-weight:700;cursor:pointer}
+        .page{width:7.7in;height:10.2in;margin:.3in auto;display:flex;flex-direction:column;background:#fff;page-break-after:always;break-after:page}
+        .page:last-child{page-break-after:auto;break-after:auto}
+        .card{height:4.9in;border:3px solid #1e3a5f;border-radius:14px;padding:.3in .35in;display:flex;flex-direction:column;align-items:center;text-align:center;overflow:hidden}
+        .top{display:flex;align-items:center;gap:.6rem;width:100%;border-bottom:2px solid #e2e8f0;padding-bottom:.12in}
+        .top img{height:.6in;width:.6in;object-fit:contain}
+        .sch{flex:1;text-align:left} .sn{font-weight:800;color:#1e3a5f;letter-spacing:.06em;font-size:12pt}
+        .sf{color:#2d5a8e;letter-spacing:.2em;font-size:9.5pt;font-weight:700}
+        .booth{font-size:8pt;letter-spacing:.12em;color:#64748b;font-weight:700;text-align:center;line-height:1.1}
+        .booth b{display:block;font-size:20pt;color:#1e3a5f;letter-spacing:0}
+        .mid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;padding-bottom:.1in}
+        .lbl{font-size:10pt;letter-spacing:.3em;color:#64748b;font-weight:700}
+        .code{font-family:Consolas,"DM Mono",monospace;font-weight:800;color:#1e3a5f;white-space:nowrap;line-height:1.05;margin:.04in 0 .12in}
+        .title{font-size:17pt;font-weight:700;line-height:1.2;max-height:2.5em;overflow:hidden}
+        .meta{margin-top:.08in;color:#475569;font-size:11.5pt}
+        .names{margin-top:.1in;font-size:11.5pt;color:#1e293b}
+        .adv{margin-top:.05in;font-size:10.5pt;color:#64748b}
+        .cut{height:.4in;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:9pt;border-top:2px dashed #94a3b8;margin-top:.2in}
+        @media print{body{background:#fff}.bar{display:none!important}.page{margin:0;width:auto;height:10.2in}}
+      </style></head><body>
+      <div class="bar"><span>${list.length} card${list.length !== 1 ? "s" : ""} · print on Letter paper, portrait, scale 100% · cut along the dashed line</span>
+        <button onclick="window.print()">🖨 Print</button></div>
+      ${pages}</body></html>`;
+  }
+  function printCodeCards() {
+    const scope = cardScope();
+    const list = cardWhich === "changed" ? scope.filter(p => cardStatus(p).state !== "ok") : scope;
+    if (!list.length) { setCardMsg(cardWhich === "changed" ? "Every printed card is still up to date — nothing to reprint." : "No projects to print."); return; }
+    const w = window.open("", "_blank");
+    if (!w) {
+      setCardMsg("The print page was blocked by the browser. Allow pop-ups for this site and press Print again. Nothing was marked as printed.");
+      return;
+    }
+    w.document.write(codeCardsHtml(list, cardNames));
+    w.document.close();
+    setCardMsg("");
+    // Recorded only once the admin says the cards came out of the printer (rule 55): opening the
+    // page is not printing, and a card wrongly marked printed would hide a real change.
+    setCardPending({ count: list.length, names: cardNames, which: cardWhich,
+      cards: Object.fromEntries(list.map(p => [p.id, { ...cardFingerprint(p), names: cardNames }])) });
+  }
+  async function saveCardRecord(extra) {
+    const keep = Object.fromEntries(Object.entries({ ...codeCardsPrinted.cards, ...extra })
+      .filter(([id]) => projects.some(p => p.id === id)));
+    const next = { at: new Date().toISOString(), cards: keep };
+    const { error } = await supabase.from("app_settings")
+      .upsert({ school_id: currentSchool.id, key: "code_cards_printed", value: JSON.stringify(next) }, { onConflict: "school_id,key" });
+    if (error) return error;
+    setCodeCardsPrinted(next);
+    return null;
+  }
+  async function confirmCardsPrinted() {
+    const pend = cardPending;
+    if (!pend) return;
+    const error = await saveCardRecord(pend.cards);
+    if (error) {
+      setCardMsg(`NOT recorded — ${error.message}. The cards are printed; press "Yes, they printed" again.`);
+      addItLog("ERROR","ADMIN","CODE_CARDS_RECORD_FAILED","Could not record which code cards were printed",
+        { cards: pend.count, error: error.code || error.message });
+      return;
+    }
+    setCardPending(null); setCardMsg("");
+    addLog(`Admin printed ${pend.count} project code card${pend.count !== 1 ? "s" : ""}`);
+    addItLog("INFO","ADMIN","CODE_CARDS_PRINTED","Admin printed project code cards",
+      { cards: pend.count, names: pend.names, which: pend.which });
+  }
+  async function dismissRemovedCards() {
+    const error = await saveCardRecord({});
+    setCardMsg(error ? `NOT saved — ${error.message}` : "");
   }
 
   async function setJudgeNumberingMode(mode) {
@@ -7479,9 +7648,13 @@ export default function App() {
   // Adviser + student names live in project_private (admin-only RLS) since migration
   // 2026-10b, because `projects` is publicly readable. Before that migration the names
   // were columns on `projects`, so fall back to writing them there.
-  async function writeProjectPrivate(pid, advisor_name, group_members) {
+  // `stamp` = the names' saved-at time (project_private.updated_at). Pass null to leave it as it
+  // is — an edit that did not touch the names must not make a printed code card look stale.
+  // (No default parameter here: an impure default makes the React Compiler bail out of App — rule 37.)
+  async function writeProjectPrivate(pid, advisor_name, group_members, stamp) {
+    const at = stamp === undefined ? new Date().toISOString() : stamp;
     const { error } = await supabase.from("project_private").upsert(
-      { school_id: currentSchool.id, project_id: pid, advisor_name, group_members, updated_at: new Date().toISOString() },
+      { school_id: currentSchool.id, project_id: pid, advisor_name, group_members, ...(at ? { updated_at: at } : {}) },
       { onConflict: "project_id,school_id" });
     if (!error) return null;
     if (MISSING_TABLE(error)) {
@@ -7543,7 +7716,8 @@ export default function App() {
       school_id: currentSchool.id,
     });
     const advisorName = (data.advisor_name || "").trim();
-    const localFor = (row) => ({ ...row, school_id: undefined, advisor_name: advisorName, group_members: members });
+    const privStamp = new Date().toISOString();
+    const localFor = (row) => ({ ...row, school_id: undefined, advisor_name: advisorName, group_members: members, privAt: privStamp });
     let proj = rowWith(finalNum);
     let localProj = localFor(proj);
     let nextProjects = [...baseProjects, localProj];
@@ -7577,7 +7751,7 @@ export default function App() {
       }
       return { error, nextProjects: baseProjects };
     }
-    const privErr = await writeProjectPrivate(id, advisorName, members);
+    const privErr = await writeProjectPrivate(id, advisorName, members, privStamp);
     if (privErr) {
       // A project without its students is worse than no project: undo it so the admin
       // can retry instead of ending up with an anonymous team.
@@ -7641,6 +7815,11 @@ export default function App() {
     setProjSaving(true);
     const membersArrProj = normMembers(projForm.members);
     const prevDept = existing.department_id || null;
+    // Only a real change to the names moves their saved-at time (see writeProjectPrivate).
+    const namesChanged = !existing.privAt
+      || (advisor_name || "").trim() !== (existing.advisor_name || "")
+      || JSON.stringify(membersArrProj) !== JSON.stringify(normMembers(existing.group_members));
+    const privStamp = namesChanged ? new Date().toISOString() : null;
     const updated = {
       ...existing,
       title: title.trim(), cat,
@@ -7652,13 +7831,14 @@ export default function App() {
       room: (projForm.room || "").trim(),
       description: (projForm.description || "").trim(),
       motivation: (projForm.motivation || "").trim(),
+      privAt: privStamp || existing.privAt || "",
     };
     const nextProjects = projects.map(pp => pp.id === pid ? updated : pp);
     setProjSaveErr("");
     setProjects(nextProjects);
     // Names first: the projects UPDATE fires the realtime event other admin screens reload
     // on, so the private row must already be current when they do.
-    const privErr = await writeProjectPrivate(pid, updated.advisor_name, updated.group_members);
+    const privErr = await writeProjectPrivate(pid, updated.advisor_name, updated.group_members, privStamp);
     const rowErr  = await writeProjectRow("update", {
       title: updated.title, cat: updated.cat, grade: updated.grade, num: updated.num,
       department_id: updated.department_id,
@@ -11347,6 +11527,26 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Printed code cards that no longer match their project — the whole list, any department. */}
+              {(() => {
+                if (!codeCardsPrinted.at) return null;
+                const stale = projects.filter(p => cardStatus(p).state === "changed").length;
+                const gone  = removedCards().length;
+                if (!stale && !gone) return null;
+                return (
+                  <div className="card" data-testid="cc-banner" style={{margin:".75rem 0",borderColor:"var(--amber)",background:"var(--amber-l)",display:"flex",gap:".6rem",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap"}}>
+                    <div style={{fontSize:".85rem",color:"#92400e",fontWeight:600}}>
+                      🏷️ {stale ? `${stale} printed code card${stale !== 1 ? "s no longer match" : " no longer matches"} its project` : ""}
+                      {stale && gone ? " · " : ""}{gone ? `${gone} card${gone !== 1 ? "s" : ""} for a removed project` : ""}
+                    </div>
+                    <button className="btn amber sm" style={{width:"auto"}} onClick={() => {
+                      setCardDept("all"); setCardWhich("changed");
+                      document.getElementById("code-cards")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}>Review &amp; reprint</button>
+                  </div>
+                );
+              })()}
+
               {/* Participation-form scanner — see CLAUDE.md "📷 Form scanning" */}
               {scanOpen && (() => {
                 const count = (s) => scanCards.filter(c => c.status === s).length;
@@ -11626,6 +11826,104 @@ export default function App() {
                   <div style={{fontSize:".82rem",color:"var(--dim)",marginTop:".25rem"}}>Click "Add Project" to get started.</div>
                 </div>
               )}
+
+              {/* Booth code cards — see printCodeCards(). Always printed from the live list. */}
+              {(() => {
+                const rows  = cardScope().map(p => ({ p, ...cardStatus(p) }));
+                const stale = rows.filter(r => r.state === "changed");
+                const fresh = rows.filter(r => r.state === "new");
+                const gone  = removedCards();
+                const printedAny = !!codeCardsPrinted.at;
+                const n = cardWhich === "changed" ? stale.length + fresh.length : rows.length;
+                return (
+                  <div id="code-cards" data-testid="code-cards" style={{marginTop:"2rem",borderTop:"1px solid var(--bd)",paddingTop:"1.5rem"}}>
+                    <div className="adm-h1" style={{marginBottom:".25rem"}}>🏷️ Booth code cards</div>
+                    <div className="adm-sub" style={{marginBottom:"1rem"}}>
+                      A ready-to-print card for every booth: the project code in large letters, the title, category and grade
+                      (and the students and adviser, if ticked). Two cards per Letter page — cut along the dashed line.
+                      Cards are always made from the project list as it is <strong>right now</strong>, and the app remembers what
+                      you printed: if a project's code, title, category, grade, booth or students change afterwards, it is listed
+                      here for a reprint.
+                    </div>
+                    <div style={{display:"flex",gap:".5rem",flexWrap:"wrap",alignItems:"center"}}>
+                      <select className="setup-mode" aria-label="Which department" data-testid="cc-dept" style={{width:"auto"}}
+                        value={cardDept} onChange={e => setCardDept(e.target.value)}>
+                        <option value="all">All departments</option>
+                        {departments.filter(d => d.id).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                        {projects.some(p => !p.department_id) && <option value="none">No department</option>}
+                      </select>
+                      <select className="setup-mode" aria-label="Which cards" data-testid="cc-which" style={{width:"auto"}}
+                        value={cardWhich} onChange={e => setCardWhich(e.target.value)}>
+                        <option value="all">Every card ({rows.length})</option>
+                        <option value="changed">Only changed &amp; new ({stale.length + fresh.length})</option>
+                      </select>
+                      <label style={{display:"flex",gap:".35rem",alignItems:"center",fontSize:".85rem",cursor:"pointer"}}>
+                        <input type="checkbox" data-testid="cc-names" checked={cardNames} onChange={e => setCardNames(e.target.checked)} />
+                        Student &amp; adviser names
+                      </label>
+                      <button className="btn sm" style={{width:"auto"}} data-testid="cc-print" onClick={printCodeCards}
+                        disabled={!n || !!cardPending}>
+                        🖨 Print {n} card{n !== 1 ? "s" : ""}
+                      </button>
+                    </div>
+                    {cardNames && <div style={{fontSize:".75rem",color:"var(--dim)",marginTop:".35rem"}}>
+                      Cards with names are for the booths on the day — do not post them online.
+                    </div>}
+
+                    {cardPending && (
+                      <div className="card" data-testid="cc-confirm" style={{marginTop:".75rem",borderColor:"var(--blue)",background:"var(--blue-l)"}}>
+                        <div style={{fontWeight:700,color:"var(--navy)"}}>
+                          Did the {cardPending.count} card{cardPending.count !== 1 ? "s" : ""} print?
+                        </div>
+                        <div style={{fontSize:".8rem",color:"var(--dim)",margin:".2rem 0 .6rem"}}>
+                          Press Yes once they are out of the printer. The app then counts them as printed and tells you
+                          if any of those projects change later. Not printed? Nothing is recorded.
+                        </div>
+                        <div style={{display:"flex",gap:".5rem",flexWrap:"wrap"}}>
+                          <button className="btn sm" style={{width:"auto"}} data-testid="cc-yes" onClick={confirmCardsPrinted}>✓ Yes, they printed</button>
+                          <button className="btn sec sm" style={{width:"auto"}} data-testid="cc-no" onClick={() => { setCardPending(null); setCardMsg(""); }}>Not printed</button>
+                        </div>
+                      </div>
+                    )}
+                    {cardMsg && <div className="err" data-testid="cc-msg" style={{marginTop:".6rem"}}>⚠ {cardMsg}</div>}
+
+                    <div data-testid="cc-status" style={{marginTop:".75rem",fontSize:".85rem"}}>
+                      {!printedAny
+                        ? <span style={{color:"var(--dim)"}}>No cards printed yet.</span>
+                        : <span style={{color:"var(--dim)"}}>Last printed {fmtFull(codeCardsPrinted.at)}.</span>}
+                      {printedAny && !stale.length && !gone.length && !fresh.length && (
+                        <span style={{color:"var(--green)",fontWeight:600}}> ✓ Every printed card in this list still matches its project.</span>
+                      )}
+                      {printedAny && fresh.length > 0 && (
+                        <div style={{marginTop:".35rem"}} data-testid="cc-new">
+                          🆕 {fresh.length} project{fresh.length !== 1 ? "s have" : " has"} no card yet: {fresh.map(r => projectCode(r.p)).join(", ")}
+                        </div>
+                      )}
+                      {stale.length > 0 && (
+                        <div className="card" data-testid="cc-stale" style={{marginTop:".5rem",borderColor:"var(--amber)",background:"var(--amber-l)"}}>
+                          <div style={{fontWeight:700,color:"#92400e",marginBottom:".3rem"}}>
+                            ⚠ {stale.length} printed card{stale.length !== 1 ? "s are" : " is"} out of date — reprint {stale.length !== 1 ? "them" : "it"} and throw the old one{stale.length !== 1 ? "s" : ""} away
+                          </div>
+                          {stale.map(r => (
+                            <div key={r.p.id} style={{fontSize:".82rem"}}>
+                              <span style={{fontFamily:"var(--ff-m)",fontWeight:700}}>{projectCode(r.p)}</span> — {r.reasons.join(" · ")}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {gone.length > 0 && (
+                        <div className="card" data-testid="cc-gone" style={{marginTop:".5rem",borderColor:"var(--red)",background:"var(--red-l)"}}>
+                          <div style={{fontWeight:700,color:"var(--red)"}}>
+                            🗑 {gone.length} printed card{gone.length !== 1 ? "s belong" : " belongs"} to a project that was removed — throw {gone.length !== 1 ? "them" : "it"} away:
+                            <span style={{fontFamily:"var(--ff-m)"}}> {gone.map(g => g.code).join(", ")}</span>
+                          </div>
+                          <button className="btn sec sm" style={{width:"auto",marginTop:".4rem"}} onClick={dismissRemovedCards}>Done — thrown away</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Export Project List */}
               <div style={{marginTop:"2rem",borderTop:"1px solid var(--bd)",paddingTop:"1.5rem"}}>

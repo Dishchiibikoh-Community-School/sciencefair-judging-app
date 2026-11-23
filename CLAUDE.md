@@ -7,7 +7,7 @@
 > Single source of truth for AI-assisted development. Read it before changing anything.
 > Do not delete it. When code and this file disagree, the code wins — then fix this file.
 >
-> Last reviewed: 2026-11-16 (**winners per department OR per category, chosen on the Awards tab**; per category has no Best in Category and ranks restart per category — rule 86; stress-tested with 15 judges. Before that, **audit finding F04 fixed**: a judge may no longer validate while their device still holds unsent scores — validating used to strand that score permanently; see Change History and rule 85. The rest of that external audit is deliberately NOT actioned before the fair — see Known gaps. Before that, 2026-11-13: pre-event STRESS TEST against a separate staging project — 10 scenarios, 3,706 writes, 0 errors, verdict GO; see Change History, `tests/stress/REPORT.md` and `tests/stress/SESSION-LOG.md`. No app code changed. Before that, 2026-11-06: judging-schedule template + booth template; the head's FINAL schedule imported on live and verified for all 15 judges — see Change History; 2026-11-05: illustrated guides: the judge's "❓ How to judge" screen, the admin Help tab's step-by-step + judge guide + searchable Q&A, screenshots by `npm run help:shots`, help text corrected against the code — rule 84; before that 2026-11-04: pre-event audit fixes F1–F17, deployed `a88bb98` with migrations 2026-11a/11b run on live — every fix, test and revert hash in [FIXES_2026-11.md](FIXES_2026-11.md); migrations 2026-11a/11b; earlier: 2026-10-21 Phase 3: award groups + the Awards tab; the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
+> Last reviewed: 2026-11-19 (**Booth code cards** on the Projects tab: one printable card per project, printed from the live list, with a record of what was printed so a changed project is flagged for a reprint — see Change History. Before that, 2026-11-16: **winners per department OR per category, chosen on the Awards tab**; per category has no Best in Category and ranks restart per category — rule 86; stress-tested with 15 judges. Before that, **audit finding F04 fixed**: a judge may no longer validate while their device still holds unsent scores — validating used to strand that score permanently; see Change History and rule 85. The rest of that external audit is deliberately NOT actioned before the fair — see Known gaps. Before that, 2026-11-13: pre-event STRESS TEST against a separate staging project — 10 scenarios, 3,706 writes, 0 errors, verdict GO; see Change History, `tests/stress/REPORT.md` and `tests/stress/SESSION-LOG.md`. No app code changed. Before that, 2026-11-06: judging-schedule template + booth template; the head's FINAL schedule imported on live and verified for all 15 judges — see Change History; 2026-11-05: illustrated guides: the judge's "❓ How to judge" screen, the admin Help tab's step-by-step + judge guide + searchable Q&A, screenshots by `npm run help:shots`, help text corrected against the code — rule 84; before that 2026-11-04: pre-event audit fixes F1–F17, deployed `a88bb98` with migrations 2026-11a/11b run on live — every fix, test and revert hash in [FIXES_2026-11.md](FIXES_2026-11.md); migrations 2026-11a/11b; earlier: 2026-10-21 Phase 3: award groups + the Awards tab; the PreK & SPED form — ribbons, shared places; minimum to place back to 0; Phase 2: the judging schedule — rounds, times, booths, printouts; Phase 1: the 2026-27 forms, drafts, safety concerns; plan to the 2026-12-11 fair — see Live status and Change History).
 
 ---
 
@@ -35,7 +35,7 @@ and runs its own fair with isolated data, its own rubric and its own admin login
 | Deploy | Push to `main` → auto-deploys. No manual steps |
 | Base schema | [supabase/schema-v2.sql](supabase/schema-v2.sql) (**base only**) + every migration below, in order |
 | Tests | `npm test` — mocked scan API + mocked registration email + real-Postgres (PGlite) migration/RLS/Storage-policy suite (311 checks). Run after any `supabase/*.sql` or `api/` change |
-| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`), the 2026-27 forms + drafts + safety (`rubrics-2627.e2e.mjs`), the judging schedule (`schedule.e2e.mjs`), the PreK & SPED form (`prek-sped.e2e.mjs`), awards (`awards.e2e.mjs`). Start the dev server first (see the file header). 2026-11 added save-robust, offline-start, realtime-reconnect (a fake realtime server via `page.routeWebSocket`), awards-integrity, finalize-gates, signin-guard, share-links, admin-actions, judge-ux, judge-identity; 2026-11-05 help-guide (the illustrated guides); 2026-11-06 schedule-template; 2026-11-16 validate-queued, awards-category. **690 checks across 38 files, 0 failures in one chained run** (2026-11-16). `npm run help:shots` (same dev server) re-takes the guide screenshots — not a test |
+| Browser tests | `npm run test:e2e` — real app in Edge with Supabase + scan API faked (`scripts/e2e/mock.mjs`): school sign-up, admin, scanner, judge, Setup tab, public registration, phone/tablet widths, multi-judge judging (`judging.e2e.mjs`), the 2026-27 forms + drafts + safety (`rubrics-2627.e2e.mjs`), the judging schedule (`schedule.e2e.mjs`), the PreK & SPED form (`prek-sped.e2e.mjs`), awards (`awards.e2e.mjs`). Start the dev server first (see the file header). 2026-11 added save-robust, offline-start, realtime-reconnect (a fake realtime server via `page.routeWebSocket`), awards-integrity, finalize-gates, signin-guard, share-links, admin-actions, judge-ux, judge-identity; 2026-11-05 help-guide (the illustrated guides); 2026-11-06 schedule-template; 2026-11-16 validate-queued, awards-category; 2026-11-19 code-cards (20). **690 checks across 38 files, 0 failures in one chained run** (2026-11-16). `npm run help:shots` (same dev server) re-takes the guide screenshots — not a test |
 | Server env vars | `GEMINI_API_KEY` (paid key), optional `GEMINI_MODEL`, `RESEND_API_KEY`, `EMAIL_FROM` — Vercel only, never `VITE_` |
 
 ⚠️ **Apex outage, 2026-10-01:** the apex A record pointed at `216.198.79.1`, which answered
@@ -214,7 +214,7 @@ mounted — a typed judge number survives opening the guide. Content: `JUDGE_GUI
 | `overview` | Stats, per-department leaderboards, "Get started" card (checklist only until the first judge registers; school URL + invite code **always** — it becomes "Judge sign-in details"), Change PIN card, Lock Judging, a summary card linking to Setup |
 | `setup` | **Departments** (add / rename / reorder / delete / max judges / presets), the **judge grid** (+ **Suggested setup**, rule 73), the **📅 Judging schedule** (import / review / booth numbers / printouts, rule 77), **project categories** (add / rename / reorder / delete / restore defaults), project codes, **Minimum score to place** (rule 72), **School year** and **School branding** (logo + poster, see 🎨). Departments and categories are per-school data — see rule 14 |
 | `judges` | Per-judge progress grouped by department; Allow Transfer (PIN); Panels card — or, with a judging schedule, "not signed in yet" + the stand-in advice (no Rebalance) |
-| `projects` | Add/edit/remove/lock projects, **📷 Scan forms** (AI form reader), rubric breakdown, project-list PDF |
+| `projects` | Add/edit/remove/lock projects, **📷 Scan forms** (AI form reader), rubric breakdown, **🏷️ Booth code cards** (2026-11-19 — print + "out of date" tracking; amber banner at the top of the tab when a printed card no longer matches), project-list PDF |
 | `registration` | Student registration links + submissions, registration CSV |
 | `activity` | Human-readable activity log with keyword filter |
 | `alerts` | **Event health** (2026-10-07): this screen's real connection state, errors in the last hour, scores stuck on devices, coverage (no department / no judge / short panels), progress per department, idle judges, outliers grouped per project with every judge's total; a red **safety-concern** card (2026-10o) and projects **not in the judging schedule** (2026-10p). `eventHealth()` + `getOutlierGroups()` |
@@ -343,7 +343,7 @@ Rate limiting uses the `security_attempts` table (`note_auth_failure`, `assert_n
 | `validations` | Judge/admin validation; `judge_id = 'admin'` for the admin. Conflict `(school_id, judge_id)` |
 | `deliberation_notes` | Judge recommendation/comment/flag per project |
 | `final_decisions` | Admin award per project. Conflict `(school_id, project_id)` |
-| `app_settings` | Key/value, PK `(school_id, key)`: `locked`, `deliberation_open`, `results_finalized`, `judge_transfer_allowances`, `project_list_token`, `judge_numbering` (`school` default when absent \| `department`), `judge_sharing`, `judge_max`, **`project_code_format`** (default `{DEPT}-{CAT}-{NUM}`), **`school_year`** (`2026-2027`; empty/missing = automatic — August starts a new year), **`min_place_pct`** (0–99; `0`/absent = off — the minimum share of a project's own maximum needed to take 1st/2nd/3rd, rule 72), **`judging_schedule`** (JSON slots `[{kind:"round",no,label,start,end} | {kind:"break",label,start,end}]`, 2026-10p) |
+| `app_settings` | Key/value, PK `(school_id, key)`: `locked`, `deliberation_open`, `results_finalized`, `judge_transfer_allowances`, `project_list_token`, `judge_numbering` (`school` default when absent \| `department`), `judge_sharing`, `judge_max`, **`project_code_format`** (default `{DEPT}-{CAT}-{NUM}`), **`school_year`** (`2026-2027`; empty/missing = automatic — August starts a new year), **`min_place_pct`** (0–99; `0`/absent = off — the minimum share of a project's own maximum needed to take 1st/2nd/3rd, rule 72), **`judging_schedule`** (JSON slots `[{kind:"round",no,label,start,end} | {kind:"break",label,start,end}]`, 2026-10p), **`code_cards_printed`** (2026-11-19: `{at, cards:{[projectId]:{code,title,cat,grade,booth,pv,names}}}` — what was last printed; `pv` = project_private.updated_at; **never names**, this table is anon-readable) |
 | `share_links` | Public results tokens, expiry, `revoked_at` |
 | `score_backups` | Admin snapshots — scores **and a copy of the rubric** |
 | `registration_links` | Student registration tokens |
@@ -798,6 +798,14 @@ judgeProjectList(n)          // Setup → Judges: click a judge's Projects count
                              // schedule → slots in round order (visits, breaks, free); else ticked departments, narrowed to
                              // project_judges where judges_per_project is set. Same sources as rosterLoad(); "estimate" when unsaved
 printJudgeSheets(), printBoothSheet(), schedPrintWindow()   // no names, no scores
+
+// Booth code cards (2026-11-19, Projects tab)
+cardFingerprint(p), cardStatus(p) → {state:"new"|"changed"|"ok", reasons}, cardScope(), removedCards()
+codeCardsHtml(list, withNames), printCodeCards() → cardPending → confirmCardsPrinted() / "Not printed"
+saveCardRecord(extra), dismissRemovedCards()   // app_settings.code_cards_printed; recorded ONLY after "Yes, they printed"
+// A names change is detected through projects[].privAt (= project_private.updated_at, loaded by loadProjects).
+// writeProjectPrivate(pid, adv, members, stamp): stamp null = leave updated_at alone — updateProject() passes null
+// when the names did not change, so a title edit never reads as "students or adviser edited".
 rubricSettings(criteria)     // module: the matching preset's settings (guide, factor, feedback, safety) or {}
 ratingOf(settings, v)        // module: points → the rating the judge tapped (v / factor); display only
 queuedScoresFor(sid)         // module helper: this device's unsynced scores for one school as score-map
@@ -917,6 +925,9 @@ generateRegNum(div, cat, projNum)   // "{DivCode}-{CatCode}-{NNN}"
 37. **Never write anything that makes the React Compiler bail out of `App`.** A bailout silently disables `react-hooks/purity` and `react-hooks/immutability` **for the entire file** — the findings do not move or change, they vanish, so the lint report looks *better* when you have just broken it. Two confirmed triggers:
     - `try/finally` inside `App` — use `.finally()` on a promise instead (see `flushOfflineQueue()`).
     - **Mutating a closed-over variable inside a callback**, e.g. `let ord = …; list.map(x => ({ …, ord: ord++ }))`. Use the index: `list.map((x, i) => ({ …, ord: base + i }))`. (Found 2026-10-06 while adding the Setup tab.)
+    - **A default parameter that calls something impure**, e.g. `function f(a, stamp = new Date().toISOString())`.
+      Compute it in the body instead (`const at = stamp === undefined ? new Date()… : stamp`). (Found 2026-11-19 in
+      `writeProjectPrivate()`: 28/5 → 0/0.)
     - **How to check:** `npx eslint src/ScienceFairJudging.jsx -f json` and count findings per rule. The healthy baseline is **28 `react-hooks/purity` + 5 `react-hooks/immutability`** (27 → 26 on 2026-10-06 when the save-then-update rewrite merged two `Date.now()` lines; 26 → 28 on 2026-10-21 when `runOfflineFlush()` started calling `upsertScore()` and the compiler began REPORTING its two existing `Date.now()` lines — more of the file analysed, the opposite of a bailout; verified by diffing the findings by source line). If those two drop to zero you have caused a bailout — a plain error count is not enough to notice, so compare per-rule before every commit that touches `App`.
 38. **Discrete score buttons only** — never `<input type="range">`.
 
@@ -1181,6 +1192,37 @@ Migrations table above, and say in the commit whether it is coupled to the app b
 ## 🐛 Change History (condensed)
 
 Full detail is in the git log for each commit.
+
+**2026-11-19 — Booth code cards (Projects tab)** (no migration — `app_settings` is key/value).
+The organiser asked for a ready-to-print project-code card per booth (school, PROJECT CODE in large letters, title,
+category • grade, students, adviser, dashed cut line) that "always syncs with the projects, especially if codes change".
+- **Projects tab → 🏷️ Booth code cards**: department filter, *Every card / Only changed & new*, *Student & adviser
+  names* (default on), 🖨 Print. Two cards per Letter page, all values through `escHtml()`, code size scaled to its
+  length, booth shown when set, school logo when uploaded.
+- **Sync, two halves:** (1) cards are ALWAYS built from live state at print time — codes are derived by
+  `projectCode()`, never stored, so a new print cannot be stale. (2) Paper cannot update, so after **✓ Yes, they
+  printed** the app records a fingerprint per card in `app_settings.code_cards_printed` (code, title, category,
+  grade, booth, names' saved-at time — never names). `cardStatus()` compares live vs printed and lists each stale
+  card with what changed ("code K5-PMA-051 → K5-ERT-051 · category → …"); an amber banner at the top of the tab
+  counts them; a removed project's card is listed to throw away. Department/category Code edits and code-format
+  changes are caught too (they change `projectCode()`).
+- Recorded only on confirm (rule 55): opening the page ≠ printing; "Not printed" and a blocked pop-up record
+  nothing; a failed record keeps the confirm box ("NOT recorded", IT log `CODE_CARDS_RECORD_FAILED`).
+  IT log `CODE_CARDS_PRINTED` (counts only).
+- `loadProjects()` now reads `project_private.updated_at` → `privAt`. `writeProjectPrivate()` takes a `stamp`;
+  `updateProject()` moves it only when the adviser or students actually changed, so a title edit is reported as
+  a title edit and not as "students or adviser edited".
+- **Rule 37 caught a bailout while doing it:** an impure default parameter (`stamp = new Date().toISOString()`)
+  dropped purity/immutability 28/5 → 0/0. Moved into the body; rule 37 now lists that trigger.
+Help: 4 Q&As under Project codes + a checklist line (`ADMIN_HELP_UPDATED` → 2026-11-19), AdminInstructions (Projects
+tab section + pre-event checklist). Judges are unaffected; no guide screenshot shows this section.
+Tests: new `scripts/e2e/code-cards.e2e.mjs` (20: card order/content/booth/escaping/2 per page, nothing recorded on
+open / Not printed / blocked pop-up, the record holds no names, IT log, a category+title edit → banner + old→new code,
+'Only changed & new' prints exactly that card, confirming clears it, a students edit flags it, a no-names card is not
+flagged by a names edit, a removed project, a department Code change, a failed record). **Mutation-tested**: status
+never stale → 8 fail; record on open → 11 fail; every edit moving the names stamp → 1 fails; names in the record →
+1 fails. proj-edit, import, scan, lifecycle, branding, judging, project-codes, help-guide re-run green; lint 28/5;
+build clean. The full chained browser suite was NOT re-run for this change.
 
 **2026-11-16 — Winners per category chosen on the Awards tab; per-category stress test** (no migration).
 The organiser asked for 3 winners in EACH category (e.g. K-5). That already existed (Setup → Places: per category,
@@ -2349,7 +2391,11 @@ text — keep rule 56.
   times on screen and on the printouts are the plan, not a timer.
 - **Printouts and codes can go stale.** A judge sheet shows codes and booths as they were when printed;
   changing a department / category code, a project number or a booth afterwards changes the screen but not
-  the paper. Settle codes and booths before printing.
+  the paper. Settle codes and booths before printing. **Booth code cards are tracked** (2026-11-19: the Projects
+  tab lists every printed card that no longer matches); judge sheets, booth visit sheets and the project-list PDF are not.
+- **Code-card tracking limits:** "printed" means the admin pressed **Yes, they printed** — the app cannot see the
+  printer. Saving a project's names by another path (CSV import, SQL that sets `updated_at`) can flag a card that is
+  in fact still right; an SQL edit of names that does NOT touch `updated_at` will NOT flag it. Edits in the app are exact.
 - **Removing a schedule leaves the judge grid as the schedule set it** (each number ticked into the
   departments of its visits) — lists then follow that grid. Re-tick the grid by hand if that is not wanted.
 
