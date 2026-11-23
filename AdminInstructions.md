@@ -232,6 +232,7 @@ Run through this a few days before, not on the morning of.
 - [ ] **Upload your school logo** (Setup tab → School branding) — and your fair poster if you have one.
 - [ ] **Enter every project/team**, each assigned to a department, with adviser and members.
 - [ ] **Print the project list** (Projects tab) and check advisers/members appear.
+- [ ] **Print the booth code cards** (Projects tab → 🏷️ Booth code cards) once booths and codes are settled. If a project changes later, the Projects tab tells you exactly which cards to reprint.
 - [ ] **Download Projects CSV** (Projects tab) — your own backup copy of every team. **⬆ Import projects** reads it back in if you ever need to restore.
 - [ ] **Finish the rubrics** (Rubric tab) and **pick one for each department** (Setup) before the first judge signs in.
 - [ ] **Decide how places are awarded** (Setup → each department → *Places: per department / per category*).
@@ -696,6 +697,30 @@ already has stay.
 **Rubric Breakdown (Expandable):**
 - Shows average score per criterion
 - Helps identify which rubric items judges are rating consistently high/low
+
+**🏷️ Booth code cards (print one per booth):**
+Near the bottom of the Projects tab, above *Back up & restore projects*.
+1. Pick **All departments** or one department
+2. Tick or untick **Student & adviser names** (ticked by default)
+3. Press **🖨 Print N cards** — a print page opens with one card per project: the school, the
+   **project code in large letters**, the title, *category • grade*, the students, the adviser, and
+   the booth number when the project has one. Two cards per Letter page with a dashed cut line.
+   Print it portrait at **100% scale**
+4. When the cards are out of the printer, press **✓ Yes, they printed**. Press **Not printed** if
+   they did not come out — nothing is recorded then
+
+**Keeping printed cards in sync.** Cards are always made from the project list as it is *at that
+moment*, so a new print is never out of date. Paper does not update itself, so the app remembers what
+you printed. If afterwards a project's **code** changes (its department, category or number, a
+department or category *Code* in Setup, or the code format), or its **title, grade, booth or
+students** change, the Projects tab shows an amber note at the top — *"1 printed code card no longer
+matches its project"* — and the card section lists each one with what changed, e.g.
+*code K5-PMA-051 → K5-ERT-051 · category → Engineering, Robotics & Technology*. Choose **Only changed
+& new**, print, press **Yes, they printed**, and throw the old cards away. A card whose project was
+removed is listed in red to throw away (**Done — thrown away** clears it).
+
+> Cards with names are for the booths on the day — do not post them online. The record of what was
+> printed holds codes, titles and dates only, never names.
 
 ### Alerts Tab — Event Health
 
