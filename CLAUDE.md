@@ -1,5 +1,8 @@
 # Qritiko — Science Fair Judging App · Claude Code Context
 
+> **⚠️ Two computers: read [HANDOFF.md](HANDOFF.md) FIRST** — what was pushed from where, and how to merge
+> unpushed work from the other computer without conflicts (never force-push).
+>
 > **Working with Codex:** follow [AI_COLLABORATION.md](AI_COLLABORATION.md).
 > Read `AGENTS.md` too and verify discrepancies against current code, migrations
 > and tests. Use one implementer and one reviewer unless explicitly assigned otherwise.
