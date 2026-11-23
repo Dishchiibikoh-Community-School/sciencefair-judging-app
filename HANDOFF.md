@@ -3,10 +3,9 @@
 > For Claude (or Codex) on ANY computer of this project. Read this before pulling, merging or pushing.
 > When the steps below are done, update the "Status" line and the log at the bottom, and commit it.
 
-**Status (2026-11-23, home PC):** the home PC's 2026-11-22 work (**no-show projects**, rule 87 + the live-data docs)
-is committed on branch `home-2026-11-22` and **origin/main (booth code cards) is merged into it** — conflicts in
-CLAUDE.md, package.json and ADMIN_HELP_UPDATED resolved keeping both sides. **Not pushed yet**: waiting for the full
-test run and the organiser's go-ahead. Next: `git switch main` → `git merge --ff-only home-2026-11-22` → push.
+**Status (2026-11-23, home PC):** merged and **pushed to `main`** — no-show projects (rule 87) on top of the booth
+code cards. Full browser suite 741/741 across 40 files, `npm test` 311/311, lint 28/5, build clean. Both computers:
+`git pull` before starting any new work.
 
 ---
 
@@ -76,3 +75,4 @@ Do these in order. **Never `git push --force`, never `git reset --hard`, never d
 | 2026-11-23 | work PC | `feat/code-cards` pushed, merged to `main`, deployed. This file added |
 | 2026-11-22 | home PC | No-show projects (rule 87) built + tested (31 checks, 12/12 mutants caught); not pushed |
 | 2026-11-23 | home PC | Work committed on `home-2026-11-22`; origin/main merged in (3 files conflicted, both sides kept); lint 28/5, build clean; code-cards, no-show, proj-edit, import, scan, lifecycle, help-guide all pass. Not pushed |
+| 2026-11-23 | home PC | setup.e2e fixed (its Category-dropdown locator picked up the code-cards selects — test only); full suite 741/741; pushed to `main` |

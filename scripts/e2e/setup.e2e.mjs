@@ -153,9 +153,10 @@ await A.page.waitForTimeout(400);
 await A.page.locator(".nav-it", { hasText: "Projects" }).first().click();
 await A.page.getByRole("button", { name: /Add Project/ }).first().click();
 await check("the new category appears in the Add Project dropdown", async () => {
-  // The form has several selects; take the one under the "Category" label.
-  const sel = A.page.locator("div").filter({ has: A.page.locator("div.lbl", { hasText: /^Category$/ }) })
-    .locator("select").last();
+  // The form has several selects; take the one under the "Category" label — inside the Add/Edit form
+  // (.proj-form). Unscoped, `.last()` reached the booth-code-card selects further down the tab (2026-11-19).
+  const sel = A.page.locator(".proj-form .proj-form-grid > div").filter({ has: A.page.locator("div.lbl", { hasText: /^Category$/ }) })
+    .locator("select").first();
   const opts = await sel.locator("option").allTextContents();
   assert.ok(opts.includes("Underwater Robotics"), `got: ${opts.join(" | ")}`);
   assert.ok(!opts.includes("Biology"), "the dead 2026-pre category list must be gone");
