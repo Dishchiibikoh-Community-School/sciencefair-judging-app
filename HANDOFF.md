@@ -3,6 +3,10 @@
 > For Claude (or Codex) on ANY computer of this project. Read this before pulling, merging or pushing.
 > When the steps below are done, update the "Status" line and the log at the bottom, and commit it.
 
+**Status (2026-11-24, work PC):** pushed to `main` — MS/HS form item 5 renamed "Abstract & Background" →
+"Research Background" (code preset only; the live form is updated by an admin in the Rubric tab). Both computers:
+`git pull` before starting any new work.
+
 **Status (2026-11-23, home PC):** merged and **pushed to `main`** — no-show projects (rule 87) on top of the booth
 code cards. Full browser suite 741/741 across 40 files, `npm test` 311/311, lint 28/5, build clean. Both computers:
 `git pull` before starting any new work.
@@ -76,3 +80,4 @@ Do these in order. **Never `git push --force`, never `git reset --hard`, never d
 | 2026-11-22 | home PC | No-show projects (rule 87) built + tested (31 checks, 12/12 mutants caught); not pushed |
 | 2026-11-23 | home PC | Work committed on `home-2026-11-22`; origin/main merged in (3 files conflicted, both sides kept); lint 28/5, build clean; code-cards, no-show, proj-edit, import, scan, lifecycle, help-guide all pass. Not pushed |
 | 2026-11-23 | home PC | setup.e2e fixed (its Category-dropdown locator picked up the code-cards selects — test only); full suite 741/741; pushed to `main` |
+| 2026-11-24 | work PC | Pulled the home PC's no-show work (clean fast-forward). MS/HS item 5 → "Research Background" (id `hs_abstract_bg` kept); rubrics-2627 28/28 + 7 related suites, lint 28/5, build clean; pushed to `main`. Entry sheet 2026-11-24 applied on live by SQL (Desktop file, names) — only #017 needed it, the other 7 were already fixed by hand |

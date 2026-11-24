@@ -426,7 +426,7 @@ Scoring UI is discrete tap buttons (`.rub-step-btn`), never sliders.
 | `northeast-az` | `DEFAULT_RUBRIC` — 10 criteria, 0–6 each, 42 pts. Has an `abstract` criterion, allows 0 |
 | `dishchiibikoh-20` | The detailed judging form: **20 items rated 1–5**, grouped by an optional `section` field (Project Title 5 · Scientific Inquiry 4 · Data and Conclusion 4 · Presentation 5 · Further Research 2) = 100 pts, floor 20. `section` is display-only (headings in the scoring form) |
 | `cibecue-100` | 5 weighted sections rated 1–5, **100 pts**: Project Title 15 · Scientific Inquiry 25 · Data and Conclusion 20 · Presentation 20 · Further Research 20. **No zero step — the floor is 20/100.** No `abstract` criterion |
-| `isef-ms-hs-2627` | **THE 2026-27 middle/high form** (final, from the organiser 2026-10-21): **20 items rated 1–5**, ids `hs_*`, five `section`s — Project Overview & Purpose 3 · Scientific Inquiry & Method 5 · Data & Conclusion 4 · Presentation & Defense 4 · Research, Collaboration & Compliance 4 = **15/25/20/20/20 = 100**, floor 20. **Numbers only** (no `stepLabels`; the scale is in `settings.guide`). "Abstract & Background" is `hs_abstract_bg`, NOT `abstract` (that id carries the grade-<5 exemption) |
+| `isef-ms-hs-2627` | **THE 2026-27 middle/high form** (final, from the organiser 2026-10-21): **20 items rated 1–5**, ids `hs_*`, five `section`s — Project Overview & Purpose 3 · Scientific Inquiry & Method 5 · Data & Conclusion 4 · Presentation & Defense 4 · Research, Collaboration & Compliance 4 = **15/25/20/20/20 = 100**, floor 20. **Numbers only** (no `stepLabels`; the scale is in `settings.guide`). Item 5 **"Research Background"** — *"Complete with clear background research/study."* (renamed from "Abstract & Background" 2026-11-24, organiser) — is `hs_abstract_bg`, NOT `abstract` (that id carries the grade-<5 exemption). **Never change that id**: saved scores and the preset match (`sameCriteria`, ids + maxima) depend on it |
 | `elementary-2627` | **THE 2026-27 elementary form**: **8 items rated 1–5** (= 40), ids `el_*`. The paper's "committee use: total × 2.5" is **built into the steps** — `steps [2.5, 5, 7.5, 10, 12.5]`, `max 12.5`, `stepLabels ["1".."5"]` — so every total, average, ranking, the 60% minimum and the outlier check are out of **100** with no downstream code knowing. `settings`: `factor 2.5` (display: "Ratings 32 / 40 × 2.5 = 80 / 100"), `feedback: "strength_next"`, `safety: true` |
 | `prek-sped-2627` | **THE 2026-27 PreK & SPED Recognition Rubric** (from the organiser 2026-10-21; replaces *Comments only* for PreK + SPED): **4 criteria rated 1–5** (whole numbers) = **20**, ids `ps_*`, floor 4. `settings`: `guide`, `commentsLabel`, **`ties: "share"`** (rule 78) and **`ribbons`** `[{min:17,Gold Star Scientist},{min:13,Silver Star},{min:0,Bright Star}]` — every child gets one, derived from the average, never stored |
 
@@ -1232,6 +1232,17 @@ approve with a no-show on the list; validation list without it; sign-out with no
 Alerts / Awards chip, no "waiting for reviews", Confirm all; a LATE score after validation leaves the other judge at 100 %;
 failed save; Undo; Finalize; Reset). An independent review found the late-score / team-left gap in the first version (a
 project-level rule) — fixed by the per-judge `visitSkipped`. **Mutation-tested: 12 of 12 mutants caught** (see the commit).
+
+**2026-11-24 — MS/HS form: "Abstract & Background" → "Research Background"** (no migration).
+Organiser's wording change: item 5 of `isef-ms-hs-2627` is now **Research Background — "Complete with clear background
+research/study."** (the word "abstract" removed). Label + description only; the id `hs_abstract_bg`, its max and steps are
+unchanged, so scores, CSV columns and the preset match (`sameCriteria` reads ids + maxima, never labels) are untouched.
+⚠️ The code change only alters the PRESET; a school's stored copy (`rubrics.criteria`) keeps the old wording until an admin
+edits it in the Rubric tab (Edit Rubric → item 5 → Save Rubric — a wording-only edit raises no impact warning and keeps
+every score; verified in the browser on a form with the old wording and an existing score).
+Tests: rubrics-2627 +1 (item 5 label/description, no "abstract" on the form, id kept) — **mutation-tested** (old wording →
+fails). rubrics-2627 28/28, rubrics 18, rubric-presets-setup 9, rubric100 16, prek-sped 16, judging 37, help-guide 22,
+code-cards 20; lint 28/5; build clean. No guide screenshot shows item 5.
 
 **2026-11-19 — Booth code cards (Projects tab)** (no migration — `app_settings` is key/value).
 The organiser asked for a ready-to-print project-code card per booth (school, PROJECT CODE in large letters, title,

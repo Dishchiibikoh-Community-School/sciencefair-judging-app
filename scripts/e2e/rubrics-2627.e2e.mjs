@@ -168,6 +168,17 @@ await M.page.locator(".proj-item", { hasText: "Bridge Earthquake Test" }).click(
 await check("five section headings, in the form's order", async () =>
   assert.deepEqual((await M.page.locator(".rub-section-head").allInnerTexts()).map(s => s.trim()),
     ["Project Overview & Purpose", "Scientific Inquiry & Method", "Data & Conclusion", "Presentation & Defense", "Research, Collaboration & Compliance"]));
+await check("item 5 reads 'Research Background' (renamed 2026-11-24) — no 'abstract' anywhere on the form", async () => {
+  const labels = (await M.page.locator(".rub-lbl").allInnerTexts()).map(t => t.trim());
+  const descs  = (await M.page.locator(".rub-desc").allInnerTexts()).map(t => t.trim());
+  assert.equal(labels.length, 20, `expected 20 items, got ${labels.length}`);
+  assert.equal(labels[4], "Research Background", labels[4]);
+  assert.equal(descs[4], "Complete with clear background research/study.", descs[4]);
+  assert.ok(![...labels, ...descs].some(t => /abstract/i.test(t)), "the word 'abstract' is still on the form");
+  // The id did not change, so the stored rubric still IS the 2026-27 form.
+  const crit = store.rubrics.find(r => /Middle & High School/.test(r.name))?.criteria || [];
+  assert.ok(crit.some(c => c.id === "hs_abstract_bg" && c.label === "Research Background"), "id hs_abstract_bg kept");
+});
 await check("numbers only (1–5), the scale in the guide, the form's comment box, no safety check", async () => {
   assert.equal(await M.page.locator(".rub-step-btn.labelled").count(), 0);
   assert.match(await M.page.locator("[data-testid=sc-guide]").innerText(), /1 = Needs Improvement · 2 = Fair · 3 = Good · 4 = Very Good · 5 = Excellent/);

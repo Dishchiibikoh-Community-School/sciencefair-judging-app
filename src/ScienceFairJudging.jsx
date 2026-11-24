@@ -158,8 +158,10 @@ const RUBRIC_PRESETS = [
     // item-by-item form and the summary weights finally agree. Numbers only (the committee
     // chose that, 2026-10-21); the scale words are in `settings.guide`. Ids are prefixed
     // `hs_` so they never collide with another rubric's columns in the CSV exports, and
-    // "Abstract & Background" is deliberately NOT id "abstract" — that id carries the old
-    // grade-below-5 exemption (requiresAbstract), which must not apply here.
+    // "Research Background" (labelled "Abstract & Background" until 2026-11-24 — the id
+    // `hs_abstract_bg` is kept so saved scores and the preset match survive the rename) is
+    // deliberately NOT id "abstract" — that id carries the old grade-below-5 exemption
+    // (requiresAbstract), which must not apply here.
     id: "isef-ms-hs-2627",
     label: "Middle & High School form (2026-27) — 20 items, 100 points",
     desc: "20 items rated 1–5 in five sections: Project Overview 15 · Scientific Inquiry 25 · Data & Conclusion 20 · Presentation & Defense 20 · Research & Compliance 20. No zero: the lowest possible total is 20.",
@@ -175,7 +177,7 @@ const RUBRIC_PRESETS = [
         ["hs_reallife",     "Real-Life Connection",    "Topic relates to real-world context or practical experimentation."]]],
       ["Scientific Inquiry & Method", [
         ["hs_question",     "Question / Problem",      "Clearly defines a scientific question or engineering problem."],
-        ["hs_abstract_bg",  "Abstract & Background",   "Complete abstract with clear background research/study."],
+        ["hs_abstract_bg",  "Research Background",     "Complete with clear background research/study."],
         ["hs_hypothesis",   "Hypothesis",              "Formulates a testable and logical hypothesis."],
         ["hs_organization", "Organization",            "Experiment or investigation is well-organized and systematic."],
         ["hs_method",       "Scientific Method",       "Follows the correct sequential steps of the scientific method or the engineering design process."]]],
